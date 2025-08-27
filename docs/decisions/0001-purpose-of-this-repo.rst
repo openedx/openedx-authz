@@ -1,57 +1,50 @@
-0001 Purpose of This Repo
-#########################
+0001: Purpose of This Repo
+##########################
 
 Status
 ******
 
 **Draft**
 
-.. TODO: When ready, update the status from Draft to Provisional or Accepted.
-
-.. Standard statuses
-    - **Draft** if the decision is newly proposed and in active discussion
-    - **Provisional** if the decision is still preliminary and in experimental phase
-    - **Accepted** *(date)* once it is agreed upon
-    - **Superseded** *(date)* with a reference to its replacement if a later ADR changes or reverses the decision
-
-    If an ADR has Draft status and the PR is under review, you can either use the intended final status (e.g. Provisional, Accepted, etc.), or you can clarify both the current and intended status using something like the following: "Draft (=> Provisional)". Either of these options is especially useful if the merged status is not intended to be Accepted.
-
 Context
 *******
 
-TODO: Add context of what led to the creation of this repo.
+The authorization (AuthZ) project is a community initiative to modernize how roles and permissions are defined, stored, and evaluated across the ecosystem. The existing system is fragmented, inflexible, and often results in over-permissioned users, repetitive administrative tasks, and difficulty adapting roles to organizational needs.
 
-.. This section describes the forces at play, including technological, political, social, and project local. These forces are probably in tension, and should be called out as such. The language in this section is value-neutral. It is simply describing facts.
+This project aims to introduce a unified authorization model that supports custom roles, flexible scopes, and policy-based evaluation. By decoupling role/permission logic from application code, the goal is to achieve a more scalable, extensible, and user-friendly authorization framework.
+
+For more details, please refer to the `Roles & Permissions confluence space <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/4724490259>`_.
 
 Decision
 ********
 
-We will create a repository...
+We will create a repository to hold the architecture, design decisions, and reference implementation for the Open edX Authorization (AuthZ) project.
 
-TODO: Clearly state how the context above led to the creation of this repo.
+This repository will serve as the central place for:
 
-.. This section describes our response to these forces. It is stated in full sentences, with active voice. "We will …"
+- Architectural Decision Records (ADRs) that document the evolution of the authorization model.
+- Design documents for scopes, policies, and integration approaches.
+- Reference implementations, libraries, and supporting code.
+- Migration strategies for replacing legacy RBAC models with the new system.
 
 Consequences
 ************
 
-TODO: Add what other things will change as a result of creating this repo.
-
-.. This section describes the resulting context, after applying the decision. All consequences should be listed here, not just the "positive" ones. A particular decision may have positive, negative, and neutral consequences, but all of them affect the team and project in the future.
+- This repository will provide a single source of truth for all architectural and design decisions regarding the new authorization framework.
+- It will make it easier to share progress, collect feedback, and collaborate across the community.
+- It decouples AuthZ development from ``edx-platform``, ensuring that the project can evolve independently and be later a reusable Django library.
+- The repo creates a clear boundary for experimentation and iteration, while providing a migration path to replace legacy role/permission handling over time.
 
 Rejected Alternatives
 *********************
 
-TODO: If applicable, list viable alternatives to creating this new repo and give reasons for why they were rejected. If not applicable, remove section.
-
-.. This section lists alternate options considered, described briefly, with pros and cons.
+- **Using the edx-platform repository for AuthZ work.**
+  Keeping the new authorization work inside ``edx-platform`` would limit flexibility, slow down iteration, and tightly couple experimental design with production code.
+  A standalone repo enables a cleaner separation of concerns and aligns with the long-term goal of a reusable library.
 
 References
 **********
 
-TODO: If applicable, add any references. If not applicable, remove section.
-
-.. (Optional) List any additional references here that would be useful to the future reader. See `Documenting Architecture Decisions`_ and `OEP-19 on ADRs`_ for further input.
-
-.. _Documenting Architecture Decisions: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
-.. _OEP-19 on ADRs: https://open-edx-proposals.readthedocs.io/en/latest/best-practices/oep-0019-bp-developer-documentation.html#adrs
+- Technical Approach: `AuthZ <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5176229910>`_
+- PRD: `Roles & Permissions <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/4724490259>`_
+- OEP-66: `Authorization Best Practices <https://docs.openedx.org/projects/openedx-proposals/en/latest/best-practices/oep-0066-bp-authorization.html>`_

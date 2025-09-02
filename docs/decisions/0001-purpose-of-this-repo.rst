@@ -24,8 +24,8 @@ This repository will serve as the central place for:
 
 - Architectural Decision Records (ADRs) that document the evolution of the authorization model.
 - Design documents for scopes, policies, and integration approaches.
-- Reference implementations, libraries, and supporting code.
-- Migration strategies for replacing legacy RBAC models with the new system.
+- Implementation of the new authorization framework which will eventually replace the legacy authorization system.
+- Migration strategies for replacing legacy RBAC models with this new system.
 
 Consequences
 ************

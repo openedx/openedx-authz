@@ -39,8 +39,8 @@ Rejected Alternatives
 *********************
 
 - **Using the edx-platform repository for AuthZ work.**
-  Keeping the new authorization work inside ``edx-platform`` would limit flexibility, slow down iteration, and tightly couple experimental design with production code.
-  A standalone repo enables a cleaner separation of concerns and aligns with the long-term goal of a reusable library.
+  - Keeping the new authorization work inside ``edx-platform`` would limit flexibility, slow down iteration, and tightly couple experimental design with production code.
+  - A standalone repo enables a cleaner separation of concerns and aligns with the long-term goal of the authorization framework to be leveraged across different services in the Open edX ecosystem.
 
 References
 **********

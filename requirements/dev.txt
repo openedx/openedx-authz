@@ -21,6 +21,8 @@ cachetools==6.2.0
     # via
     #   -r requirements/ci.txt
     #   tox
+casbin==1.43.0
+    # via -r requirements/quality.txt
 chardet==5.2.0
     # via
     #   -r requirements/ci.txt
@@ -189,6 +191,10 @@ pyyaml==6.0.2
     #   -r requirements/quality.txt
     #   code-annotations
     #   edx-i18n-tools
+simpleeval==1.0.3
+    # via
+    #   -r requirements/quality.txt
+    #   casbin
 six==1.17.0
     # via
     #   -r requirements/quality.txt

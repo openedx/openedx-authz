@@ -12,6 +12,8 @@ astroid==3.3.11
     # via
     #   pylint
     #   pylint-celery
+casbin==1.43.0
+    # via -r requirements/test.txt
 click==8.2.1
     # via
     #   -r requirements/test.txt
@@ -106,6 +108,10 @@ pyyaml==6.0.2
     # via
     #   -r requirements/test.txt
     #   code-annotations
+simpleeval==1.0.3
+    # via
+    #   -r requirements/test.txt
+    #   casbin
 six==1.17.0
     # via edx-lint
 snowballstemmer==3.0.1

@@ -36,7 +36,7 @@ Normalize all checks to Subject-Action-Object-Context (S-A-O-C)
 * Examples:
 
   - Can Alice (subject) edit (action) Course 123 (object) as part of Org A (context)?
-  - Can a service account (subject) read (action) Library X (object) during maintenance mode (context)?
+  - Can Bob (subject) read (action) Library X (object)?
 
 II. Resources and Scopes
 ========================

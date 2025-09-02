@@ -25,6 +25,7 @@ This repository will serve as the central place for:
 - Architectural Decision Records (ADRs) that document the evolution of the authorization model.
 - Design documents for scopes, policies, and integration approaches.
 - Implementation of the new authorization framework which will eventually replace the legacy authorization system.
+- Utilities which will be imported by other services in the Open edX ecosystem to leverage the new authorization capabilities.
 - Migration strategies for replacing legacy RBAC models with this new system.
 
 Consequences

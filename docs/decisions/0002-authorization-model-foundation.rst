@@ -35,8 +35,8 @@ Normalize all checks to Subject-Action-Object-Context (S-A-O-C)
 * This normalization is used in policies, code, queries, and audits.
 * Examples:
 
-  - Can Alice (subject) edit (action) Course 123 (object) as part of Org A (context)?
-  - Can Bob (subject) read (action) Library X (object)?
+  - Can Alice (subject) edit (action) the course ``course-v1:OpenedX+DemoX+DemoCourse`` (object) as part of Org A (context)?
+  - Can Bob (subject) read (action) the library ``lib:DemoX:CSPROB`` (object)?
 
 II. Resources and Scopes
 ========================
@@ -45,7 +45,7 @@ Scopes as first-class citizens in permission-granting
 -----------------------------------------------------
 * A **scope** defines the boundary within which a role or policy applies (for example: platform-wide, organization-wide, a single course, or a specific library).
 * Treating scopes as **first-class citizens** means they are explicitly modeled in the system, not hidden inside ad-hoc resource definitions. They must be available to policies, queries, and audits in a consistent way.
-* Scopes can be **parameterized** (e.g., ``organization:ORG-A``, ``course:CS101``,  ``site:sandbox.openedx.org``, ``instance``) to support granular checks.
+* Scopes can be **parameterized** (e.g., ``organization:ORG-A``, ``course:course-v1:OpenedX+DemoX+DemoCourse``,  ``site:sandbox.openedx.org``, ``instance``) to support granular checks.
 * **Inheritance across scopes** must be supported (e.g., permissions granted at the organization level can cascade to courses in that organization when intended).
 * By making scopes explicit and consistent, we avoid the fragmentation seen in legacy systems (different services using different implicit notions of "site", "org", "course").
 
@@ -102,8 +102,8 @@ VI. Engines and Integration
 
 Use proven frameworks with ABAC support and an adapter
 ------------------------------------------------------
-* Use existing open source frameworks (Casbin, Cerbos, OpenFGA, SpiceDB).
-* Do not build a custom engine.
+* Use existing open source frameworks (`Casbin <https://casbin.org>`_, `Cerbos <https://www.cerbos.dev>`_, `OpenFGA <https://authzed.com/spicedb>`_, `SpiceDB <https://spicedb.dev>`_, `Ory Keto <https://www.ory.sh/keto>`_, etc.).
+* Recommend against building a custom engine since authorization is a well-established domain with many existing solutions, reinventing the wheel introduces unnecessary complexity and maintenance burden.
 * The chosen technology must:
 
   - Support **ABAC** to allow growth beyond role-only systems.
@@ -119,13 +119,13 @@ Use proven frameworks with ABAC support and an adapter
 VII. Extensibility
 ===================
 
-Make roles, permissions, and models pluggable
----------------------------------------------
+Make roles, permissions, and resources pluggable
+------------------------------------------------
 * Extensibility should include:
 
   - Adding **custom roles** that can be composed from or unioned with existing permissions.
   - Adding **new permissions (verbs)** that build on top of existing ones.
-  - Defining **new models/resources** (e.g., "workspace", "assignment") and expressing their relations to existing ones (e.g., platform → organization → course).
+  - Defining **new resources** (e.g., "assignment") and expressing their relations to existing ones (e.g., platform → organization → course).
 
 * Applications must keep calling the same consistent check (e.g., *can(subject, action, object)*), while the schema or policy evolves underneath.
 
@@ -174,22 +174,27 @@ Rejected Alternatives
 
 References
 **********
-WIP
+- `AuthZ Key Concepts <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5177999395>`_
+- `AuthZ Architecture Approach <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5176229910>`_
+- `PRD Roles and Permissions <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/4724490259>`_
 
 Glossary
 ********
-* **Policy**: A declarative rule that defines which subjects can perform which actions on which objects under which context. Policies are stored outside of code, versioned, and auditable.
 
-* **RBAC (Role-Based Access Control)**: Authorization model where access is granted based on roles assigned to users.
-
-* **Scoped RBAC**: A variant of RBAC where roles apply within a specific scope (e.g., organization, course, library).
-
-* **ABAC (Attribute-Based Access Control)**: Authorization model where access is granted based on attributes of the subject, object, and context (e.g., user's organization, resource type, time of day).
-
-* **ReBAC (Relationship-Based Access Control)**: Authorization model where access decisions are based on explicit relationships between subjects and objects, often modeled as a graph.
-
-* **S-A-O-C (Subject-Action-Object-Context)**: The canonical shape of any authorization check: *is Subject allowed to perform Action on Object under Context?*
-
+* **Action**: The operation attempted on a resource (e.g., view, edit, delete).
+* **Attribute**: Property of a user or resource used in ABAC (e.g., user.profile.department == course.org).
 * **Authorization check**: The explicit way a service asks whether an operation is allowed, always expressed in S-A-O-C form.
+* **Authorization models**: Frameworks or approaches that define how to express who can do what, on which resource, and under which conditions. Common models include RBAC, ABAC, and ReBAC.
 
-* **Query check**: A pattern where the system returns all objects of type X on which a subject can perform a given action, under a given context.
+  * **RBAC (Role-Based Access Control)**: Authorization model where access is granted based on roles assigned to users.
+  * **Scoped RBAC**: A variant of RBAC where roles apply within a specific scope (e.g., organization, course, library).
+  * **ABAC (Attribute-Based Access Control)**: Authorization model where access is granted based on attributes of the subject, object, and context (e.g., user's organization, resource type, time of day).
+  * **ReBAC (Relationship-Based Access Control)**: Authorization model where access decisions are based on explicit relationships between subjects and objects, often modeled as a graph.
+
+* **Permission**: Atomic unit of access (e.g., ``CREATE_COURSE``, ``EDIT_ROLE``).
+* **Policy**: A declarative rule that defines which subjects can perform which actions on which objects under which context. Policies are stored outside of code, versioned, and auditable.
+* **Relationship**: Link between entities granting access in ReBAC (e.g., user:alice#editor@course:math101).
+* **Resource**: The object being accessed (e.g., Course).
+* **Role**: A collection of permissions assigned to a user (e.g., Instructor).
+* **S-A-O-C (Subject-Action-Object-Context)**: The canonical shape of any authorization check: *is Subject allowed to perform Action on Object under Context?*
+* **Scope**: The boundary where a role applies (e.g., Instructor in Course A, Admin in Org B).

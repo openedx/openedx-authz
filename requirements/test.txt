@@ -9,6 +9,10 @@ asgiref==3.9.1
     #   -r requirements/base.txt
     #   django
 casbin==1.43.0
+    # via
+    #   -r requirements/base.txt
+    #   django-authorization
+casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.txt
 click==8.2.1
     # via code-annotations
@@ -19,6 +23,13 @@ coverage[toml]==7.10.5
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.txt
+    #   casbin-django-orm-adapter
+    #   django-authorization
+    #   djangorestframework
+django-authorization==1.4.0
+    # via -r requirements/base.txt
+djangorestframework==3.16.1
+    # via -r requirements/base.txt
 iniconfig==2.1.0
     # via pytest
 jinja2==3.1.6
@@ -33,6 +44,10 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+pycasbin==2.2.0
+    # via
+    #   -r requirements/base.txt
+    #   casbin-django-orm-adapter
 pygments==2.19.2
     # via pytest
 pytest==8.4.1
@@ -51,6 +66,7 @@ simpleeval==1.0.3
     # via
     #   -r requirements/base.txt
     #   casbin
+    #   pycasbin
 sqlparse==0.5.3
     # via
     #   -r requirements/base.txt

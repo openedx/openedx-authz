@@ -7,14 +7,27 @@
 asgiref==3.9.1
     # via django
 casbin==1.43.0
+    # via django-authorization
+casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
 django==4.2.23
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.in
+    #   casbin-django-orm-adapter
+    #   django-authorization
+    #   djangorestframework
+django-authorization==1.4.0
+    # via -r requirements/base.in
+djangorestframework==3.16.1
+    # via -r requirements/base.in
 openedx-atlas==0.7.0
     # via -r requirements/base.in
+pycasbin==2.2.0
+    # via casbin-django-orm-adapter
 simpleeval==1.0.3
-    # via casbin
+    # via
+    #   casbin
+    #   pycasbin
 sqlparse==0.5.3
     # via django

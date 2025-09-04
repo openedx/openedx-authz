@@ -40,3 +40,42 @@ class OpenedxAuthzConfig(AppConfig):
             },
         },
     }
+
+    def ready(self):
+        """
+        Add admin users to the authorization policy.
+        """
+        # pylint: disable=import-outside-toplevel
+        from django.contrib.auth import get_user_model
+        from dauthz.core import enforcer
+
+        # Add minimum policies for anonymous users
+        anonymous_policies = [
+            ("/", "*"),
+            ("/login", "*"),
+            ("/api/mfe_config/v1", "*"),
+            ("/login_refresh", "*"),
+            ("/csrf/api/v1/token", "*"),
+            ("/api/user/v2/account/login_session/", "*"),
+            ("/dashboard", "*"),
+            ("/__debug__/history_sidebar/", "*"),
+            ("/theming/asset/images/no_course_image.png", "*"),
+        ]
+
+        for resource, action in anonymous_policies:
+            if not enforcer.has_policy("anonymous", resource, action):
+                enforcer.add_policy("anonymous", resource, action)
+
+        enforcer.save_policy()
+        print("\n\nAdded minimum policies for anonymous users!")
+
+        # Ensure admin users have access to all resources
+        User = get_user_model()
+
+        enforcer.add_policy("admin", "*", "*")
+        admin_users = User.objects.filter(is_staff=True, is_superuser=True)
+        for user in admin_users:
+            enforcer.add_role_for_user(user.username, "admin")
+        enforcer.save_policy()
+
+        print("Added admin users to the authorization policy!\n\n")

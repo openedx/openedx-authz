@@ -16,6 +16,13 @@ class Library(models.Model):
     title = models.CharField(max_length=255, help_text="Library title")
     description = models.TextField(blank=True, help_text="Library description")
 
+    def save(self, *args, **kwargs):
+        """
+        Override save method to automatically generate ID from org and slug.
+        """
+        self.id = f"lib:{self.org}:{self.slug}".replace(" ", "_")
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "Library"
         verbose_name_plural = "Libraries"

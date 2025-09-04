@@ -104,3 +104,36 @@ class LibraryViewSet(viewsets.ViewSet):
             {"detail": f'Library "{library_title}" has been deleted.'},
             status=status.HTTP_204_NO_CONTENT,
         )
+
+
+class AdminRoleAssignmentViewSet(viewsets.ViewSet):
+    """
+    ViewSet for managing admin role assignments using Casbin.
+    """
+
+    def create(self, request):
+        """
+        POST /admin-roles/
+        Assign admin role to a user.
+
+        Example request body:
+        ```json
+        {
+            "username": "john_doe"
+        }
+        ```
+        """
+        username = request.data["username"]
+        enforcer.add_role_for_user(username, "admin")
+        enforcer.save_policy()
+        return Response(f"Admin role assigned to user {username}", status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None):
+        """
+        DELETE /admin-roles/{username}/
+        Remove admin role from a user.
+        """
+        username = pk
+        enforcer.delete_role_for_user(username, "admin")
+        enforcer.save_policy()
+        return Response(f"Admin role removed from user {username}", status=status.HTTP_204_NO_CONTENT)

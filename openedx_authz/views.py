@@ -3,9 +3,9 @@ Views for openedx_authz DRF API.
 """
 
 from dauthz.core import enforcer
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
 
 from .models import Library
 from .serializers import LibrarySerializer
@@ -22,43 +22,35 @@ class LibraryViewSet(viewsets.ViewSet):
         GET /libraries/
         Return a list of all libraries.
         """
-        print("\n\nListing libraries...\n\n")
-
-        # Get all libraries from database
         libraries = Library.objects.all()
-
-        # Add authorization policies for each library
-        for library in libraries:
-            enforcer.add_policy(
-                self.request.user.username,
-                f"/openedx-authz/api/libraries/{library.id}/",
-                "(GET)|(POST)|(PUT)|(DELETE)|(PATCH)",
-            )
-            enforcer.save_policy()
-
-        # Filter by organization if requested
-        org = request.query_params.get("org")
-        if org:
-            libraries = libraries.filter(org__iexact=org)
-
-        # Search by title if requested
-        search = request.query_params.get("search")
-        if search:
-            libraries = libraries.filter(title__icontains=search)
-
-        # Serialize the libraries
         serializer = LibrarySerializer(libraries, many=True)
-
         return Response({"count": libraries.count(), "results": serializer.data})
 
     def create(self, request):
         """
         POST /libraries/
         Create a new library.
+
+        Example request body:
+
+        ```json
+        {
+            "title": "Title 1",
+            "org": "org1",
+            "slug": "slug1",
+            "description": "Description 1"
+        }
+        ```
         """
         serializer = LibrarySerializer(data=request.data)
         if serializer.is_valid():
             library = serializer.save()
+            enforcer.add_policy(
+                self.request.user.username,
+                f"{self.request.path}{library.id}/",
+                "(GET)|(PUT)|(DELETE)|(PATCH)",
+            )
+            enforcer.save_policy()
             return Response(LibrarySerializer(library).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -68,11 +60,6 @@ class LibraryViewSet(viewsets.ViewSet):
         Retrieve a specific library by ID.
         """
         library = get_object_or_404(Library, id=pk)
-        enforcer.remove_policy(
-            self.request.user.username, f"/openedx-authz/api/libraries/{pk}/", "(GET)|(POST)|(PUT)|(DELETE)|(PATCH)"
-        )
-        enforcer.save_policy()
-
         serializer = LibrarySerializer(library)
         return Response(serializer.data)
 
@@ -110,6 +97,8 @@ class LibraryViewSet(viewsets.ViewSet):
         library = get_object_or_404(Library, id=pk)
         library_title = library.title
         library.delete()
+        enforcer.remove_filtered_policy(1, self.request.user.username, f"{self.request.path}{library.id}/", "")
+        enforcer.save_policy()
 
         return Response(
             {"detail": f'Library "{library_title}" has been deleted.'},

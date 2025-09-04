@@ -28,8 +28,8 @@ def plugin_settings(settings):
             settings.INSTALLED_APPS.append(app)
 
     # Add middleware for authorization
-    # middleware_class = "dauthz.middlewares.request_middleware.RequestMiddleware"
-    # settings.MIDDLEWARE = settings.MIDDLEWARE + [middleware_class]
+    middleware_class = "dauthz.middlewares.request_middleware.RequestMiddleware"
+    settings.MIDDLEWARE = settings.MIDDLEWARE + [middleware_class]
 
     # Add authorization configuration
     settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "model.conf")

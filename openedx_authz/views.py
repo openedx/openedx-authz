@@ -137,3 +137,90 @@ class AdminRoleAssignmentViewSet(viewsets.ViewSet):
         enforcer.delete_role_for_user(username, "admin")
         enforcer.save_policy()
         return Response(f"Admin role removed from user {username}", status=status.HTTP_204_NO_CONTENT)
+
+
+class UserPermissionViewSet(viewsets.ViewSet):
+    """
+    ViewSet for managing specific user permissions using Casbin.
+    Allows adding or removing specific permissions for users on resources.
+
+    Example:
+    ```json
+    {
+        "username": "john_doe",
+        "obj": "/api/libraries/",
+        "act": "GET"
+    }
+    ```
+    """
+
+    def create(self, request):
+        """
+        POST /user-permissions/
+        Add a specific permission to a user.
+
+        Example request body:
+        ```json
+        {
+            "username": "john_doe",
+            "obj": "/api/libraries/123/",
+            "act": "GET"
+        }
+        ```
+        """
+        username = request.data.get("username")
+        obj = request.data.get("obj")
+        act = request.data.get("act")
+
+        if not all([username, obj, act]):
+            return Response({"error": "username, obj, and act are required fields"}, status=status.HTTP_400_BAD_REQUEST)
+
+        enforcer.add_policy(username, obj, act)
+        enforcer.save_policy()
+
+        return Response(
+            {
+                "message": f"Permission '{act}' on '{obj}' granted to user '{username}'",
+                "username": username,
+                "obj": obj,
+                "act": act,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def destroy(self, request, pk=None):
+        """
+        DELETE /user-permissions/{username}/
+        Remove a specific permission from a user.
+
+        Query parameters:
+        - obj: The resource path (required)
+        - act: The action/method (required)
+
+        Example: DELETE /user-permissions/john_doe/?obj=/api/libraries/123/&act=GET
+        """
+        username = pk
+        obj = request.query_params.get("obj")
+        act = request.query_params.get("act")
+
+        if not all([obj, act]):
+            return Response({"error": "obj and act query parameters are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = enforcer.remove_policy(username, obj, act)
+        enforcer.save_policy()
+
+        if result:
+            return Response(
+                {
+                    "message": f"Permission '{act}' on '{obj}' removed from user '{username}'",
+                    "username": username,
+                    "obj": obj,
+                    "act": act,
+                },
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        else:
+            return Response(
+                {"error": f"Permission not found for user '{username}' on '{obj}' with action '{act}'"},
+                status=status.HTTP_404_NOT_FOUND,
+            )

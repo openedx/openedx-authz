@@ -20,3 +20,4 @@ class LibrarySerializer(serializers.ModelSerializer):
             "title",
             "description",
         ]
+        read_only_fields = ["id"]

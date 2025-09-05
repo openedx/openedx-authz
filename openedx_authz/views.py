@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from .models import Library
 from .serializers import LibrarySerializer
 
+enforcer.enable_auto_save(True)
+
 
 class LibraryViewSet(viewsets.ViewSet):
     """
@@ -50,7 +52,6 @@ class LibraryViewSet(viewsets.ViewSet):
                 f"{self.request.path}{library.id}/",
                 "(GET)|(PUT)|(DELETE)|(PATCH)",
             )
-            enforcer.save_policy()
             return Response(LibrarySerializer(library).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -98,7 +99,6 @@ class LibraryViewSet(viewsets.ViewSet):
         library_title = library.title
         library.delete()
         enforcer.remove_filtered_policy(1, self.request.user.username, f"{self.request.path}{library.id}/", "")
-        enforcer.save_policy()
 
         return Response(
             {"detail": f'Library "{library_title}" has been deleted.'},
@@ -123,9 +123,9 @@ class AdminRoleAssignmentViewSet(viewsets.ViewSet):
         }
         ```
         """
+        enforcer.enable_auto_save(True)
         username = request.data["username"]
         enforcer.add_role_for_user(username, "admin")
-        enforcer.save_policy()
         return Response(f"Admin role assigned to user {username}", status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None):
@@ -135,7 +135,6 @@ class AdminRoleAssignmentViewSet(viewsets.ViewSet):
         """
         username = pk
         enforcer.delete_role_for_user(username, "admin")
-        enforcer.save_policy()
         return Response(f"Admin role removed from user {username}", status=status.HTTP_204_NO_CONTENT)
 
 
@@ -176,7 +175,6 @@ class UserPermissionViewSet(viewsets.ViewSet):
             return Response({"error": "username, obj, and act are required fields"}, status=status.HTTP_400_BAD_REQUEST)
 
         enforcer.add_policy(username, obj, act)
-        enforcer.save_policy()
 
         return Response(
             {
@@ -207,7 +205,6 @@ class UserPermissionViewSet(viewsets.ViewSet):
             return Response({"error": "obj and act query parameters are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         result = enforcer.remove_policy(username, obj, act)
-        enforcer.save_policy()
 
         if result:
             return Response(

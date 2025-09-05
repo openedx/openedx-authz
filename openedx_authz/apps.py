@@ -49,6 +49,8 @@ class OpenedxAuthzConfig(AppConfig):
         from django.contrib.auth import get_user_model
         from dauthz.core import enforcer
 
+        enforcer.enable_auto_save(True)
+
         # Add minimum policies for anonymous users
         anonymous_policies = [
             ("/", "*"),
@@ -66,7 +68,6 @@ class OpenedxAuthzConfig(AppConfig):
             if not enforcer.has_policy("anonymous", resource, action):
                 enforcer.add_policy("anonymous", resource, action)
 
-        enforcer.save_policy()
         print("\n\nAdded minimum policies for anonymous users!")
 
         # Ensure admin users have access to all resources
@@ -76,6 +77,5 @@ class OpenedxAuthzConfig(AppConfig):
         admin_users = User.objects.filter(is_staff=True, is_superuser=True)
         for user in admin_users:
             enforcer.add_role_for_user(user.username, "admin")
-        enforcer.save_policy()
 
         print("Added admin users to the authorization policy!\n\n")

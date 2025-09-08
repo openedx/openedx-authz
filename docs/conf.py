@@ -513,6 +513,13 @@ epub_exclude_files = ["search.html"]
 #
 # epub_use_index = True
 
+# Intersphinx Extension Configuration
+DIGITS_ONLY = r"^\d+$"
+rtd_language = os.environ.get("READTHEDOCS_LANGUAGE", "en")
+rtd_version = os.environ.get("READTHEDOCS_VERSION", "latest")
+if re.search(DIGITS_ONLY, rtd_version):
+    # This is a PR build, use the latest versions of the other repos.
+    rtd_version = "latest"
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
@@ -522,6 +529,12 @@ intersphinx_mapping = {
         "https://docs.djangoproject.com/en/3.2/_objects/",
     ),
     "model_utils": ("https://django-model-utils.readthedocs.io/en/latest/", None),
+    "openedx-proposals": (
+        # Not setting the version on purpose because we always want the latest version
+        # of OEPs
+        f"https://docs.openedx.org/projects/openedx-proposals/{rtd_language}/latest",
+        None,
+    ),
 }
 
 

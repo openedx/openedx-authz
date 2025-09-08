@@ -48,4 +48,4 @@ References
 
 - Technical Approach: `AuthZ <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5176229910>`_
 - PRD: `Roles & Permissions <https://openedx.atlassian.net/wiki/spaces/OEPM/pages/4724490259>`_
-- OEP-66: `Authorization Best Practices <https://docs.openedx.org/projects/openedx-proposals/en/latest/best-practices/oep-0066-bp-authorization.html>`_
+- OEP-66: :ref:`Authorization Best Practices <openedx-proposals:OEP-66 User Authorization>`

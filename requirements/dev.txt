@@ -150,6 +150,7 @@ pycasbin==2.2.0
     # via
     #   -r requirements/quality.txt
     #   casbin-django-orm-adapter
+    #   redis-watcher
 pycodestyle==2.14.0
     # via -r requirements/quality.txt
 pydocstyle==6.3.0
@@ -206,6 +207,12 @@ pyyaml==6.0.2
     #   -r requirements/quality.txt
     #   code-annotations
     #   edx-i18n-tools
+redis==6.4.0
+    # via
+    #   -r requirements/quality.txt
+    #   redis-watcher
+redis-watcher==1.8.0
+    # via -r requirements/quality.txt
 simpleeval==1.0.3
     # via
     #   -r requirements/quality.txt

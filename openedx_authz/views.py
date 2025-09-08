@@ -96,12 +96,11 @@ class LibraryViewSet(viewsets.ViewSet):
         Delete a library.
         """
         library = get_object_or_404(Library, id=pk)
-        library_title = library.title
         library.delete()
         enforcer.remove_filtered_policy(1, self.request.user.username, f"{self.request.path}{library.id}/", "")
 
         return Response(
-            {"detail": f'Library "{library_title}" has been deleted.'},
+            {"detail": f'Library "{library}" has been deleted.'},
             status=status.HTTP_204_NO_CONTENT,
         )
 

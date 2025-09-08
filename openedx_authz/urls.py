@@ -2,14 +2,16 @@
 URLs for openedx_authz.
 """
 
-from django.urls import re_path, include
+from django.urls import include, re_path
 from rest_framework.routers import DefaultRouter
-from .views import LibraryViewSet, AdminRoleAssignmentViewSet, UserPermissionViewSet
+
+from .views import AdminRoleAssignmentViewSet, LibraryViewSet, PolicyBulkViewSet, PolicySingleViewSet
 
 router = DefaultRouter()
 router.register(r"libraries", LibraryViewSet, basename="library")
 router.register(r"admin-roles", AdminRoleAssignmentViewSet, basename="admin-roles")
-router.register(r"user-permissions", UserPermissionViewSet, basename="user-permissions")
+router.register(r"policy-bulk", PolicyBulkViewSet, basename="policy-bulk")
+router.register(r"policy-single", PolicySingleViewSet, basename="policy-single")
 
 urlpatterns = [
     re_path(r"^api/", include(router.urls)),

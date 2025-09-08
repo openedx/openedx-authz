@@ -123,7 +123,6 @@ class AdminRoleAssignmentViewSet(viewsets.ViewSet):
         }
         ```
         """
-        enforcer.enable_auto_save(True)
         username = request.data["username"]
         enforcer.add_role_for_user(username, "admin")
         return Response(f"Admin role assigned to user {username}", status=status.HTTP_201_CREATED)
@@ -138,86 +137,125 @@ class AdminRoleAssignmentViewSet(viewsets.ViewSet):
         return Response(f"Admin role removed from user {username}", status=status.HTTP_204_NO_CONTENT)
 
 
-class UserPermissionViewSet(viewsets.ViewSet):
+class PolicyBulkViewSet(viewsets.ViewSet):
     """
-    ViewSet for managing specific user permissions using Casbin.
-    Allows adding or removing specific permissions for users on resources.
-
-    Example:
-    ```json
-    {
-        "username": "john_doe",
-        "obj": "/api/libraries/",
-        "act": "GET"
-    }
-    ```
+    ViewSet for bulk policy operations using Casbin's add_policies and remove_policies.
+    This is a simple testing interface for bulk policy management.
     """
 
     def create(self, request):
         """
-        POST /user-permissions/
-        Add a specific permission to a user.
+        POST /policy-bulk/
+        Add multiple policies at once using add_policies.
 
         Example request body:
         ```json
         {
-            "username": "john_doe",
-            "obj": "/api/libraries/123/",
-            "act": "GET"
+            "policies": [
+                ["user1", "/api/resource1/", "GET"],
+                ["user2", "/api/resource2/", "POST"],
+                ["user3", "/api/resource3/", "DELETE"]
+            ]
         }
         ```
         """
-        username = request.data.get("username")
-        obj = request.data.get("obj")
-        act = request.data.get("act")
-
-        if not all([username, obj, act]):
-            return Response({"error": "username, obj, and act are required fields"}, status=status.HTTP_400_BAD_REQUEST)
-
-        enforcer.add_policy(username, obj, act)
-
+        policies = request.data.get("policies", [])
+        result = enforcer.add_policies(policies)
         return Response(
             {
-                "message": f"Permission '{act}' on '{obj}' granted to user '{username}'",
-                "username": username,
-                "obj": obj,
-                "act": act,
+                "message": "Bulk policy addition completed",
+                "success": result,
+                "policies_added": len(policies),
+                "policies": policies,
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED if result else status.HTTP_200_OK,
         )
 
-    def destroy(self, request, pk=None):
+    def destroy(self, request, pk=None):  # pylint: disable=unused-argument
         """
-        DELETE /user-permissions/{username}/
-        Remove a specific permission from a user.
+        DELETE /policy-bulk/remove/
+        Remove multiple policies at once using remove_policies.
+        Uses request body instead of pk since we need to pass multiple policies.
 
-        Query parameters:
-        - obj: The resource path (required)
-        - act: The action/method (required)
-
-        Example: DELETE /user-permissions/john_doe/?obj=/api/libraries/123/&act=GET
+        Example request body:
+        ```json
+        {
+            "policies": [
+                ["user1", "/api/resource1/", "GET"],
+                ["user2", "/api/resource2/", "POST"]
+            ]
+        }
+        ```
         """
-        username = pk
-        obj = request.query_params.get("obj")
-        act = request.query_params.get("act")
+        policies = request.data.get("policies", [])
+        result = enforcer.remove_policies(policies)
+        return Response(
+            {
+                "message": "Bulk policy removal completed",
+                "success": result,
+                "policies_removed": len(policies),
+                "policies": policies,
+            },
+            status=status.HTTP_204_NO_CONTENT if result else status.HTTP_200_OK,
+        )
 
-        if not all([obj, act]):
-            return Response({"error": "obj and act query parameters are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        result = enforcer.remove_policy(username, obj, act)
+class PolicySingleViewSet(viewsets.ViewSet):
+    """
+    ViewSet for single policy operations using Casbin's add_policy and remove_policy.
+    Simple testing interface for individual policy management.
+    """
 
-        if result:
-            return Response(
-                {
-                    "message": f"Permission '{act}' on '{obj}' removed from user '{username}'",
-                    "username": username,
-                    "obj": obj,
-                    "act": act,
-                },
-                status=status.HTTP_204_NO_CONTENT,
-            )
-        else:
-            return Response(
-                {"error": f"Permission not found for user '{username}' on '{obj}' with action '{act}'"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+    def create(self, request):
+        """
+        POST /policy-single/
+        Add a single policy using add_policy.
+
+        Example request body:
+        ```json
+        {
+            "subject": "user1",
+            "object": "/api/resource1/",
+            "action": "GET"
+        }
+        ```
+        """
+        subject = request.data.get("subject")
+        obj = request.data.get("object")
+        action = request.data.get("action")
+        result = enforcer.add_policy(subject, obj, action)
+        return Response(
+            {
+                "message": "Policy added successfully" if result else "Policy already exists",
+                "success": result,
+                "policy": [subject, obj, action],
+            },
+            status=status.HTTP_201_CREATED if result else status.HTTP_200_OK,
+        )
+
+    def destroy(self, request, pk=None):  # pylint: disable=unused-argument
+        """
+        DELETE /policy-single/remove/
+        Remove a single policy using remove_policy.
+
+        Example request body:
+        ```json
+        {
+            "subject": "user1",
+            "object": "/api/resource1/",
+            "action": "GET"
+        }
+        ```
+        """
+        subject = request.data.get("subject")
+        obj = request.data.get("object")
+        action = request.data.get("action")
+        result = enforcer.remove_policy(subject, obj, action)
+        return Response(
+            {
+                "message": "Policy removed successfully" if result else "Policy not found",
+                "success": result,
+                "policy": [subject, obj, action],
+            },
+            status=status.HTTP_204_NO_CONTENT if result else status.HTTP_404_NOT_FOUND,
+        )

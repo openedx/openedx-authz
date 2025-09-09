@@ -47,7 +47,8 @@ Scopes as first-class citizens in permission-granting
 * Treating scopes as **first-class citizens** means they are explicitly modeled in the system, not hidden inside ad-hoc resource definitions. They must be available to policies, queries, and audits in a consistent way.
 * Scopes can be **parameterized** (e.g., ``organization:ORG-A``, ``course:course-v1:OpenedX+DemoX+DemoCourse``,  ``site:sandbox.openedx.org``, ``instance``) to support granular checks.
 * **Inheritance across scopes** must be supported (e.g., permissions granted at the organization level can cascade to courses in that organization when intended).
-* By making scopes explicit and consistent, we avoid the fragmentation seen in legacy systems (different services using different implicit notions of "site", "org", "course").
+* By making scopes explicit and consistent, we avoid the fragmentation seen in legacy systems (different services using different implicit notions of "instance", "org", "course").
+* Scope is part of the **Context** in S-A-O-C checks.
 
 III. Authorization Paradigm
 ===========================
@@ -60,7 +61,7 @@ Adopt ABAC as the goal; Scoped RBAC as a first step
 * **ABAC** adds finer control by using attributes of subjects, resources, and context (e.g., "editors can edit only in their assigned organizations or locations").
 * **ReBAC** is not chosen because it adds complexity and we do not have strong use cases today.
 
-  - Although ReBAC solves interesting problems out of the box (inheritance, recursive relationships), it introduces a mental shift in how to think about authorization.
+  - Although ReBAC solves interesting problems out of the box (inheritance, recursive relationships), it introduces a mental shift in how to think about authorization so we're not explicitly adopting it for now.
   - Some technologies are ReBAC-first but can also implement RBAC and ABAC effectively. These are not excluded, but they shouldn't go against our **simplicity principle**.
 
 * **Simplicity principle**: avoid adding features like deep role inheritance or complex hierarchies until there are clear use cases that require them.

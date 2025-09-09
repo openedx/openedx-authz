@@ -30,7 +30,7 @@ I. Canonical Permission Model
 =============================
 
 Normalize all checks to Subject-Action-Object-Context (S-A-O-C)
-----------------------------------------------------------------
+---------------------------------------------------------------
 * We express authorization as: is **Subject** allowed to do **Action** on **Object** under **Context**?
 * This normalization is used in policies, code, queries, and audits.
 * Examples:
@@ -98,7 +98,7 @@ Use centralized enforcement
 * In both cases, services must not embed authorization logic directly.
 
 VI. Engines and Integration
-============================
+===========================
 
 Use proven frameworks with ABAC support and an adapter
 ------------------------------------------------------
@@ -117,7 +117,7 @@ Use proven frameworks with ABAC support and an adapter
   - Ensures consistent logging and decision tracing.
 
 VII. Extensibility
-===================
+==================
 
 Make roles, permissions, and resources pluggable
 ------------------------------------------------
@@ -130,7 +130,7 @@ Make roles, permissions, and resources pluggable
 * Applications must keep calling the same consistent check (e.g., *can(subject, action, object)*), while the schema or policy evolves underneath.
 
 VIII. Auditability
-=================
+==================
 
 Make all decisions explainable
 ------------------------------

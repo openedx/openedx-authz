@@ -9,15 +9,15 @@ Context
 *******
 Open edX needs a single way to decide: who can do what, on which resource, and under which conditions. Today, permissions are checked in many different ways. Some systems are feature-specific (``student_courseaccessrole``, ``django_comment_client_role``, ``contentlibrarypermission``). Others use global roles passed in JWTs. Many checks are written directly in code (``if user.is_superuser``). This makes the system hard to extend, hard to change, and not easy to audit.
 
-We want an authorization model that is:
+We want an authorization model that:
 
-* Clear and consistent vocabulary everywhere.
+* Uses a clear and consistent vocabulary throughout.
 * Explicitly supports industry standards and is built on battle-tested technologies.
-* Flexible but still simple to maintain.
-* Able to explain every decision (the system should be transparent on why access was granted or not).
-* Unified and centralized enforcement rather than ad-hoc implementations for immediate needs.
-* Able to support query-based access patterns out of the box.
-* Focused on connecting stakeholders and making policies clear and accessible to everyone involved.
+* Is flexible but still simple to maintain.
+* Can explain every decision (the system should be transparent on why access was granted or not).
+* Enforces decisions in a unified and centralized way, rather than ad-hoc implementations for immediate needs.
+* Supports query-based access patterns out of the box.
+* Focuses on connecting stakeholders and making policies clear and accessible to everyone involved.
 
 .. note::
 

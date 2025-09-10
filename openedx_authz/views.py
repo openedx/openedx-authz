@@ -6,12 +6,12 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
-from openedx_authz.custom_enforcer import get_enforcer
+from openedx_authz.engine.enforcer import Enforcer
 
 from .models import Library
 from .serializers import LibrarySerializer
 
-enforcer = get_enforcer()
+enforcer = Enforcer()
 
 
 class LibraryViewSet(viewsets.ViewSet):

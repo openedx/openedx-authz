@@ -40,7 +40,7 @@ def plugin_settings(settings):
                 "CONFIG_TEXT": "",
             },
             "ADAPTER": {
-                "NAME": "casbin_adapter.adapter.Adapter",
+                "NAME": "openedx_authz.engine.adapter.ExtendedAdapter",
             },
             "LOG": {
                 "ENABLED": True,

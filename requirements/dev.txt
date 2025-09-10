@@ -21,6 +21,12 @@ cachetools==6.2.0
     # via
     #   -r requirements/ci.txt
     #   tox
+casbin==1.43.0
+    # via
+    #   -r requirements/quality.txt
+    #   django-authorization
+casbin-django-orm-adapter==1.7.0
+    # via -r requirements/quality.txt
 chardet==5.2.0
     # via
     #   -r requirements/ci.txt
@@ -64,7 +70,14 @@ django==4.2.23
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/quality.txt
+    #   casbin-django-orm-adapter
+    #   django-authorization
+    #   djangorestframework
     #   edx-i18n-tools
+django-authorization==1.4.0
+    # via -r requirements/quality.txt
+djangorestframework==3.16.1
+    # via -r requirements/quality.txt
 edx-i18n-tools==1.9.0
     # via -r requirements/dev.in
 edx-lint==5.6.0
@@ -133,6 +146,11 @@ pluggy==1.6.0
     #   tox
 polib==1.2.0
     # via edx-i18n-tools
+pycasbin==2.2.0
+    # via
+    #   -r requirements/quality.txt
+    #   casbin-django-orm-adapter
+    #   redis-watcher
 pycodestyle==2.14.0
     # via -r requirements/quality.txt
 pydocstyle==6.3.0
@@ -189,6 +207,17 @@ pyyaml==6.0.2
     #   -r requirements/quality.txt
     #   code-annotations
     #   edx-i18n-tools
+redis==6.4.0
+    # via
+    #   -r requirements/quality.txt
+    #   redis-watcher
+redis-watcher==1.8.0
+    # via -r requirements/quality.txt
+simpleeval==1.0.3
+    # via
+    #   -r requirements/quality.txt
+    #   casbin
+    #   pycasbin
 six==1.17.0
     # via
     #   -r requirements/quality.txt

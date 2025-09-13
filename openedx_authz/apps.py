@@ -11,3 +11,4 @@ class OpenedxAuthzConfig(AppConfig):
     """
 
     name = "openedx_authz"
+    plugin_app = {}

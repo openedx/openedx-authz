@@ -5,3 +5,4 @@ Django             # Web application framework
 
 
 openedx-atlas
+pycasbin           # Authorization library for implementing access control models

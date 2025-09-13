@@ -1,0 +1,11 @@
+# ===== ACTION GROUPING (g2) =====
+
+# manage implies edit, delete, read, write
+g2, act:manage, act:edit
+g2, act:manage, act:delete
+g2, act:edit, act:read
+g2, act:edit, act:write
+
+# edit implies read, write
+g2, act:edit, act:read
+g2, act:edit, act:write

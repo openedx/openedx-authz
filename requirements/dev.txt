@@ -50,6 +50,8 @@ coverage[toml]==7.10.5
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
+ddt==1.7.2
+    # via -r requirements/quality.txt
 diff-cover==9.6.0
     # via -r requirements/dev.in
 dill==0.4.0
@@ -133,6 +135,8 @@ pluggy==1.6.0
     #   tox
 polib==1.2.0
     # via edx-i18n-tools
+pycasbin==2.2.0
+    # via -r requirements/quality.txt
 pycodestyle==2.14.0
     # via -r requirements/quality.txt
 pydocstyle==6.3.0
@@ -189,6 +193,10 @@ pyyaml==6.0.2
     #   -r requirements/quality.txt
     #   code-annotations
     #   edx-i18n-tools
+simpleeval==1.0.3
+    # via
+    #   -r requirements/quality.txt
+    #   pycasbin
 six==1.17.0
     # via
     #   -r requirements/quality.txt

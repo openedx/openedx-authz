@@ -14,6 +14,8 @@ code-annotations==2.3.0
     # via -r requirements/test.in
 coverage[toml]==7.10.5
     # via pytest-cov
+ddt==1.7.2
+    # via -r requirements/test.in
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.txt
@@ -31,6 +33,8 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+pycasbin==2.2.0
+    # via -r requirements/base.txt
 pygments==2.19.2
     # via pytest
 pytest==8.4.1
@@ -45,6 +49,10 @@ python-slugify==8.0.4
     # via code-annotations
 pyyaml==6.0.2
     # via code-annotations
+simpleeval==1.0.3
+    # via
+    #   -r requirements/base.txt
+    #   pycasbin
 sqlparse==0.5.3
     # via
     #   -r requirements/base.txt

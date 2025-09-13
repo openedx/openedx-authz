@@ -28,6 +28,8 @@ coverage[toml]==7.10.5
     # via
     #   -r requirements/test.txt
     #   pytest-cov
+ddt==1.7.2
+    # via -r requirements/test.txt
 dill==0.4.0
     # via pylint
 django==4.2.23
@@ -67,6 +69,8 @@ pluggy==1.6.0
     #   -r requirements/test.txt
     #   pytest
     #   pytest-cov
+pycasbin==2.2.0
+    # via -r requirements/test.txt
 pycodestyle==2.14.0
     # via -r requirements/quality.in
 pydocstyle==6.3.0
@@ -106,6 +110,10 @@ pyyaml==6.0.2
     # via
     #   -r requirements/test.txt
     #   code-annotations
+simpleeval==1.0.3
+    # via
+    #   -r requirements/test.txt
+    #   pycasbin
 six==1.17.0
     # via edx-lint
 snowballstemmer==3.0.1

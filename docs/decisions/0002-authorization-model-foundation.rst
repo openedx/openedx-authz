@@ -71,7 +71,7 @@ IV. Policy Definition
 
 Externalize policies
 --------------------
-* Policies must be defined outside code, not hardcoded with conditionals.
+* Policies must be defined and managed externally (e.g., in policy files or a database store), not embedded directly in application logic. The default model is an allowlist: actions are permitted only when explicitly granted.
 
   - Prefer declarative policy definitions (e.g., JSON, YAML, policy language) over in-code checks like ``if user.is_superuser``.
   - Prefer explicit permission checks over implicit role lookups in business logic.

@@ -1,5 +1,19 @@
 """
-Extended Casbin enforcer with watcher integration.
+Core authorization enforcer for Open edX AuthZ system.
+
+Provides a Casbin FastEnforcer instance with extended adapter for database policy
+storage and Redis watcher for distributed policy synchronization.
+
+Components:
+    - enforcer: Main FastEnforcer instance for policy evaluation
+    - adapter: ExtendedAdapter for filtered database policy loading
+    - watcher: Redis-based watcher for real-time policy updates
+
+Usage:
+    from openedx_authz.engine.enforcer import enforcer
+    allowed = enforcer.enforce(user, resource, action)
+
+Requires `CASBIN_MODEL` setting and Redis configuration for watcher functionality.
 """
 
 import logging

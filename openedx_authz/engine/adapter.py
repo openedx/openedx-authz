@@ -25,7 +25,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
     """
     Extended Casbin adapter with filtering capabilities.
 
-    This adapter extends the base Django Casbin adapter to support filtered
+    This adapter extends the base Django ORM Casbin adapter to support filtered
     policy loading, allowing for more efficient policy management by loading
     only relevant policy rules based on specified filter criteria.
 

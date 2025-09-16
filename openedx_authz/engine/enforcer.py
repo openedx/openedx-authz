@@ -3,19 +3,17 @@ Extended Casbin enforcer with watcher integration.
 """
 
 import logging
-import os
 
 from casbin import FastEnforcer
+from django.conf import settings
 
-from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.watcher import Watcher
 
 logger = logging.getLogger(__name__)
 
-model_file = os.path.join(ROOT_DIRECTORY, "engine", "model.conf")
 adapter = ExtendedAdapter()
-enforcer = FastEnforcer(model_file, adapter, enable_log=False)
+enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=False)
 
 try:
     enforcer.set_watcher(Watcher)

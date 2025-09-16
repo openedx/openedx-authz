@@ -4,16 +4,8 @@ Common settings for openedx_authz plugin.
 
 import os
 
-from redis_watcher import WatcherOptions, new_watcher
-
 from openedx_authz import ROOT_DIRECTORY
-
-
-def callback_function(event):
-    """
-    Callback function for the enforcer.
-    """
-    print("\nCallback function for the enforcer, event: {}".format(event))
+from openedx_authz.engine.watcher import Watcher
 
 
 def plugin_settings(settings):
@@ -31,11 +23,6 @@ def plugin_settings(settings):
         settings.INSTALLED_APPS.append(casbin_adapter_app)
 
     # Add Casbin configuration
-    settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "model.conf")
-    watcher_options = WatcherOptions()
-    watcher_options.host = "redis"
-    watcher_options.port = 6379
-    watcher_options.optional_update_callback = callback_function
-    watcher = new_watcher(watcher_options)
-    settings.CASBIN_WATCHER = watcher
+    settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "model.conf")
+    settings.CASBIN_WATCHER = Watcher
     settings.CASBIN_ADAPTER = "openedx_authz.engine.adapter.ExtendedAdapter"

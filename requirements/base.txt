@@ -16,15 +16,6 @@ django==4.2.23
 openedx-atlas==0.7.0
     # via -r requirements/base.in
 pycasbin==2.2.0
-<<<<<<< HEAD
-=======
-    # via
-    #   casbin-django-orm-adapter
-    #   redis-watcher
-redis==6.4.0
-    # via redis-watcher
-redis-watcher==1.8.0
->>>>>>> 62c5c10 (feat: add casbin engine)
     # via -r requirements/base.in
 simpleeval==1.0.3
     # via pycasbin

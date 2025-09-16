@@ -7,10 +7,10 @@ then tests enforcement for each request in request.txt.
 
 import os
 
-import casbin
 from django.core.management.base import BaseCommand, CommandError
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.engine.enforcer import enforcer
 
 
 class Command(BaseCommand):
@@ -75,8 +75,9 @@ class Command(BaseCommand):
         self.stdout.write("")
 
         try:
-            enforcer = casbin.FastEnforcer(model_file, policy_file)
             self.stdout.write(self.style.SUCCESS("✓ Casbin enforcer created successfully"))
+
+            enforcer.load_policy()
 
             policies = enforcer.get_policy()
             roles = enforcer.get_grouping_policy()
@@ -88,9 +89,9 @@ class Command(BaseCommand):
             self.stdout.write("")
 
             if interactive_mode:
-                self._run_interactive_mode(enforcer)
+                self._run_interactive_mode()
             else:
-                self._process_requests(enforcer, request_file)
+                self._process_requests(request_file)
 
         except Exception as e:
             raise CommandError(f"Error creating Casbin enforcer: {str(e)}") from e
@@ -99,7 +100,7 @@ class Command(BaseCommand):
         """Get the file path for the given file name."""
         return os.path.join(ROOT_DIRECTORY, "engine", file_name)
 
-    def _process_requests(self, enforcer: casbin.Enforcer, request_file: str) -> None:
+    def _process_requests(self, request_file: str) -> None:
         """Process each request in the request file and test enforcement."""
         self.stdout.write(self.style.SUCCESS("=== Processing Enforcement Requests ==="))
 
@@ -165,7 +166,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f"⚠️ {failed_requests} test(s) failed"))
 
-    def _run_interactive_mode(self, enforcer: casbin.Enforcer) -> None:
+    def _run_interactive_mode(self) -> None:
         """Run interactive mode for testing custom enforcement requests."""
         self.stdout.write(self.style.SUCCESS("=== Interactive Mode ==="))
         self.stdout.write("Test custom enforcement requests interactively.")
@@ -179,11 +180,11 @@ class Command(BaseCommand):
                 user_input = input("Enter enforcement test (or command): ").strip()
                 if not user_input:
                     continue
-                self._test_interactive_request(enforcer, user_input)
+                self._test_interactive_request(user_input)
             except (KeyboardInterrupt, EOFError):
                 break
 
-    def _test_interactive_request(self, enforcer: casbin.Enforcer, user_input: str) -> None:
+    def _test_interactive_request(self, user_input: str) -> None:
         """Test a single enforcement request from interactive input."""
         try:
             parts = [part.strip() for part in user_input.split()]

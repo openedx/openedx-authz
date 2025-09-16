@@ -132,7 +132,7 @@ CHANGELOG = open(os.path.join(os.path.dirname(__file__), "CHANGELOG.rst"), encod
 setup(
     name="openedx-authz",
     version=VERSION,
-    description="""One-line description for README and other doc files.""",
+    description="""Open edX AuthZ provides the architecture and foundations of the authorization framework.""",
     long_description=README + "\n\n" + CHANGELOG,
     author="Open edX Project",
     author_email="oscm@openedx.org",

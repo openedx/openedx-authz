@@ -1,5 +1,5 @@
 """
-One-line description for README and other doc files.
+Open edX AuthZ provides the architecture and foundations of the authorization framework.
 """
 
 import os

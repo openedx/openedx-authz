@@ -407,7 +407,7 @@ texinfo_documents = [
         documentation_title,
         author,
         project_title,
-        "One-line description for README and other doc files.",
+        "Open edX AuthZ provides the architecture and foundations of the authorization framework.",
         "Miscellaneous",
     ),
 ]

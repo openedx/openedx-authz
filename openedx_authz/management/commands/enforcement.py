@@ -10,6 +10,8 @@ import os
 import casbin
 from django.core.management.base import BaseCommand, CommandError
 
+from openedx_authz import ROOT_DIRECTORY
+
 
 class Command(BaseCommand):
     """
@@ -26,20 +28,20 @@ class Command(BaseCommand):
         parser.add_argument(
             "--model-file",
             type=str,
-            default="model.conf",
+            default=self.get_file_path("model.conf"),
             help="Path to the Casbin model configuration file (default: model.conf)",
         )
         parser.add_argument(
             "--policy-file",
             type=str,
-            default="authz.policy",
-            help="Path to the policy CSV file (default: policy.csv)",
+            default=self.get_file_path("authz.policy"),
+            help="Path to the policy CSV file (default: authz.policy)",
         )
         parser.add_argument(
             "--request-file",
             type=str,
-            default="request.sample",
-            help="Path to the request test file (default: request.txt)",
+            default=self.get_file_path("request.sample"),
+            help="Path to the request test file (default: request.sample)",
         )
         parser.add_argument(
             "--interactive",
@@ -49,8 +51,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Handle the command."""
-        model_file = self.get_file_path(options["model_file"])
-        policy_file = self.get_file_path(options["policy_file"])
+        model_file = options["model_file"]
+        policy_file = options["policy_file"]
+        request_file = options["request_file"]
         interactive_mode = options.get("interactive", False)
 
         if not os.path.isfile(model_file):
@@ -59,7 +62,6 @@ class Command(BaseCommand):
             raise CommandError(f"Policy file not found: {policy_file}")
 
         if not interactive_mode:
-            request_file = self.get_file_path(options["request_file"])
             if not os.path.isfile(request_file):
                 raise CommandError(f"Request file not found: {request_file}")
 
@@ -69,12 +71,11 @@ class Command(BaseCommand):
         if interactive_mode:
             self.stdout.write("Mode: Interactive")
         else:
-            request_file = self.get_file_path(options["request_file"])
             self.stdout.write(f"Request file: {request_file}")
         self.stdout.write("")
 
         try:
-            enforcer = casbin.Enforcer(model_file, policy_file)
+            enforcer = casbin.FastEnforcer(model_file, policy_file)
             self.stdout.write(self.style.SUCCESS("✓ Casbin enforcer created successfully"))
 
             policies = enforcer.get_policy()
@@ -89,7 +90,6 @@ class Command(BaseCommand):
             if interactive_mode:
                 self._run_interactive_mode(enforcer)
             else:
-                request_file = self.get_file_path(options["request_file"])
                 self._process_requests(enforcer, request_file)
 
         except Exception as e:
@@ -97,7 +97,7 @@ class Command(BaseCommand):
 
     def get_file_path(self, file_name: str) -> str:
         """Get the file path for the given file name."""
-        return os.path.join(os.path.dirname(__file__), file_name)
+        return os.path.join(ROOT_DIRECTORY, "engine", file_name)
 
     def _process_requests(self, enforcer: casbin.Enforcer, request_file: str) -> None:
         """Process each request in the request file and test enforcement."""

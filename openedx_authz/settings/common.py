@@ -5,7 +5,6 @@ Common settings for openedx_authz plugin.
 import os
 
 from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.engine.watcher import Watcher
 
 
 def plugin_settings(settings):
@@ -24,5 +23,3 @@ def plugin_settings(settings):
 
     # Add Casbin configuration
     settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "model.conf")
-    settings.CASBIN_WATCHER = Watcher
-    settings.CASBIN_ADAPTER = "openedx_authz.engine.adapter.ExtendedAdapter"

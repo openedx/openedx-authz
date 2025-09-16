@@ -11,4 +11,31 @@ class OpenedxAuthzConfig(AppConfig):
     """
 
     name = "openedx_authz"
-    plugin_app = {}
+    verbose_name = "Open edX AuthZ"
+    default_auto_field = "django.db.models.BigAutoField"
+    plugin_app = {
+        "url_config": {
+            "lms.djangoapp": {
+                "namespace": "openedx-authz",
+                "regex": r"^openedx-authz/",
+                "relative_path": "urls",
+            },
+            "cms.djangoapp": {
+                "namespace": "openedx-authz",
+                "regex": r"^openedx-authz/",
+                "relative_path": "urls",
+            },
+        },
+        "settings_config": {
+            "lms.djangoapp": {
+                "test": {"relative_path": "settings.test"},
+                "common": {"relative_path": "settings.common"},
+                "production": {"relative_path": "settings.production"},
+            },
+            "cms.djangoapp": {
+                "test": {"relative_path": "settings.test"},
+                "common": {"relative_path": "settings.common"},
+                "production": {"relative_path": "settings.production"},
+            },
+        },
+    }

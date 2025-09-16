@@ -163,5 +163,8 @@ setup(
         "lms.djangoapp": [
             "openedx_authz = openedx_authz.apps:OpenedxAuthzConfig",
         ],
+        "cms.djangoapp": [
+            "openedx_authz = openedx_authz.apps:OpenedxAuthzConfig",
+        ],
     },
 )

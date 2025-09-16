@@ -6,3 +6,5 @@ Django             # Web application framework
 
 openedx-atlas
 pycasbin
+casbin-django-orm-adapter
+redis-watcher

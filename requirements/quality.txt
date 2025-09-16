@@ -12,6 +12,8 @@ astroid==3.3.11
     # via
     #   pylint
     #   pylint-celery
+casbin-django-orm-adapter==1.7.0
+    # via -r requirements/test.txt
 click==8.2.1
     # via
     #   -r requirements/test.txt
@@ -34,6 +36,7 @@ django==4.2.23
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/test.txt
+    #   casbin-django-orm-adapter
 edx-lint==5.6.0
     # via -r requirements/quality.in
 iniconfig==2.1.0

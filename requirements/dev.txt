@@ -21,6 +21,8 @@ cachetools==6.2.0
     # via
     #   -r requirements/ci.txt
     #   tox
+casbin-django-orm-adapter==1.7.0
+    # via -r requirements/quality.txt
 chardet==5.2.0
     # via
     #   -r requirements/ci.txt
@@ -64,6 +66,7 @@ django==4.2.23
     # via
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/quality.txt
+    #   casbin-django-orm-adapter
     #   edx-i18n-tools
 edx-i18n-tools==1.9.0
     # via -r requirements/dev.in

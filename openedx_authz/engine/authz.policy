@@ -15,7 +15,6 @@ p, role:org_editor, act:edit, lib:restricted-content, deny
 p, role:org_admin, act:manage, lib:another-restricted-content, deny
 
 # ===== ROLE ASSIGNMENTS =====
-
 # Platform administrators
 g, user:admin, role:platform_admin, *
 # Organization administrators

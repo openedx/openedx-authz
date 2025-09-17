@@ -115,7 +115,10 @@ pluggy==1.6.0
     #   pytest
     #   pytest-cov
 pycasbin==2.2.0
-    # via -r requirements/test.txt
+    # via
+    #   -r requirements/test.txt
+    #   casbin-django-orm-adapter
+    #   redis-watcher
 pycparser==2.22
     # via cffi
 pydata-sphinx-theme==0.15.4

@@ -40,11 +40,10 @@ The architecture consists of several key components:
 
 Here is an overview diagram of the architecture:
 
-.. image:: ../images/architecture-overview.png
+.. image:: ../_images/architecture-overview.png
    :alt: Architecture Overview
    :align: center
    :width: 600px
-
 
 This architecture is supported by detailed design decisions outlined below.
 
@@ -70,7 +69,7 @@ A Dedicated Open edX Layer for Authorization
 
 Interact with the Policy Store via the Open edX Layer
 ------------------------------------------------------
-- The policy store, which can be a database or configuration files (e.g., authz.policy) will be accessed and managed through the Open edX Layer. No direct access to the policy store should be made by services.
+- The policy store, which can be a database or configuration files (e.g., ``authz.policy``) will be accessed and managed through the Open edX Layer. No direct access to the policy store should be made by services.
 - The Open edX Layer will handle loading policies from the policy store into the Authorization Engine and ensure that policies are kept up to date.
 - The Open edX Layer will also manage the separation between static policies (shipped with services) and dynamic policies (managed via the policy data store) to ensure clarity and maintainability.
 
@@ -96,7 +95,7 @@ Store All Policies in the Policy Store
 --------------------------------------
 - All policies (i.e., any type of rule) should be stored in the policy store to ensure a single source of truth for authorization.
 - Use the policy store to manage RBAC mappings, such as user-role and role-permission assignments, using Casbin's grouping policies (``g, g2``).
-- Use Casbin's adapter APIs to load policies from the policy store into the Authorization Engine at startup and whenever policies are updated.
+- Use Casbin's adapter APIs based on Django APIs to load policies from the policy store into the Authorization Engine at startup and whenever policies are updated.
 
 Maintain Consistent Model and Policy Definitions Across Services
 ----------------------------------------------------------------
@@ -106,12 +105,12 @@ Maintain Consistent Model and Policy Definitions Across Services
 #. Client Interactions with the Authorization System
 =====================================================
 
-Use the Enforcement API for Authorization Decisions
----------------------------------------------------
+Use the Enforcement API for Authorization Decisions for External Clients
+------------------------------------------------------------------------
 - External clients (e.g., MFEs, IDAs, or any service not co-located with the policy store) must use the REST API provided by the Open edX authorization layer to request authorization decisions.
 
-Use a Stable and Versioned Public API
--------------------------------------
+Use a Stable and Versioned Public API for Other Clients
+-------------------------------------------------------
 - The Open edX Layer will provide a stable and versioned Public API for services to interact with the authorization system. This API will be well-documented and include clear contracts for inputs, outputs, and error handling.
 - In-process clients (e.g., LMS, CMS, or any service co-located with the policy store) may use this Public API (``api.py``) directly to interact with the Open edX Layer without going through the REST API, but they must still adhere to the same contracts and versioning.
 - Clients must provide all necessary context for authorization decisions, including subject, action, object, and any relevant contextual information (e.g., organization, course) and the authorization layer will make the decision based on the policies in the policy store.

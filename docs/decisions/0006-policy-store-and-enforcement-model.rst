@@ -90,6 +90,23 @@ Delegate Policy Ownership to Services
 - Authorization decisions must always be answered by the service that owns the relevant data and policies (policy owner). For instance, the LMS decides whether a user can access a course because it owns enrollments and courseware data. The CMS decides whether a user can edit content because it owns the content data.
 - The policy store is by default shared across services, but each service is responsible for its own policies and authorization decisions.
 
+#. Policy Lifecycle
+===================
+
+Use a Back-reference Model to Track Domain Objects
+--------------------------------------------------
+- Use an intermediate back-reference model to track domain objects (e.g., courses, organizations) and their relationships to users and roles.
+- Use cascading deletes to ensure that when a domain object is deleted, all associated policies are also removed from the policy store. This helps maintain data integrity and prevents orphaned policies.
+
+Use a Periodic Reconciliation Process to Clean Up Stale Policies
+----------------------------------------------------------------
+- Implement periodic cleanup tasks to remove stale or orphaned policies that may not be automatically deleted due to unforeseen circumstances.
+- This reconciliation process will help maintain the integrity of the policy store and ensure that it reflects the current state of the system.
+
+Create the Record of the Back-reference Model in the same Transaction as the Policy Creation
+--------------------------------------------------------------------------------------------
+- To ensure data integrity, the creation of the back-reference model record and the corresponding policy in the policy store should occur within the same transaction. This ensures that both operations succeed or fail together.
+
 Consequences
 ************
 
@@ -110,3 +127,7 @@ Consequences
 #. **Clients Share the Same Policy Store**: By default, all services share the same policy store to ensure consistency and avoid conflicts. This means that policies defined by one service can affect authorization decisions in another service.
 
 #. **Making Policies Immutable Might Introduce Operational Complexity**: While making dynamic policies immutable after creation enhances security and auditability, it may introduce operational complexity. Administrators will need to delete and recreate policies to make changes, which could lead to increased administrative overhead.
+
+#. **Performance Considerations**: The use of dynamic policies and complex matchers may introduce performance overhead. It is essential to monitor the performance of the authorization engine and optimize policies and matchers as needed to ensure that authorization checks remain efficient.
+
+#. **For Data Integrity Purposes, Place the Policy Store Where the Data is Owned**: To ensure data integrity and consistency, the policy store should be hosted in the same environment as the services that own the data and policies. If this is not feasible, additional mechanisms must be implemented to maintain consistency like an event-bus mechanism.

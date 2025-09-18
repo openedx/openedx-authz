@@ -37,8 +37,6 @@ Establish Naming Conventions for Subjects, Actions, Objects, and Contexts
   - Use singular verbs for actions (e.g., ``view``, ``edit``, ``delete``) with snake_case formatting when multiple words are needed (e.g., ``view_grades``, ``edit_content``).
   - Use the username as the subject when referring to individual users (e.g., ``alice``, ``bob``).
   - Use clear and descriptive names for roles. (e.g., ``course_admin``, ``content_creator``).
-- Use custom matchers to implement complex logic, but keep them as simple and reusable as possible.
-- Document all default policies with in-line comments in the ``authz.policy`` files to explain their purpose and usage.
 
 Use ``authz.policy`` Files for Default Policies
 -----------------------------------------------
@@ -46,6 +44,7 @@ Use ``authz.policy`` Files for Default Policies
 - The ``authz.policy`` file will be loaded by the Open edX Layer at service initialization and saved in the policy store upon first load. They provide a baseline set of policies that ensure consistent behavior across deployments.
 - Default policies should be subjected to load-testing to ensure they do not introduce performance regressions.
 - Services can override the default ``authz.policy`` file by providing a custom file path via configuration if needed.
+- Document all default policies with in-line comments in the ``authz.policy`` files to explain their purpose and usage.
 
 #. Policy Management and Versioning
 ====================================

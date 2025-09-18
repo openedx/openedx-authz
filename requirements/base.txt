@@ -12,5 +12,9 @@ django==4.2.23
     #   -r requirements/base.in
 openedx-atlas==0.7.0
     # via -r requirements/base.in
+pycasbin==2.2.0
+    # via -r requirements/base.in
+simpleeval==1.0.3
+    # via pycasbin
 sqlparse==0.5.3
     # via django

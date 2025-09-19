@@ -58,6 +58,14 @@ class PolicyAttribute(Enum):
     - v5: Optional additional context.
     """
 
+    PTYPE = "ptype"
+    V0 = "v0"
+    V1 = "v1"
+    V2 = "v2"
+    V3 = "v3"
+    V4 = "v4"
+    V5 = "v5"
+
 
 class ExtendedAdapter(Adapter, FilteredAdapter):
     """

@@ -1,5 +1,14 @@
 """
-Watcher for the enforcer with enhanced policy reload capabilities.
+Redis-based policy change watcher for the authorization enforcer.
+
+This module provides functionality to monitor policy changes in real-time using Redis
+as a message broker. It enables automatic policy reloading across multiple instances
+of the authorization system to maintain consistency and synchronization.
+
+The watcher connects to Redis on the configured host and port, listens for policy
+change events, and automatically triggers policy reloads when changes are detected.
+This ensures that all running instances of the authorization system stay synchronized
+with the latest policy configurations.
 """
 
 import logging

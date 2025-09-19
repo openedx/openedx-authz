@@ -13,6 +13,7 @@ with the latest policy configurations.
 
 import logging
 
+from django.conf import settings
 from redis_watcher import WatcherOptions, new_watcher
 
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ def create_watcher():
         The configured watcher instance
     """
     watcher_options = WatcherOptions()
-    watcher_options.host = "redis"
-    watcher_options.port = 6379
+    watcher_options.host = settings.REDIS_HOST
+    watcher_options.port = settings.REDIS_PORT
     watcher_options.optional_update_callback = callback_function
 
     try:

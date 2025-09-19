@@ -22,4 +22,4 @@ def plugin_settings(settings):
         settings.INSTALLED_APPS.append(casbin_adapter_app)
 
     # Add Casbin configuration
-    settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "model.conf")
+    settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")

@@ -5,6 +5,6 @@ Django             # Web application framework
 
 
 openedx-atlas
-pycasbin
-casbin-django-orm-adapter
-redis-watcher
+pycasbin                    # Authorization library for implementing access control models
+casbin-django-orm-adapter   # Adapter for Django ORM for Casbin
+redis-watcher               # Watcher for Redis for Casbin

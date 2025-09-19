@@ -25,9 +25,7 @@ Decision
 
 * We choose to use `Casbin`_ as the authorization engine for Open edX, which allows us to have a robust foundation, enabling long-term evolution; improves security because it enforce the principle of least privilege; help us maintain a centrilize logic, making it easier to manage and update; and promotes best practice because has support for multiple well-understood authorization models. This decision of using Casbin is also aligned with the `Authorization Model Foundations ADR`_.
 
-* We'll use the production-ready Python (pycasbin) library and Django integration (django-authorization) for Django native APIs.
-
-* We will integrate Casbin as a library within our services to avoid introducing a new service.
+* We will integrate Casbin as a library (using the production-ready Python library, `PyCasbin`_) within our services to avoid introducing a new service.
 
 * We'll use a centralized policy enforcement, which means all access requests are evaluated against a unified set of policies before granting or denying access.
 
@@ -90,6 +88,8 @@ References
 * `Authorization Model Foundations ADR`_
 * `Authorization Technologies Reviewed`_
 * `Authorization Technologies Comparison Table`_
+* `Casbin`_
+* `PyCasbin`_
 
 
 .. _a consistent set of evaluation criteria: https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5179179033/AuthZ+Technologies+Comparison#Framework-for-Evaluation
@@ -101,3 +101,5 @@ References
 .. _Authorization Technologies Reviewed: https://openedx.atlassian.net/wiki/spaces/OEPM/pages/5179179033/AuthZ+Technologies+Comparison#Authorization-Technologies-Reviewed
 
 .. _Casbin: https://casbin.org/
+
+.. _PyCasbin: https://github.com/casbin/pycasbin

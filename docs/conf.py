@@ -407,7 +407,7 @@ texinfo_documents = [
         documentation_title,
         author,
         project_title,
-        "One-line description for README and other doc files.",
+        "Open edX AuthZ provides the architecture and foundations of the authorization framework.",
         "Miscellaneous",
     ),
 ]
@@ -559,6 +559,7 @@ def on_init(app):  # pylint: disable=unused-argument
             docs_path,
             os.path.join(root_path, "openedx_authz"),
             os.path.join(root_path, "openedx_authz/migrations"),
+            os.path.join(root_path, "openedx_authz/tests"),
         ]
     )
 

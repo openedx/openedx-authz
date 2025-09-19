@@ -11,6 +11,8 @@ integration) and FilteredAdapter (for selective policy loading) to provide
 optimized policy management for authorization systems.
 """
 
+from enum import Enum
+
 from casbin import persist
 from casbin.model import Model
 from casbin.persist import FilteredAdapter
@@ -19,6 +21,42 @@ from casbin_adapter.models import CasbinRule
 from django.db.models import QuerySet
 
 from openedx_authz.engine.filter import Filter
+
+
+class PolicyAttribute(Enum):
+    """
+    Enumeration of Casbin policy attributes.
+
+    These attributes map to the columns of the CasbinRule table, but their meaning
+    depends on the policy type (ptype):
+
+    - ptype: Type of policy
+        * 'p'  → Policy rule (permissions).
+        * 'g'  → Grouping rule (user ↔ role).
+        * 'g2' → Action grouping (parent action ↔ child action).
+
+    - v0:
+        * For 'p' → Subject (e.g., 'role:org_admin', 'user:alice').
+        * For 'g' → User (e.g., 'user:alice').
+        * For 'g2' → Parent action (e.g., 'act:manage').
+
+    - v1:
+        * For 'p' → Action (e.g., 'act:manage', 'act:edit').
+        * For 'g' → Role (e.g., 'role:org_admin').
+        * For 'g2' → Child action (e.g., 'act:edit').
+
+    - v2:
+        * For 'p' → Object or resource (e.g., 'lib:*', 'org:MIT').
+        * For 'g' → Scope or resource (e.g., 'org:MIT').
+        * For 'g2' → Not used.
+
+    - v3:
+        * For 'p' → Effect ('allow' or 'deny').
+        * Otherwise unused.
+
+    - v4: Optional additional context.
+    - v5: Optional additional context.
+    """
 
 
 class ExtendedAdapter(Adapter, FilteredAdapter):
@@ -37,8 +75,6 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         _filtered (bool): Flag indicating whether the adapter supports filtering.
     """
 
-    _filtered = True
-
     def is_filtered(self) -> bool:
         """
         Check if the adapter supports filtering.
@@ -46,7 +82,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         Returns:
             bool: True if the adapter supports filtered policy loading, False otherwise.
         """
-        return self._filtered
+        return True
 
     def load_filtered_policy(self, model: Model, filter: Filter) -> None:  # pylint: disable=redefined-builtin
         """
@@ -66,7 +102,6 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         filtered_queryset = self.filter_query(queryset, filter)
         for line in filtered_queryset:
             persist.load_policy_line(str(line), model)
-        self._filtered = True
 
     def filter_query(self, queryset: QuerySet, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
         """
@@ -84,9 +119,9 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         Returns:
             QuerySet: Filtered and ordered queryset of CasbinRule objects.
         """
-        for attr in ("ptype", "v0", "v1", "v2", "v3", "v4", "v5"):
-            filter_values = getattr(filter, attr)
+        for attr in PolicyAttribute:
+            filter_values = getattr(filter, attr.value)
             if len(filter_values) > 0:
-                filter_kwargs = {f"{attr}__in": filter_values}
+                filter_kwargs = {f"{attr.value}__in": filter_values}
                 queryset = queryset.filter(**filter_kwargs)
         return queryset.order_by("id")

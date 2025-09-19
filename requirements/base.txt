@@ -6,6 +6,8 @@
 #
 asgiref==3.9.1
     # via django
+attrs==25.3.0
+    # via -r requirements/base.in
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
 django==4.2.24

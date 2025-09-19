@@ -8,6 +8,8 @@ asgiref==3.9.1
     # via
     #   -r requirements/base.txt
     #   django
+attrs==25.3.0
+    # via -r requirements/base.txt
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.txt
 click==8.3.0

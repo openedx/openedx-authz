@@ -3,7 +3,8 @@
 
 Status
 ******
-**Draft**
+
+**Accepted** *2025-09-18*
 
 Context
 *******

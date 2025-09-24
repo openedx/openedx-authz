@@ -54,6 +54,12 @@ class Command(BaseCommand):
             required=True,
             help="Path to the Casbin policy file (supports CSV format with policies, roles, and action grouping)",
         )
+        parser.add_argument(
+            "--model-file-path",
+            type=str,
+            required=False,
+            help="Path to the Casbin model file. If not provided, the default model.conf file will be used.",
+        )
 
     def handle(self, *args, **options):
         """Execute the enforcement testing command.
@@ -68,7 +74,7 @@ class Command(BaseCommand):
         Raises:
             CommandError: If model or policy files are not found or enforcer creation fails.
         """
-        model_file_path = self.get_file_path("model.conf")
+        model_file_path = self._get_file_path("model.conf") or options["model_file_path"]
         policy_file_path = options["policy_file_path"]
 
         if not os.path.isfile(model_file_path):
@@ -99,7 +105,7 @@ class Command(BaseCommand):
         except Exception as e:
             raise CommandError(f"Error creating Casbin enforcer: {str(e)}") from e
 
-    def get_file_path(self, file_name: str) -> str:
+    def _get_file_path(self, file_name: str) -> str:
         """Construct the full file path for a configuration file.
 
         Args:

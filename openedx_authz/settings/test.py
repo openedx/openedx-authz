@@ -2,18 +2,17 @@
 Test settings for openedx_authz plugin.
 """
 
-from os.path import abspath, dirname, join
+import os
+
+from django.conf import settings
 
 from openedx_authz import ROOT_DIRECTORY
 
-
-def root(*args):
-    """
-    Get the absolute path of the given path relative to the project root.
-    """
-    return join(abspath(dirname(__file__)), *args)
-
-
+# Add Casbin configuration
+CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
+# Redis host and port are temporarily loaded here for the MVP
+REDIS_HOST = "redis"
+REDIS_PORT = 6379
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -31,39 +30,30 @@ INSTALLED_APPS = (
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
-    "casbin_adapter",
-    "openedx_authz",
+    "openedx_authz.apps.OpenedxAuthzConfig",
+    "casbin_adapter.apps.CasbinAdapterConfig",
 )
 
-LOCALE_PATHS = [
-    root("openedx_authz", "conf", "locale"),
-]
-
-ROOT_URLCONF = "openedx_authz.urls"
-
-SECRET_KEY = "insecure-secret-key"
-
-MIDDLEWARE = (
+MIDDLEWARE = [
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-)
+]
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "APP_DIRS": False,
+        "DIRS": [],
+        "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
-                "django.contrib.auth.context_processors.auth",  # this is required for admin
-                "django.contrib.messages.context_processors.messages",  # this is required for admin
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
-    }
+    },
 ]
 
-
-CASBIN_MODEL = join(ROOT_DIRECTORY, "engine", "config", "model.conf")
-CASBIN_WATCHER_ENABLED = False
-REDIS_HOST = "redis"
-REDIS_PORT = 6379
+SECRET_KEY = "test-secret-key"

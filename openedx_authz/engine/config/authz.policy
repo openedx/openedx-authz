@@ -1,11 +1,59 @@
-# ===== ACTION GROUPING (g2) =====
+# Policies for roles - format: p = subject(role), action, scope, effect
+# Library Admin Role Policies
+p, role:library_admin, act:delete_library, library:*, allow
+p, role:library_admin, act:publish_library, library:*, allow
+p, role:library_admin, act:manage_library_team, library:*, allow
+p, role:library_admin, act:manage_library_tags, library:*, allow
+p, role:library_admin, act:delete_library_content, library:*, allow
+p, role:library_admin, act:publish_library_content, library:*, allow
+p, role:library_admin, act:delete_library_collection, library:*, allow
+p, role:library_admin, act:create_library, library:*, allow
+p, role:library_admin, act:create_library_collection, library:*, allow
 
-# manage implies edit, delete, read, write
-g2, act:manage, act:edit
-g2, act:manage, act:delete
-g2, act:edit, act:read
-g2, act:edit, act:write
+# Library Author Role Policies
+p, role:library_author, act:delete_library_content, library:*, allow
+p, role:library_author, act:publish_library_content, library:*, allow
+p, role:library_author, act:edit_library, library:*, allow
+p, role:library_author, act:manage_library_tags, library:*, allow
+p, role:library_author, act:create_library_collection, library:*, allow
+p, role:library_author, act:edit_library_collection, library:*, allow
+p, role:library_author, act:delete_library_collection, library:*, allow
 
-# edit implies read, write
-g2, act:edit, act:read
-g2, act:edit, act:write
+# Library Collaborator Role Policies
+p, role:library_collaborator, act:edit_library, library:*, allow
+p, role:library_collaborator, act:delete_library_content, library:*, allow
+p, role:library_collaborator, act:manage_library_tags, library:*, allow
+p, role:library_collaborator, act:create_library_collection, library:*, allow
+p, role:library_collaborator, act:edit_library_collection, library:*, allow
+p, role:library_collaborator, act:delete_library_collection, library:*, allow
+
+# Library User Role Policies
+p, role:library_user, act:view_library, library:*, allow
+p, role:library_user, act:view_library_team, library:*, allow
+p, role:library_user, act:reuse_library_content, library:*, allow
+
+# User-to-Role assignments (g) - format: g = user, role, scope
+# These would be populated dynamically based on actual user assignments
+g, user:alice_admin, role:library_admin, library:math_101
+g, user:bob_author, role:library_author, library:history_201
+g, user:carol_collaborator, role:library_collaborator, library:science_301
+g, user:dave_user, role:library_user, library:english_101
+g, user:eve_multi, role:library_admin, library:physics_401
+g, user:eve_multi, role:library_author, library:chemistry_501
+g, user:frank_global, role:library_user, *
+
+# Action Inheritance (g2) - format: g2 = parent_action, child_action
+# The logical inheritance hierarchy for actions
+g2, act:edit_library, act:delete_library
+g2, act:view_library, act:edit_library
+g2, act:edit_library, act:create_library
+g2, act:view_library, act:publish_library
+g2, act:view_library_team, act:manage_library_team
+g2, act:view_library_tags, act:manage_library_tags
+g2, act:edit_library_collection, act:delete_library_collection
+g2, act:view_library_collection, act:edit_library_collection
+g2, act:edit_library_collection, act:create_library_collection
+g2, act:view_library_content, act:edit_library_content
+g2, act:edit_library_content, act:delete_library_content
+g2, act:view_library_content, act:publish_library_content
+g2, act:view_library_content, act:reuse_library_content

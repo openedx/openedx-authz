@@ -8,97 +8,147 @@ Casbin implements role inheritance through the g (role) and g2 (role hierarchy)
 assertions.
 """
 
+from typing import Literal
+
+from attrs import define
+
+# from openedx_authz.engine.enforcer import enforcer
+# TODO: should we dependency inject the enforcer to the API functions?
+# For now, we create a global enforcer instance for testing purposes
 from openedx_authz.engine.enforcer import enforcer
 
-# TODO: should we use attrs to define the Role class? Scopes and so on?
-# def create_role(
-#     role_name: str,
-#     description: str,
-#     actions: list[str],
-#     resources: list[str],
-#     scopes: list[str] = None,
-#     context: str = None,
-#     inherit_from: str = None,
-# ) -> None:
-#     """Create a new role in the policy store.
 
-#     Args:
-#         role_name: The name of the role.
-#         description: The description of the role.
-#     """
-#     pass
+@define
+class Permission:  # TODO: change to policy?
+    """A permission is an action that can be performed under certain conditions.
 
-# def add_permission_to_role(role_name: str, permission_name: str) -> None:
-#     """Add a permission to a role.
+    Attributes:
+        name: The name of the permission.
+    """
 
-#     Args:
-#         role_name: The name of the role.
-#         permission_name: The name of the permission.
-#     """
-#     pass
+    # TODO: what other attributes should a permission have?
+    name: str
+    effect: Literal["allow", "deny"] = "allow"
 
-# def remove_permission_from_role(role_name: str, permission_name: str) -> None:
-#     """Remove a permission from a role.
 
-#     Args:
-#         role_name: The name of the role.
-#         permission_name: The name of the permission.
-#     """
-#     pass
+@define
+class Role:
+    """A role is a named group of permissions.
 
-def get_permissions_for_role(role_name: str) -> list[str]:
-    """Get the permissions for a role.
+    Attributes:
+        name: The name of the role.
+        permissions: A list of permissions assigned to the role.
+        scopes: A list of scopes assigned to the role.
+        metadata: A dictionary of metadata assigned to the role. This can include
+            information such as the description of the role, creation date, etc.
+    """
+
+    name: str
+    permissions: list[Permission] = None
+    scopes: list[str] = None
+    metadata: dict[str, str] = None
+
+
+def create_role_in_scope_and_assign_permissions(role_name: str, permissions: list[Permission], scope: str) -> None:
+    """Create a role and assign permissions to it.
 
     Args:
         role_name: The name of the role.
+        permissions: A list of permissions to assign to the role.
+        scope: The scope in which to create the role.
     """
+    for permission in permissions:
+        enforcer.add_policy(role_name, permission.name, scope, permission.effect)
 
-def get_role_metadata(role_name: str) -> dict:
-    """Get the metadata for a role.
+
+def get_permissions_for_roles(role_names: list[str]) -> dict[str, list[Permission]]:
+    """Get the permissions for a list of roles.
+
+    A permission is a policy rule with the effect 'allow' assigned to a role.
 
     Args:
-        role_name: The name of the role.
-    """
-    pass
+        role_names: A list of role names.
 
-def assign_role_to_user(user_id: str, role_name: str) -> None:
+    Returns:
+        dict[str, list[Permission]]: A dictionary mapping role names to a list of permissions.
+    """
+    # TODO: do I need to return implicit permissions as well?
+    # TODO: This considers that there is no inheritance between roles
+    # TODO: should we say policies instead of permissions?
+    permissions_by_role = {}
+    for role_name in role_names:
+        permissions = enforcer.get_permissions_for_user(role_name)
+        permissions_by_role[role_name] = [
+            Permission(name=perm[1], effect=perm[3]) for perm in permissions
+        ]
+    return permissions_by_role
+
+
+def assign_role_to_user_in_scope(username: str, role_name: str, scope: str) -> None:
     """Assign a role to a user.
 
     Args:
-        user_id: The ID of the user.
+        username: The ID of the user.
         role_name: The name of the role.
+        scope: The scope in which to assign the role.
     """
-    pass
+    return enforcer.add_role_for_user_in_domain(username, role_name, scope)
 
-def unassign_role_from_user(user_id: str, role_name: str) -> None:
+
+def unassign_role_from_user_in_scope(username: str, role_name: str, scope: str) -> None:
     """Unassign a role from a user.
 
     Args:
-        user_id: The ID of the user.
+        username: The ID of the user.
         role_name: The name of the role.
+        scope: The scope from which to unassign the role.
     """
-    pass
+    return enforcer.remove_role_for_user_in_domain(username, role_name, scope)
 
-def get_available_roles() -> list[str]:
-    """Get the available roles.
+
+def get_all_roles() -> list[Role]:
+    """Get all the available roles in the current environment.
 
     Returns:
-        A list of available roles.
+        list[Role]: A list of role names and all their metadata.
     """
-    pass
+    return enforcer.get_all_subjects()
 
-def get_users_for_role(role_name: str) -> list[str]:
+
+def get_roles_in_scope(scope: str) -> list[Role]:
+    """Get the available roles for the current environment.
+
+    In this case, we return all the roles defined in the policy file that
+    match the given scope.
+
+    Args:
+        scope: The scope to filter roles (e.g., 'library:123' or '*' for global).
+
+    Returns:
+        list[Role]: A list of roles available in the specified scope.
+    """
+    return enforcer.get_all_roles_by_domain(scope)
+
+
+def get_roles_for_user_in_scope(username: str, scope: str) -> list[Role]:
+    """Get the roles for a user.
+
+    Args:
+        username: The ID of the user namespaced (e.g., 'user:john_doe').
+
+    Returns:
+        list[Role]: A list of role names and all their metadata assigned to the user.
+    """
+    return enforcer.get_roles_for_user_in_domain(username, scope)
+
+
+def get_users_for_role_in_scope(role_name: str, scope: str) -> list[str]:
     """Get the users for a role.
 
     Args:
         role_name: The name of the role.
-    """
-    pass
 
-def get_roles_for_user(user_id: str) -> list[str]:
-    """Get the roles for a user.
-
-    Args:
-        user_id: The ID of the user.
+    Returns:
+        list[str]: A list of user IDs (usernames) assigned to the role.
     """
-    pass
+    return enforcer.get_users_for_role_in_domain(role_name, scope)

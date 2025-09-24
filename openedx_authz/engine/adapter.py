@@ -67,16 +67,18 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         FilteredAdapter: Interface for filtered policy loading.
     """
 
-    def is_filtered(self) -> bool:
-        """
-        Check if the adapter supports filtering.
+    # def is_filtered(self) -> bool:
+    #     """
+    #     Check if the adapter supports filtering.
 
-        Returns:
-            bool: True if the adapter supports filtered policy loading, False otherwise.
-        """
-        return True
+    #     Returns:
+    #         bool: True if the adapter supports filtered policy loading, False otherwise.
+    #     """
+    #     return True
 
-    def load_filtered_policy(self, model: Model, filter: Filter) -> None:  # pylint: disable=redefined-builtin
+    def load_filtered_policy(
+        self, model: Model, filter: Filter
+    ) -> None:  # pylint: disable=redefined-builtin
         """
         Load policy rules from storage with filtering applied.
 
@@ -99,7 +101,9 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         for line in filtered_queryset:
             persist.load_policy_line(str(line), model)
 
-    def filter_query(self, queryset: QuerySet, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
+    def filter_query(
+        self, queryset: QuerySet, filter: Filter
+    ) -> QuerySet:  # pylint: disable=redefined-builtin
         """
         Apply filter criteria to the policy queryset.
 

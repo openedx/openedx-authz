@@ -12,8 +12,10 @@ their definitions.
 """
 
 from django.db.models import QuerySet
+
 from openedx_authz.engine.enforcer import enforcer
 from openedx_authz.engine.filter import Filter
+
 
 # TODO: should this be cached and called for each request depending on the user?
 def get_policies(filter: Filter) -> QuerySet:
@@ -33,8 +35,8 @@ def get_policies(filter: Filter) -> QuerySet:
                 ['role:report_viewer', 'act:read', 'report:*', 'allow'],
             ].
     """
-     # TODO: This should be a queryset that's evaluated only when enforcing
-     # Here we have a filter that we should turn into Q objects to load
-     # a qs into memory
-     # Debemos probar que método de cache tiene mejor performance: org, user, SAOC
+    # TODO: This should be a queryset that's evaluated only when enforcing
+    # Here we have a filter that we should turn into Q objects to load
+    # a qs into memory
+    # Debemos probar que método de cache tiene mejor performance: org, user, SAOC
     return enforcer.load_filtered_policy(filter)

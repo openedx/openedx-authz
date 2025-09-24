@@ -6,7 +6,7 @@ user-specified policy file, then provides an interactive mode for testing
 authorization enforcement requests.
 
 The command supports:
-- Loading Casbin model from the built-in model.conf file
+- Loading Casbin model from the built-in model.conf file or a custom file (specified via --model-file-path argument)
 - Using custom policy files (specified via --policy-file-path argument)
 - Interactive testing with format: subject action scope
 - Real-time enforcement results with visual feedback (✓ ALLOWED / ✗ DENIED)
@@ -15,10 +15,13 @@ The command supports:
 Example usage:
     python manage.py enforcement --policy-file-path /path/to/authz.policy
 
+    python manage.py enforcement --policy-file-path /path/to/authz.policy --model-file-path /path/to/model.conf
+
 Example test input:
     user:alice act:read org:OpenedX
 """
 
+import argparse
 import os
 
 import casbin
@@ -37,16 +40,17 @@ class Command(BaseCommand):
     """
 
     help = (
-        "Interactive mode for testing Casbin enforcement policies using model.conf and a custom policy file. "
-        "Provides real-time authorization testing with format: subject action scope. "
-        "Use --policy-file-path to specify the policy file location."
+        "Interactive mode for testing Casbin enforcement policies using a custom model file and"
+        "a custom policy file. Provides real-time authorization testing with format: subject action scope. "
+        "Use --policy-file-path to specify the policy file location. "
+        "Use --model-file-path to specify the model file location. "
     )
 
-    def add_arguments(self, parser) -> None:
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         """Add command-line arguments to the argument parser.
 
         Args:
-            parser: The Django argument parser instance to configure.
+            parser (argparse.ArgumentParser): The Django argument parser instance to configure.
         """
         parser.add_argument(
             "--policy-file-path",
@@ -69,7 +73,7 @@ class Command(BaseCommand):
 
         Args:
             *args: Positional command arguments (unused).
-            **options: Command options including `policy_file_path`.
+            **options: Command options including `policy_file_path` and `model_file_path`.
 
         Raises:
             CommandError: If model or policy files are not found or enforcer creation fails.

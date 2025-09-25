@@ -27,14 +27,10 @@ class AuthRequest(TypedDict):
 
 
 COMMON_ACTION_GROUPING = [
-    # manage implies all other actions
+    # manage implies edit and delete
     ["g2", "act:manage", "act:edit"],
-    ["g2", "act:manage", "act:read"],
-    ["g2", "act:manage", "act:write"],
     ["g2", "act:manage", "act:delete"],
     # edit implies read and write
-    ["g2", "act:edit", "act:read"],
-    ["g2", "act:edit", "act:write"],
     ["g2", "act:edit", "act:read"],
     ["g2", "act:edit", "act:write"],
 ]

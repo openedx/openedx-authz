@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 adapter = ExtendedAdapter()
 enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter)
 
-try:
-    enforcer.set_watcher(Watcher)
-    logger.info("Watcher successfully set on Casbin enforcer")
-except Exception as e:  # pylint: disable=broad-exception-caught
-    logger.error(f"Failed to set watcher on Casbin enforcer: {e}")
+if settings.CASBIN_WATCHER_ENABLED:
+    try:
+        enforcer.set_watcher(Watcher)
+        logger.info("Watcher successfully set on Casbin enforcer")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error(f"Failed to set watcher on Casbin enforcer: {e}")

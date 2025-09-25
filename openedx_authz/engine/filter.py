@@ -28,28 +28,28 @@ class Filter:
 
     Attributes:
         ptype (list): Policy type filter.
-            * 'p'  → Policy rule (permissions).
-            * 'g'  → Grouping rule (user ↔ role).
-            * 'g2' → Action grouping (parent action ↔ child action).
+            - 'p'  → Policy rule (permissions).
+            - 'g'  → Grouping rule (user ↔ role).
+            - 'g2' → Action grouping (parent action ↔ child action).
 
         v0 (list): First policy value filter.
-            * For 'p' → Subject (e.g., 'role:org_admin', 'user:alice').
-            * For 'g' → User (e.g., 'user:alice').
-            * For 'g2' → Parent action (e.g., 'act:manage').
+            - For 'p' → Subject (e.g., 'role:org_admin', 'user:alice').
+            - For 'g' → User (e.g., 'user:alice').
+            - For 'g2' → Parent action (e.g., 'act:manage').
 
         v1 (list): Second policy value filter.
-            * For 'p' → Action (e.g., 'act:manage', 'act:edit').
-            * For 'g' → Role (e.g., 'role:org_admin').
-            * For 'g2' → Child action (e.g., 'act:edit').
+            - For 'p' → Action (e.g., 'act:manage', 'act:edit').
+            - For 'g' → Role (e.g., 'role:org_admin').
+            - For 'g2' → Child action (e.g., 'act:edit').
 
         v2 (list): Third policy value filter.
-            * For 'p' → Object or resource (e.g., 'lib:*', 'org:MIT').
-            * For 'g' → Scope or resource (e.g., 'org:MIT').
-            * For 'g2' → Not used.
+            - For 'p' → Object or resource (e.g., 'lib:*', 'org:MIT').
+            - For 'g' → Scope or resource (e.g., 'org:MIT').
+            - For 'g2' → Not used.
 
         v3 (list): Fourth policy value filter.
-            * For 'p' → Effect ('allow' or 'deny').
-            * Otherwise unused.
+            - For 'p' → Effect ('allow' or 'deny').
+            - Otherwise unused.
 
         v4 (list): Fifth policy value filter (optional additional context).
         v5 (list): Sixth policy value filter (optional additional context).

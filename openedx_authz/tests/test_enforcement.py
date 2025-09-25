@@ -132,13 +132,13 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
         {
             "subject": "user:user-1",
             "action": "act:manage",
-            "scope": "course-v1:any-org+any-course+any-course-run",
+            "scope": "course:course-v1:any-org+any-course+any-course-run",
             "expected_result": True,
         },
         {
             "subject": "user:user-1",
             "action": "act:manage",
-            "scope": "lib:any-library",
+            "scope": "lib:lib:any-org:any-library",
             "expected_result": True,
         },
     ]
@@ -212,7 +212,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ["p", "role:org_admin", "act:manage", "org:*", "allow"],
         ["p", "role:org_editor", "act:edit", "org:*", "allow"],
         ["p", "role:org_author", "act:write", "org:*", "allow"],
-        ["p", "role:course_admin", "act:manage", "course-v1:*", "allow"],
+        ["p", "role:course_admin", "act:manage", "course:*", "allow"],
         ["p", "role:library_admin", "act:manage", "lib:*", "allow"],
         ["p", "role:library_editor", "act:edit", "lib:*", "allow"],
         ["p", "role:library_reviewer", "act:read", "lib:*", "allow"],
@@ -222,11 +222,11 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ["g", "user:user-2", "role:org_admin", "org:any-org"],
         ["g", "user:user-3", "role:org_editor", "org:any-org"],
         ["g", "user:user-4", "role:org_author", "org:any-org"],
-        ["g", "user:user-5", "role:course_admin", "course-v1:any-org+any-course+any-course-run"],
-        ["g", "user:user-6", "role:library_admin", "lib:any-library"],
-        ["g", "user:user-7", "role:library_editor", "lib:any-library"],
-        ["g", "user:user-8", "role:library_reviewer", "lib:any-library"],
-        ["g", "user:user-9", "role:library_author", "lib:any-library"],
+        ["g", "user:user-5", "role:course_admin", "course:course-v1:any-org+any-course+any-course-run"],
+        ["g", "user:user-6", "role:library_admin", "lib:lib:any-org:any-library"],
+        ["g", "user:user-7", "role:library_editor", "lib:lib:any-org:any-library"],
+        ["g", "user:user-8", "role:library_reviewer", "lib:lib:any-org:any-library"],
+        ["g", "user:user-9", "role:library_author", "lib:lib:any-org:any-library"],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
@@ -257,31 +257,31 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         {
             "subject": "user:user-5",
             "action": "act:manage",
-            "scope": "course-v1:any-org+any-course+any-course-run",
+            "scope": "course:course-v1:any-org+any-course+any-course-run",
             "expected_result": True,
         },
         {
             "subject": "user:user-6",
             "action": "act:manage",
-            "scope": "lib:any-library",
+            "scope": "lib:lib:any-org:any-library",
             "expected_result": True,
         },
         {
             "subject": "user:user-7",
             "action": "act:edit",
-            "scope": "lib:any-library",
+            "scope": "lib:lib:any-org:any-library",
             "expected_result": True,
         },
         {
             "subject": "user:user-8",
             "action": "act:read",
-            "scope": "lib:any-library",
+            "scope": "lib:lib:any-org:any-library",
             "expected_result": True,
         },
         {
             "subject": "user:user-9",
             "action": "act:write",
-            "scope": "lib:any-library",
+            "scope": "lib:lib:any-org:any-library",
             "expected_result": True,
         },
     ]
@@ -364,7 +364,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         # Policies
         ["p", "role:platform_admin", "act:manage", "*", "allow"],
         ["p", "role:org_admin", "act:manage", "org:*", "allow"],
-        ["p", "role:course_admin", "act:manage", "course-v1:*", "allow"],
+        ["p", "role:course_admin", "act:manage", "course:*", "allow"],
         ["p", "role:library_admin", "act:manage", "lib:*", "allow"],
         # Role assignments
         ["g", "user:user-1", "role:platform_admin", "*"],
@@ -376,8 +376,8 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     @data(
         ("*", True),
         ("org:MIT", True),
-        ("course-v1:OpenedX+DemoX+CS101", True),
-        ("lib:math-basics", True),
+        ("course:course-v1:OpenedX+DemoX+CS101", True),
+        ("lib:lib:OpenedX:math-basics", True),
     )
     @unpack
     def test_wildcard_global_access(self, scope: str, expected_result: bool):
@@ -393,8 +393,8 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     @data(
         ("*", False),
         ("org:MIT", True),
-        ("course-v1:OpenedX+DemoX+CS101", False),
-        ("lib:math-basics", False),
+        ("course:course-v1:OpenedX+DemoX+CS101", False),
+        ("lib:lib:OpenedX:math-basics", False),
     )
     @unpack
     def test_wildcard_org_access(self, scope: str, expected_result: bool):
@@ -410,8 +410,8 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     @data(
         ("*", False),
         ("org:MIT", False),
-        ("course-v1:OpenedX+DemoX+CS101", True),
-        ("lib:math-basics", False),
+        ("course:course-v1:OpenedX+DemoX+CS101", True),
+        ("lib:lib:OpenedX:math-basics", False),
     )
     @unpack
     def test_wildcard_course_access(self, scope: str, expected_result: bool):
@@ -427,8 +427,8 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     @data(
         ("*", False),
         ("org:MIT", False),
-        ("course-v1:OpenedX+DemoX+CS101", False),
-        ("lib:math-basics", True),
+        ("course:course-v1:OpenedX+DemoX+CS101", False),
+        ("lib:lib:OpenedX:math-basics", True),
     )
     @unpack
     def test_wildcard_library_access(self, scope: str, expected_result: bool):

@@ -27,7 +27,7 @@ from openedx_authz.engine.watcher import Watcher
 logger = logging.getLogger(__name__)
 
 adapter = ExtendedAdapter()
-enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter)
+enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
 
 if settings.CASBIN_WATCHER_ENABLED:
     try:

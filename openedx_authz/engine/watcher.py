@@ -53,4 +53,7 @@ def create_watcher():
         raise
 
 
-Watcher = create_watcher()
+if settings.CASBIN_WATCHER_ENABLED:
+    Watcher = create_watcher()
+else:
+    Watcher = None

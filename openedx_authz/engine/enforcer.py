@@ -5,9 +5,9 @@ Provides a Casbin FastEnforcer instance with extended adapter for database polic
 storage and Redis watcher for distributed policy synchronization.
 
 Components:
-    - enforcer: Main FastEnforcer instance for policy evaluation
-    - adapter: ExtendedAdapter for filtered database policy loading
-    - watcher: Redis-based watcher for real-time policy updates
+    - Enforcer: Main FastEnforcer instance for policy evaluation
+    - Adapter: ExtendedAdapter for filtered database policy loading
+    - Watcher: Redis-based watcher for real-time policy updates
 
 Usage:
     from openedx_authz.engine.enforcer import enforcer
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 adapter = ExtendedAdapter()
 enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
 
-if settings.CASBIN_WATCHER_ENABLED:
+if Watcher:
     try:
         enforcer.set_watcher(Watcher)
         logger.info("Watcher successfully set on Casbin enforcer")

@@ -3,7 +3,6 @@ branch = True
 data_file = .coverage
 source=openedx_authz
 omit =
-    test_settings.py
     */migrations/*
     *admin.py
     */static/*

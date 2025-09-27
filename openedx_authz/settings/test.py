@@ -1,11 +1,10 @@
 """
-These settings are here to use during tests, because django requires them.
-
-In a real-world use case, apps in this project are installed into other
-Django applications, so these settings will not be used.
+Test settings for openedx_authz plugin.
 """
 
 from os.path import abspath, dirname, join
+
+from openedx_authz import ROOT_DIRECTORY
 
 
 def root(*args):
@@ -32,6 +31,7 @@ INSTALLED_APPS = (
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
+    "casbin_adapter",
     "openedx_authz",
 )
 
@@ -61,3 +61,9 @@ TEMPLATES = [
         },
     }
 ]
+
+
+CASBIN_MODEL = join(ROOT_DIRECTORY, "engine", "config", "model.conf")
+CASBIN_WATCHER_ENABLED = False
+REDIS_HOST = "redis"
+REDIS_PORT = 6379

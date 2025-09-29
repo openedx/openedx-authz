@@ -64,5 +64,10 @@ docs/openedx_authz.*.rst
 requirements/private.in
 requirements/private.txt
 
+<<<<<<< HEAD
 # Sqlite Database
+=======
+# Persistent database files
+*.sqlite3
+>>>>>>> 5151d69 (refactor: update gitignore with .sqlite files)
 *.db

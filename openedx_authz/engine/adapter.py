@@ -67,14 +67,14 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         FilteredAdapter: Interface for filtered policy loading.
     """
 
-    # def is_filtered(self) -> bool:
-    #     """
-    #     Check if the adapter supports filtering.
+    def is_filtered(self) -> bool:
+        """
+        Check if the adapter supports filtering.
 
-    #     Returns:
-    #         bool: True if the adapter supports filtered policy loading, False otherwise.
-    #     """
-    #     return True
+        Returns:
+            bool: True if the adapter supports filtered policy loading, False otherwise.
+        """
+        return True
 
     def load_filtered_policy(
         self, model: Model, filter: Filter

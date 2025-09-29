@@ -8,10 +8,12 @@ The command supports:
 Example Usage:
     python manage.py load_policies --policy-file-path /path/to/policy.csv
 """
+
 import casbin
 from django.core.management.base import BaseCommand, CommandError
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
+from openedx_authz.engine.utils import migrate_policy_from_file_to_db
 
 
 class Command(BaseCommand):
@@ -27,9 +29,7 @@ class Command(BaseCommand):
         python manage.py load_policies
     """
 
-    help = (
-        "Load policies from a Casbin policy file into the Django database model. "
-    )
+    help = "Load policies from a Casbin policy file into the Django database model."
 
     def add_arguments(self, parser) -> None:
         """Add command-line arguments to the argument parser.
@@ -71,10 +71,12 @@ class Command(BaseCommand):
         file_enforcer = casbin.Enforcer(
             options["model_file_path"], options["policy_file_path"]
         )
-        global_enforcer.set_watcher(None)  # Disable watcher during bulk load
-        self.migrate_policies(file_enforcer, global_enforcer, options["clear_existing"])
+        global_enforcer.set_watcher(
+            None
+        )  # Disable watcher during bulk load until it's optional
+        self.migrate_policies(file_enforcer, global_enforcer)
 
-    def migrate_policies(self, source_enforcer, target_enforcer, clear_existing):
+    def migrate_policies(self, source_enforcer, target_enforcer):
         """Migrate policies from the source enforcer to the target enforcer.
 
         This method copies all policies, role assignments, and action groupings
@@ -84,23 +86,5 @@ class Command(BaseCommand):
         Args:
             source_enforcer: The Casbin enforcer instance to migrate policies from.
             target_enforcer: The Casbin enforcer instance to migrate policies to.
-            clear_existing: If True, clear existing policies in the target before migration.
         """
-        if clear_existing:
-            target_enforcer.clear_policy()
-            self.stdout.write(self.style.WARNING("Cleared existing policies in the database."))
-
-        policies = source_enforcer.get_policy()
-        for policy in policies:
-            target_enforcer.add_policy(*policy)
-
-        for grouping_policy_ptype in ("g", "g2", "g3", "g4", "g5", "g6"):
-            try:
-                grouping_policies = source_enforcer.get_named_grouping_policy(grouping_policy_ptype)
-                for grouping in grouping_policies:
-                    target_enforcer.add_named_grouping_policy(grouping_policy_ptype, *grouping)
-            except KeyError as e:
-                self.stdout.write(self.style.ERROR(f"Failed to migrate {grouping_policy_ptype} policies: {e} not found in source enforcer."))
-
-        target_enforcer.save_policy()
-        self.stdout.write(f"✓ Migrated {len(policies)} policies.")
+        migrate_policy_from_file_to_db(source_enforcer, target_enforcer)

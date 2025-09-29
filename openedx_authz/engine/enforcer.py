@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 adapter = ExtendedAdapter()
 enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
+enforcer.enable_auto_save(True)
 
 if Watcher:
     try:

@@ -95,8 +95,6 @@ class Command(BaseCommand):
             enforcer = casbin.Enforcer(model_file_path, policy_file_path)
             self.stdout.write(self.style.SUCCESS("Casbin enforcer created successfully"))
 
-            enforcer.load_policy()
-
             policies = enforcer.get_policy()
             roles = enforcer.get_grouping_policy()
             action_grouping = enforcer.get_named_grouping_policy("g2")

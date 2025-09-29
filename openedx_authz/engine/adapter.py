@@ -28,43 +28,30 @@ class PolicyAttribute(Enum):
     Enumeration of Casbin policy attributes.
 
     These attributes map to the columns of the CasbinRule table, but their meaning
-    depends on the policy type (ptype):
-
-    - ptype: Type of policy
-        - 'p'  → Policy rule (permissions).
-        - 'g'  → Grouping rule (user ↔ role).
-        - 'g2' → Action grouping (parent action ↔ child action).
-
-    - v0:
-        - For 'p' → Subject (e.g., 'role:org_admin', 'user:alice').
-        - For 'g' → User (e.g., 'user:alice').
-        - For 'g2' → Parent action (e.g., 'act:manage').
-
-    - v1:
-        - For 'p' → Action (e.g., 'act:manage', 'act:edit').
-        - For 'g' → Role (e.g., 'role:org_admin').
-        - For 'g2' → Child action (e.g., 'act:edit').
-
-    - v2:
-        - For 'p' → Object or resource (e.g., 'lib:*', 'org:MIT').
-        - For 'g' → Scope or resource (e.g., 'org:MIT').
-        - For 'g2' → Not used.
-
-    - v3:
-        - For 'p' → Effect ('allow' or 'deny').
-        - Otherwise unused.
-
-    - v4: Optional additional context.
-    - v5: Optional additional context.
+    depends on the policy type (ptype). Check the ``openedx_authz.engine.Filter`` class
+    for more details.
     """
 
     PTYPE = "ptype"
+    """ptype (str): Type of policy"""
+
     V0 = "v0"
+    """v0 (str): First policy value."""
+
     V1 = "v1"
+    """v1 (str): Second policy value."""
+
     V2 = "v2"
+    """v2 (str): Third policy value."""
+
     V3 = "v3"
+    """v3 (str): Fourth policy value."""
+
     V4 = "v4"
+    """v4 (str): Fifth policy value."""
+
     V5 = "v5"
+    """v5 (str): Sixth policy value."""
 
 
 class ExtendedAdapter(Adapter, FilteredAdapter):
@@ -78,9 +65,6 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
     Inherits from:
         Adapter: Base Django adapter for Casbin policy persistence.
         FilteredAdapter: Interface for filtered policy loading.
-
-    Attributes:
-        _filtered (bool): Flag indicating whether the adapter supports filtering.
     """
 
     def is_filtered(self) -> bool:
@@ -100,9 +84,9 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         filter to load only relevant rules. The filtered rules are then loaded
         into the provided Casbin model.
 
-        IMPORTANT: This method is used internally by the `enforcer.load_filtered_policy()` method.
-            Do not call this method directly. If you need to load policy rules, use the
-            `enforcer.load_filtered_policy()` method.
+        IMPORTANT: This method is used internally by the ``enforcer.load_filtered_policy()``
+            method. Do not call this method directly. If you need to load policy rules, use
+            the ``enforcer.load_filtered_policy()`` method.
 
         Args:
             model (Model): The Casbin model to load policy rules into.

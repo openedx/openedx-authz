@@ -8,3 +8,4 @@ omit =
     */static/*
     */templates/*
     */tests/*
+    */settings/*

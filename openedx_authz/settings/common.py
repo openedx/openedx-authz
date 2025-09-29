@@ -23,7 +23,8 @@ def plugin_settings(settings):
 
     # Add Casbin configuration
     settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
-    # Redis host and port are temporarily loaded here for the MVP
     settings.CASBIN_WATCHER_ENABLED = True
+    # TODO: Replace with a more dynamic configuration
+    # Redis host and port are temporarily loaded here for the MVP
     settings.REDIS_HOST = "redis"
     settings.REDIS_PORT = 6379

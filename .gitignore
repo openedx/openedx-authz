@@ -63,3 +63,6 @@ docs/openedx_authz.*.rst
 # Private requirements
 requirements/private.in
 requirements/private.txt
+
+# Sqlite Database
+*.db

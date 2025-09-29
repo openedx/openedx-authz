@@ -39,3 +39,5 @@ waffle.Sample:
   ".. no_pii:": "This model has no PII"
 waffle.Switch:
   ".. no_pii:": "This model has no PII"
+casbin_adapter.CasbinRule:
+  ".. no_pii:": "This model stores authorization policy rules and contains no PII"

@@ -39,8 +39,3 @@ class OpenedxAuthzConfig(AppConfig):
             },
         },
     }
-
-    def ready(self):
-        """
-        Ready method for the openedx_authz Django application.
-        """

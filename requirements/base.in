@@ -1,12 +1,13 @@
 # Core requirements for using this application
 -c constraints.txt
 
-Django             # Web application framework
-
-
-openedx-atlas
+Django                      # Web application framework
+djangorestframework         # REST framework for Django
+openedx-atlas               # Open edX Atlas library
 attrs                       # Classes without boilerplate
 pycasbin                    # Authorization library for implementing access control models
 casbin-django-orm-adapter   # Adapter for Django ORM for Casbin
 redis-watcher               # Watcher for Redis for Casbin
-edx-opaque-keys                 # Opaque keys for resource identification
+edx-opaque-keys             # Opaque keys for resource identification
+edx-api-doc-tools           # Tools for API documentation
+edx-drf-extensions          # Extensions for Django Rest Framework used by Open edX

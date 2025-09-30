@@ -19,6 +19,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
+    get_subjects_for_role,
     unassign_role_from_subject_in_scope,
 )
 
@@ -32,29 +33,29 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
+    "get_users_for_role",
 ]
 
 
-def assign_role_to_user_in_scope(
-    user_external_key: str, role_external_key: str, scope_external_key: str
-) -> bool:
+def assign_role_to_user_in_scope(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
         user (str): ID of the user (e.g., 'john_doe').
         role_external_key (str): Name of the role to assign.
         scope (str): Scope in which to assign the role.
+
+    Returns:
+        bool: True if the role was assigned successfully, False otherwise.
     """
-    assign_role_to_subject_in_scope(
+    return assign_role_to_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),
     )
 
 
-def batch_assign_role_to_users_in_scope(
-    users: list[str], role_external_key: str, scope_external_key: str
-):
+def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str, scope_external_key: str):
     """Assign a role to multiple users in a specific scope.
 
     Args:
@@ -70,26 +71,25 @@ def batch_assign_role_to_users_in_scope(
     )
 
 
-def unassign_role_from_user(
-    user_external_key: str, role_external_key: str, scope_external_key: str
-):
+def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str):
     """Unassign a role from a user in a specific scope.
 
     Args:
         user_external_key (str): ID of the user (e.g., 'john_doe').
         role_external_key (str): Name of the role to unassign.
         scope_external_key (str): Scope in which to unassign the role.
+
+    Returns:
+        bool: True if the role was unassigned successfully, False otherwise.
     """
-    unassign_role_from_subject_in_scope(
+    return unassign_role_from_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),
     )
 
 
-def batch_unassign_role_from_users(
-    users: list[str], role_external_key: str, scope_external_key: str
-):
+def batch_unassign_role_from_users(users: list[str], role_external_key: str, scope_external_key: str):
     """Unassign a role from multiple users in a specific scope.
 
     Args:
@@ -117,9 +117,7 @@ def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData
     return get_subject_role_assignments(UserData(external_key=user_external_key))
 
 
-def get_user_role_assignments_in_scope(
-    user_external_key: str, scope_external_key: str
-) -> list[RoleAssignmentData]:
+def get_user_role_assignments_in_scope(user_external_key: str, scope_external_key: str) -> list[RoleAssignmentData]:
     """Get the roles assigned to a user in a specific scope.
 
     Args:
@@ -164,9 +162,7 @@ def get_all_user_role_assignments_in_scope(
     Returns:
         list[RoleAssignmentData]: A list of user role assignments and all their metadata in the specified scope.
     """
-    return get_all_subject_role_assignments_in_scope(
-        ScopeData(external_key=scope_external_key)
-    )
+    return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
 def is_user_allowed(
@@ -189,3 +185,16 @@ def is_user_allowed(
         ActionData(external_key=action_external_key),
         ScopeData(external_key=scope_external_key),
     )
+
+
+def get_users_for_role(role_external_key: str) -> list[UserData]:
+    """Get all the users assigned to a specific role.
+
+    Args:
+        role_external_key (str): The role to filter users (e.g., 'library_admin').
+
+    Returns:
+        list[UserData]: A list of users assigned to the specified role.
+    """
+    users = get_subjects_for_role(RoleData(external_key=role_external_key))
+    return [UserData(namespaced_key=user.namespaced_key) for user in users]

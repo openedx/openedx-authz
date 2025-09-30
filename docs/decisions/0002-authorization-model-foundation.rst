@@ -47,9 +47,15 @@ Scopes as first-class citizens in permission-granting
 * A **scope** defines the boundary within which a role or policy applies (for example: platform-wide, organization-wide, a single course, or a specific library).
 * Treating scopes as **first-class citizens** means they are explicitly modeled in the system, not hidden inside ad-hoc resource definitions. They must be available to policies, queries, and audits in a consistent way.
 * Scopes can be **parameterized** (e.g., ``organization:ORG-A``, ``course:course-v1:OpenedX+DemoX+DemoCourse``,  ``site:sandbox.openedx.org``, ``instance``) to support granular checks.
-* **Inheritance across scopes** must be supported (e.g., permissions granted at the organization level can cascade to courses in that organization when intended).
 * By making scopes explicit and consistent, we avoid the fragmentation seen in legacy systems (different services using different implicit notions of "instance", "org", "course").
 * Scope is part of the **Context** in S-A-O-C checks.
+
+Inheritance Across Scopes Won't be Explicitly Modeled
+-----------------------------------------------------
+* Permissions will **not cascade implicitly** from broader scopes (e.g., org) to narrower ones (e.g., course).
+* If access should apply across multiple scopes, it must be written as **explicit checks** (logical OR).
+* This approach keeps authorization logic **visible and auditable**, avoiding hidden derivations.
+* A limited **safety hatch** (e.g., for superusers) may be considered to prevent lockouts, but scope inheritance remains deliberate.
 
 III. Authorization Paradigm
 ===========================

@@ -63,7 +63,7 @@ class RolesTestSetupMixin(TestCase):
         global_enforcer.load_policy()  # Load policies to avoid duplicates
         if assignments:
             for assignment in assignments:
-                assign_role_to_user_in_scope(
+                assign_role_to_subject_in_scope(
                     subject=SubjectData(subject_id=assignment["subject"]),
                     role=RoleData(name=assignment["role_name"]),
                     scope=ScopeData(scope_id=assignment["scope"]),
@@ -80,7 +80,7 @@ class RolesTestSetupMixin(TestCase):
             global_enforcer.clear_policy()  # Clear to simulate fresh start for each test
             return
 
-        assign_role_to_user_in_scope(
+        assign_role_to_subject_in_scope(
             subject=SubjectData(subject_id=subjects),
             role=RoleData(name=role),
             scope=ScopeData(scope_id=scope),
@@ -677,7 +677,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         """
         if batch:
             for subject in subjects:
-                assign_role_to_user_in_scope(
+                assign_role_to_subject_in_scope(
                     SubjectData(subject_id=subject),
                     RoleData(name=role),
                     ScopeData(scope_id=scope)
@@ -686,7 +686,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 role_names = {assignment.role.name for assignment in user_roles}
                 self.assertIn(role, role_names)
         else:
-            assign_role_to_user_in_scope(
+            assign_role_to_subject_in_scope(
                 SubjectData(subject_id=subjects),
                 RoleData(name=role),
                 ScopeData(scope_id=scope)

@@ -29,7 +29,7 @@ __all__ = [
     "get_all_roles_names",
     "get_permissions_for_active_roles_in_scope",
     "get_role_definitions_in_scope",
-    "assign_role_to_user_in_scope",
+    "assign_role_to_subject_in_scope",
     "batch_assign_role_to_subjects_in_scope",
     "unassign_role_from_subject_in_scope",
     "batch_unassign_role_from_subjects_in_scope",
@@ -170,7 +170,7 @@ def get_all_roles_names() -> list[str]:
     return enforcer.get_all_subjects()
 
 
-def assign_role_to_user_in_scope(
+def assign_role_to_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
 ) -> None:
     """Assign a role to a subject.

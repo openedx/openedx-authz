@@ -11,7 +11,7 @@ with the role management system, which uses namespaced subjects
 
 from openedx_authz.api.data import RoleData, ScopeData, SubjectData, UserData
 from openedx_authz.api.roles import (
-    assign_role_to_user_in_scope,
+    assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
     get_role_assignments_for_subject,
@@ -20,7 +20,7 @@ from openedx_authz.api.roles import (
 )
 
 
-def assign_role_to_user(username: str, role_name: str, scope_id: str) -> bool:
+def assign_role_to_user_in_scope(username: str, role_name: str, scope_id: str) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
@@ -31,7 +31,7 @@ def assign_role_to_user(username: str, role_name: str, scope_id: str) -> bool:
     Returns:
         bool: True if the assignment was successful, False otherwise.
     """
-    return assign_role_to_user_in_scope(
+    return assign_role_to_subject_in_scope(
         UserData(username=username),
         RoleData(name=role_name),
         ScopeData(scope_id=scope_id),
@@ -94,8 +94,8 @@ def batch_unassign_role_from_users(
     )
 
 
-def get_roles_for_user(username: str) -> list[dict]:
-    """Get all roles with metadata assigned to a user in a specific scope.
+def get_role_assignments_for_user(username: str) -> list[dict]:
+    """Get all roles for a user across all scopes.
 
     Args:
         user (str): ID of the user (e.g., 'john_doe').
@@ -106,7 +106,7 @@ def get_roles_for_user(username: str) -> list[dict]:
     return get_role_assignments_for_subject(UserData(username=username))
 
 
-def get_roles_for_user_in_scope(username: str, scope_id: str) -> list[str]:
+def get_role_assignments_for_user_in_scope(username: str, scope_id: str) -> list[str]:
     """Get the roles assigned to a user in a specific scope.
 
     Args:

@@ -51,7 +51,7 @@ class ScopeData:
     This class assumes that the scope is already namespaced appropriately
     before being passed in, as scopes can vary widely (e.g., courses, organizations).
     """
-
+    # TODO: figure out namespace for scopes
     scope_id: str
 
 
@@ -146,6 +146,6 @@ class RoleAssignmentData:
         scope: The scope in which the role is assigned.
     """
 
-    subject: UserData
+    subject: SubjectData
     role: RoleData
     scope: ScopeData

@@ -57,3 +57,5 @@ TEMPLATES = [
 ]
 
 SECRET_KEY = "test-secret-key"
+CASBIN_WATCHER_ENABLED = False
+USE_TZ = True

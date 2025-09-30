@@ -26,20 +26,80 @@ class PolicyIndex(Enum):
 
 
 @define
-class Permission:  # TODO: change to policy?
+class UserData:
+    """A user is a subject that can be assigned roles and permissions.
+
+    Attributes:
+        username: The username. Automatically prefixed with 'user:' if not present.
+    """
+
+    username: str
+
+    def __attrs_post_init__(self):
+        """Ensure username has 'user:' namespace prefix."""
+        if not self.username.startswith("user:"):
+            object.__setattr__(self, "username", f"user:{self.username}")
+
+
+@define
+class ScopeData:
+    """A scope is a context in which roles and permissions are assigned.
+
+    Attributes:
+        scope_id: The scope identifier (e.g., 'course-v1:edX+DemoX+2021_T1').
+
+    This class assumes that the scope is already namespaced appropriately
+    before being passed in, as scopes can vary widely (e.g., courses, organizations).
+    """
+
+    scope_id: str
+
+
+@define
+class SubjectData:
+    """A subject is an entity that can be assigned roles and permissions.
+
+    Attributes:
+        subject_id: The subject identifier namespaced (e.g., 'user:john_doe').
+
+    This class assumes that the subject was already namespaced by their own
+    type (e.g., 'user:', 'group:') before being passed in since subjects can be
+    users, groups, or other entities.
+    """
+
+    subject_id: str
+
+
+@define
+class ActionData:
+    """An action is an operation that can be performed in a specific scope.
+
+    Attributes:
+        action: The action name. Automatically prefixed with 'act:' if not present.
+    """
+
+    action_id: str
+
+    def __attrs_post_init__(self):
+        """Ensure action name has 'act:' namespace prefix."""
+        if not self.action_id.startswith("act:"):
+            object.__setattr__(self, "action_id", f"act:{self.action_id}")
+
+
+@define
+class PermissionData:  # TODO: change to policy?
     """A permission is an action that can be performed under certain conditions.
 
     Attributes:
         name: The name of the permission.
     """
 
-    # TODO: what other attributes should a permission have?
-    name: str
+    action: ActionData
     effect: Literal["allow", "deny"] = "allow"
 
 
 @define
-class RoleMetadata:
+class RoleMetadataData:
     """Metadata for a role.
 
     Attributes:
@@ -54,11 +114,11 @@ class RoleMetadata:
 
 
 @define
-class Role:
+class RoleData:
     """A role is a named group of permissions.
 
     Attributes:
-        name: The name of the role.
+        name: The name of the role. Must have 'role:' namespace prefix.
         permissions: A list of permissions assigned to the role.
         scopes: A list of scopes assigned to the role.
         metadata: A dictionary of metadata assigned to the role. This can include
@@ -66,13 +126,17 @@ class Role:
     """
 
     name: str
-    scopes: list[str]
-    permissions: list[Permission] = None
-    metadata: RoleMetadata = None
+    permissions: list[PermissionData] = None
+    metadata: RoleMetadataData = None
+
+    def __attrs_post_init__(self):
+        """Ensure role name has 'role:' namespace prefix."""
+        if not self.name.startswith("role:"):
+            object.__setattr__(self, "name", f"role:{self.name}")
 
 
 @define
-class RoleAssignment:
+class RoleAssignmentData:
     """A role assignment is the assignment of a role to a subject in a specific scope.
 
     Attributes:
@@ -82,5 +146,6 @@ class RoleAssignment:
         scope: The scope in which the role is assigned.
     """
 
-    subject: str  # TODO: I think here it makes sense to sanitize the subject so it's the username?
-    role: Role
+    subject: UserData
+    role: RoleData
+    scope: ScopeData

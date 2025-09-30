@@ -26,19 +26,25 @@ def migrate_policy_from_file_to_db(
     """
     try:
         # TODO: need to avoid loading twice the same policies
+        source_enforcer.load_policy()
         policies = source_enforcer.get_policy()
         for policy in policies:
-            target_enforcer.add_policy(*policy)
+            if not target_enforcer.has_policy(*policy):
+                target_enforcer.add_policy(*policy)
 
         for grouping_policy_ptype in GROUPING_POLICY_PTYPES:
             try:
+                source_enforcer.load_policy()
                 grouping_policies = source_enforcer.get_named_grouping_policy(
                     grouping_policy_ptype
                 )
                 for grouping in grouping_policies:
-                    target_enforcer.add_named_grouping_policy(
+                    if not target_enforcer.has_named_grouping_policy(
                         grouping_policy_ptype, *grouping
-                    )
+                    ):
+                        target_enforcer.add_named_grouping_policy(
+                            grouping_policy_ptype, *grouping
+                        )
             except KeyError as e:
                 logger.debug(
                     f"Skipping {grouping_policy_ptype} policies: {e} not found in source enforcer."

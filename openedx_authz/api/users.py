@@ -9,17 +9,18 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user:john_doe').
 """
 
+from openedx_authz.api.data import RoleData, ScopeData, SubjectData, UserData
 from openedx_authz.api.roles import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
-    get_roles_for_subject,
-    get_roles_for_subject_in_scope,
+    get_role_assignments_for_subject,
+    get_role_assignments_for_subject_in_scope,
     unassign_role_from_subject_in_scope,
 )
 
 
-def assign_role_to_user(user: str, role_name: str, scope: str) -> bool:
+def assign_role_to_user(username: str, role_name: str, scope_id: str) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
@@ -30,12 +31,15 @@ def assign_role_to_user(user: str, role_name: str, scope: str) -> bool:
     Returns:
         bool: True if the assignment was successful, False otherwise.
     """
-    namespaced_user = f"user:{user}"
-    return assign_role_to_user_in_scope(namespaced_user, role_name, scope)
+    return assign_role_to_user_in_scope(
+        UserData(username=username),
+        RoleData(name=role_name),
+        ScopeData(scope_id=scope_id),
+    )
 
 
 def batch_assign_role_to_users(
-    users: list[str], role_name: str, scope: str
+    users: list[str], role_name: str, scope_id: str
 ) -> dict[str, bool]:
     """Assign a role to multiple users in a specific scope.
 
@@ -47,11 +51,13 @@ def batch_assign_role_to_users(
     Returns:
         dict: A dictionary mapping user IDs to assignment success status (True/False).
     """
-    namespaced_users = [f"user:{user}" for user in users]
-    return batch_assign_role_to_subjects_in_scope(namespaced_users, role_name, scope)
+    namespaced_users = [UserData(username=username) for username in users]
+    return batch_assign_role_to_subjects_in_scope(
+        namespaced_users, RoleData(name=role_name), ScopeData(scope_id=scope_id)
+    )
 
 
-def unassign_role_from_user(user: str, role_name: str, scope: str) -> bool:
+def unassign_role_from_user(user: str, role_name: str, scope_id: str) -> bool:
     """Unassign a role from a user in a specific scope.
 
     Args:
@@ -62,14 +68,15 @@ def unassign_role_from_user(user: str, role_name: str, scope: str) -> bool:
     Returns:
         bool: True if the unassignment was successful, False otherwise.
     """
-    namespaced_user = f"user:{user}"
     return unassign_role_from_subject_in_scope(
-        [namespaced_user], role_name, scope, batch=False
-    ).get(user, False)
+        UserData(username=user),
+        RoleData(name=role_name),
+        ScopeData(scope_id=scope_id),
+    )
 
 
 def batch_unassign_role_from_users(
-    users: list[str], role_name: str, scope: str
+    users: list[str], role_name: str, scope_id: str
 ) -> dict[str, bool]:
     """Unassign a role from multiple users in a specific scope.
 
@@ -81,28 +88,25 @@ def batch_unassign_role_from_users(
     Returns:
         dict: A dictionary mapping user IDs to unassignment success status (True/False).
     """
-    namespaced_users = [f"user:{user}" for user in users]
+    namespaced_users = [UserData(username=user) for user in users]
     return batch_unassign_role_from_subjects_in_scope(
-        namespaced_users, role_name, scope
+        namespaced_users, RoleData(name=role_name), ScopeData(scope_id=scope_id)
     )
 
 
-def get_roles_for_user(user: str, include_permissions: bool = True) -> list[dict]:
+def get_roles_for_user(username: str) -> list[dict]:
     """Get all roles with metadata assigned to a user in a specific scope.
 
     Args:
         user (str): ID of the user (e.g., 'john_doe').
-        include_permissions (bool): True by default. If True, include
-        permissions in the role metadata.
 
     Returns:
         list[dict]: A list of role names and all their metadata assigned to the user.
     """
-    namespaced_user = f"user:{user}"
-    return get_roles_for_subject(namespaced_user, include_permissions)
+    return get_role_assignments_for_subject(UserData(username=username))
 
 
-def get_roles_for_user_in_scope(user: str, scope: str) -> list[str]:
+def get_roles_for_user_in_scope(username: str, scope_id: str) -> list[str]:
     """Get the roles assigned to a user in a specific scope.
 
     Args:
@@ -112,5 +116,6 @@ def get_roles_for_user_in_scope(user: str, scope: str) -> list[str]:
     Returns:
         list: A list of role names assigned to the user in the specified scope.
     """
-    namespaced_user = f"user:{user}"
-    return get_roles_for_subject_in_scope(namespaced_user, scope)
+    return get_role_assignments_for_subject_in_scope(
+        UserData(username=username), ScopeData(scope_id=scope_id)
+    )

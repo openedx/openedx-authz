@@ -41,7 +41,10 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement")
 
-        self.assertEqual("Error: the following arguments are required: --policy-file-path", str(ctx.exception))
+        self.assertEqual(
+            "Error: the following arguments are required: --policy-file-path",
+            str(ctx.exception),
+        )
 
     def test_policy_file_not_found_raises(self):
         """Test that command errors when the provided policy file does not exist."""
@@ -52,13 +55,18 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Policy file not found: {non_existent}", str(ctx.exception))
 
-    @patch.object(EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf")
+    @patch.object(
+        EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf"
+    )
     def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
         """Test that command errors when the provided model file does not exist."""
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual(f"Model file not found: {mock_get_file_path.return_value}", str(ctx.exception))
+        self.assertEqual(
+            f"Model file not found: {mock_get_file_path.return_value}",
+            str(ctx.exception),
+        )
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     def test_error_creating_enforcer_raises(self, mock_enforcer_cls: Mock):
@@ -68,11 +76,16 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual("Error creating Casbin enforcer: Enforcer creation error", str(ctx.exception))
+        self.assertEqual(
+            "Error creating Casbin enforcer: Enforcer creation error",
+            str(ctx.exception),
+        )
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     @patch.object(EnforcementCommand, "_run_interactive_mode")
-    def test_successful_run_prints_summary(self, mock_run_interactive: Mock, mock_enforcer_cls: Mock):
+    def test_successful_run_prints_summary(
+        self, mock_run_interactive: Mock, mock_enforcer_cls: Mock
+    ):
         """
         Test successful command execution with policy file and interactive mode.
         When files exist, command should create enforcer, print counts, and call interactive loop.
@@ -89,7 +102,11 @@ class EnforcementCommandTests(TestCase):
         mock_enforcer.get_named_grouping_policy.return_value = action_grouping
         mock_enforcer_cls.return_value = mock_enforcer
 
-        call_command("enforcement", policy_file_path=self.policy_file_path.name, stdout=self.buffer)
+        call_command(
+            "enforcement",
+            policy_file_path=self.policy_file_path.name,
+            stdout=self.buffer,
+        )
 
         output = self.buffer.getvalue()
         self.assertIn("Casbin Interactive Enforcement", output)
@@ -105,10 +122,17 @@ class EnforcementCommandTests(TestCase):
             self.command._run_interactive_mode(self.enforcer)
 
         self.assertIn("Interactive Mode", self.buffer.getvalue())
-        self.assertIn("Test custom enforcement requests interactively.", self.buffer.getvalue())
-        self.assertIn("Enter 'quit', 'exit', or 'q' to exit the interactive mode.", self.buffer.getvalue())
+        self.assertIn(
+            "Test custom enforcement requests interactively.", self.buffer.getvalue()
+        )
+        self.assertIn(
+            "Enter 'quit', 'exit', or 'q' to exit the interactive mode.",
+            self.buffer.getvalue(),
+        )
         self.assertIn("Format: subject action scope", self.buffer.getvalue())
-        self.assertIn("Example: user:alice act:read org:OpenedX", self.buffer.getvalue())
+        self.assertIn(
+            "Example: user:alice act:read org:OpenedX", self.buffer.getvalue()
+        )
 
     def test_run_interactive_mode_maintains_interactive_loop(self):
         """Test that the interactive mode maintains the interactive loop."""
@@ -187,7 +211,9 @@ class EnforcementCommandTests(TestCase):
         """Test that `_test_interactive_request` handles processing errors."""
         self.enforcer.enforce.side_effect = exception
 
-        self.command._test_interactive_request(self.enforcer, "user:alice act:read org:OpenedX")
+        self.command._test_interactive_request(
+            self.enforcer, "user:alice act:read org:OpenedX"
+        )
 
         error_output = self.buffer.getvalue()
         self.assertIn(f"✗ Error processing request: {str(exception)}", error_output)

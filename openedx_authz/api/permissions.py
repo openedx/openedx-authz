@@ -69,6 +69,7 @@ def is_subject_allowed(
     Returns:
         bool: True if the subject has the specified permission in the scope, False otherwise.
     """
+    enforcer.load_policy()
     return enforcer.enforce(
         subject.namespaced_key, action.namespaced_key, scope.namespaced_key
     )

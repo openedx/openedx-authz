@@ -25,6 +25,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
+    get_subjects_for_role,
     unassign_role_from_subject_in_scope,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
+    "get_users_for_role",
 ]
 
 
@@ -195,3 +197,16 @@ def is_user_allowed(
         ActionData(external_key=action_external_key),
         ScopeData(external_key=scope_external_key),
     )
+
+
+def get_users_for_role(role_external_key: str) -> list[UserData]:
+    """Get all the users assigned to a specific role.
+
+    Args:
+        role_external_key (str): The role to filter users (e.g., 'library_admin').
+
+    Returns:
+        list[UserData]: A list of users assigned to the specified role.
+    """
+    users = get_subjects_for_role(RoleData(external_key=role_external_key))
+    return [UserData(namespaced_key=user.namespaced_key) for user in users]

@@ -15,6 +15,9 @@ django==4.2.24
     #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.in
     #   casbin-django-orm-adapter
+    #   djangorestframework
+djangorestframework==3.16.1
+    # via -r requirements/base.in
 openedx-atlas==0.7.0
     # via -r requirements/base.in
 pycasbin==2.2.0

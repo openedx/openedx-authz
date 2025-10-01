@@ -109,6 +109,7 @@ def get_permissions_for_active_roles_in_scope(
         dict[str, list[PermissionData]]: A dictionary mapping the role external_key to its
         permissions and scopes.
     """
+    enforcer.load_policy()
     filtered_policy = enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -142,6 +143,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     Returns:
         list[Role]: A list of roles.
     """
+    enforcer.load_policy()
     policy_filtered = enforcer.get_filtered_policy(
         PolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -201,6 +203,7 @@ def assign_role_to_subject_in_scope(
         subject: The ID of the subject.
         role: The role to assign.
     """
+    enforcer.load_policy()
     enforcer.add_role_for_user_in_domain(
         subject.namespaced_key,
         role.namespaced_key,
@@ -231,6 +234,7 @@ def unassign_role_from_subject_in_scope(
         role: The role to unassign.
         scope: The scope from which to unassign the role.
     """
+    enforcer.load_policy()
     enforcer.delete_roles_for_user_in_domain(
         subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
@@ -292,6 +296,7 @@ def get_subject_role_assignments_in_scope(
     Returns:
         list[RoleAssignment]: A list of role assignments for the subject in the scope.
     """
+    enforcer.load_policy()
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
     for namespaced_key in enforcer.get_roles_for_user_in_domain(

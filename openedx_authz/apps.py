@@ -17,12 +17,12 @@ class OpenedxAuthzConfig(AppConfig):
         "url_config": {
             "lms.djangoapp": {
                 "namespace": "openedx-authz",
-                "regex": r"^openedx-authz/",
+                "regex": r"^api/",
                 "relative_path": "urls",
             },
             "cms.djangoapp": {
                 "namespace": "openedx-authz",
-                "regex": r"^openedx-authz/",
+                "regex": r"^api/",
                 "relative_path": "urls",
             },
         },

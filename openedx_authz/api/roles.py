@@ -179,10 +179,6 @@ def assign_role_to_subject_in_scope(
         subject: The ID of the subject.
         role: The role to assign.
     """
-    assert (
-        get_subject_role_assignments_in_scope(subject, scope) == []
-    ), "Subject already has a role in the scope"
-
     # TODO: we need to make some uppercase/lowercase decisions in the lookups
     # for now, we assume the caller has done the right thing
     # and passed in the correctly namespaced IDs

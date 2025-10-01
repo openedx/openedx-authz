@@ -197,15 +197,7 @@ def batch_assign_role_to_subjects_in_scope(
         role: The role to assign.
     """
     for subject in subjects:
-
-        assert (
-            get_subject_role_assignments_in_scope(subject, scope)
-            == []
-        ), "Subject already has a role in the scope"
-
-        enforcer.add_role_for_user_in_domain(
-            subject.subject_id, role.name, scope.scope_id
-        )
+        assign_role_to_subject_in_scope(subject, role, scope)
 
 
 def unassign_role_from_subject_in_scope(
@@ -234,7 +226,7 @@ def batch_unassign_role_from_subjects_in_scope(
         scope: The scope from which to unassign the role.
     """
     for subject in subjects:
-        enforcer.delete_roles_for_user_in_domain(subject, role.name, scope.scope_id)
+        unassign_role_from_subject_in_scope(subject, role, scope)
 
 
 def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentData]:

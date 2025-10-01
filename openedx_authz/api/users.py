@@ -14,10 +14,20 @@ from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
-    get_role_assignments_for_subject,
-    get_role_assignments_for_subject_in_scope,
+    get_subject_role_assignments,
+    get_subject_role_assignments_in_scope,
     unassign_role_from_subject_in_scope,
 )
+
+
+__all__ = [
+    "assign_role_to_user_in_scope",
+    "batch_assign_role_to_users",
+    "unassign_role_from_user",
+    "batch_unassign_role_from_users",
+    "get_user_role_assignments",
+    "get_user_role_assignments_in_scope",
+]
 
 
 def assign_role_to_user_in_scope(username: str, role_name: str, scope_id: str) -> bool:
@@ -94,7 +104,7 @@ def batch_unassign_role_from_users(
     )
 
 
-def get_role_assignments_for_user(username: str) -> list[dict]:
+def get_user_role_assignments(username: str) -> list[dict]:
     """Get all roles for a user across all scopes.
 
     Args:
@@ -103,10 +113,10 @@ def get_role_assignments_for_user(username: str) -> list[dict]:
     Returns:
         list[dict]: A list of role names and all their metadata assigned to the user.
     """
-    return get_role_assignments_for_subject(UserData(username=username))
+    return get_subject_role_assignments(UserData(username=username))
 
 
-def get_role_assignments_for_user_in_scope(username: str, scope_id: str) -> list[str]:
+def get_user_role_assignments_in_scope(username: str, scope_id: str) -> list[str]:
     """Get the roles assigned to a user in a specific scope.
 
     Args:
@@ -116,6 +126,6 @@ def get_role_assignments_for_user_in_scope(username: str, scope_id: str) -> list
     Returns:
         list: A list of role names assigned to the user in the specified scope.
     """
-    return get_role_assignments_for_subject_in_scope(
+    return get_subject_role_assignments_in_scope(
         UserData(username=username), ScopeData(scope_id=scope_id)
     )

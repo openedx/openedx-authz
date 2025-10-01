@@ -26,34 +26,31 @@ class PolicyIndex(Enum):
 
 
 @define
-class UserData:
-    """A user is a subject that can be assigned roles and permissions.
-
-    Attributes:
-        username: The username. Automatically prefixed with 'user:' if not present.
-    """
-
-    username: str
-
-    def __attrs_post_init__(self):
-        """Ensure username has 'user:' namespace prefix."""
-        if not self.username.startswith("user:"):
-            object.__setattr__(self, "username", f"user:{self.username}")
-
-
-@define
 class ScopeData:
     """A scope is a context in which roles and permissions are assigned.
 
     Attributes:
-        scope_id: The scope identifier (e.g., 'course-v1:edX+DemoX+2021_T1').
+        scope_id: The scope identifier (e.g., 'org:Demo').
 
     This class assumes that the scope is already namespaced appropriately
     before being passed in, as scopes can vary widely (e.g., courses, organizations).
     """
-    # TODO: figure out namespace for scopes
     scope_id: str
 
+@define
+class ContentLibraryData(ScopeData):
+    """A content library is a collection of content items.
+
+    Attributes:
+        library_id: The content library identifier (e.g., 'library-v1:edX+DemoX+2021_T1').
+    """
+
+    library_id: str
+
+    def __attrs_post_init__(self):
+        """Ensure scope ID has 'lib:' namespace prefix."""
+        if not self.scope_id.startswith("lib:"):
+            self.scope_id = f"lib:{self.library_id}"
 
 @define
 class SubjectData:
@@ -67,8 +64,26 @@ class SubjectData:
     users, groups, or other entities.
     """
 
-    subject_id: str
+    subject_id: str = ""
 
+@define
+class UserData(SubjectData):
+    """A user is a subject that can be assigned roles and permissions.
+
+    Attributes:
+        username: The username for the user (e.g., 'john_doe').
+
+    This class automatically adds the 'user:' namespace prefix to the subject ID.
+    Can be initialized with either username= or subject_id= parameter.
+    """
+
+    username: str = ""
+
+    def __attrs_post_init__(self):
+        """Ensure subject ID has 'user:' namespace prefix."""
+        # If username was provided, use it to set subject_id
+        if not self.subject_id.startswith("user:"):
+            self.subject_id = f"user:{self.username}"
 
 @define
 class ActionData:
@@ -83,7 +98,7 @@ class ActionData:
     def __attrs_post_init__(self):
         """Ensure action name has 'act:' namespace prefix."""
         if not self.action_id.startswith("act:"):
-            object.__setattr__(self, "action_id", f"act:{self.action_id}")
+            self.action_id = f"act:{self.action_id}"
 
 
 @define
@@ -132,7 +147,7 @@ class RoleData:
     def __attrs_post_init__(self):
         """Ensure role name has 'role:' namespace prefix."""
         if not self.name.startswith("role:"):
-            object.__setattr__(self, "name", f"role:{self.name}")
+            self.name = f"role:{self.name}"
 
 
 @define

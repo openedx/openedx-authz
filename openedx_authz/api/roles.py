@@ -33,9 +33,9 @@ __all__ = [
     "batch_assign_role_to_subjects_in_scope",
     "unassign_role_from_subject_in_scope",
     "batch_unassign_role_from_subjects_in_scope",
-    "get_role_assignments_for_subject_in_scope",
+    "get_subject_role_assignments_in_scope",
     "get_role_assignments_for_role_in_scope",
-    "get_role_assignments_for_subject",
+    "get_subject_role_assignments",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -48,7 +48,7 @@ __all__ = [
 
 
 def get_permissions_for_roles(
-    role_names: list[str] | str,
+    roles: list[RoleData] | RoleData,
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
     """Get the permissions (actions) for a list of roles.
 
@@ -59,18 +59,18 @@ def get_permissions_for_roles(
         dict[str, list[PermissionData]]: A dictionary mapping role names to their permissions and scopes.
     """
     permissions_by_role = {}
-    if not role_names:
+    if not roles:
         return permissions_by_role
 
-    if isinstance(role_names, str):
-        role_names = [role_names]
+    if isinstance(roles, RoleData):
+        roles = [roles]
 
-    for role_name in role_names:
-        policies = enforcer.get_implicit_permissions_for_user(role_name)
+    for role in roles:
+        policies = enforcer.get_implicit_permissions_for_user(role.name)
 
-        assert role_name not in permissions_by_role, "Duplicate role names found"
+        assert role.name not in permissions_by_role, "Duplicate role names found"
 
-        permissions_by_role[role_name] = {
+        permissions_by_role[role.name] = {
             "permissions": [get_permission_from_policy(policy) for policy in policies],
             "scopes": list(set(policy[PolicyIndex.SCOPE.value] for policy in policies)),
         }
@@ -79,7 +79,7 @@ def get_permissions_for_roles(
 
 
 def get_permissions_for_active_roles_in_scope(
-    scope: ScopeData, role_name: str = None
+    scope: ScopeData, role: RoleData | None = None
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
     """Retrieve all permissions granted by the specified roles within the given scope.
 
@@ -110,15 +110,15 @@ def get_permissions_for_active_roles_in_scope(
         GroupingPolicyIndex.SCOPE.value, scope.scope_id
     )
 
-    if role_name:
+    if role:
         filtered_policy = [
             policy
             for policy in filtered_policy
-            if policy[GroupingPolicyIndex.ROLE.value] == role_name
+            if policy[GroupingPolicyIndex.ROLE.value] == role.name
         ]
 
     return get_permissions_for_roles(
-        [policy[GroupingPolicyIndex.ROLE.value] for policy in filtered_policy]
+        [RoleData(name=policy[GroupingPolicyIndex.ROLE.value]) for policy in filtered_policy]
     )
 
 
@@ -180,7 +180,7 @@ def assign_role_to_subject_in_scope(
         role: The role to assign.
     """
     assert (
-        get_role_assignments_for_subject_in_scope(subject.subject_id, scope.scope_id)
+        get_subject_role_assignments_in_scope(subject, scope)
         == []
     ), "Subject already has a role in the scope"
 
@@ -199,9 +199,7 @@ def batch_assign_role_to_subjects_in_scope(
     for subject in subjects:
 
         assert (
-            get_role_assignments_for_subject_in_scope(
-                subject.subject_id, scope.scope_id
-            )
+            get_subject_role_assignments_in_scope(subject, scope)
             == []
         ), "Subject already has a role in the scope"
 
@@ -239,7 +237,7 @@ def batch_unassign_role_from_subjects_in_scope(
         enforcer.delete_roles_for_user_in_domain(subject, role.name, scope.scope_id)
 
 
-def get_role_assignments_for_subject(subject: SubjectData) -> list[RoleAssignmentData]:
+def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentData]:
     """Get all the roles for a subject across all scopes.
 
     Args:
@@ -250,20 +248,21 @@ def get_role_assignments_for_subject(subject: SubjectData) -> list[RoleAssignmen
     """
     role_assignments = []
     for policy in enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SUBJECT.value, subject
+        GroupingPolicyIndex.SUBJECT.value, subject.subject_id
     ):
 
         assert policy[GroupingPolicyIndex.ROLE.value] not in [
             role.role.name for role in role_assignments
         ], "Duplicate role names found"
 
-        permissions = get_permissions_for_roles(policy[GroupingPolicyIndex.ROLE.value])[
-            policy[GroupingPolicyIndex.ROLE.value]
+        role_name = policy[GroupingPolicyIndex.ROLE.value]
+        permissions = get_permissions_for_roles(RoleData(name=role_name))[
+            role_name
         ]["permissions"]
 
         role_assignments.append(
             RoleAssignmentData(
-                subject=SubjectData(subject_id=subject),
+                subject=subject,
                 role=RoleData(
                     name=policy[GroupingPolicyIndex.ROLE.value],
                     permissions=permissions,
@@ -274,8 +273,8 @@ def get_role_assignments_for_subject(subject: SubjectData) -> list[RoleAssignmen
     return role_assignments
 
 
-def get_role_assignments_for_subject_in_scope(
-    subject: str, scope: str
+def get_subject_role_assignments_in_scope(
+    subject: SubjectData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
     """Get the roles for a subject in a specific scope.
 
@@ -288,36 +287,36 @@ def get_role_assignments_for_subject_in_scope(
     """
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
-    for role_name in enforcer.get_roles_for_user_in_domain(subject, scope):
+    for role_name in enforcer.get_roles_for_user_in_domain(subject.subject_id, scope.scope_id):
         role_assignments.append(
             RoleAssignmentData(
-                subject=SubjectData(subject_id=subject),
+                subject=subject,
                 role=RoleData(
                     name=role_name,
-                    permissions=get_permissions_for_roles(role_name)[role_name][
+                    permissions=get_permissions_for_roles(RoleData(name=role_name))[role_name][
                         "permissions"
                     ],
                 ),
-                scope=ScopeData(scope_id=scope),
+                scope=scope,
             )
         )
     return role_assignments
 
 
 def get_role_assignments_for_role_in_scope(
-    role_name: str, scope: str
+    role: RoleData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
     """Get the subjects assigned to a specific role in a specific scope.
 
     Args:
-        role_name: The name of the role.
+        role: The role data.
         scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
 
     Returns:
         list[RoleAssignment]: A list of subjects assigned to the specified role in the specified scope.
     """
     role_assignments = []
-    for subject in enforcer.get_users_for_role_in_domain(role_name, scope):
+    for subject in enforcer.get_users_for_role_in_domain(role.name, scope.scope_id):
         if subject.startswith("role:"):
             # Skip roles that are also subjects
             continue
@@ -325,12 +324,12 @@ def get_role_assignments_for_role_in_scope(
             RoleAssignmentData(
                 subject=SubjectData(subject_id=subject),
                 role=RoleData(
-                    name=role_name,
-                    permissions=get_permissions_for_roles(role_name)[role_name][
+                    name=role.name,
+                    permissions=get_permissions_for_roles(role)[role.name][
                         "permissions"
                     ],
                 ),
-                scope=ScopeData(scope_id=scope),
+                scope=scope,
             )
         )
     return role_assignments

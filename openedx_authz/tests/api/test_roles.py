@@ -362,7 +362,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - Permissions are correctly retrieved for the given roles and scope.
             - The permissions match the expected permissions.
         """
-        assigned_permissions = get_permissions_for_roles([role_name])
+        assigned_permissions = get_permissions_for_roles(RoleData(name=role_name))
 
         self.assertEqual(assigned_permissions, expected_permissions)
 
@@ -419,7 +419,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - The permissions match the expected permissions for the role.
         """
         assigned_permissions = get_permissions_for_active_roles_in_scope(
-            ScopeData(scope_id=scope), role_name
+            ScopeData(scope_id=scope), RoleData(name=role_name)
         )
 
         self.assertIn(role_name, assigned_permissions)
@@ -490,7 +490,9 @@ class TestRolesAPI(RolesTestSetupMixin):
         Expected result:
             - Roles assigned to the user in the given scope are correctly retrieved.
         """
-        role_assignments = get_role_assignments_for_subject_in_scope(user, scope)
+        role_assignments = get_subject_role_assignments_in_scope(
+            SubjectData(subject_id=user), ScopeData(scope_id=scope)
+        )
 
         role_names = {assignment.role.name for assignment in role_assignments}
         self.assertEqual(role_names, expected_roles)
@@ -583,7 +585,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - All roles assigned to the subject across all scopes are correctly retrieved.
             - Each role includes its associated permissions.
         """
-        role_assignments = get_role_assignments_for_subject(subject)
+        role_assignments = get_subject_role_assignments(SubjectData(subject_id=subject))
 
         self.assertEqual(len(role_assignments), len(expected_roles))
         for expected_role in expected_roles:
@@ -629,7 +631,9 @@ class TestRolesAPI(RolesTestSetupMixin):
         Expected result:
             - The number of role assignments in the given scope is correctly retrieved.
         """
-        role_assignments = get_role_assignments_for_role_in_scope(role_name, scope)
+        role_assignments = get_role_assignments_for_role_in_scope(
+            RoleData(name=role_name), ScopeData(scope_id=scope)
+        )
 
         self.assertEqual(len(role_assignments), expected_count)
 
@@ -682,7 +686,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     RoleData(name=role),
                     ScopeData(scope_id=scope)
                 )
-                user_roles = get_role_assignments_for_subject_in_scope(subject, scope)
+                user_roles = get_subject_role_assignments_in_scope(
+                    SubjectData(subject_id=subject), ScopeData(scope_id=scope)
+                )
                 role_names = {assignment.role.name for assignment in user_roles}
                 self.assertIn(role, role_names)
         else:
@@ -691,7 +697,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleData(name=role),
                 ScopeData(scope_id=scope)
             )
-            user_roles = get_role_assignments_for_subject_in_scope(subjects, scope)
+            user_roles = get_subject_role_assignments_in_scope(
+                SubjectData(subject_id=subjects), ScopeData(scope_id=scope)
+            )
             role_names = {assignment.role.name for assignment in user_roles}
             self.assertIn(role, role_names)
 
@@ -731,7 +739,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     RoleData(name=role),
                     ScopeData(scope_id=scope)
                 )
-                user_roles = get_role_assignments_for_subject_in_scope(subject, scope)
+                user_roles = get_subject_role_assignments_in_scope(
+                    SubjectData(subject_id=subject), ScopeData(scope_id=scope)
+                )
                 role_names = {assignment.role.name for assignment in user_roles}
                 self.assertNotIn(role, role_names)
         else:
@@ -740,6 +750,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleData(name=role),
                 ScopeData(scope_id=scope)
             )
-            user_roles = get_role_assignments_for_subject_in_scope(subjects, scope)
+            user_roles = get_subject_role_assignments_in_scope(
+                SubjectData(subject_id=subjects), ScopeData(scope_id=scope)
+            )
             role_names = {assignment.role.name for assignment in user_roles}
             self.assertNotIn(role, role_names)

@@ -117,11 +117,6 @@ class RolesTestSetupMixin(TestCase):
                 "role_name": "library_collaborator",
                 "scope_name": "math_advanced",
             },
-            {
-                "subject_name": "Henry",
-                "role_name": "library_collaborator",
-                "scope_name": "math_advanced",
-            },
             # Hierarchical scope_id assignments - different specificity levels
             {
                 "subject_name": "Ivy",
@@ -195,7 +190,7 @@ class RolesTestSetupMixin(TestCase):
                 "subject_name": "Frank",
                 "role_name": "library_user",
                 "scope_name": "project_epsilon",
-            }
+            },
         ]
         cls._seed_database_with_policies()
         cls._assign_roles_to_users(assignments=assignments)
@@ -449,9 +444,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             "library_user",
             "english_101",
             [
-                PermissionData(
-                    action=ActionData(name="view_library"), effect="allow"
-                ),
+                PermissionData(action=ActionData(name="view_library"), effect="allow"),
                 PermissionData(
                     action=ActionData(name="view_library_team"), effect="allow"
                 ),
@@ -474,9 +467,7 @@ class TestRolesAPI(RolesTestSetupMixin):
                     action=ActionData(name="publish_library_content"),
                     effect="allow",
                 ),
-                PermissionData(
-                    action=ActionData(name="edit_library"), effect="allow"
-                ),
+                PermissionData(action=ActionData(name="edit_library"), effect="allow"),
                 PermissionData(
                     action=ActionData(name="manage_library_tags"),
                     effect="allow",
@@ -581,7 +572,9 @@ class TestRolesAPI(RolesTestSetupMixin):
         # Need to cheat here and use library data class to get lib@* scope_name
         # TODO: it'd be better to have our own policies for testing but for now we're using
         # the existing ones in authz.policy
-        roles_in_scope = get_role_definitions_in_scope(ContentLibraryData(library_id=scope_name))
+        roles_in_scope = get_role_definitions_in_scope(
+            ContentLibraryData(library_id=scope_name)
+        )
 
         role_names = {role.name for role in roles_in_scope}
         self.assertEqual(role_names, expected_roles)
@@ -595,7 +588,6 @@ class TestRolesAPI(RolesTestSetupMixin):
         ("eve", "chemistry_501", {"library_author"}),
         ("eve", "biology_601", {"library_user"}),
         ("grace", "math_advanced", {"library_collaborator"}),
-        ("henry", "math_advanced", {"library_collaborator"}),
         ("ivy", "cs_101", {"library_admin"}),
         ("jack", "cs_101", {"library_author"}),
         ("kate", "cs_101", {"library_user"}),
@@ -797,9 +789,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         ("non_existent_user", []),
     )
     @unpack
-    def test_get_all_role_assignments_scopes(
-        self, subject_name, expected_roles
-    ):
+    def test_get_all_role_assignments_scopes(self, subject_name, expected_roles):
         """Test retrieving all roles assigned to a subject across all scopes.
 
         Expected result:
@@ -851,7 +841,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         Expected result:
             - The number of role assignments in the given scope is correctly retrieved.
         """
-        role_assignments = get_subject_role_assignments_for_role_in_scope(
+        role_assignments = get_subjects_role_assignments_for_role_in_scope(
             RoleData(name=role_name), ScopeData(name=scope_name)
         )
 

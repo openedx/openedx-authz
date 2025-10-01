@@ -247,7 +247,9 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         GroupingPolicyIndex.SUBJECT.value, subject.subject_id
     ):
         role = RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_roles(role)[role.name][  # Index by role name for readability
+        role.permissions = get_permissions_for_roles(role)[
+            role.name
+        ][  # Index by role name for readability
             "permissions"
         ]
 
@@ -307,7 +309,7 @@ def get_subjects_role_assignments_for_role_in_scope(
     """
     role_assignments = []
     for subject in enforcer.get_users_for_role_in_domain(role.role_id, scope.scope_id):
-        if subject.startswith(RoleData.NAMESPACE):
+        if subject.startswith(f"{RoleData.NAMESPACE}@"):
             # Skip roles that are also subjects
             continue
         role_assignments.append(

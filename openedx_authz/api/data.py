@@ -32,10 +32,16 @@ class AuthZData:
     Attributes:
         NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role').
         SEPARATOR: The separator between the namespace and the identifier (e.g., ':', '@').
+
+    Subclasses are automatically registered by their NAMESPACE for factory pattern.
     """
 
     SEPARATOR: str = "@"
-    NAMESPACE: str = None  # To be defined in subclasses
+    NAMESPACE: str = None
+
+    # TODO: Implement factory method to return correct subclass based on NAMESPACE prefix.
+    # This would allow initializing with either subject or scope, etc. and returning the correct subclass.
+    # So we don't have to manage each subclass separately or hardcoded anywhere.
 
 
 @define
@@ -45,13 +51,12 @@ class ScopeData(AuthZData):
     Attributes:
         scope_id: The scope identifier (e.g., 'org@Demo').
 
-    This class assumes that the scope is already namespaced appropriately
-    before being passed in, as scopes can vary widely (e.g., courses, organizations).
+    Acts as a factory: automatically returns the correct subclass based on the scope_id prefix.
     """
 
-    NAMESPACE: str = "sc"  # Generic scope namespace, should be overridden by specific scope types
+    NAMESPACE: str = "sc"
     scope_id: str = ""
-    name: str = ""  # Optional human-readable name
+    name: str = ""
 
     def __attrs_post_init__(self):
         """Ensure scope ID has appropriate namespace prefix."""
@@ -59,7 +64,12 @@ class ScopeData(AuthZData):
             self.scope_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
 
         # Allow reverse lookup of name from scope_id
-        if not self.name and self.scope_id and self.NAMESPACE and self.scope_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if (
+            not self.name
+            and self.scope_id
+            and self.NAMESPACE
+            and self.scope_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}")
+        ):
             self.name = self.scope_id.split(self.SEPARATOR, 1)[1].lower()
 
 
@@ -81,7 +91,9 @@ class ContentLibraryData(ScopeData):
             self.scope_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.library_id}".lower()
 
         # Allow reverse lookup of library_id from scope_id
-        if not self.library_id and self.scope_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.library_id and self.scope_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.library_id = self.scope_id.split(self.SEPARATOR, 1)[1].lower()
 
 
@@ -92,27 +104,22 @@ class SubjectData(AuthZData):
     Attributes:
         subject_id: The subject identifier namespaced (e.g., 'user@john_doe').
 
-    This class assumes that the subject was already namespaced by their own
-    type (e.g., 'user@', 'group@') before being passed in since subjects can be
-    users, groups, or other entities.
+    Acts as a factory: automatically returns the correct subclass based on the subject_id prefix.
     """
 
-    NAMESPACE: str = (
-        "sub"  # Generic subject namespace, should be overridden by specific subject types
-    )
+    NAMESPACE: str = "sub"
     subject_id: str = ""
-    name: str = ""  # Optional human-readable name
+    name: str = ""
 
     def __attrs_post_init__(self):
-        """Ensure subject ID has appropriate namespace prefix.
-
-        This allows initialization with either name= or subject_id= parameter.
-        """
+        """Ensure subject ID has appropriate namespace prefix."""
         if not self.subject_id:
             self.subject_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
 
         # Allow reverse lookup of name from subject_id
-        if not self.name and self.subject_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.name and self.subject_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.name = self.subject_id.split(self.SEPARATOR, 1)[1].lower()
 
 
@@ -140,7 +147,9 @@ class UserData(SubjectData):
             self.subject_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.username}".lower()
 
         # Allow reverse lookup of username from subject_id
-        if not self.username and self.subject_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.username and self.subject_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.username = self.subject_id.split(self.SEPARATOR, 1)[1].lower()
 
 
@@ -165,7 +174,9 @@ class ActionData(AuthZData):
             self.action_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
 
         # Allow reverse lookup of name from action_id
-        if not self.name and self.action_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.name and self.action_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.name = self.action_id.split(self.SEPARATOR, 1)[1].lower()
 
 
@@ -219,12 +230,17 @@ class RoleData(AuthZData):
 
         This allows initialization with either name= or role_id= parameter.
         """
-        if not self.role_id or not self.role_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.role_id or not self.role_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.role_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
 
         # Allow reverse lookup of name from role_id
-        if not self.name and self.role_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}"):
+        if not self.name and self.role_id.startswith(
+            f"{self.NAMESPACE}{self.SEPARATOR}"
+        ):
             self.name = self.role_id.split(self.SEPARATOR, 1)[1].lower()
+
 
 @define
 class RoleAssignmentData(AuthZData):

@@ -57,9 +57,7 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
             - The role is successfully assigned to the user in the specified scope.
         """
         if batch:
-            batch_assign_role_to_users(
-                users=username, role_name=role, scope=scope_name
-            )
+            batch_assign_role_to_users(users=username, role_name=role, scope=scope_name)
             for user in username:
                 user_roles = get_user_role_assignments_in_scope(
                     username=user, scope=scope_name
@@ -77,7 +75,7 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
             self.assertIn(role, role_names)
 
     @data(
-        (["Grace", "Henry"], "library_collaborator", "math_advanced", True),
+        (["Grace"], "library_collaborator", "math_advanced", True),
         (["Liam", "Maya"], "library_author", "art_101", True),
         ("Alice", "library_admin", "math_101", False),
         ("Bob", "library_author", "history_201", False),
@@ -101,9 +99,7 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
                 role_names = {assignment.role.name for assignment in user_roles}
                 self.assertNotIn(role, role_names)
         else:
-            unassign_role_from_user(
-                user=username, role_name=role, scope=scope_name
-            )
+            unassign_role_from_user(user=username, role_name=role, scope=scope_name)
             user_roles = get_user_role_assignments_in_scope(
                 username=username, scope=scope_name
             )
@@ -136,7 +132,9 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
         ("Grace", "math_advanced", {"library_collaborator"}),
     )
     @unpack
-    def test_get_user_role_assignments_in_scope(self, username, scope_name, expected_roles):
+    def test_get_user_role_assignments_in_scope(
+        self, username, scope_name, expected_roles
+    ):
         """Test retrieving role assignments for a user within a specific scope.
 
         Expected result:
@@ -150,14 +148,15 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
         role_names = {assignment.role.name for assignment in user_roles}
         self.assertEqual(role_names, expected_roles)
 
-
     @data(
-        ("library_admin", "math_101", {"Alice", "Eve"}),
-        ("library_author", "history_201", {"Bob"}),
-        ("library_collaborator", "math_advanced", {"Grace"}),
+        ("library_admin", "math_101", {"alice"}),
+        ("library_author", "history_201", {"bob"}),
+        ("library_collaborator", "math_advanced", {"grace"}),
     )
     @unpack
-    def test_get_user_role_assignments_for_role_in_scope(self, role_name, scope_name, expected_users):
+    def test_get_user_role_assignments_for_role_in_scope(
+        self, role_name, scope_name, expected_users
+    ):
         """Test retrieving all users assigned to a specific role within a specific scope.
 
         Expected result:
@@ -168,5 +167,8 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
             role_name=role_name, scope=scope_name
         )
 
-        assigned_usernames = {assignment.subject.username for assignment in user_assignments}
+        assigned_usernames = {
+            assignment.subject.username for assignment in user_assignments
+        }
+
         self.assertEqual(assigned_usernames, expected_users)

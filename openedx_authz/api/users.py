@@ -145,7 +145,6 @@ def get_user_role_assignments_for_role_in_scope(
     for role_assignment in get_subjects_role_assignments_for_role_in_scope(
         RoleData(name=role_name), ScopeData(name=scope)
     ):
-        print(role_assignment)
         user_role_assignments.append(
             RoleAssignmentData(
                 subject=UserData(

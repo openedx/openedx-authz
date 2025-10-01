@@ -251,9 +251,6 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         GroupingPolicyIndex.SUBJECT.value, subject.subject_id
     ):
 
-        assert policy[GroupingPolicyIndex.ROLE.value] not in [
-            role.role.name for role in role_assignments
-        ], "Duplicate role names found"
 
         role_name = policy[GroupingPolicyIndex.ROLE.value]
         permissions = get_permissions_for_roles(RoleData(name=role_name))[

@@ -11,7 +11,13 @@ from ddt import ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.api import *
-from openedx_authz.api.data import ActionData, PermissionData, RoleData, ScopeData, SubjectData
+from openedx_authz.api.data import (
+    ActionData,
+    PermissionData,
+    RoleData,
+    ScopeData,
+    SubjectData,
+)
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_from_file_to_db
 
@@ -39,10 +45,6 @@ class RolesTestSetupMixin(TestCase):
     @classmethod
     def _assign_roles_to_users(
         cls,
-        subjects: list[str] | str = [],
-        role: str = "",
-        scope: str = "",
-        batch: bool = False,
         assignments: list[dict] | None = None,
     ):
         """Helper method to assign roles to multiple users.
@@ -53,39 +55,18 @@ class RolesTestSetupMixin(TestCase):
         Args:
             assignments (list of dict): List of assignment dictionaries, each containing:
                 - subject (str): ID of the user namespaced (e.g., 'user:john_doe').
-                - role_name (str): Name of the role to assign.
+                - role_id (str): Name of the role to assign.
                 - scope (str): Scope in which to assign the role.
-            subjects (list of str or str): List of user IDs or a single user ID to assign the role to.
-            role (str): Name of the role to assign.
-            scope (str): Scope in which to assign the role.
-            batch (bool): If True, assigns the role to multiple subjects in one operation.
         """
-        global_enforcer.load_policy()  # Load policies to avoid duplicates
         if assignments:
             for assignment in assignments:
                 assign_role_to_subject_in_scope(
-                    subject=SubjectData(subject_id=assignment["subject"]),
+                    subject=SubjectData(
+                        name=assignment["subject_name"],
+                    ),
                     role=RoleData(name=assignment["role_name"]),
-                    scope=ScopeData(scope_id=assignment["scope"]),
+                    scope=ScopeData(name=assignment["scope_name"]),
                 )
-            global_enforcer.clear_policy()  # Clear to simulate fresh start for each test
-            return
-
-        if batch:
-            batch_assign_role_to_subjects_in_scope(
-                subjects=[SubjectData(subject_id=s) for s in subjects],
-                role=RoleData(name=role),
-                scope=ScopeData(scope_id=scope),
-            )
-            global_enforcer.clear_policy()  # Clear to simulate fresh start for each test
-            return
-
-        assign_role_to_subject_in_scope(
-            subject=SubjectData(subject_id=subjects),
-            role=RoleData(name=role),
-            scope=ScopeData(scope_id=scope),
-        )
-        global_enforcer.clear_policy()  # Clear to simulate fresh start for each test
 
     @classmethod
     def setUpClass(cls):
@@ -95,127 +76,126 @@ class RolesTestSetupMixin(TestCase):
         assignments = [
             # Basic library roles from authz.policy
             {
-                "subject": "user:alice",
-                "role_name": "role:library_admin",
-                "scope": "lib:math_101",
+                "subject_name": "Alice",
+                "role_name": "library_admin",
+                "scope_name": "math_101",
             },
             {
-                "subject": "user:bob",
-                "role_name": "role:library_author",
-                "scope": "lib:history_201",
+                "subject_name": "Bob",
+                "role_name": "library_author",
+                "scope_name": "history_201",
             },
             {
-                "subject": "user:carol",
-                "role_name": "role:library_collaborator",
-                "scope": "lib:science_301",
+                "subject_name": "Carol",
+                "role_name": "library_collaborator",
+                "scope_name": "science_301",
             },
             {
-                "subject": "user:dave",
-                "role_name": "role:library_user",
-                "scope": "lib:english_101",
+                "subject_name": "Dave",
+                "role_name": "library_user",
+                "scope_name": "english_101",
             },
             # Multi-role assignments - same user with different roles in different libraries
             {
-                "subject": "user:eve",
-                "role_name": "role:library_admin",
-                "scope": "lib:physics_401",
+                "subject_name": "Eve",
+                "role_name": "library_admin",
+                "scope_name": "physics_401",
             },
             {
-                "subject": "user:eve",
-                "role_name": "role:library_author",
-                "scope": "lib:chemistry_501",
+                "subject_name": "Eve",
+                "role_name": "library_author",
+                "scope_name": "chemistry_501",
             },
             {
-                "subject": "user:eve",
-                "role_name": "role:library_user",
-                "scope": "lib:biology_601",
+                "subject_name": "Eve",
+                "role_name": "library_user",
+                "scope_name": "biology_601",
             },
-            # Global scope assignments using wildcard
+            # Multiple users with same role in same scope_id
             {
-                "subject": "user:frank",
-                "role_name": "role:library_user",
-                "scope": "lib:any_library",
-            },
-            # Multiple users with same role in same scope
-            {
-                "subject": "user:grace",
-                "role_name": "role:library_collaborator",
-                "scope": "lib:math_advanced",
+                "subject_name": "Grace",
+                "role_name": "library_collaborator",
+                "scope_name": "math_advanced",
             },
             {
-                "subject": "user:henry",
-                "role_name": "role:library_collaborator",
-                "scope": "lib:math_advanced",
+                "subject_name": "Henry",
+                "role_name": "library_collaborator",
+                "scope_name": "math_advanced",
             },
-            # Hierarchical scope assignments - different specificity levels
+            # Hierarchical scope_id assignments - different specificity levels
             {
-                "subject": "user:ivy",
-                "role_name": "role:library_admin",
-                "scope": "lib:cs_101",
-            },
-            {
-                "subject": "user:jack",
-                "role_name": "role:library_author",
-                "scope": "lib:cs_101",
+                "subject_name": "Ivy",
+                "role_name": "library_admin",
+                "scope_name": "cs_101",
             },
             {
-                "subject": "user:kate",
-                "role_name": "role:library_user",
-                "scope": "lib:cs_101",
+                "subject_name": "Jack",
+                "role_name": "library_author",
+                "scope_name": "cs_101",
+            },
+            {
+                "subject_name": "Kate",
+                "role_name": "library_user",
+                "scope_name": "cs_101",
             },
             # Edge case: same user, same role, different scopes
             {
-                "subject": "user:liam",
-                "role_name": "role:library_author",
-                "scope": "lib:art_101",
+                "subject_name": "Liam",
+                "role_name": "library_author",
+                "scope_name": "art_101",
             },
             {
-                "subject": "user:liam",
-                "role_name": "role:library_author",
-                "scope": "lib:art_201",
+                "subject_name": "Liam",
+                "role_name": "library_author",
+                "scope_name": "art_201",
             },
             {
-                "subject": "user:liam",
-                "role_name": "role:library_author",
-                "scope": "lib:art_301",
+                "subject_name": "Liam",
+                "role_name": "library_author",
+                "scope_name": "art_301",
             },
             # Mixed permission levels across libraries for comprehensive testing
             {
-                "subject": "user:maya",
-                "role_name": "role:library_admin",
-                "scope": "lib:economics_101",
+                "subject_name": "Maya",
+                "role_name": "library_admin",
+                "scope_name": "economics_101",
             },
             {
-                "subject": "user:noah",
-                "role_name": "role:library_collaborator",
-                "scope": "lib:economics_101",
+                "subject_name": "Noah",
+                "role_name": "library_collaborator",
+                "scope_name": "economics_101",
             },
             {
-                "subject": "user:olivia",
-                "role_name": "role:library_user",
-                "scope": "lib:economics_101",
+                "subject_name": "Olivia",
+                "role_name": "library_user",
+                "scope_name": "economics_101",
             },
             # Complex multi-library, multi-role scenario
             {
-                "subject": "user:peter",
-                "role_name": "role:library_admin",
-                "scope": "lib:project_alpha",
+                "subject_name": "Peter",
+                "role_name": "library_admin",
+                "scope_name": "project_alpha",
             },
             {
-                "subject": "user:peter",
-                "role_name": "role:library_author",
-                "scope": "lib:project_beta",
+                "subject_name": "Peter",
+                "role_name": "library_author",
+                "scope_name": "project_beta",
             },
             {
-                "subject": "user:peter",
-                "role_name": "role:library_collaborator",
-                "scope": "lib:project_gamma",
+                "subject_name": "Peter",
+                "role_name": "library_collaborator",
+                "scope_name": "project_gamma",
             },
             {
-                "subject": "user:peter",
-                "role_name": "role:library_user",
-                "scope": "lib:project_delta",
+                "subject_name": "Peter",
+                "role_name": "library_user",
+                "scope_name": "project_delta",
             },
+            {
+                "subject_name": "Frank",
+                "role_name": "library_user",
+                "scope_name": "project_epsilon",
+            }
         ]
         cls._seed_database_with_policies()
         cls._assign_roles_to_users(assignments=assignments)
@@ -254,104 +234,201 @@ class TestRolesAPI(RolesTestSetupMixin):
     @ddt_data(
         # Library Admin role with actual permissions from authz.policy
         (
-            "role:library_admin",
+            "library_admin",
             {
-                "role:library_admin": {
+                "library_admin": {
                     "permissions": [
-                        PermissionData(action=ActionData(action_id="act:delete_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="delete_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
                     ],
-                    "scopes": ["lib:*"],
                 }
             },
         ),
         # Library Author role with actual permissions from authz.policy
         (
-            "role:library_author",
+            "library_author",
             {
-                "role:library_author": {
+                "library_author": {
                     "permissions": [
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:edit_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:edit_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="edit_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="edit_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
                     ],
-                    "scopes": ["lib:*"],
                 }
             },
         ),
         # Library Collaborator role with actual permissions from authz.policy
         (
-            "role:library_collaborator",
+            "library_collaborator",
             {
-                "role:library_collaborator": {
+                "library_collaborator": {
                     "permissions": [
-                        PermissionData(action=ActionData(action_id="act:edit_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:edit_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="edit_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="edit_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
                     ],
-                    "scopes": ["lib:*"],
                 }
             },
         ),
         # Library User role with minimal permissions
         (
-            "role:library_user",
+            "library_user",
             {
-                "role:library_user": {
+                "library_user": {
                     "permissions": [
-                        PermissionData(action=ActionData(action_id="act:view_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:view_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:reuse_library_content"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="view_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="view_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="reuse_library_content"),
+                            effect="allow",
+                        ),
                     ],
-                    "scopes": ["lib:*"],
                 }
             },
         ),
         # Role in different scope for multi-role user (eve) - this user IS assigned this role in this scope
         (
-            "role:library_admin",
+            "library_admin",
             {
-                "role:library_admin": {
+                "library_admin": {
                     "permissions": [
-                        PermissionData(action=ActionData(action_id="act:delete_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="delete_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
                     ],
-                    "scopes": ["lib:*"],
                 }
             },
         ),
         # Non-existent role
         (
-            "role:non_existent_role",
-            {"role:non_existent_role": {"permissions": [], "scopes": []}},
+            "non_existent_role",
+            {"non_existent_role": {"permissions": []}},
         ),
         # Empty role list
         # ("", {"": []}), TODO: this returns all roles, is this expected?
         # Non existent role
         (
-            "role:non_existent_role",
-            {"role:non_existent_role": {"permissions": [], "scopes": []}},
+            "non_existent_role",
+            {"non_existent_role": {"permissions": []}},
         ),
     )
     @unpack
@@ -369,48 +446,99 @@ class TestRolesAPI(RolesTestSetupMixin):
     @ddt_data(
         # Role assigned to multiple users in different scopes
         (
-            "role:library_user",
-            "lib:english_101",
+            "library_user",
+            "english_101",
             [
-                PermissionData(action=ActionData(action_id="act:view_library"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:view_library_team"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:reuse_library_content"), effect="allow"),
+                PermissionData(
+                    action=ActionData(name="view_library"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="view_library_team"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="reuse_library_content"),
+                    effect="allow",
+                ),
             ],
         ),
         # Role assigned to single user in single scope
         (
-            "role:library_author",
-            "lib:history_201",
+            "library_author",
+            "history_201",
             [
-                PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:edit_library"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:edit_library_collection"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
+                PermissionData(
+                    action=ActionData(name="delete_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="publish_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="edit_library"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="manage_library_tags"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="create_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="edit_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="delete_library_collection"),
+                    effect="allow",
+                ),
             ],
         ),
         # Role assigned to single user in multiple scopes
         (
-            "role:library_admin",
-            "lib:math_101",
+            "library_admin",
+            "math_101",
             [
-                PermissionData(action=ActionData(action_id="act:delete_library"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:publish_library"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:manage_library_team"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:create_library"), effect="allow"),
-                PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
+                PermissionData(
+                    action=ActionData(name="delete_library"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="publish_library"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="manage_library_team"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="manage_library_tags"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="delete_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="publish_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="delete_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(name="create_library"), effect="allow"
+                ),
+                PermissionData(
+                    action=ActionData(name="create_library_collection"),
+                    effect="allow",
+                ),
             ],
         ),
     )
     @unpack
     def test_get_permissions_for_active_role_in_specific_scope(
-        self, role_name, scope, expected_permissions
+        self, role_name, scope_name, expected_permissions
     ):
         """Test retrieving permissions for a specific role after role assignments.
 
@@ -419,7 +547,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - The permissions match the expected permissions for the role.
         """
         assigned_permissions = get_permissions_for_active_roles_in_scope(
-            ScopeData(scope_id=scope), RoleData(name=role_name)
+            ScopeData(name=scope_name), RoleData(name=role_name)
         )
 
         self.assertIn(role_name, assigned_permissions)
@@ -430,68 +558,72 @@ class TestRolesAPI(RolesTestSetupMixin):
 
     @ddt_data(
         (
-            "lib:*",
+            "*",
             {
-                "role:library_admin",
-                "role:library_author",
-                "role:library_collaborator",
-                "role:library_user",
+                "library_admin",
+                "library_author",
+                "library_collaborator",
+                "library_user",
             },
         ),
     )
     @unpack
-    def test_get_roles_in_scope(self, scope, expected_roles):
-        """Test retrieving roles definitions in a specific scope.
+    def test_get_roles_in_scope(self, scope_name, expected_roles):
+        """Test retrieving roles definitions in a specific scope_name.
 
         Currently, this function returns all roles defined in the system because
-        we're using only lib:* scope. This should be updated when we have more
+        we're using only lib:* scope_name. This should be updated when we have more
         (template) scopes in the policy file.
 
         Expected result:
-            - Roles in the given scope are correctly retrieved.
+            - Roles in the given scope_name are correctly retrieved.
         """
-        roles_in_scope = get_role_definitions_in_scope(ScopeData(scope_id=scope))
+        # Need to cheat here and use library data class to get lib@* scope_name
+        # TODO: it'd be better to have our own policies for testing but for now we're using
+        # the existing ones in authz.policy
+        roles_in_scope = get_role_definitions_in_scope(ContentLibraryData(library_id=scope_name))
 
-        retrieved_role_names = {role.name for role in roles_in_scope}
-        self.assertEqual(retrieved_role_names, expected_roles)
+        role_names = {role.name for role in roles_in_scope}
+        self.assertEqual(role_names, expected_roles)
 
     @ddt_data(
-        ("user:alice", "lib:math_101", {"role:library_admin"}),
-        ("user:bob", "lib:history_201", {"role:library_author"}),
-        ("user:carol", "lib:science_301", {"role:library_collaborator"}),
-        ("user:dave", "lib:english_101", {"role:library_user"}),
-        ("user:eve", "lib:physics_401", {"role:library_admin"}),
-        ("user:eve", "lib:chemistry_501", {"role:library_author"}),
-        ("user:eve", "lib:biology_601", {"role:library_user"}),
-        ("user:frank", "lib:any_library", {"role:library_user"}),  # Global scope
-        ("user:grace", "lib:math_advanced", {"role:library_collaborator"}),
-        ("user:henry", "lib:math_advanced", {"role:library_collaborator"}),
-        ("user:ivy", "lib:cs_101", {"role:library_admin"}),
-        ("user:jack", "lib:cs_101", {"role:library_author"}),
-        ("user:kate", "lib:cs_101", {"role:library_user"}),
-        ("user:liam", "lib:art_101", {"role:library_author"}),
-        ("user:liam", "lib:art_201", {"role:library_author"}),
-        ("user:liam", "lib:art_301", {"role:library_author"}),
-        ("user:maya", "lib:economics_101", {"role:library_admin"}),
-        ("user:noah", "lib:economics_101", {"role:library_collaborator"}),
-        ("user:olivia", "lib:economics_101", {"role:library_user"}),
-        ("user:peter", "lib:project_alpha", {"role:library_admin"}),
-        ("user:peter", "lib:project_beta", {"role:library_author"}),
-        ("user:peter", "lib:project_gamma", {"role:library_collaborator"}),
-        ("user:peter", "lib:project_delta", {"role:library_user"}),
-        ("user:non_existent_user", "lib:math_101", set()),
-        ("user:alice", "lib:non_existent_scope", set()),
-        ("user:non_existent_user", "lib:non_existent_scope", set()),
+        ("alice", "math_101", {"library_admin"}),
+        ("bob", "history_201", {"library_author"}),
+        ("carol", "science_301", {"library_collaborator"}),
+        ("dave", "english_101", {"library_user"}),
+        ("eve", "physics_401", {"library_admin"}),
+        ("eve", "chemistry_501", {"library_author"}),
+        ("eve", "biology_601", {"library_user"}),
+        ("grace", "math_advanced", {"library_collaborator"}),
+        ("henry", "math_advanced", {"library_collaborator"}),
+        ("ivy", "cs_101", {"library_admin"}),
+        ("jack", "cs_101", {"library_author"}),
+        ("kate", "cs_101", {"library_user"}),
+        ("liam", "art_101", {"library_author"}),
+        ("liam", "art_201", {"library_author"}),
+        ("liam", "art_301", {"library_author"}),
+        ("maya", "economics_101", {"library_admin"}),
+        ("noah", "economics_101", {"library_collaborator"}),
+        ("olivia", "economics_101", {"library_user"}),
+        ("peter", "project_alpha", {"library_admin"}),
+        ("peter", "project_beta", {"library_author"}),
+        ("peter", "project_gamma", {"library_collaborator"}),
+        ("peter", "project_delta", {"library_user"}),
+        ("non_existent_user", "math_101", set()),
+        ("alice", "non_existent_scope", set()),
+        ("non_existent_user", "non_existent_scope", set()),
     )
     @unpack
-    def test_get_roles_for_user_in_scope(self, user, scope, expected_roles):
-        """Test retrieving roles assigned to a user in a specific scope.
+    def test_get_subject_role_assignments_in_scope(
+        self, subject_name, scope_name, expected_roles
+    ):
+        """Test retrieving roles assigned to a subject in a specific scope_id.
 
         Expected result:
-            - Roles assigned to the user in the given scope are correctly retrieved.
+            - Roles assigned to the user in the given scope_id are correctly retrieved.
         """
         role_assignments = get_subject_role_assignments_in_scope(
-            SubjectData(subject_id=user), ScopeData(scope_id=scope)
+            SubjectData(name=subject_name), ScopeData(name=scope_name)
         )
 
         role_names = {assignment.role.name for assignment in role_assignments}
@@ -499,85 +631,174 @@ class TestRolesAPI(RolesTestSetupMixin):
 
     @ddt_data(
         (
-            "user:alice",
+            "alice",
             [
                 RoleData(
-                    name="role:library_admin",
+                    name="library_admin",
                     permissions=[
-                        PermissionData(action=ActionData(action_id="act:delete_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
                         PermissionData(
-                            action=ActionData(action_id="act:delete_library_collection"), effect="allow"
+                            action=ActionData(name="delete_library"),
+                            effect="allow",
                         ),
-                        PermissionData(action=ActionData(action_id="act:create_library"), effect="allow"),
                         PermissionData(
-                            action=ActionData(action_id="act:create_library_collection"), effect="allow"
+                            action=ActionData(name="publish_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
                         ),
                     ],
                 ),
             ],
         ),
         (
-            "user:eve",
+            "eve",
             [
                 RoleData(
-                    name="role:library_admin",
+                    name="library_admin",
                     permissions=[
-                        PermissionData(action=ActionData(action_id="act:delete_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="delete_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
                     ],
                 ),
                 RoleData(
-                    name="role:library_author",
+                    name="library_author",
                     permissions=[
-                        PermissionData(action=ActionData(action_id="act:delete_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:publish_library_content"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:edit_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:manage_library_tags"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:create_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:edit_library_collection"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:delete_library_collection"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="delete_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="publish_library_content"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="edit_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="manage_library_tags"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="create_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="edit_library_collection"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="delete_library_collection"),
+                            effect="allow",
+                        ),
                     ],
                 ),
                 RoleData(
-                    name="role:library_user",
+                    name="library_user",
                     permissions=[
-                        PermissionData(action=ActionData(action_id="act:view_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:view_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:reuse_library_content"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="view_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="view_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="reuse_library_content"),
+                            effect="allow",
+                        ),
                     ],
                 ),
             ],
         ),
         (
-            "user:frank",
+            "frank",
             [
                 RoleData(
-                    name="role:library_user",
+                    name="library_user",
                     permissions=[
-                        PermissionData(action=ActionData(action_id="act:view_library"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:view_library_team"), effect="allow"),
-                        PermissionData(action=ActionData(action_id="act:reuse_library_content"), effect="allow"),
+                        PermissionData(
+                            action=ActionData(name="view_library"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="view_library_team"),
+                            effect="allow",
+                        ),
+                        PermissionData(
+                            action=ActionData(name="reuse_library_content"),
+                            effect="allow",
+                        ),
                     ],
                 ),
             ],
         ),
-        ("user:non_existent_user", []),
+        ("non_existent_user", []),
     )
     @unpack
-    def test_get_all_roles_for_subjects_with_permissions_across_scopes(
-        self, subject, expected_roles
+    def test_get_all_role_assignments_scopes(
+        self, subject_name, expected_roles
     ):
         """Test retrieving all roles assigned to a subject across all scopes.
 
@@ -585,7 +806,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - All roles assigned to the subject across all scopes are correctly retrieved.
             - Each role includes its associated permissions.
         """
-        role_assignments = get_subject_role_assignments(SubjectData(subject_id=subject))
+        role_assignments = get_subject_role_assignments(SubjectData(name=subject_name))
 
         self.assertEqual(len(role_assignments), len(expected_roles))
         for expected_role in expected_roles:
@@ -598,41 +819,40 @@ class TestRolesAPI(RolesTestSetupMixin):
             )
 
     @ddt_data(
-        ("role:library_admin", "lib:math_101", 1),
-        ("role:library_author", "lib:history_201", 1),
-        ("role:library_collaborator", "lib:science_301", 1),
-        ("role:library_user", "lib:english_101", 1),
-        ("role:library_admin", "lib:physics_401", 1),
-        ("role:library_author", "lib:chemistry_501", 1),
-        ("role:library_user", "lib:biology_601", 1),
-        ("role:library_user", "lib:any_library", 1),  # Global scope
-        ("role:library_collaborator", "lib:math_advanced", 2),
-        ("role:library_admin", "lib:cs_101", 1),
-        ("role:library_author", "lib:cs_101", 1),
-        ("role:library_user", "lib:cs_101", 1),
-        ("role:library_author", "lib:art_101", 1),
-        ("role:library_author", "lib:art_201", 1),
-        ("role:library_author", "lib:art_301", 1),
-        ("role:library_admin", "lib:economics_101", 1),
-        ("role:library_collaborator", "lib:economics_101", 1),
-        ("role:library_user", "lib:economics_101", 1),
-        ("role:library_admin", "lib:project_alpha", 1),
-        ("role:library_author", "lib:project_beta", 1),
-        ("role:library_collaborator", "lib:project_gamma", 1),
-        ("role:library_user", "lib:project_delta", 1),
-        ("role:non_existent_role", "lib:any_library", 0),
-        ("role:library_admin", "lib:non_existent_scope", 0),
-        ("role:non_existent_role", "lib:non_existent_scope", 0),
+        ("library_admin", "math_101", 1),
+        ("library_author", "history_201", 1),
+        ("library_collaborator", "science_301", 1),
+        ("library_user", "english_101", 1),
+        ("library_admin", "physics_401", 1),
+        ("library_author", "chemistry_501", 1),
+        ("library_user", "biology_601", 1),
+        ("library_collaborator", "math_advanced", 2),
+        ("library_admin", "cs_101", 1),
+        ("library_author", "cs_101", 1),
+        ("library_user", "cs_101", 1),
+        ("library_author", "art_101", 1),
+        ("library_author", "art_201", 1),
+        ("library_author", "art_301", 1),
+        ("library_admin", "economics_101", 1),
+        ("library_collaborator", "economics_101", 1),
+        ("library_user", "economics_101", 1),
+        ("library_admin", "project_alpha", 1),
+        ("library_author", "project_beta", 1),
+        ("library_collaborator", "project_gamma", 1),
+        ("library_user", "project_delta", 1),
+        ("non_existent_role", "any_library", 0),
+        ("library_admin", "non_existent_scope", 0),
+        ("non_existent_role", "non_existent_scope", 0),
     )
     @unpack
-    def test_get_role_assignments_in_scope(self, role_name, scope, expected_count):
+    def test_get_role_assignments_in_scope(self, role_name, scope_name, expected_count):
         """Test retrieving role assignments in a specific scope.
 
         Expected result:
             - The number of role assignments in the given scope is correctly retrieved.
         """
         role_assignments = get_role_assignments_for_role_in_scope(
-            RoleData(name=role_name), ScopeData(scope_id=scope)
+            RoleData(name=role_name), ScopeData(name=scope_name)
         )
 
         self.assertEqual(len(role_assignments), expected_count)
@@ -651,27 +871,29 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     """
 
     @ddt_data(
-        (["user:mary", "user:john"], "role:library_user", "lib:batch_test", True),
+        (["mary", "john"], "library_user", "batch_test", True),
         (
-            ["user:paul", "user:diana", "user:lila"],
-            "role:library_collaborator",
-            "lib:math_advanced",
+            ["paul", "diana", "lila"],
+            "library_collaborator",
+            "math_advanced",
             True,
         ),
-        (["user:sarina", "user:ty"], "role:library_author", "lib:art_101", True),
-        (["user:fran", "user:bob"], "role:library_admin", "lib:cs_101", True),
+        (["sarina", "ty"], "library_author", "art_101", True),
+        (["fran", "bob"], "library_admin", "cs_101", True),
         (
-            ["user:anna", "user:tom", "user:jerry"],
-            "role:library_user",
-            "lib:history_201",
+            ["anna", "tom", "jerry"],
+            "library_user",
+            "history_201",
             True,
         ),
-        ("user:joe", "role:library_collaborator", "lib:science_301", False),
-        ("user:nina", "role:library_author", "lib:english_101", False),
-        ("user:oliver", "role:library_admin", "lib:math_101", False),
+        ("joe", "library_collaborator", "science_301", False),
+        ("nina", "library_author", "english_101", False),
+        ("oliver", "library_admin", "math_101", False),
     )
     @unpack
-    def test_batch_assign_role_to_subjects_in_scope(self, subjects, role, scope, batch):
+    def test_batch_assign_role_to_subjects_in_scope(
+        self, subject_names, role, scope_name, batch
+    ):
         """Test assigning a role to a single or multiple subjects in a specific scope.
 
         Expected result:
@@ -680,78 +902,82 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             - Each subject can perform actions allowed by the role.
         """
         if batch:
-            for subject in subjects:
-                assign_role_to_subject_in_scope(
-                    SubjectData(subject_id=subject),
-                    RoleData(name=role),
-                    ScopeData(scope_id=scope)
-                )
-                user_roles = get_subject_role_assignments_in_scope(
-                    SubjectData(subject_id=subject), ScopeData(scope_id=scope)
-                )
-                role_names = {assignment.role.name for assignment in user_roles}
-                self.assertIn(role, role_names)
-        else:
-            assign_role_to_subject_in_scope(
-                SubjectData(subject_id=subjects),
+            subjects_list = []
+            for subject in subject_names:
+                subjects_list.append(SubjectData(name=subject))
+            batch_assign_role_to_subjects_in_scope(
+                subjects_list,
                 RoleData(name=role),
-                ScopeData(scope_id=scope)
+                ScopeData(name=scope_name),
             )
             user_roles = get_subject_role_assignments_in_scope(
-                SubjectData(subject_id=subjects), ScopeData(scope_id=scope)
+                SubjectData(name=subject), ScopeData(name=scope_name)
+            )
+            role_names = {assignment.role.name for assignment in user_roles}
+            self.assertIn(role, role_names)
+        else:
+            assign_role_to_subject_in_scope(
+                SubjectData(name=subject_names),
+                RoleData(name=role),
+                ScopeData(name=scope_name),
+            )
+            user_roles = get_subject_role_assignments_in_scope(
+                SubjectData(name=subject_names), ScopeData(name=scope_name)
             )
             role_names = {assignment.role.name for assignment in user_roles}
             self.assertIn(role, role_names)
 
     @ddt_data(
-        (["user:mary", "user:john"], "role:library_user", "lib:batch_test", True),
+        (["mary", "john"], "library_user", "batch_test", True),
         (
-            ["user:paul", "user:diana", "user:lila"],
-            "role:library_collaborator",
-            "lib:math_advanced",
+            ["paul", "diana", "lila"],
+            "library_collaborator",
+            "math_advanced",
             True,
         ),
-        (["user:sarina", "user:ty"], "role:library_author", "lib:art_101", True),
-        (["user:fran", "user:bob"], "role:library_admin", "lib:cs_101", True),
+        (["sarina", "ty"], "library_author", "art_101", True),
+        (["fran", "bob"], "library_admin", "cs_101", True),
         (
-            ["user:anna", "user:tom", "user:jerry"],
-            "role:library_user",
-            "lib:history_201",
+            ["anna", "tom", "jerry"],
+            "library_user",
+            "history_201",
             True,
         ),
-        ("user:joe", "role:library_collaborator", "lib:science_301", False),
-        ("user:nina", "role:library_author", "lib:english_101", False),
-        ("user:oliver", "role:library_admin", "lib:math_101", False),
+        ("joe", "library_collaborator", "science_301", False),
+        ("nina", "library_author", "english_101", False),
+        ("oliver", "library_admin", "math_101", False),
     )
     @unpack
-    def test_unassign_role_from_subject_in_scope(self, subjects, role, scope, batch):
-        """Test unassigning a role from a subject or multiple subjects in a specific scope.
+    def test_unassign_role_from_subject_in_scope(
+        self, subject_names, role, scope_name, batch
+    ):
+        """Test unassigning a role from a subject or multiple subjects in a specific scope_name.
 
         Expected result:
-            - Role is successfully unassigned from the subject in the specified scope.
+            - Role is successfully unassigned from the subject in the specified scope_name.
             - Subject no longer has permissions associated with the unassigned role.
             - The subject cannot perform actions that were allowed by the role.
         """
         if batch:
-            for subject in subjects:
+            for subject in subject_names:
                 unassign_role_from_subject_in_scope(
-                    SubjectData(subject_id=subject),
+                    SubjectData(name=subject),
                     RoleData(name=role),
-                    ScopeData(scope_id=scope)
+                    ScopeData(name=scope_name),
                 )
                 user_roles = get_subject_role_assignments_in_scope(
-                    SubjectData(subject_id=subject), ScopeData(scope_id=scope)
+                    SubjectData(name=subject), ScopeData(name=scope_name)
                 )
                 role_names = {assignment.role.name for assignment in user_roles}
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_subject_in_scope(
-                SubjectData(subject_id=subjects),
+                SubjectData(name=subject_names),
                 RoleData(name=role),
-                ScopeData(scope_id=scope)
+                ScopeData(name=scope_name),
             )
             user_roles = get_subject_role_assignments_in_scope(
-                SubjectData(subject_id=subjects), ScopeData(scope_id=scope)
+                SubjectData(name=subject_names), ScopeData(name=scope_name)
             )
             role_names = {assignment.role.name for assignment in user_roles}
             self.assertNotIn(role, role_names)

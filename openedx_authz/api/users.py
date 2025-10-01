@@ -6,7 +6,7 @@ the Open edX AuthZ framework.
 
 These methods internally namespace user identifiers to ensure consistency
 with the role management system, which uses namespaced subjects
-(e.g., 'user:john_doe').
+(e.g., 'user@john_doe').
 """
 
 from openedx_authz.api.data import RoleData, ScopeData, SubjectData, UserData
@@ -18,7 +18,6 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_in_scope,
     unassign_role_from_subject_in_scope,
 )
-
 
 __all__ = [
     "assign_role_to_user_in_scope",

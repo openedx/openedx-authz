@@ -34,7 +34,7 @@ __all__ = [
     "unassign_role_from_subject_in_scope",
     "batch_unassign_role_from_subjects_in_scope",
     "get_subject_role_assignments_in_scope",
-    "get_role_assignments_for_role_in_scope",
+    "get_subjects_role_assignments_for_role_in_scope",
     "get_subject_role_assignments",
 ]
 
@@ -293,7 +293,7 @@ def get_subject_role_assignments_in_scope(
     return role_assignments
 
 
-def get_role_assignments_for_role_in_scope(
+def get_subjects_role_assignments_for_role_in_scope(
     role: RoleData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
     """Get the subjects assigned to a specific role in a specific scope.
@@ -307,7 +307,7 @@ def get_role_assignments_for_role_in_scope(
     """
     role_assignments = []
     for subject in enforcer.get_users_for_role_in_domain(role.role_id, scope.scope_id):
-        if subject.startswith("role@"):
+        if subject.startswith(RoleData.NAMESPACE):
             # Skip roles that are also subjects
             continue
         role_assignments.append(

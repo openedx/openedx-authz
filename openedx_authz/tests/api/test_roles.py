@@ -851,7 +851,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         Expected result:
             - The number of role assignments in the given scope is correctly retrieved.
         """
-        role_assignments = get_role_assignments_for_role_in_scope(
+        role_assignments = get_subject_role_assignments_for_role_in_scope(
             RoleData(name=role_name), ScopeData(name=scope_name)
         )
 

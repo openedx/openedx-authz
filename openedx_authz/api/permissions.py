@@ -5,13 +5,7 @@ allowed actions(s) a subject can perform on an object. In Casbin, permissions
 are not explicitly defined, but are inferred from the policy rules.
 """
 
-from openedx_authz.api.data import (
-    ActionData,
-    PermissionData,
-    PolicyIndex,
-    ScopeData,
-    SubjectData,
-)
+from openedx_authz.api.data import ActionData, PermissionData, PolicyIndex, ScopeData, SubjectData
 from openedx_authz.engine.enforcer import enforcer
 
 __all__ = [

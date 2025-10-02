@@ -3,13 +3,7 @@
 from ddt import data, ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import (
-    ActionData,
-    ContentLibraryData,
-    RoleData,
-    ScopeData,
-    UserData,
-)
+from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, UserData
 
 
 @ddt

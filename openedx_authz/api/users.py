@@ -9,17 +9,12 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user@john_doe').
 """
 
-from openedx_authz.api.data import (
-    RoleAssignmentData,
-    RoleData,
-    ScopeData,
-    SubjectData,
-    UserData,
-)
+from openedx_authz.api.data import RoleAssignmentData, RoleData, ScopeData, SubjectData, UserData
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
+    get_all_subject_role_assignments_in_scope,
     get_subject_role_assignments,
     get_subject_role_assignments_in_scope,
     get_subjects_role_assignments_for_role_in_scope,
@@ -33,6 +28,8 @@ __all__ = [
     "batch_unassign_role_from_users",
     "get_user_role_assignments",
     "get_user_role_assignments_in_scope",
+    "get_user_role_assignments_for_role_in_scope",
+    "get_all_user_role_assignments_in_scope",
 ]
 
 
@@ -142,6 +139,7 @@ def get_user_role_assignments_for_role_in_scope(
     # TODO: this SHOULD definitely be managed in a better way by using class inheritance and factories
     # But for now we'll keep it simple and explicit
     user_role_assignments = []
+
     for role_assignment in get_subjects_role_assignments_for_role_in_scope(
         RoleData(name=role_name), ScopeData(name=scope)
     ):
@@ -154,4 +152,29 @@ def get_user_role_assignments_for_role_in_scope(
                 scope=role_assignment.scope,
             )
         )
+
+    return user_role_assignments
+
+
+def get_all_user_role_assignments_in_scope(scope: str) -> list[RoleAssignmentData]:
+    """Get all user role assignments in a specific scope.
+
+    Args:
+        scope (str): Scope in which to retrieve the user role assignments.
+
+    Returns:
+        list[dict]: A list of user role assignments and all their metadata in the specified scope.
+    """
+    user_role_assignments = []
+    role_assignments = get_all_subject_role_assignments_in_scope(ScopeData(name=scope))
+
+    for role_assignment in role_assignments:
+        user_role_assignments.append(
+            RoleAssignmentData(
+                subject=UserData(subject_id=role_assignment.subject.subject_id),
+                role=role_assignment.role,
+                scope=role_assignment.scope,
+            )
+        )
+
     return user_role_assignments

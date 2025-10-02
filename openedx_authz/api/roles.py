@@ -27,6 +27,7 @@ from openedx_authz.engine.enforcer import enforcer
 __all__ = [
     "get_permissions_for_roles",
     "get_all_roles_names",
+    "get_all_roles_in_scope",
     "get_permissions_for_active_roles_in_scope",
     "get_role_definitions_in_scope",
     "assign_role_to_subject_in_scope",
@@ -35,6 +36,7 @@ __all__ = [
     "batch_unassign_role_from_subjects_in_scope",
     "get_subject_role_assignments_in_scope",
     "get_subjects_role_assignments_for_role_in_scope",
+    "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
 ]
 
@@ -168,6 +170,20 @@ def get_all_roles_names() -> list[str]:
         list[str]: A list of role names.
     """
     return enforcer.get_all_subjects()
+
+
+def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
+    """Get all the available roles names in a specific scope.
+
+    Args:
+        scope: The scope to filter roles (e.g., 'lib@*' or '*' for global).
+
+    Returns:
+        list[list[str]]: A list of policies in the specified scope.
+    """
+    return enforcer.get_filtered_grouping_policy(
+        GroupingPolicyIndex.SCOPE.value, scope.scope_id
+    )
 
 
 def assign_role_to_subject_in_scope(
@@ -317,6 +333,37 @@ def get_subjects_role_assignments_for_role_in_scope(
                         "permissions"
                     ],
                 ),
+                scope=scope,
+            )
+        )
+    return role_assignments
+
+
+def get_all_subject_role_assignments_in_scope(
+    scope: ScopeData,
+) -> list[RoleAssignmentData]:
+    """Get all the subjects assigned to any role in a specific scope.
+
+    Args:
+        scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
+
+    Returns:
+        list[RoleAssignment]: A list of subjects assigned to roles in the specified scope.
+    """
+    role_assignments = []
+    roles_in_scope = get_all_roles_in_scope(scope)
+
+    for policy in roles_in_scope:
+        subject = SubjectData(subject_id=policy[GroupingPolicyIndex.SUBJECT.value])
+        role = RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value])
+        role.permissions = get_permissions_for_roles(role)[role.name][
+            "permissions"
+        ]  # Index by role name for easy lookup
+
+        role_assignments.append(
+            RoleAssignmentData(
+                subject=subject,
+                role=role,
                 scope=scope,
             )
         )

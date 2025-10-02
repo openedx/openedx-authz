@@ -11,13 +11,7 @@ from ddt import ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.api import *
-from openedx_authz.api.data import (
-    ActionData,
-    PermissionData,
-    RoleData,
-    ScopeData,
-    SubjectData,
-)
+from openedx_authz.api.data import ActionData, PermissionData, RoleData, ScopeData, SubjectData
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_from_file_to_db
 
@@ -114,6 +108,11 @@ class RolesTestSetupMixin(TestCase):
             # Multiple users with same role in same scope_id
             {
                 "subject_name": "Grace",
+                "role_name": "library_collaborator",
+                "scope_name": "math_advanced",
+            },
+            {
+                "subject_name": "Heidi",
                 "role_name": "library_collaborator",
                 "scope_name": "math_advanced",
             },
@@ -971,3 +970,173 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             )
             role_names = {assignment.role.name for assignment in user_roles}
             self.assertNotIn(role, role_names)
+
+    @ddt_data(
+        (
+            "math_101",
+            [
+                RoleAssignmentData(
+                    subject=SubjectData(name="alice"),
+                    role=RoleData(
+                        name="library_admin",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="delete_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_team"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="math_101"),
+                )
+            ],
+        ),
+        (
+            "history_201",
+            [
+                RoleAssignmentData(
+                    subject=SubjectData(name="bob"),
+                    role=RoleData(
+                        name="library_author",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="edit_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="edit_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="history_201"),
+                )
+            ],
+        ),
+        (
+            "science_301",
+            [
+                RoleAssignmentData(
+                    subject=SubjectData(name="carol"),
+                    role=RoleData(
+                        name="library_collaborator",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="edit_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="edit_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="science_301"),
+                )
+            ],
+        ),
+        (
+            "english_101",
+            [
+                RoleAssignmentData(
+                    subject=SubjectData(name="dave"),
+                    role=RoleData(
+                        name="library_user",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="view_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="view_library_team"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="reuse_library_content"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="english_101"),
+                )
+            ],
+        ),
+        ("non_existent_scope", []),
+    )
+    @unpack
+    def test_get_all_role_assignments_in_scope(self, scope_name, expected_assignments):
+        """Test retrieving all role assignments in a specific scope.
+
+        Expected result:
+            - All role assignments in the specified scope are correctly retrieved.
+            - Each assignment includes the subject, role, and scope information with permissions.
+        """
+        role_assignments = get_all_subject_role_assignments_in_scope(
+            ScopeData(name=scope_name)
+        )
+
+        self.assertEqual(len(role_assignments), len(expected_assignments))
+        for assignment in role_assignments:
+            self.assertIn(assignment, expected_assignments)

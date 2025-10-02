@@ -2,16 +2,8 @@
 
 from ddt import data, ddt, unpack
 
-from openedx_authz.api.data import RoleData, ScopeData, UserData
-from openedx_authz.api.users import (
-    assign_role_to_user_in_scope,
-    batch_assign_role_to_users,
-    batch_unassign_role_from_users,
-    get_user_role_assignments,
-    get_user_role_assignments_for_role_in_scope,
-    get_user_role_assignments_in_scope,
-    unassign_role_from_user,
-)
+from openedx_authz.api.data import ActionData, PermissionData, RoleAssignmentData, RoleData, ScopeData, UserData
+from openedx_authz.api.users import *
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
 
@@ -151,7 +143,7 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
     @data(
         ("library_admin", "math_101", {"alice"}),
         ("library_author", "history_201", {"bob"}),
-        ("library_collaborator", "math_advanced", {"grace"}),
+        ("library_collaborator", "math_advanced", {"grace", "heidi"}),
     )
     @unpack
     def test_get_user_role_assignments_for_role_in_scope(
@@ -172,3 +164,158 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
         }
 
         self.assertEqual(assigned_usernames, expected_users)
+
+    @data(
+        (
+            "math_101",
+            [
+                RoleAssignmentData(
+                    subject=UserData(username="alice"),
+                    role=RoleData(
+                        name="library_admin",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="delete_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_team"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="math_101"),
+                ),
+            ],
+        ),
+        (
+            "history_201",
+            [
+                RoleAssignmentData(
+                    subject=UserData(username="bob"),
+                    role=RoleData(
+                        name="library_author",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="edit_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="edit_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="history_201"),
+                ),
+            ],
+        ),
+        (
+            "physics_401",
+            [
+                RoleAssignmentData(
+                    subject=UserData(username="eve"),
+                    role=RoleData(
+                        name="library_admin",
+                        permissions=[
+                            PermissionData(
+                                action=ActionData(name="delete_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_team"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="manage_library_tags"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="publish_library_content"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="delete_library_collection"),
+                                effect="allow",
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library"), effect="allow"
+                            ),
+                            PermissionData(
+                                action=ActionData(name="create_library_collection"),
+                                effect="allow",
+                            ),
+                        ],
+                    ),
+                    scope=ScopeData(name="physics_401"),
+                ),
+            ],
+        ),
+    )
+    @unpack
+    def test_get_all_user_role_assignments_in_scope(
+        self, scope_name, expected_assignments
+    ):
+        """Test retrieving all user role assignments within a specific scope.
+
+        Expected result:
+            - All user role assignments in the specified scope are correctly retrieved.
+            - Each assignment includes the subject, role, and scope information.
+        """
+        role_assignments = get_all_user_role_assignments_in_scope(scope=scope_name)
+
+        self.assertEqual(len(role_assignments), len(expected_assignments))
+        for assignment in role_assignments:
+            self.assertIn(assignment, expected_assignments)

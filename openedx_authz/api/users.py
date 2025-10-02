@@ -9,7 +9,16 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user@john_doe').
 """
 
-from openedx_authz.api.data import RoleAssignmentData, RoleData, ScopeData, SubjectData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    RoleAssignmentData,
+    RoleData,
+    ScopeData,
+    SubjectData,
+    UserData,
+)
+from openedx_authz.api.permissions import has_permission
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
@@ -30,6 +39,7 @@ __all__ = [
     "get_user_role_assignments_in_scope",
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
+    "user_has_permission",
 ]
 
 
@@ -44,7 +54,7 @@ def assign_role_to_user_in_scope(username: str, role_name: str, scope: str) -> b
     assign_role_to_subject_in_scope(
         UserData(username=username),
         RoleData(name=role_name),
-        ScopeData(name=scope),
+        ContentLibraryData(library_id=scope),
     )
 
 
@@ -178,3 +188,25 @@ def get_all_user_role_assignments_in_scope(scope: str) -> list[RoleAssignmentDat
         )
 
     return user_role_assignments
+
+
+def user_has_permission(
+    username: str,
+    action: str,
+    scope: str,
+) -> bool:
+    """Check if a user has a specific permission in a given scope.
+
+    Args:
+        username (str): ID of the user (e.g., 'john_doe').
+        action (str): The action to check (e.g., 'view_course').
+        scope (str): The scope in which to check the permission (e.g., 'course-v1:edX+DemoX+2021_T1').
+
+    Returns:
+        bool: True if the user has the specified permission in the scope, False otherwise.
+    """
+    return has_permission(
+        UserData(username=username),
+        ActionData(name=action),
+        ContentLibraryData(library_id=scope),
+    )

@@ -11,7 +11,14 @@ from ddt import ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.api import *
-from openedx_authz.api.data import ActionData, PermissionData, RoleData, ScopeData, SubjectData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    PermissionData,
+    RoleData,
+    ScopeData,
+    SubjectData,
+)
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_from_file_to_db
 

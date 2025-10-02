@@ -7,9 +7,8 @@ from openedx_authz.api.users import *
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
 
-@ddt
-class TestUserRoleAssignments(RolesTestSetupMixin):
-    """Test suite for user-role assignment API functions."""
+class UserAssignmentsSetupMixin(RolesTestSetupMixin):
+    """Mixin to set up user-role assignments for testing."""
 
     @classmethod
     def _assign_roles_to_users(
@@ -34,6 +33,11 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
                     assignment["role_name"],
                     assignment["scope_name"],
                 )
+
+
+@ddt
+class TestUserRoleAssignments(UserAssignmentsSetupMixin):
+    """Test suite for user-role assignment API functions."""
 
     @data(
         ("john", "library_admin", "math_101", False),
@@ -112,7 +116,6 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
             - Each assigned role is present in the returned role assignments.
         """
         role_assignments = get_user_role_assignments(username=username)
-        print(role_assignments)
 
         assigned_role_names = {assignment.role.name for assignment in role_assignments}
         self.assertEqual(assigned_role_names, expected_roles)
@@ -319,3 +322,34 @@ class TestUserRoleAssignments(RolesTestSetupMixin):
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:
             self.assertIn(assignment, expected_assignments)
+
+
+@ddt
+class TestUserPermissions(UserAssignmentsSetupMixin):
+    """Test suite for user permission API functions."""
+
+    @data(
+        ("alice", "delete_library", "math_101", True),
+        ("bob", "publish_library_content", "history_201", True),
+        ("eve", "manage_library_team", "physics_401", True),
+        ("grace", "edit_library", "math_advanced", True),
+        ("heidi", "create_library_collection", "math_advanced", True),
+        ("charlie", "delete_library", "science_301", False),
+        ("david", "publish_library_content", "history_201", False),
+        ("mallory", "manage_library_team", "math_101", False),
+        ("oscar", "edit_library", "art_101", False),
+        ("peggy", "create_library_collection", "physics_401", False),
+    )
+    @unpack
+    def test_user_has_permission(self, username, action, scope_name, expected_result):
+        """Test checking if a user has a specific permission in a given scope.
+
+        Expected result:
+            - The function correctly identifies whether the user has the specified permission in the scope.
+        """
+        result = user_has_permission(
+            username=username,
+            action=action,
+            scope=scope_name,
+        )
+        self.assertEqual(result, expected_result)

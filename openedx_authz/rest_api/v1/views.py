@@ -128,7 +128,23 @@ class RoleUserAPIView(APIView):
         # TODO: Should this be another endpoint?
         if not role_name:
             roles = get_all_roles_and_subjects_in_scope(scope_data)
-            return Response(roles, status=status.HTTP_200_OK)
+            final_roles = []
+            for role in roles:
+                role_data = {
+                    "role": role["role"],
+                    "users": [],
+                }
+                for user_identifier in role["users"]:
+                    user = get_user_by_username_or_email(user_identifier)
+                    role_data["users"].append(
+                        {
+                            "username": user.username,
+                            "full_name": user.profile.name,
+                            "email": user.email,
+                        }
+                    )
+                final_roles.append(role_data)
+            return Response(final_roles, status=status.HTTP_200_OK)
 
         role_assignments = get_user_role_assignments_for_role_in_scope(role_name, scope)
         for assignment in role_assignments:

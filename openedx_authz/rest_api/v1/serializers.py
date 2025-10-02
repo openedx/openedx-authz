@@ -25,6 +25,12 @@ class PermissionValidationSerializer(ActionMixin, ScopeMixin):  # pylint: disabl
     """Serializer for permission validation request."""
 
 
+class PermissionValidationResponseSerializer(PermissionValidationSerializer):  # pylint: disable=abstract-method
+    """Serializer for permission validation response."""
+
+    allowed = serializers.BooleanField()
+
+
 class AddUserToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for adding a user to a role with a scope."""
 
@@ -43,3 +49,19 @@ class ListUsersInRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disa
 
 class ListRolesWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for listing roles with a scope."""
+
+
+class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for listing users in a role with a scope response."""
+
+    username = serializers.CharField(max_length=255)
+    full_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+
+
+class ListRolesWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for listing roles with a scope response."""
+
+    role = serializers.CharField(max_length=255)
+    permissions = serializers.ListField(child=serializers.CharField(max_length=255))
+    user_count = serializers.IntegerField()

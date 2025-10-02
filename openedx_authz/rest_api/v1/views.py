@@ -1,9 +1,16 @@
-"""Views for the Open edX AuthZ REST API."""
+"""
+REST API views for Open edX Authorization (AuthZ) system.
+
+This module provides Django REST Framework views for managing authorization
+permissions, roles, and user assignments within Open edX platform.
+"""
 
 import logging
 
+import edx_api_doc_tools as apidocs
 from common.djangoapps.student.models.user import get_user_by_username_or_email
 from django.contrib.auth import get_user_model
+from django.http import HttpRequest
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -19,8 +26,11 @@ from openedx_authz.api.users import (
 )
 from openedx_authz.rest_api.v1.serializers import (
     AddUserToRoleWithScopeSerializer,
+    ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
+    ListUsersInRoleWithScopeResponseSerializer,
     ListUsersInRoleWithScopeSerializer,
+    PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUserFromRoleWithScopeSerializer,
 )
@@ -32,12 +42,24 @@ User = get_user_model()
 
 class PermissionValidationView(APIView):
     """
-    Validate permissions for the authenticated user.
+    API view for validating user permissions against authorization policies.
+
+    This view allows authenticated users to check whether they have
+    specific permissions for given actions and scopes within the system.
+    Supports batch permission validation through POST request.
     """
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    @apidocs.schema(
+        body=PermissionValidationSerializer(help_text="The permissions to validate", many=True),
+        responses={
+            status.HTTP_200_OK: PermissionValidationResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        },
+    )
+    def post(self, request: HttpRequest) -> Response:
         """Validate permissions for the authenticated user."""
         serializer = PermissionValidationSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
@@ -45,30 +67,46 @@ class PermissionValidationView(APIView):
         username = request.user.username
         subject = UserData(username=username)
 
+        response_data = []
         for perm in serializer.validated_data:
             try:
                 action = ActionData(name=perm["action"])
                 scope = ScopeData(name=perm["scope"])
                 allowed = has_permission(subject, action, scope)
-                perm["allowed"] = allowed
+                response_data.append(
+                    {
+                        "action": perm["action"],
+                        "scope": perm["scope"],
+                        "allowed": allowed,
+                    }
+                )
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error validating permission for user {username}: {e}")
 
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        serializer = PermissionValidationResponseSerializer(response_data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class RoleUserAPIView(APIView):
     """
-    APIView for managing users and their roles.
-    Handles GET (list), PUT (add), and DELETE (remove) operations.
+    API view for managing user-role assignments within specific scope.
     """
 
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        """
-        Get list of users in the role.
-        """
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("role", str, description="The name of the role to query"),
+            apidocs.query_parameter("scope", str, description="The authorization scope for the role"),
+        ],
+        responses={
+            status.HTTP_200_OK: ListUsersInRoleWithScopeResponseSerializer(many=True),
+            status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        },
+    )
+    def get(self, request: HttpRequest) -> Response:
+        """Retrieve all users assigned to a specific role within a scope."""
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
@@ -88,12 +126,19 @@ class RoleUserAPIView(APIView):
                 }
             )
 
-        return Response(response_data, status=status.HTTP_200_OK)
+        serializer = ListUsersInRoleWithScopeResponseSerializer(response_data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def put(self, request):
-        """
-        Add users to the role.
-        """
+    @apidocs.schema(
+        body=AddUserToRoleWithScopeSerializer,
+        responses={
+            status.HTTP_207_MULTI_STATUS: "The users were added to the role",
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        },
+    )
+    def put(self, request: HttpRequest) -> Response:
+        """Assign multiple users to a specific role within a scope."""
         serializer = AddUserToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -115,10 +160,22 @@ class RoleUserAPIView(APIView):
         response_data = {"completed": completed, "errors": errors}
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
 
-    def delete(self, request):
-        """
-        Remove user role from the role.
-        """
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("user", str, description="The user to remove from the role"),
+            apidocs.query_parameter("role", str, description="The role to remove the user from"),
+            apidocs.query_parameter("scope", str, description="The scope to remove the user from"),
+        ],
+        responses={
+            status.HTTP_200_OK: "The user was removed from the role",
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_404_NOT_FOUND: "The user was not found",
+            status.HTTP_500_INTERNAL_SERVER_ERROR: "The user was not removed from the role",
+        },
+    )
+    def delete(self, request: HttpRequest) -> Response:
+        """Remove a user from a specific role within a scope."""
         serializer = RemoveUserFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
@@ -139,13 +196,23 @@ class RoleUserAPIView(APIView):
 
 class RoleListView(APIView):
     """
-    Get list of roles with their permissions for a scope.
+    API view for retrieving role definitions and their associated permissions.
     """
 
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        """Get list of roles with their permissions for a library."""
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
+        ],
+        responses={
+            status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
+            status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        },
+    )
+    def get(self, request: HttpRequest) -> Response:
+        """Retrieve all roles and their permissions for a specific scope."""
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
@@ -159,9 +226,10 @@ class RoleListView(APIView):
                 {
                     "role": role.name,
                     "permissions": [perm.action.name for perm in role.permissions] if role.permissions else [],
-                    # TODO: Get user count using a api function
+                    # TODO: Get user count using an API function
                     "user_count": 0,
                 }
             )
 
-        return Response(response_data, status=status.HTTP_200_OK)
+        serializer = ListRolesWithScopeResponseSerializer(response_data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -8,7 +8,6 @@ permissions, roles, and user assignments within Open edX platform.
 import logging
 
 import edx_api_doc_tools as apidocs
-from common.djangoapps.student.models.user import get_user_by_username_or_email
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from rest_framework import status
@@ -18,7 +17,7 @@ from rest_framework.views import APIView
 
 from openedx_authz.api.data import ActionData, ScopeData, UserData
 from openedx_authz.api.permissions import has_permission
-from openedx_authz.api.roles import get_role_definitions_in_scope
+from openedx_authz.api.roles import get_role_definitions_in_scope, get_role_assignments_in_scope
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     get_user_role_assignments_for_role_in_scope,
@@ -34,6 +33,11 @@ from openedx_authz.rest_api.v1.serializers import (
     PermissionValidationSerializer,
     RemoveUserFromRoleWithScopeSerializer,
 )
+
+try:
+    from common.djangoapps.student.models.user import get_user_by_username_or_email
+except ImportError:
+    get_user_by_username_or_email = None
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +114,24 @@ class RoleUserAPIView(APIView):
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        role_name = serializer.validated_data["role"]
+        role_name = serializer.validated_data.get("role")
         scope = serializer.validated_data["scope"]
 
         response_data = []
+
+        # TODO: Should this be another endpoint?
+        if not role_name:
+            role_assignments = get_role_assignments_in_scope(ScopeData(name=scope))
+            for role_assignment in role_assignments:
+                response_data.append(
+                    {
+                        "role": role_assignment.role.name,
+                        # TODO: Include users by role
+                        "users": [],
+                    }
+                )
+            return Response(response_data, status=status.HTTP_200_OK)
+
         role_assignments = get_user_role_assignments_for_role_in_scope(role_name, scope)
         for assignment in role_assignments:
             # TODO: Should we get all users at once instead of one by one?

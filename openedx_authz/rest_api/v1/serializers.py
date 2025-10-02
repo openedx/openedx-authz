@@ -43,8 +43,10 @@ class RemoveUserFromRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: d
     user = serializers.CharField(max_length=255)
 
 
-class ListUsersInRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
+class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for listing users in a role with a scope."""
+
+    role = serializers.CharField(max_length=255, required=False)
 
 
 class ListRolesWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method

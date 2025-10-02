@@ -171,6 +171,29 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     ]
 
 
+def get_role_assignments_in_scope(
+    scope: ScopeData
+) -> list[RoleAssignmentData]:
+    """Get all the role assignments in a specific scope.
+
+    Args:
+        scope: The scope to filter role assignments (e.g., 'library:123' or '*' for global).
+    """
+    enforcer.load_policy()
+    filtered_policy = enforcer.get_filtered_grouping_policy(
+        PolicyIndex.SCOPE.value, scope.scope_id
+    )
+
+    return [
+        RoleAssignmentData(
+            subject=SubjectData(subject_id=policy[GroupingPolicyIndex.SUBJECT.value]),
+            role=RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value]),
+            scope=scope,
+        )
+        for policy in filtered_policy
+    ]
+
+
 def get_all_roles_names() -> list[str]:
     """Get all the available roles names in the current environment.
 

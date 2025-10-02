@@ -16,7 +16,6 @@ from openedx_authz.api.data import (
     PolicyIndex,
     RoleAssignmentData,
     RoleData,
-    RoleMetadataData,
     ScopeData,
     SubjectData,
     UserData,
@@ -171,29 +170,6 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     ]
 
 
-def get_role_assignments_in_scope(
-    scope: ScopeData
-) -> list[RoleAssignmentData]:
-    """Get all the role assignments in a specific scope.
-
-    Args:
-        scope: The scope to filter role assignments (e.g., 'library:123' or '*' for global).
-    """
-    enforcer.load_policy()
-    filtered_policy = enforcer.get_filtered_grouping_policy(
-        PolicyIndex.SCOPE.value, scope.scope_id
-    )
-
-    return [
-        RoleAssignmentData(
-            subject=SubjectData(subject_id=policy[GroupingPolicyIndex.SUBJECT.value]),
-            role=RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value]),
-            scope=scope,
-        )
-        for policy in filtered_policy
-    ]
-
-
 def get_all_roles_names() -> list[str]:
     """Get all the available roles names in the current environment.
 
@@ -212,9 +188,44 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     Returns:
         list[list[str]]: A list of policies in the specified scope.
     """
+    enforcer.load_policy()
     return enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
+
+
+# TODO: This should be a more efficient way to get all the roles and subjects in a scope
+# This should return a Data Class. This a temporary solution to get the roles and subjects in a scope.
+def get_all_roles_and_subjects_in_scope(
+    scope: ScopeData,
+) -> list[dict[str, list[str] | str]]:
+    """Group subjects by role for a given scope.
+    """
+    enforcer.load_policy()
+    grouping_policies = get_all_roles_in_scope(scope)
+
+    users_by_role: dict[str, set[str]] = defaultdict(set)
+
+    for policy in grouping_policies:
+        subject_ns = policy[GroupingPolicyIndex.SUBJECT.value]
+        role_ns = policy[GroupingPolicyIndex.ROLE.value]
+
+        # Skip entries where the subject is actually a role (role-to-role assignments)
+        if subject_ns.startswith(f"{RoleData.NAMESPACE}{RoleData.SEPARATOR}"):
+            continue
+
+        role = RoleData(namespaced_key=role_ns)
+        user = UserData(namespaced_key=subject_ns)
+        users_by_role[role.external_key].add(user.external_key)
+
+    result: list[dict[str, list[str] | str]] = []
+    for role_key, usernames in users_by_role.items():
+        result.append({
+            "role": role_key,
+            "users": sorted(usernames),
+        })
+
+    return result
 
 
 def assign_role_to_subject_in_scope(
@@ -389,8 +400,6 @@ def get_all_subject_role_assignments_in_scope(
         list[RoleAssignment]: A list of subjects assigned to roles in the specified scope.
     """
     role_assignments = []
-    print(scope)
-    print(enforcer.get_grouping_policy())
     roles_in_scope = get_all_roles_in_scope(scope)
 
     for policy in roles_in_scope:
@@ -408,3 +417,17 @@ def get_all_subject_role_assignments_in_scope(
             )
         )
     return role_assignments
+
+
+# TODO: This should return a Data Class. This a temporary solution to get the users by role.
+def get_all_users_by_role(role: RoleData) -> list[SubjectData]:
+    """Get all the subjects assigned to a specific role.
+
+    Args:
+        role: The role to filter subjects (e.g., 'library_admin').
+
+    Returns:
+        list[Subject]: A list of subjects assigned to the specified role.
+    """
+    enforcer.load_policy()
+    return enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)

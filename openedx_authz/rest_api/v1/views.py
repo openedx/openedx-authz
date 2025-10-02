@@ -15,13 +15,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from openedx_authz.api.data import ActionData, ScopeData, UserData
-from openedx_authz.api.permissions import has_permission
-from openedx_authz.api.roles import get_role_definitions_in_scope, get_role_assignments_in_scope
+from openedx_authz.api.data import ContentLibraryData
+from openedx_authz.api.roles import (
+    get_all_roles_and_subjects_in_scope,
+    get_role_definitions_in_scope,
+    get_all_users_by_role,
+)
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     get_user_role_assignments_for_role_in_scope,
     unassign_role_from_user,
+    user_has_permission,
+    get_all_user_role_assignments_in_scope,
 )
 from openedx_authz.rest_api.v1.serializers import (
     AddUserToRoleWithScopeSerializer,
@@ -69,18 +74,17 @@ class PermissionValidationView(APIView):
         serializer.is_valid(raise_exception=True)
 
         username = request.user.username
-        subject = UserData(username=username)
 
         response_data = []
         for perm in serializer.validated_data:
             try:
-                action = ActionData(name=perm["action"])
-                scope = ScopeData(name=perm["scope"])
-                allowed = has_permission(subject, action, scope)
+                action = perm["action"]
+                scope = perm["scope"]
+                allowed = user_has_permission(username, action, scope)
                 response_data.append(
                     {
-                        "action": perm["action"],
-                        "scope": perm["scope"],
+                        "action": action,
+                        "scope": scope,
                         "allowed": allowed,
                     }
                 )
@@ -119,18 +123,12 @@ class RoleUserAPIView(APIView):
 
         response_data = []
 
+        scope_data = ContentLibraryData(external_key=scope)
+
         # TODO: Should this be another endpoint?
         if not role_name:
-            role_assignments = get_role_assignments_in_scope(ScopeData(name=scope))
-            for role_assignment in role_assignments:
-                response_data.append(
-                    {
-                        "role": role_assignment.role.name,
-                        # TODO: Include users by role
-                        "users": [],
-                    }
-                )
-            return Response(response_data, status=status.HTTP_200_OK)
+            roles = get_all_roles_and_subjects_in_scope(scope_data)
+            return Response(roles, status=status.HTTP_200_OK)
 
         role_assignments = get_user_role_assignments_for_role_in_scope(role_name, scope)
         for assignment in role_assignments:
@@ -197,6 +195,7 @@ class RoleUserAPIView(APIView):
         serializer = RemoveUserFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
+        # Should we allow a list of users separated by a comma?
         user_identifier = serializer.validated_data["user"]
         role_name = serializer.validated_data["role"]
         scope = serializer.validated_data["scope"]
@@ -234,18 +233,19 @@ class RoleListView(APIView):
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        scope = ScopeData(name=serializer.validated_data["scope"])
+        scope = ContentLibraryData(namespaced_key=serializer.validated_data["scope"])
 
         response_data = []
         roles = get_role_definitions_in_scope(scope)
 
         for role in roles:
+            users = get_all_users_by_role(role)
+            permissions = [perm.action.external_key for perm in role.permissions] if role.permissions else []
             response_data.append(
                 {
-                    "role": role.name,
-                    "permissions": [perm.action.name for perm in role.permissions] if role.permissions else [],
-                    # TODO: Get user count using an API function
-                    "user_count": 0,
+                    "role": role.external_key,
+                    "permissions": permissions,
+                    "user_count": len(users),
                 }
             )
 

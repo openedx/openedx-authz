@@ -16,15 +16,32 @@ django==4.2.24
     #   -r requirements/base.in
     #   casbin-django-orm-adapter
     #   djangorestframework
+    #   drf-yasg
+    #   edx-api-doc-tools
 djangorestframework==3.16.1
+    # via
+    #   -r requirements/base.in
+    #   drf-yasg
+    #   edx-api-doc-tools
+drf-yasg==1.21.11
+    # via edx-api-doc-tools
+edx-api-doc-tools==2.1.0
     # via -r requirements/base.in
+inflection==0.5.1
+    # via drf-yasg
 openedx-atlas==0.7.0
     # via -r requirements/base.in
+packaging==25.0
+    # via drf-yasg
 pycasbin==2.2.0
     # via
     #   -r requirements/base.in
     #   casbin-django-orm-adapter
     #   redis-watcher
+pytz==2025.2
+    # via drf-yasg
+pyyaml==6.0.3
+    # via drf-yasg
 redis==6.4.0
     # via redis-watcher
 redis-watcher==1.8.0
@@ -33,3 +50,8 @@ simpleeval==1.0.3
     # via pycasbin
 sqlparse==0.5.3
     # via django
+uritemplate==4.2.0
+    # via drf-yasg
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

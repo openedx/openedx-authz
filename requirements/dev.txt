@@ -72,8 +72,19 @@ django==4.2.24
     #   -r requirements/quality.txt
     #   casbin-django-orm-adapter
     #   djangorestframework
+    #   drf-yasg
+    #   edx-api-doc-tools
     #   edx-i18n-tools
 djangorestframework==3.16.1
+    # via
+    #   -r requirements/quality.txt
+    #   drf-yasg
+    #   edx-api-doc-tools
+drf-yasg==1.21.11
+    # via
+    #   -r requirements/quality.txt
+    #   edx-api-doc-tools
+edx-api-doc-tools==2.1.0
     # via -r requirements/quality.txt
 edx-i18n-tools==1.9.0
     # via -r requirements/dev.in
@@ -84,6 +95,10 @@ filelock==3.19.1
     #   -r requirements/ci.txt
     #   tox
     #   virtualenv
+inflection==0.5.1
+    # via
+    #   -r requirements/quality.txt
+    #   drf-yasg
 iniconfig==2.1.0
     # via
     #   -r requirements/quality.txt
@@ -119,6 +134,7 @@ packaging==25.0
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
     #   build
+    #   drf-yasg
     #   pyproject-api
     #   pytest
     #   tox
@@ -199,10 +215,15 @@ python-slugify==8.0.4
     # via
     #   -r requirements/quality.txt
     #   code-annotations
-pyyaml==6.0.2
+pytz==2025.2
+    # via
+    #   -r requirements/quality.txt
+    #   drf-yasg
+pyyaml==6.0.3
     # via
     #   -r requirements/quality.txt
     #   code-annotations
+    #   drf-yasg
     #   edx-i18n-tools
 redis==6.4.0
     # via
@@ -240,6 +261,10 @@ tomlkit==0.13.3
     #   pylint
 tox==4.30.2
     # via -r requirements/ci.txt
+uritemplate==4.2.0
+    # via
+    #   -r requirements/quality.txt
+    #   drf-yasg
 virtualenv==20.34.0
     # via
     #   -r requirements/ci.txt

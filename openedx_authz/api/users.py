@@ -43,82 +43,82 @@ __all__ = [
 ]
 
 
-def assign_role_to_user_in_scope(username: str, role_name: str, scope: str) -> bool:
+def assign_role_to_user_in_scope(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
         user (str): ID of the user (e.g., 'john_doe').
-        role_name (str): Name of the role to assign.
+        role_external_key (str): Name of the role to assign.
         scope (str): Scope in which to assign the role.
     """
     assign_role_to_subject_in_scope(
-        UserData(username=username),
-        RoleData(name=role_name),
-        ContentLibraryData(library_id=scope),
+        UserData(external_key=user_external_key),
+        RoleData(external_key=role_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )
 
 
 def batch_assign_role_to_users(
-    users: list[str], role_name: str, scope: str
+    users: list[str], role_external_key: str, scope_external_key: str
 ) -> dict[str, bool]:
     """Assign a role to multiple users in a specific scope.
 
     Args:
         users (list of str): List of user IDs (e.g., ['john_doe', 'jane_smith']).
-        role_name (str): Name of the role to assign.
+        role_external_key (str): Name of the role to assign.
         scope (str): Scope in which to assign the role.
     """
-    namespaced_users = [UserData(username=username) for username in users]
+    namespaced_users = [UserData(external_key=username) for username in users]
     batch_assign_role_to_subjects_in_scope(
-        namespaced_users, RoleData(name=role_name), ScopeData(name=scope)
+        namespaced_users, RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
     )
 
 
-def unassign_role_from_user(user: str, role_name: str, scope: str) -> bool:
+def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
     """Unassign a role from a user in a specific scope.
 
     Args:
-        user (str): ID of the user (e.g., 'john_doe').
-        role_name (str): Name of the role to unassign.
-        scope (str): Scope in which to unassign the role.
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+        role_external_key (str): Name of the role to unassign.
+        scope_external_key (str): Scope in which to unassign the role.
     """
     unassign_role_from_subject_in_scope(
-        UserData(username=user),
-        RoleData(name=role_name),
-        ScopeData(name=scope),
+        UserData(external_key=user_external_key),
+        RoleData(external_key=role_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )
 
 
 def batch_unassign_role_from_users(
-    users: list[str], role_name: str, scope: str
+    users: list[str], role_external_key: str, scope_external_key: str
 ) -> dict[str, bool]:
     """Unassign a role from multiple users in a specific scope.
 
     Args:
         users (list of str): List of user IDs (e.g., ['john_doe', 'jane_smith']).
-        role_name (str): Name of the role to unassign.
+        role_external_key (str): Name of the role to unassign.
         scope (str): Scope in which to unassign the role.
     """
-    namespaced_users = [UserData(username=user) for user in users]
+    namespaced_users = [UserData(external_key=user) for user in users]
     batch_unassign_role_from_subjects_in_scope(
-        namespaced_users, RoleData(name=role_name), ScopeData(name=scope)
+        namespaced_users, RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
     )
 
 
-def get_user_role_assignments(username: str) -> list[RoleAssignmentData]:
+def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData]:
     """Get all roles for a user across all scopes.
 
     Args:
-        user (str): ID of the user (e.g., 'john_doe').
+        user_external_key (str): ID of the user (e.g., 'john_doe').
 
     Returns:
         list[dict]: A list of role assignments and all their metadata assigned to the user.
     """
-    return get_subject_role_assignments(UserData(username=username))
+    return get_subject_role_assignments(UserData(external_key=user_external_key))
 
 
 def get_user_role_assignments_in_scope(
-    username: str, scope: str
+    user_external_key: str, scope_external_key: str
 ) -> list[RoleAssignmentData]:
     """Get the roles assigned to a user in a specific scope.
 
@@ -130,17 +130,17 @@ def get_user_role_assignments_in_scope(
         list: A list of role assignments assigned to the user in the specified scope.
     """
     return get_subject_role_assignments_in_scope(
-        UserData(username=username), ScopeData(name=scope)
+        UserData(external_key=user_external_key), ContentLibraryData(external_key=scope_external_key)
     )
 
 
 def get_user_role_assignments_for_role_in_scope(
-    role_name: str, scope: str
+    role_external_key: str, scope_external_key: str
 ) -> list[RoleAssignmentData]:
     """Get all users assigned to a specific role across all scopes.
 
     Args:
-        role_name (str): Name of the role (e.g., 'instructor').
+        role_external_key (str): Name of the role (e.g., 'instructor').
         scope (str): Scope in which to retrieve the role assignments.
 
     Returns:
@@ -151,13 +151,13 @@ def get_user_role_assignments_for_role_in_scope(
     user_role_assignments = []
 
     for role_assignment in get_subjects_role_assignments_for_role_in_scope(
-        RoleData(name=role_name), ScopeData(name=scope)
+        RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
     ):
         user_role_assignments.append(
             RoleAssignmentData(
                 subject=UserData(
-                    subject_id=role_assignment.subject.subject_id
-                ),  # TODO: this gets the username from the subject_id
+                    namespaced_key=role_assignment.subject.namespaced_key
+                ),  # TODO: this gets the username from the namespaced_key
                 role=role_assignment.role,
                 scope=role_assignment.scope,
             )
@@ -166,7 +166,7 @@ def get_user_role_assignments_for_role_in_scope(
     return user_role_assignments
 
 
-def get_all_user_role_assignments_in_scope(scope: str) -> list[RoleAssignmentData]:
+def get_all_user_role_assignments_in_scope(scope_external_key: str) -> list[RoleAssignmentData]:
     """Get all user role assignments in a specific scope.
 
     Args:
@@ -176,12 +176,12 @@ def get_all_user_role_assignments_in_scope(scope: str) -> list[RoleAssignmentDat
         list[dict]: A list of user role assignments and all their metadata in the specified scope.
     """
     user_role_assignments = []
-    role_assignments = get_all_subject_role_assignments_in_scope(ScopeData(name=scope))
+    role_assignments = get_all_subject_role_assignments_in_scope(ContentLibraryData(external_key=scope_external_key))
 
     for role_assignment in role_assignments:
         user_role_assignments.append(
             RoleAssignmentData(
-                subject=UserData(subject_id=role_assignment.subject.subject_id),
+                subject=UserData(namespaced_key=role_assignment.subject.namespaced_key),
                 role=role_assignment.role,
                 scope=role_assignment.scope,
             )
@@ -191,22 +191,22 @@ def get_all_user_role_assignments_in_scope(scope: str) -> list[RoleAssignmentDat
 
 
 def user_has_permission(
-    username: str,
-    action: str,
-    scope: str,
+    user_external_key: str,
+    action_external_key: str,
+    scope_external_key: str,
 ) -> bool:
     """Check if a user has a specific permission in a given scope.
 
     Args:
-        username (str): ID of the user (e.g., 'john_doe').
-        action (str): The action to check (e.g., 'view_course').
-        scope (str): The scope in which to check the permission (e.g., 'course-v1:edX+DemoX+2021_T1').
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+        action_external_key (str): The action to check (e.g., 'view_course').
+        scope_external_key (str): The scope in which to check the permission (e.g., 'course-v1:edX+DemoX+2021_T1').
 
     Returns:
         bool: True if the user has the specified permission in the scope, False otherwise.
     """
     return has_permission(
-        UserData(username=username),
-        ActionData(name=action),
-        ContentLibraryData(library_id=scope),
+        UserData(external_key=user_external_key),
+        ActionData(external_key=action_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )

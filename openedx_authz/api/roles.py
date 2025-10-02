@@ -68,11 +68,15 @@ def get_permissions_for_roles(
         roles = [roles]
 
     for role in roles:
-        policies = enforcer.get_implicit_permissions_for_user(role.role_id)
+        policies = enforcer.get_implicit_permissions_for_user(role.namespaced_key)
 
-        permissions_by_role[role.name] = {  # Index by role name for easy lookup
-            "permissions": [get_permission_from_policy(policy) for policy in policies],
-        }
+        permissions_by_role[role.external_key] = (
+            {  # Index by role external_key for easy lookup
+                "permissions": [
+                    get_permission_from_policy(policy) for policy in policies
+                ],
+            }
+        )
 
     return permissions_by_role
 
@@ -102,23 +106,25 @@ def get_permissions_for_active_roles_in_scope(
       resource scope, not for the broader namespace pattern
 
     Returns:
-        dict[str, list[PermissionData]]: A dictionary mapping the role name to its
+        dict[str, list[PermissionData]]: A dictionary mapping the role external_key to its
         permissions and scopes.
     """
     filtered_policy = enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SCOPE.value, scope.scope_id
+        GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
+    print(enforcer.get_grouping_policy())
+    print(scope.namespaced_key)
 
     if role:
         filtered_policy = [
             policy
             for policy in filtered_policy
-            if policy[GroupingPolicyIndex.ROLE.value] == role.role_id
+            if policy[GroupingPolicyIndex.ROLE.value] == role.namespaced_key
         ]
 
     return get_permissions_for_roles(
         [
-            RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value])
+            RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
             for policy in filtered_policy
         ]
     )
@@ -137,7 +143,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
         list[Role]: A list of roles.
     """
     policy_filtered = enforcer.get_filtered_policy(
-        PolicyIndex.SCOPE.value, scope.scope_id
+        PolicyIndex.SCOPE.value, scope.namespaced_key
     )
 
     permissions_per_role = defaultdict(
@@ -148,7 +154,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     )
     for policy in policy_filtered:
         permissions_per_role[policy[PolicyIndex.ROLE.value]]["scopes"].append(
-            ScopeData(scope_id=policy[PolicyIndex.SCOPE.value])
+            ScopeData(namespaced_key=policy[PolicyIndex.SCOPE.value])
         )  # TODO: I don't think this actually gets used anywhere
         permissions_per_role[policy[PolicyIndex.ROLE.value]]["permissions"].append(
             get_permission_from_policy(policy)
@@ -156,7 +162,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
 
     return [
         RoleData(
-            role_id=role,
+            namespaced_key=role,
             permissions=permissions_per_role[role]["permissions"],
         )
         for role in permissions_per_role.keys()
@@ -182,7 +188,7 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
         list[list[str]]: A list of policies in the specified scope.
     """
     return enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SCOPE.value, scope.scope_id
+        GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
 
 
@@ -195,11 +201,10 @@ def assign_role_to_subject_in_scope(
         subject: The ID of the subject.
         role: The role to assign.
     """
-    # TODO: we need to make some uppercase/lowercase decisions in the lookups
-    # for now, we assume the caller has done the right thing
-    # and passed in the correctly namespaced IDs
     enforcer.add_role_for_user_in_domain(
-        subject.subject_id.lower(), role.role_id.lower(), scope.scope_id.lower()
+        subject.namespaced_key,
+        role.namespaced_key,
+        scope.namespaced_key,
     )
 
 
@@ -227,7 +232,7 @@ def unassign_role_from_subject_in_scope(
         scope: The scope from which to unassign the role.
     """
     enforcer.delete_roles_for_user_in_domain(
-        subject.subject_id, role.role_id, scope.scope_id
+        subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
 
 
@@ -238,7 +243,7 @@ def batch_unassign_role_from_subjects_in_scope(
 
     Args:
         subjects: A list of subject IDs.
-        role_name: The name of the role.
+        role_name: The external_key of the role.
         scope: The scope from which to unassign the role.
     """
     for subject in subjects:
@@ -256,12 +261,12 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     """
     role_assignments = []
     for policy in enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SUBJECT.value, subject.subject_id
+        GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key
     ):
-        role = RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value])
+        role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
         role.permissions = get_permissions_for_roles(role)[
-            role.name
-        ][  # Index by role name for readability
+            role.external_key
+        ][  # Index by role external_key for readability
             "permissions"
         ]
 
@@ -269,7 +274,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
             RoleAssignmentData(
                 subject=subject,
                 role=role,
-                scope=ScopeData(scope_id=policy[GroupingPolicyIndex.SCOPE.value]),
+                scope=ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value]),
             )
         )
     return role_assignments
@@ -289,17 +294,18 @@ def get_subject_role_assignments_in_scope(
     """
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
-    for role_id in enforcer.get_roles_for_user_in_domain(
-        subject.subject_id, scope.scope_id
+    for namespaced_key in enforcer.get_roles_for_user_in_domain(
+        subject.namespaced_key, scope.namespaced_key
     ):
+        role = RoleData(namespaced_key=namespaced_key)
         role_assignments.append(
             RoleAssignmentData(
                 subject=subject,
                 role=RoleData(
-                    role_id=role_id,
-                    permissions=get_permissions_for_roles(RoleData(name=role_id))[
-                        role_id
-                    ]["permissions"],
+                    namespaced_key=namespaced_key,
+                    permissions=get_permissions_for_roles(role)[role.external_key][
+                        "permissions"
+                    ],
                 ),
                 scope=scope,
             )
@@ -320,16 +326,20 @@ def get_subjects_role_assignments_for_role_in_scope(
         list[RoleAssignment]: A list of subjects assigned to the specified role in the specified scope.
     """
     role_assignments = []
-    for subject in enforcer.get_users_for_role_in_domain(role.role_id, scope.scope_id):
+    for subject in enforcer.get_users_for_role_in_domain(
+        role.namespaced_key, scope.namespaced_key
+    ):
         if subject.startswith(f"{RoleData.NAMESPACE}@"):
             # Skip roles that are also subjects
             continue
         role_assignments.append(
             RoleAssignmentData(
-                subject=SubjectData(subject_id=subject),
+                subject=SubjectData(
+                    namespaced_key=subject
+                ),  # TODO: I want this to behave like UserData or any other subclass of SubjectData depending on NAMESPACE
                 role=RoleData(
-                    name=role.name,
-                    permissions=get_permissions_for_roles(role)[role.name][
+                    external_key=role.external_key,
+                    permissions=get_permissions_for_roles(role)[role.external_key][
                         "permissions"
                     ],
                 ),
@@ -351,14 +361,16 @@ def get_all_subject_role_assignments_in_scope(
         list[RoleAssignment]: A list of subjects assigned to roles in the specified scope.
     """
     role_assignments = []
+    print(scope)
+    print(enforcer.get_grouping_policy())
     roles_in_scope = get_all_roles_in_scope(scope)
 
     for policy in roles_in_scope:
-        subject = SubjectData(subject_id=policy[GroupingPolicyIndex.SUBJECT.value])
-        role = RoleData(role_id=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_roles(role)[role.name][
+        subject = SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value])
+        role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
+        role.permissions = get_permissions_for_roles(role)[role.external_key][
             "permissions"
-        ]  # Index by role name for easy lookup
+        ]  # Index by role external_key for easy lookup
 
         role_assignments.append(
             RoleAssignmentData(

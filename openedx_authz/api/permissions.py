@@ -31,10 +31,10 @@ def get_permission_from_policy(policy: list[str]) -> PermissionData:
         PermissionData: The corresponding PermissionData object or an empty PermissionData if the policy is invalid.
     """
     if len(policy) < 4:  # Do not count ptype
-        return PermissionData(action=ActionData(action_id=""), effect="allow")
+        return PermissionData(action=ActionData(namespaced_key=""), effect="allow")
 
     return PermissionData(
-        action=ActionData(action_id=policy[PolicyIndex.ACT.value]),
+        action=ActionData(namespaced_key=policy[PolicyIndex.ACT.value]),
         effect=policy[PolicyIndex.EFFECT.value],
     )
 
@@ -48,7 +48,7 @@ def get_all_permissions_in_scope(scope: ScopeData) -> list[PermissionData]:
     Returns:
         list of PermissionData: A list of PermissionData objects associated with the given scope.
     """
-    actions = enforcer.get_filtered_policy(PolicyIndex.SCOPE.value, scope.scope_id)
+    actions = enforcer.get_filtered_policy(PolicyIndex.SCOPE.value, scope.namespaced_key)
     return [get_permission_from_policy(action) for action in actions]
 
 
@@ -67,4 +67,4 @@ def has_permission(
     Returns:
         bool: True if the subject has the specified permission in the scope, False otherwise.
     """
-    return enforcer.enforce(subject.subject_id, action.action_id, scope.scope_id)
+    return enforcer.enforce(subject.namespaced_key, action.namespaced_key, scope.namespaced_key)

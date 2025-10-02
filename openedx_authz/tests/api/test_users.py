@@ -2,7 +2,7 @@
 
 from ddt import data, ddt, unpack
 
-from openedx_authz.api.data import ActionData, PermissionData, RoleAssignmentData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import ActionData, ContentLibraryData, PermissionData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import *
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
@@ -40,10 +40,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
     """Test suite for user-role assignment API functions."""
 
     @data(
-        ("john", "library_admin", "math_101", False),
-        ("jane", "library_user", "english_101", False),
-        (["mary", "charlie"], "library_collaborator", "science_301", True),
-        (["david", "sarah"], "library_author", "history_201", True),
+        ("john", "library_admin", "lib:Org1:math_101", False),
+        ("jane", "library_user", "lib:Org1:english_101", False),
+        (["mary", "charlie"], "library_collaborator", "lib:Org1:science_301", True),
+        (["david", "sarah"], "library_author", "lib:Org1:history_201", True),
     )
     @unpack
     def test_assign_role_to_user_in_scope(self, username, role, scope_name, batch):
@@ -53,28 +53,28 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The role is successfully assigned to the user in the specified scope.
         """
         if batch:
-            batch_assign_role_to_users(users=username, role_name=role, scope=scope_name)
+            batch_assign_role_to_users(users=username, role_external_key=role, scope_external_key=scope_name)
             for user in username:
                 user_roles = get_user_role_assignments_in_scope(
-                    username=user, scope=scope_name
+                    user_external_key=user, scope_external_key=scope_name
                 )
-                role_names = {assignment.role.name for assignment in user_roles}
+                role_names = {assignment.role.external_key for assignment in user_roles}
                 self.assertIn(role, role_names)
         else:
             assign_role_to_user_in_scope(
-                username=username, role_name=role, scope=scope_name
+                user_external_key=username, role_external_key=role, scope_external_key=scope_name
             )
             user_roles = get_user_role_assignments_in_scope(
-                username=username, scope=scope_name
+                user_external_key=username, scope_external_key=scope_name
             )
-            role_names = {assignment.role.name for assignment in user_roles}
+            role_names = {assignment.role.external_key for assignment in user_roles}
             self.assertIn(role, role_names)
 
     @data(
-        (["Grace"], "library_collaborator", "math_advanced", True),
-        (["Liam", "Maya"], "library_author", "art_101", True),
-        ("Alice", "library_admin", "math_101", False),
-        ("Bob", "library_author", "history_201", False),
+        (["grace"], "library_collaborator", "lib:Org1:math_advanced", True),
+        (["liam", "maya"], "library_author", "lib:Org4:art_101", True),
+        ("alice", "library_admin", "lib:Org1:math_101", False),
+        ("bob", "library_author", "lib:Org1:history_201", False),
     )
     @unpack
     def test_unassign_role_from_user(self, username, role, scope_name, batch):
@@ -86,26 +86,26 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         if batch:
             batch_unassign_role_from_users(
-                users=username, role_name=role, scope=scope_name
+                users=username, role_external_key=role, scope_external_key=scope_name
             )
             for user in username:
                 user_roles = get_user_role_assignments_in_scope(
-                    username=user, scope=scope_name
+                    user_external_key=user, scope_external_key=scope_name
                 )
-                role_names = {assignment.role.name for assignment in user_roles}
+                role_names = {assignment.role.external_key for assignment in user_roles}
                 self.assertNotIn(role, role_names)
         else:
-            unassign_role_from_user(user=username, role_name=role, scope=scope_name)
+            unassign_role_from_user(user_external_key=username, role_external_key=role, scope_external_key=scope_name)
             user_roles = get_user_role_assignments_in_scope(
-                username=username, scope=scope_name
+                user_external_key=username, scope_external_key=scope_name
             )
-            role_names = {assignment.role.name for assignment in user_roles}
+            role_names = {assignment.role.external_key for assignment in user_roles}
             self.assertNotIn(role, role_names)
 
     @data(
-        ("Eve", {"library_admin", "library_author", "library_user"}),
-        ("Alice", {"library_admin"}),
-        ("Liam", {"library_author"}),
+        ("eve", {"library_admin", "library_author", "library_user"}),
+        ("alice", {"library_admin"}),
+        ("liam", {"library_author"}),
     )
     @unpack
     def test_get_user_role_assignments(self, username, expected_roles):
@@ -115,16 +115,16 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - All roles assigned to the user across all scopes are correctly retrieved.
             - Each assigned role is present in the returned role assignments.
         """
-        role_assignments = get_user_role_assignments(username=username)
+        role_assignments = get_user_role_assignments(user_external_key=username)
 
-        assigned_role_names = {assignment.role.name for assignment in role_assignments}
+        assigned_role_names = {assignment.role.external_key for assignment in role_assignments}
         self.assertEqual(assigned_role_names, expected_roles)
 
     @data(
-        ("Alice", "math_101", {"library_admin"}),
-        ("Bob", "history_201", {"library_author"}),
-        ("Eve", "physics_401", {"library_admin"}),
-        ("Grace", "math_advanced", {"library_collaborator"}),
+        ("alice", "lib:Org1:math_101", {"library_admin"}),
+        ("bob", "lib:Org1:history_201", {"library_author"}),
+        ("eve", "lib:Org2:physics_401", {"library_admin"}),
+        ("grace", "lib:Org1:math_advanced", {"library_collaborator"}),
     )
     @unpack
     def test_get_user_role_assignments_in_scope(
@@ -137,16 +137,16 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The returned role assignments contain the assigned role.
         """
         user_roles = get_user_role_assignments_in_scope(
-            username=username, scope=scope_name
+            user_external_key=username, scope_external_key=scope_name
         )
 
-        role_names = {assignment.role.name for assignment in user_roles}
+        role_names = {assignment.role.external_key for assignment in user_roles}
         self.assertEqual(role_names, expected_roles)
 
     @data(
-        ("library_admin", "math_101", {"alice"}),
-        ("library_author", "history_201", {"bob"}),
-        ("library_collaborator", "math_advanced", {"grace", "heidi"}),
+        ("library_admin", "lib:Org1:math_101", {"alice"}),
+        ("library_author", "lib:Org1:history_201", {"bob"}),
+        ("library_collaborator", "lib:Org1:math_advanced", {"grace", "heidi"}),
     )
     @unpack
     def test_get_user_role_assignments_for_role_in_scope(
@@ -159,7 +159,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - Each assigned user is present in the returned user assignments.
         """
         user_assignments = get_user_role_assignments_for_role_in_scope(
-            role_name=role_name, scope=scope_name
+            role_external_key=role_name, scope_external_key=scope_name
         )
 
         assigned_usernames = {
@@ -170,139 +170,139 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
 
     @data(
         (
-            "math_101",
+            "lib:Org1:math_101",
             [
                 RoleAssignmentData(
-                    subject=UserData(username="alice"),
+                    subject=UserData(external_key="alice"),
                     role=RoleData(
-                        name="library_admin",
+                        external_key="library_admin",
                         permissions=[
                             PermissionData(
-                                action=ActionData(name="delete_library"), effect="allow"
+                                action=ActionData(external_key="delete_library"), effect="allow"
                             ),
                             PermissionData(
-                                action=ActionData(name="publish_library"),
+                                action=ActionData(external_key="publish_library"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="manage_library_team"),
+                                action=ActionData(external_key="manage_library_team"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="manage_library_tags"),
+                                action=ActionData(external_key="manage_library_tags"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="delete_library_content"),
+                                action=ActionData(external_key="delete_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="publish_library_content"),
+                                action=ActionData(external_key="publish_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="delete_library_collection"),
+                                action=ActionData(external_key="delete_library_collection"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="create_library"), effect="allow"
+                                action=ActionData(external_key="create_library"), effect="allow"
                             ),
                             PermissionData(
-                                action=ActionData(name="create_library_collection"),
+                                action=ActionData(external_key="create_library_collection"),
                                 effect="allow",
                             ),
                         ],
                     ),
-                    scope=ScopeData(name="math_101"),
+                    scope=ContentLibraryData(external_key="lib:Org1:math_101"),
                 ),
             ],
         ),
         (
-            "history_201",
+            "lib:Org1:history_201",
             [
                 RoleAssignmentData(
-                    subject=UserData(username="bob"),
+                    subject=UserData(external_key="bob"),
                     role=RoleData(
-                        name="library_author",
+                        external_key="library_author",
                         permissions=[
                             PermissionData(
-                                action=ActionData(name="delete_library_content"),
+                                action=ActionData(external_key="delete_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="publish_library_content"),
+                                action=ActionData(external_key="publish_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="edit_library"), effect="allow"
+                                action=ActionData(external_key="edit_library"), effect="allow"
                             ),
                             PermissionData(
-                                action=ActionData(name="manage_library_tags"),
+                                action=ActionData(external_key="manage_library_tags"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="create_library_collection"),
+                                action=ActionData(external_key="create_library_collection"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="edit_library_collection"),
+                                action=ActionData(external_key="edit_library_collection"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="delete_library_collection"),
+                                action=ActionData(external_key="delete_library_collection"),
                                 effect="allow",
                             ),
                         ],
                     ),
-                    scope=ScopeData(name="history_201"),
+                    scope=ContentLibraryData(external_key="lib:Org1:history_201"),
                 ),
             ],
         ),
         (
-            "physics_401",
+            "lib:Org2:physics_401",
             [
                 RoleAssignmentData(
-                    subject=UserData(username="eve"),
+                    subject=UserData(external_key="eve"),
                     role=RoleData(
-                        name="library_admin",
+                        external_key="library_admin",
                         permissions=[
                             PermissionData(
-                                action=ActionData(name="delete_library"), effect="allow"
+                                action=ActionData(external_key="delete_library"), effect="allow"
                             ),
                             PermissionData(
-                                action=ActionData(name="publish_library"),
+                                action=ActionData(external_key="publish_library"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="manage_library_team"),
+                                action=ActionData(external_key="manage_library_team"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="manage_library_tags"),
+                                action=ActionData(external_key="manage_library_tags"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="delete_library_content"),
+                                action=ActionData(external_key="delete_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="publish_library_content"),
+                                action=ActionData(external_key="publish_library_content"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="delete_library_collection"),
+                                action=ActionData(external_key="delete_library_collection"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(name="create_library"), effect="allow"
+                                action=ActionData(external_key="create_library"), effect="allow"
                             ),
                             PermissionData(
-                                action=ActionData(name="create_library_collection"),
+                                action=ActionData(external_key="create_library_collection"),
                                 effect="allow",
                             ),
                         ],
                     ),
-                    scope=ScopeData(name="physics_401"),
+                    scope=ContentLibraryData(external_key="lib:Org2:physics_401"),
                 ),
             ],
         ),
@@ -317,7 +317,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - All user role assignments in the specified scope are correctly retrieved.
             - Each assignment includes the subject, role, and scope information.
         """
-        role_assignments = get_all_user_role_assignments_in_scope(scope=scope_name)
+        role_assignments = get_all_user_role_assignments_in_scope(scope_external_key=scope_name)
+        print("Here are the role assignments:", role_assignments)
+        print("\n")
+        print("Here are the expected assignments:", expected_assignments)
 
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:
@@ -329,16 +332,16 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
     """Test suite for user permission API functions."""
 
     @data(
-        ("alice", "delete_library", "math_101", True),
-        ("bob", "publish_library_content", "history_201", True),
-        ("eve", "manage_library_team", "physics_401", True),
-        ("grace", "edit_library", "math_advanced", True),
-        ("heidi", "create_library_collection", "math_advanced", True),
-        ("charlie", "delete_library", "science_301", False),
-        ("david", "publish_library_content", "history_201", False),
-        ("mallory", "manage_library_team", "math_101", False),
-        ("oscar", "edit_library", "art_101", False),
-        ("peggy", "create_library_collection", "physics_401", False),
+        ("alice", "delete_library", "lib:Org1:math_101", True),
+        ("bob", "publish_library_content", "lib:Org1:history_201", True),
+        ("eve", "manage_library_team", "lib:Org2:physics_401", True),
+        ("grace", "edit_library", "lib:Org1:math_advanced", True),
+        ("heidi", "create_library_collection", "lib:Org1:math_advanced", True),
+        ("charlie", "delete_library", "lib:Org1:science_301", False),
+        ("david", "publish_library_content", "lib:Org1:history_201", False),
+        ("mallory", "manage_library_team", "lib:Org1:math_101", False),
+        ("oscar", "edit_library", "lib:Org4:art_101", False),
+        ("peggy", "create_library_collection", "lib:Org2:physics_401", False),
     )
     @unpack
     def test_user_has_permission(self, username, action, scope_name, expected_result):
@@ -348,8 +351,8 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             - The function correctly identifies whether the user has the specified permission in the scope.
         """
         result = user_has_permission(
-            username=username,
-            action=action,
-            scope=scope_name,
+            user_external_key=username,
+            action_external_key=action,
+            scope_external_key=scope_name,
         )
         self.assertEqual(result, expected_result)

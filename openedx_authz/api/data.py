@@ -1,7 +1,7 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
 from enum import Enum
-from typing import Literal
+from typing import Literal, Type
 
 from attrs import define
 
@@ -32,16 +32,32 @@ class AuthZData:
     Attributes:
         NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role').
         SEPARATOR: The separator between the namespace and the identifier (e.g., ':', '@').
-
-    Subclasses are automatically registered by their NAMESPACE for factory pattern.
+        external_key: The ID for the object outside of the authz system (e.g., username).
+            Could also be used for human-readable names (e.g., role or action name).
+        namespaced_key: The ID for the object within the authz system (e.g., 'user@john_doe').
     """
 
     SEPARATOR: str = "@"
     NAMESPACE: str = None
 
-    # TODO: Implement factory method to return correct subclass based on NAMESPACE prefix.
-    # This would allow initializing with either subject or scope, etc. and returning the correct subclass.
-    # So we don't have to manage each subclass separately or hardcoded anywhere.
+    external_key: str = ""
+    namespaced_key: str = ""
+
+    def __attrs_post_init__(self):
+        """Post-initialization processing for attributes.
+
+        This method ensures that either external_key or namespaced_key is provided,
+        and derives the other attribute based on the NAMESPACE and SEPARATOR.
+
+        Note:
+        I will always instantiate with either external_key or namespaced_key, never both.
+        So we need to derive the other one based on the NAMESPACE.
+        """
+        if self.NAMESPACE and not self.namespaced_key:
+            self.namespaced_key = f"{self.NAMESPACE}{self.SEPARATOR}{self.external_key}"
+
+        if self.NAMESPACE and not self.external_key and self.namespaced_key:
+            self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
 
 
 @define
@@ -49,28 +65,10 @@ class ScopeData(AuthZData):
     """A scope is a context in which roles and permissions are assigned.
 
     Attributes:
-        scope_id: The scope identifier (e.g., 'org@Demo').
-
-    Acts as a factory: automatically returns the correct subclass based on the scope_id prefix.
+        namespaced_key: The scope identifier (e.g., 'org@Demo').
     """
 
     NAMESPACE: str = "sc"
-    scope_id: str = ""
-    name: str = ""
-
-    def __attrs_post_init__(self):
-        """Ensure scope ID has appropriate namespace prefix."""
-        if not self.scope_id:
-            self.scope_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
-
-        # Allow reverse lookup of name from scope_id
-        if (
-            not self.name
-            and self.scope_id
-            and self.NAMESPACE
-            and self.scope_id.startswith(f"{self.NAMESPACE}{self.SEPARATOR}")
-        ):
-            self.name = self.scope_id.split(self.SEPARATOR, 1)[1].lower()
 
 
 @define
@@ -79,22 +77,22 @@ class ContentLibraryData(ScopeData):
 
     Attributes:
         library_id: The content library identifier (e.g., 'library-v1:edX+DemoX+2021_T1').
-        scope_id: Inherited from ScopeData, auto-generated from library_id if not provided.
+        namespaced_key: Inherited from ScopeData, auto-generated from name if not provided.
     """
 
     NAMESPACE: str = "lib"
     library_id: str = ""
 
-    def __attrs_post_init__(self):
-        """Ensure scope ID has 'lib@' namespace prefix."""
-        if not self.scope_id:
-            self.scope_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.library_id}".lower()
+    @property
+    def library_id(self) -> str:
+        """The library identifier as used in Open edX (e.g., 'math_101', 'library-v1:edX+DemoX').
 
-        # Allow reverse lookup of library_id from scope_id
-        if not self.library_id and self.scope_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.library_id = self.scope_id.split(self.SEPARATOR, 1)[1].lower()
+        This is an alias for external_key that represents the library ID without the namespace prefix.
+
+        Returns:
+            str: The library identifier without namespace.
+        """
+        return self.external_key
 
 
 @define
@@ -102,26 +100,10 @@ class SubjectData(AuthZData):
     """A subject is an entity that can be assigned roles and permissions.
 
     Attributes:
-        subject_id: The subject identifier namespaced (e.g., 'user@john_doe').
-
-    Acts as a factory: automatically returns the correct subclass based on the subject_id prefix.
+        namespaced_key: The subject identifier namespaced (e.g., 'sub@generic').
     """
 
     NAMESPACE: str = "sub"
-    subject_id: str = ""
-    name: str = ""
-
-    def __attrs_post_init__(self):
-        """Ensure subject ID has appropriate namespace prefix."""
-        if not self.subject_id:
-            self.subject_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
-
-        # Allow reverse lookup of name from subject_id
-        if not self.name and self.subject_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.name = self.subject_id.split(self.SEPARATOR, 1)[1].lower()
-
 
 @define
 class UserData(SubjectData):
@@ -129,28 +111,24 @@ class UserData(SubjectData):
 
     Attributes:
         username: The username for the user (e.g., 'john_doe').
-        subject_id: Inherited from SubjectData, auto-generated from username if not provided.
+        namespaced_key: Inherited from SubjectData, auto-generated from username if not provided.
 
     This class automatically adds the 'user@' namespace prefix to the subject ID.
-    Can be initialized with either username= or subject_id= parameter.
+    Can be initialized with either external_key= or namespaced_key= parameter.
     """
 
     NAMESPACE: str = "user"
-    username: str = ""
 
-    def __attrs_post_init__(self):
-        """Ensure subject ID has 'user@' namespace prefix.
+    @property
+    def username(self) -> str:
+        """The username for the user (e.g., 'john_doe').
 
-        This allows initialization with either username or subject_id.
+        This is an alias for external_key that represents the username without the namespace prefix.
+
+        Returns:
+            str: The username without namespace.
         """
-        if not self.subject_id:
-            self.subject_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.username}".lower()
-
-        # Allow reverse lookup of username from subject_id
-        if not self.username and self.subject_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.username = self.subject_id.split(self.SEPARATOR, 1)[1].lower()
+        return self.external_key
 
 
 @define
@@ -163,21 +141,18 @@ class ActionData(AuthZData):
 
     NAMESPACE: str = "act"
     name: str = ""
-    action_id: str = ""
 
-    def __attrs_post_init__(self):
-        """Ensure action name has 'act@' namespace prefix.
+    @property
+    def name(self) -> str:
+        """The human-readable name of the action (e.g., 'Delete Library', 'Edit Content').
 
-        This allows initialization with either name= or action_id= parameter.
+        This property transforms the external_key into a human-readable display name
+        by replacing underscores with spaces and capitalizing each word.
+
+        Returns:
+            str: The human-readable action name (e.g., 'Delete Library').
         """
-        if not self.action_id:
-            self.action_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
-
-        # Allow reverse lookup of name from action_id
-        if not self.name and self.action_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.name = self.action_id.split(self.SEPARATOR, 1)[1].lower()
+        return self.external_key.replace("_", " ").title()
 
 
 @define
@@ -220,26 +195,20 @@ class RoleData(AuthZData):
     """
 
     NAMESPACE: str = "role"
-    name: str = ""
-    role_id: str = ""
     permissions: list[PermissionData] = None
     metadata: RoleMetadataData = None
 
-    def __attrs_post_init__(self):
-        """Ensure role id has 'role@' namespace prefix.
+    @property
+    def name(self) -> str:
+        """The human-readable name of the role (e.g., 'Library Admin', 'Course Instructor').
 
-        This allows initialization with either name= or role_id= parameter.
+        This property transforms the external_key into a human-readable display name
+        by replacing underscores with spaces and capitalizing each word.
+
+        Returns:
+            str: The human-readable role name (e.g., 'Library Admin').
         """
-        if not self.role_id or not self.role_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.role_id = f"{self.NAMESPACE}{self.SEPARATOR}{self.name}".lower()
-
-        # Allow reverse lookup of name from role_id
-        if not self.name and self.role_id.startswith(
-            f"{self.NAMESPACE}{self.SEPARATOR}"
-        ):
-            self.name = self.role_id.split(self.SEPARATOR, 1)[1].lower()
+        return self.external_key.replace("_", " ").title()
 
 
 @define

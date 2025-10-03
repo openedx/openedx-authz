@@ -15,14 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from openedx_authz.api.data import ContentLibraryData
-from openedx_authz.api.roles import get_all_users_by_role, get_role_definitions_in_scope
-from openedx_authz.api.users import (
-    assign_role_to_user_in_scope,
-    get_all_user_role_assignments_in_scope_v2,
-    unassign_role_from_user,
-    user_has_permission,
-)
+from openedx_authz import api
 from openedx_authz.rest_api.utils import get_user_by_username_or_email, view_auth_classes
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.serializers import (
@@ -73,7 +66,7 @@ class PermissionValidationView(APIView):
             try:
                 action = perm["action"]
                 scope = perm["scope"]
-                allowed = user_has_permission(username, action, scope)
+                allowed = api.user_has_permission(username, action, scope)
                 response_data.append(
                     {
                         "action": action,
@@ -115,7 +108,7 @@ class RoleUserAPIView(APIView):
         # TODO: Filter by role
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
-        user_role_assignments = get_all_user_role_assignments_in_scope_v2(serializer.validated_data["scope"])
+        user_role_assignments = api.get_all_user_role_assignments_in_scope_v2(serializer.validated_data["scope"])
 
         paginator = self.pagination_class()
         paginated_assignments = paginator.paginate_queryset(user_role_assignments, request)
@@ -144,7 +137,7 @@ class RoleUserAPIView(APIView):
         for user_identifier in serializer.validated_data["users"]:
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                assign_role_to_user_in_scope(user.username, role_name, scope)
+                api.assign_role_to_user_in_scope(user.username, role_name, scope)
                 completed.append({"user_identifier": user_identifier, "status": "role_added"})
             except User.DoesNotExist:
                 errors.append({"user_identifier": user_identifier, "error": "user_not_found"})
@@ -182,7 +175,7 @@ class RoleUserAPIView(APIView):
         for user_identifier in user_identifiers:
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                unassign_role_from_user(user.username, role_name, scope)
+                api.unassign_role_from_user(user.username, role_name, scope)
                 completed.append({"user_identifier": user_identifier, "status": "role_removed"})
             except User.DoesNotExist:
                 errors.append({"user_identifier": user_identifier, "error": "user_not_found"})
@@ -218,12 +211,12 @@ class RoleListView(APIView):
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        scope = ContentLibraryData(namespaced_key=serializer.validated_data["scope"])
-        roles = get_role_definitions_in_scope(scope)
+        scope = api.ContentLibraryData(namespaced_key=serializer.validated_data["scope"])
+        roles = api.get_role_definitions_in_scope(scope)
 
         response_data = []
         for role in roles:
-            users = get_all_users_by_role(role)
+            users = api.get_users_for_role(role.external_key)
             permissions = [perm.action.external_key for perm in role.permissions] if role.permissions else []
             response_data.append(
                 {

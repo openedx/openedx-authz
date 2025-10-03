@@ -23,7 +23,7 @@ from openedx_authz.api.users import (
     unassign_role_from_user,
     user_has_permission,
 )
-from openedx_authz.rest_api.utils import get_user_by_username_or_email
+from openedx_authz.rest_api.utils import get_user_by_username_or_email, view_auth_classes
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.serializers import (
     AddUserToRoleWithScopeSerializer,
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+@view_auth_classes
 class PermissionValidationView(APIView):
     """
     API view for validating user permissions against authorization policies.
@@ -87,6 +88,7 @@ class PermissionValidationView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@view_auth_classes
 class RoleUserAPIView(APIView):
     """
     API view for managing user-role assignments within specific scope.
@@ -192,6 +194,7 @@ class RoleUserAPIView(APIView):
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
 
 
+@view_auth_classes
 class RoleListView(APIView):
     """
     API view for retrieving role definitions and their associated permissions.

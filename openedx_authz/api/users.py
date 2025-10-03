@@ -16,6 +16,7 @@ from openedx_authz.api.data import (
     RoleData,
     ScopeData,
     SubjectData,
+    SubjectRoleAssignmentData,
     UserData,
 )
 from openedx_authz.api.permissions import has_permission
@@ -24,6 +25,7 @@ from openedx_authz.api.roles import (
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
+    get_all_subject_role_assignments_in_scope_v2,
     get_subject_role_assignments,
     get_subject_role_assignments_in_scope,
     get_subjects_role_assignments_for_role_in_scope,
@@ -184,6 +186,28 @@ def get_all_user_role_assignments_in_scope(scope_external_key: str) -> list[Role
                 subject=UserData(namespaced_key=role_assignment.subject.namespaced_key),
                 role=role_assignment.role,
                 scope=role_assignment.scope,
+            )
+        )
+
+    return user_role_assignments
+
+def get_all_user_role_assignments_in_scope_v2(scope_external_key: str) -> list[SubjectRoleAssignmentData]:
+    """Get all user role assignments in a specific scope.
+
+    Args:
+        scope (str): Scope in which to retrieve the user role assignments.
+
+    Returns:
+        list[SubjectRoleAssignmentData]: A list of user role assignments and all their metadata in the specified scope.
+    """
+    user_role_assignments = []
+    role_assignments = get_all_subject_role_assignments_in_scope_v2(ContentLibraryData(external_key=scope_external_key))
+
+    for role_assignment in role_assignments:
+        user_role_assignments.append(
+            SubjectRoleAssignmentData(
+                subject=UserData(namespaced_key=role_assignment.subject.namespaced_key),
+                roles=role_assignment.roles,
             )
         )
 

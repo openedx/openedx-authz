@@ -1,0 +1,15 @@
+"""Fields serializer for the Open edX AuthZ REST API."""
+
+from rest_framework import serializers
+
+
+class CommaSeparatedListField(serializers.Field):
+    """Serializer for a comma-separated list of strings."""
+
+    def to_internal_value(self, data):
+        """Convert string separated by commas to list"""
+        return [item.strip() for item in data.split(",") if item.strip()]
+
+    def to_representation(self, value):
+        """Convert list to string separated by commas"""
+        return ",".join(value)

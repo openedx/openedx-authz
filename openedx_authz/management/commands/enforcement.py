@@ -18,7 +18,7 @@ Example usage:
     python manage.py enforcement --policy-file-path /path/to/authz.policy --model-file-path /path/to/model.conf
 
 Example test input:
-    user@alice act@read org@OpenedX
+    user^alice act^read org^OpenedX
 """
 
 import argparse
@@ -142,7 +142,7 @@ class Command(BaseCommand):
         self.stdout.write("Enter 'quit', 'exit', or 'q' to exit the interactive mode.")
         self.stdout.write("")
         self.stdout.write("Format: subject action scope")
-        self.stdout.write("Example: user@alice act@read org@OpenedX")
+        self.stdout.write("Example: user^alice act^read org^OpenedX")
         self.stdout.write("")
 
         while True:
@@ -173,9 +173,9 @@ class Command(BaseCommand):
             user_input (str): The user's input string in format 'subject action scope'.
 
         Expected format:
-            subject: The requesting entity (e.g., 'user@alice')
-            action: The requested action (e.g., 'act@read')
-            scope: The authorization context (e.g., 'org@OpenedX')
+            subject: The requesting entity (e.g., 'user^alice')
+            action: The requested action (e.g., 'act^read')
+            scope: The authorization context (e.g., 'org^OpenedX')
         """
         try:
             parts = [part.strip() for part in user_input.split()]
@@ -186,7 +186,7 @@ class Command(BaseCommand):
                     )
                 )
                 self.stdout.write("Format: subject action scope")
-                self.stdout.write("Example: user@alice act@read org@OpenedX")
+                self.stdout.write("Example: user^alice act^read org^OpenedX")
                 return
 
             subject, action, scope = parts

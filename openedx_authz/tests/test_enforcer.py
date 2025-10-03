@@ -85,11 +85,13 @@ class PolicyLoadingTestSetupMixin(TestCase):
             scope: The scope to load policies for (e.g., 'lib@*' for all libraries).
                   If None, loads all policies using load_policy().
         """
+        print(f"Loading policies for scope: {scope}")
         if scope is None:
             global_enforcer.load_policy()
         else:
             policy_filter = Filter(v2=[scope])
             global_enforcer.load_filtered_policy(policy_filter)
+        print(global_enforcer.get_policy())
 
     def _load_policies_for_user_context(self, user: str, scopes: list[str] = None):
         """Load policies relevant to a specific user and their scopes.
@@ -135,16 +137,16 @@ class PolicyLoadingTestSetupMixin(TestCase):
         """
         test_policies = [
             # Course policies
-            ["role@course_instructor", "act@edit_course", "course@*", "allow"],
-            ["role@course_instructor", "act@grade_students", "course@*", "allow"],
-            ["role@course_ta", "act@view_course", "course@*", "allow"],
-            ["role@course_ta", "act@grade_assignments", "course@*", "allow"],
-            ["role@course_student", "act@view_course", "course@*", "allow"],
-            ["role@course_student", "act@submit_assignment", "course@*", "allow"],
+            ["role^course_instructor", "act^edit_course", "course^*", "allow"],
+            ["role^course_instructor", "act^grade_students", "course^*", "allow"],
+            ["role^course_ta", "act^view_course", "course^*", "allow"],
+            ["role^course_ta", "act^grade_assignments", "course^*", "allow"],
+            ["role^course_student", "act^view_course", "course^*", "allow"],
+            ["role^course_student", "act^submit_assignment", "course^*", "allow"],
             # Organization policies
-            ["role@org_admin", "act@manage_org", "org@*", "allow"],
-            ["role@org_admin", "act@create_courses", "org@*", "allow"],
-            ["role@org_member", "act@view_org", "org@*", "allow"],
+            ["role^org_admin", "act^manage_org", "org^*", "allow"],
+            ["role^org_admin", "act^create_courses", "org^*", "allow"],
+            ["role^org_member", "act^view_org", "org^*", "allow"],
         ]
 
         for policy in test_policies:
@@ -161,10 +163,10 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
     """
 
     LIBRARY_ROLES = [
-        "role@library_user",
-        "role@library_admin",
-        "role@library_author",
-        "role@library_collaborator",
+        "role^library_user",
+        "role^library_admin",
+        "role^library_author",
+        "role^library_collaborator",
     ]
 
     def setUp(self):
@@ -178,9 +180,9 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         super().tearDown()
 
     @ddt_data(
-        "lib@*",  # Library policies from authz.policy file
-        "course@*",  # No course policies in basic setup
-        "org@*",  # No org policies in basic setup
+        "lib^*",  # Library policies from authz.policy file
+        "course^*",  # No course policies in basic setup
+        "org^*",  # No org policies in basic setup
     )
     def test_scope_based_policy_loading(self, scope):
         """Test loading policies for specific scopes.
@@ -208,8 +210,8 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
                 self.assertTrue(policy[2].startswith(scope_prefix))
 
     @ddt_data(
-        ("user@alice", ["lib@*"]),
-        ("user@bob", ["lib@*"]),
+        ("user^alice", ["lib^*"]),
+        ("user^bob", ["lib^*"]),
     )
     @unpack
     def test_user_context_policy_loading(self, user, user_scopes):
@@ -269,17 +271,17 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
 
         self.assertEqual(startup_policy_count, 0)
 
-        self._load_policies_for_scope("lib@*")
+        self._load_policies_for_scope("lib^*")
         library_policy_count = len(global_enforcer.get_policy())
 
         self.assertGreater(library_policy_count, 0)
 
-        self._load_policies_for_role_management("role@library_admin")
+        self._load_policies_for_role_management("role^library_admin")
         admin_policy_count = len(global_enforcer.get_policy())
 
         self.assertLessEqual(admin_policy_count, library_policy_count)
 
-        self._load_policies_for_user_context("user@alice", ["lib@*"])
+        self._load_policies_for_user_context("user^alice", ["lib^*"])
         user_policy_count = len(global_enforcer.get_policy())
 
         self.assertEqual(user_policy_count, library_policy_count)
@@ -304,11 +306,11 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         self.assertEqual(len(all_grouping_policies), 0)
 
     @ddt_data(
-        Filter(v2=["lib@*"]),  # Load all library policies
-        Filter(v2=["course@*"]),  # Load all course policies
-        Filter(v2=["org@*"]),  # Load all organization policies
-        Filter(v2=["lib@*", "course@*"]),  # Load library and course policies
-        Filter(v0=["role@library_user"]),  # Load policies for specific role
+        Filter(v2=["lib^*"]),  # Load all library policies
+        Filter(v2=["course^*"]),  # Load all course policies
+        Filter(v2=["org^*"]),  # Load all organization policies
+        Filter(v2=["lib^*", "course^*"]),  # Load library and course policies
+        Filter(v0=["role^library_user"]),  # Load policies for specific role
         Filter(ptype=["p"]),  # Load all 'p' type policies
     )
     def test_filtered_policy_loading_variations(self, policy_filter):
@@ -339,7 +341,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Cleared enforcer has no policies
             - Reloading produces same count as initial load
         """
-        self._load_policies_for_scope("lib@*")
+        self._load_policies_for_scope("lib^*")
         initial_load_count = len(global_enforcer.get_policy())
 
         self.assertGreater(initial_load_count, 0)
@@ -349,7 +351,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
 
         self.assertEqual(cleared_count, 0)
 
-        self._load_policies_for_scope("lib@*")
+        self._load_policies_for_scope("lib^*")
         reloaded_count = len(global_enforcer.get_policy())
 
         self.assertEqual(reloaded_count, initial_load_count)
@@ -379,9 +381,9 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Combined scope filter loads sum of individual scopes
             - Total load equals sum of all scope policies
         """
-        lib_scope = "lib@*"
-        course_scope = "course@*"
-        org_scope = "org@*"
+        lib_scope = "lib^*"
+        course_scope = "course^*"
+        org_scope = "org^*"
 
         expected_lib_count = self._count_policies_in_file(scope_pattern=lib_scope)
         self._add_test_policies_for_multiple_scopes()

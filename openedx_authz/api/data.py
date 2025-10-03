@@ -1,7 +1,7 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
 from enum import Enum
-from typing import Literal, Type
+from typing import ClassVar, Literal, Type
 
 from attrs import define
 
@@ -25,8 +25,19 @@ class PolicyIndex(Enum):
     # The rest of the fields are optional and can be ignored for now
 
 
+class AuthzBaseClass:
+    """Base class for all authz classes.
+
+    Attributes:
+        SEPARATOR: The separator between the namespace and the identifier (e.g., ':', '@').
+        NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role').
+    """
+
+    SEPARATOR: ClassVar[str] = "^"
+    NAMESPACE: ClassVar[str] = None
+
 @define
-class AuthZData:
+class AuthZData(AuthzBaseClass):
     """Base class for all authz data classes.
 
     Attributes:
@@ -36,9 +47,6 @@ class AuthZData:
             Could also be used for human-readable names (e.g., role or action name).
         namespaced_key: The ID for the object within the authz system (e.g., 'user@john_doe').
     """
-
-    SEPARATOR: str = "@"
-    NAMESPACE: str = None
 
     external_key: str = ""
     namespaced_key: str = ""
@@ -68,7 +76,7 @@ class ScopeData(AuthZData):
         namespaced_key: The scope identifier (e.g., 'org@Demo').
     """
 
-    NAMESPACE: str = "sc"
+    NAMESPACE: ClassVar[str] = "sc"
 
 
 @define
@@ -80,7 +88,7 @@ class ContentLibraryData(ScopeData):
         namespaced_key: Inherited from ScopeData, auto-generated from name if not provided.
     """
 
-    NAMESPACE: str = "lib"
+    NAMESPACE: ClassVar[str] = "lib"
     library_id: str = ""
 
     @property
@@ -103,7 +111,7 @@ class SubjectData(AuthZData):
         namespaced_key: The subject identifier namespaced (e.g., 'sub@generic').
     """
 
-    NAMESPACE: str = "sub"
+    NAMESPACE: ClassVar[str] = "sub"
 
 @define
 class UserData(SubjectData):
@@ -117,7 +125,7 @@ class UserData(SubjectData):
     Can be initialized with either external_key= or namespaced_key= parameter.
     """
 
-    NAMESPACE: str = "user"
+    NAMESPACE: ClassVar[str] = "user"
 
     @property
     def username(self) -> str:
@@ -139,7 +147,7 @@ class ActionData(AuthZData):
         action: The action name. Automatically prefixed with 'act@' if not present.
     """
 
-    NAMESPACE: str = "act"
+    NAMESPACE: ClassVar[str] = "act"
     name: str = ""
 
     @property
@@ -194,7 +202,7 @@ class RoleData(AuthZData):
             information such as the description of the role, creation date, etc.
     """
 
-    NAMESPACE: str = "role"
+    NAMESPACE: ClassVar[str] = "role"
     permissions: list[PermissionData] = None
     metadata: RoleMetadataData = None
 

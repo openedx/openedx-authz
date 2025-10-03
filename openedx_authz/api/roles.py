@@ -329,7 +329,7 @@ def get_subjects_role_assignments_for_role_in_scope(
     for subject in enforcer.get_users_for_role_in_domain(
         role.namespaced_key, scope.namespaced_key
     ):
-        if subject.startswith(f"{RoleData.NAMESPACE}@"):
+        if subject.startswith(f"{RoleData.NAMESPACE}{RoleData.SEPARATOR}"):
             # Skip roles that are also subjects
             continue
         role_assignments.append(

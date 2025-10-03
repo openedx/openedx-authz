@@ -1,8 +1,8 @@
 """Serializers for the Open edX AuthZ REST API."""
 
-from common.djangoapps.student.models.user import get_user_by_username_or_email
 from rest_framework import serializers
 
+from openedx_authz.rest_api.utils import get_user_by_username_or_email
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField
 
 __all__ = [

@@ -43,7 +43,9 @@ __all__ = [
 ]
 
 
-def assign_role_to_user_in_scope(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
+def assign_role_to_user_in_scope(
+    user_external_key: str, role_external_key: str, scope_external_key: str
+) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
@@ -70,11 +72,15 @@ def batch_assign_role_to_users(
     """
     namespaced_users = [UserData(external_key=username) for username in users]
     batch_assign_role_to_subjects_in_scope(
-        namespaced_users, RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
+        namespaced_users,
+        RoleData(external_key=role_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )
 
 
-def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
+def unassign_role_from_user(
+    user_external_key: str, role_external_key: str, scope_external_key: str
+) -> bool:
     """Unassign a role from a user in a specific scope.
 
     Args:
@@ -101,7 +107,9 @@ def batch_unassign_role_from_users(
     """
     namespaced_users = [UserData(external_key=user) for user in users]
     batch_unassign_role_from_subjects_in_scope(
-        namespaced_users, RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
+        namespaced_users,
+        RoleData(external_key=role_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )
 
 
@@ -130,7 +138,8 @@ def get_user_role_assignments_in_scope(
         list: A list of role assignments assigned to the user in the specified scope.
     """
     return get_subject_role_assignments_in_scope(
-        UserData(external_key=user_external_key), ContentLibraryData(external_key=scope_external_key)
+        UserData(external_key=user_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     )
 
 
@@ -151,7 +160,8 @@ def get_user_role_assignments_for_role_in_scope(
     user_role_assignments = []
 
     for role_assignment in get_subjects_role_assignments_for_role_in_scope(
-        RoleData(external_key=role_external_key), ContentLibraryData(external_key=scope_external_key)
+        RoleData(external_key=role_external_key),
+        ContentLibraryData(external_key=scope_external_key),
     ):
         user_role_assignments.append(
             RoleAssignmentData(
@@ -166,7 +176,9 @@ def get_user_role_assignments_for_role_in_scope(
     return user_role_assignments
 
 
-def get_all_user_role_assignments_in_scope(scope_external_key: str) -> list[RoleAssignmentData]:
+def get_all_user_role_assignments_in_scope(
+    scope_external_key: str,
+) -> list[RoleAssignmentData]:
     """Get all user role assignments in a specific scope.
 
     Args:
@@ -176,7 +188,9 @@ def get_all_user_role_assignments_in_scope(scope_external_key: str) -> list[Role
         list[dict]: A list of user role assignments and all their metadata in the specified scope.
     """
     user_role_assignments = []
-    role_assignments = get_all_subject_role_assignments_in_scope(ContentLibraryData(external_key=scope_external_key))
+    role_assignments = get_all_subject_role_assignments_in_scope(
+        ContentLibraryData(external_key=scope_external_key)
+    )
 
     for role_assignment in role_assignments:
         user_role_assignments.append(

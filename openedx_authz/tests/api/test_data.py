@@ -3,7 +3,15 @@
 from ddt import data, ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, SubjectData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    RoleData,
+    ScopeData,
+    ScopeMeta,
+    SubjectData,
+    UserData,
+)
 
 
 @ddt
@@ -180,3 +188,112 @@ class TestPolymorphismLowLevelAPIs(TestCase):
         expected_namespaced_key = f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
         self.assertEqual(library.external_key, external_key)
         self.assertEqual(library.namespaced_key, expected_namespaced_key)
+
+
+@ddt
+class TestScopeMetaClass(TestCase):
+    """Test the ScopeMeta metaclass functionality."""
+
+    def test_scope_data_registration(self):
+        """Test that ScopeData and its subclasses are registered correctly.
+
+        Expected Result:
+            - 'sc' namespace maps to ScopeData class
+            - 'lib' namespace maps to ContentLibraryData class
+        """
+        self.assertIn("sc", ScopeData._scope_registry)
+        self.assertIs(ScopeData._scope_registry["sc"], ScopeData)
+        self.assertIn("lib", ScopeData._scope_registry)
+        self.assertIs(ScopeData._scope_registry["lib"], ContentLibraryData)
+
+    @data(
+        ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("sc^generic_scope", ScopeData),
+    )
+    @unpack
+    def test_dynamic_instantiation_via_namespaced_key(self, namespaced_key, expected_class):
+        """Test that ScopeData dynamically instantiates the correct subclass.
+
+        Expected Result:
+            - ScopeData(namespaced_key='lib^...') returns ContentLibraryData instance
+            - ScopeData(namespaced_key='sc^...') returns ScopeData instance
+        """
+        instance = ScopeData(namespaced_key=namespaced_key)
+        self.assertIsInstance(instance, expected_class)
+        self.assertEqual(instance.namespaced_key, namespaced_key)
+
+    @data(
+        ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("sc^generic", ScopeData),
+        ("unknown^something", ScopeData),
+    )
+    @unpack
+    def test_get_subclass_by_namespaced_key(self, namespaced_key, expected_class):
+        """Test get_subclass_by_namespaced_key returns correct subclass.
+
+        Expected Result:
+            - 'lib^...' returns ContentLibraryData
+            - 'sc^...' returns ScopeData
+            - 'unknown^...' returns ScopeData (fallback)
+        """
+        subclass = ScopeMeta.get_subclass_by_namespaced_key(ScopeData, namespaced_key)
+        self.assertIs(subclass, expected_class)
+
+    @data(
+        ("lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib:edX:Demo", ContentLibraryData),
+        ("sc:generic", ScopeData),
+        ("unknown:something", ScopeData),
+    )
+    @unpack
+    def test_get_subclass_by_external_key(self, external_key, expected_class):
+        """Test get_subclass_by_external_key returns correct subclass.
+
+        Expected Result:
+            - 'lib:...' returns ContentLibraryData
+            - 'sc:...' returns ScopeData
+            - 'unknown:...' returns ScopeData (fallback)
+        """
+        subclass = ScopeMeta.get_subclass_by_external_key(ScopeData, external_key)
+        self.assertIs(subclass, expected_class)
+
+    @data(
+        ("lib:DemoX:CSPROB", True),
+        ("lib:edX:Demo", True),
+        ("invalid_library_key", False),
+        ("lib-DemoX-CSPROB", False),
+    )
+    @unpack
+    def test_content_library_validate_external_key(self, external_key, expected_valid):
+        """Test ContentLibraryData.validate_external_key validates library keys.
+
+        Expected Result:
+            - Valid library keys (lib:Org:Code) return True
+            - Invalid formats return False
+        """
+        result = ContentLibraryData.validate_external_key(external_key)
+        self.assertEqual(result, expected_valid)
+
+    def test_direct_subclass_instantiation_bypasses_metaclass(self):
+        """Test that direct subclass instantiation doesn't trigger metaclass logic.
+
+        Expected Result:
+            - ContentLibraryData(external_key='...') creates ContentLibraryData directly
+            - No metaclass dynamic instantiation occurs
+        """
+        library = ContentLibraryData(external_key="lib:Demo:CS")
+        self.assertIsInstance(library, ContentLibraryData)
+        self.assertEqual(library.external_key, "lib:Demo:CS")
+
+    def test_base_scope_data_with_external_key(self):
+        """Test ScopeData instantiation with external_key (not namespaced_key).
+
+        Expected Result:
+            - ScopeData(external_key='...') creates ScopeData instance
+            - No dynamic subclass selection occurs
+        """
+        scope = ScopeData(external_key="generic_scope")
+        self.assertIsInstance(scope, ScopeData)
+        self.assertEqual(scope.external_key, "generic_scope")
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}generic_scope"
+        self.assertEqual(scope.namespaced_key, expected_namespaced)

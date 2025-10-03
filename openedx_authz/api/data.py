@@ -1,5 +1,8 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
+from opaque_keys.edx.locator import LibraryLocatorV2
+from opaque_keys import InvalidKeyError
+
 from enum import Enum
 from typing import ClassVar, Literal, Type
 
@@ -36,6 +39,7 @@ class AuthzBaseClass:
     SEPARATOR: ClassVar[str] = "^"
     NAMESPACE: ClassVar[str] = None
 
+
 @define
 class AuthZData(AuthzBaseClass):
     """Base class for all authz data classes.
@@ -68,8 +72,78 @@ class AuthZData(AuthzBaseClass):
             self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
 
 
+class ScopeMeta(type):
+    """Metaclass for ScopeData to handle dynamic subclass instantiation based on namespace."""
+
+    _scope_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
+
+    def __init__(cls, name, bases, attrs):
+        """Initialize the metaclass and register subclasses."""
+        super().__init__(name, bases, attrs)
+        if not hasattr(cls, "_scope_registry"):
+            cls._scope_registry = {}
+        cls._scope_registry[cls.NAMESPACE] = cls
+
+    def __call__(cls, *args, **kwargs):
+        """Instantiate the appropriate subclass based on the namespace in namespaced_key.
+
+        There are two ways to instantiate:
+        1. By providing external_key= and format for the external key determines the subclass (e.g., 'lib^any-library' = ContentLibraryData).
+        2. By providing namespaced_key= and the class is determined from the namespace prefix
+        in namespaced_key (e.g., 'lib@any-library' = ContentLibraryData).
+        """
+        if cls is ScopeData and "namespaced_key" in kwargs:
+            scope_cls = cls.get_subclass_by_namespaced_key(kwargs["namespaced_key"])
+            return super(ScopeMeta, scope_cls).__call__(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
+
+    def get_subclass_by_namespaced_key(cls, namespaced_key: str) -> Type["ScopeData"]:
+        """Get the appropriate subclass based on the namespace in namespaced_key.
+
+        Args:
+            namespaced_key: The namespaced key (e.g., 'lib^any-library').
+
+        Returns:
+            The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
+        """
+        # Use the SEPARATOR from ScopeData since the metaclass doesn't have it
+        separator = "^"  # Default separator from AuthzBaseClass
+        namespace = namespaced_key.split(separator, 1)[0]
+        return cls._scope_registry.get(namespace, ScopeData)
+
+    def get_subclass_by_external_key(cls, external_key: str) -> Type["ScopeData"]:
+        """Get the appropriate subclass based on the format of external_key.
+
+        Args:
+            external_key: The external key (e.g., 'lib:any-library').
+
+        Returns:
+            The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
+        """
+        # Here we need to assume a couple of things:
+        # 1. The external_key is always in the format 'namespace:other things'.
+        # 2. The namespace is always the part before the first separator.
+        # 3. If the namespace is not recognized, we return the base ScopeData class
+        # 4. The subclass implements a validation method to validate the entire key
+        namespace = external_key.split(":", 1)[0]
+        return cls._scope_registry.get(namespace, ScopeData)
+
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for the subclass.
+
+        Args:
+            external_key: The external key to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        raise NotImplementedError(
+            "Subclasses must implement validate_external_key method."
+        )
+
+
 @define
-class ScopeData(AuthZData):
+class ScopeData(AuthZData, metaclass=ScopeMeta):
     """A scope is a context in which roles and permissions are assigned.
 
     Attributes:
@@ -102,6 +176,22 @@ class ContentLibraryData(ScopeData):
         """
         return self.external_key
 
+    @classmethod
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for ContentLibraryData.
+
+        Args:
+            external_key: The external key to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        try:
+            LibraryLocatorV2.from_string(external_key)
+            return True
+        except InvalidKeyError:
+            return False
+
 
 @define
 class SubjectData(AuthZData):
@@ -112,6 +202,7 @@ class SubjectData(AuthZData):
     """
 
     NAMESPACE: ClassVar[str] = "sub"
+
 
 @define
 class UserData(SubjectData):

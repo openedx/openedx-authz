@@ -23,7 +23,8 @@ from openedx_authz.api.users import (
     unassign_role_from_user,
     user_has_permission,
 )
-from openedx_authz.rest_api.v1.paginators import RoleUserAPIViewPagination
+from openedx_authz.rest_api.utils import get_user_by_username_or_email
+from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.serializers import (
     AddUserToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
@@ -34,11 +35,6 @@ from openedx_authz.rest_api.v1.serializers import (
     RemoveUserFromRoleWithScopeSerializer,
     RoleAssignmentSerializer,
 )
-
-try:
-    from common.djangoapps.student.models.user import get_user_by_username_or_email  # type: ignore
-except ImportError:
-    get_user_by_username_or_email = None
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +93,7 @@ class RoleUserAPIView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
-    pagination_class = RoleUserAPIViewPagination
+    pagination_class = AuthZAPIViewPagination
 
     @apidocs.schema(
         parameters=[
@@ -202,6 +198,7 @@ class RoleListView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
+    pagination_class = AuthZAPIViewPagination
 
     @apidocs.schema(
         parameters=[
@@ -219,10 +216,9 @@ class RoleListView(APIView):
         serializer.is_valid(raise_exception=True)
 
         scope = ContentLibraryData(namespaced_key=serializer.validated_data["scope"])
-
-        response_data = []
         roles = get_role_definitions_in_scope(scope)
 
+        response_data = []
         for role in roles:
             users = get_all_users_by_role(role)
             permissions = [perm.action.external_key for perm in role.permissions] if role.permissions else []
@@ -234,5 +230,8 @@ class RoleListView(APIView):
                 }
             )
 
-        serializer = ListRolesWithScopeResponseSerializer(response_data, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        paginator = self.pagination_class()
+        paginated_response_data = paginator.paginate_queryset(response_data, request)
+
+        serializer = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
+        return paginator.get_paginated_response(serializer.data)

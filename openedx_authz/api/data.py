@@ -233,3 +233,16 @@ class RoleAssignmentData(AuthZData):
     subject: SubjectData = None
     role: RoleData = None
     scope: ScopeData = None
+
+
+@define
+class SubjectRoleAssignmentData(AuthZData):
+    """A subject role assignment is the assignment of one or more roles to a subject in a specific scope.
+
+    Attributes:
+        subject: The ID of the subject namespaced (e.g., 'user@john_doe').
+        roles: The roles assigned to the subject.
+    """
+
+    subject: SubjectData = None
+    roles: list[RoleData] = None

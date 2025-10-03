@@ -19,6 +19,7 @@ from openedx_authz.api.data import (
     ScopeData,
     SubjectData,
     UserData,
+    SubjectRoleAssignmentData,
 )
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import enforcer
@@ -416,6 +417,39 @@ def get_all_subject_role_assignments_in_scope(
                 scope=scope,
             )
         )
+    return role_assignments
+
+
+def get_all_subject_role_assignments_in_scope_v2(
+    scope: ScopeData,
+) -> list[SubjectRoleAssignmentData]:
+    """Get all the subjects assigned to any role in a specific scope.
+
+    Args:
+        scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
+
+    Returns:
+        list[SubjectRoleAssignmentData]: A list of subjects assigned to roles in the specified scope.
+    """
+    roles_in_scope = get_all_roles_in_scope(scope)
+
+    subject_roles_map = {}
+    for subject, role, _ in roles_in_scope:
+        if subject not in subject_roles_map:
+            subject_roles_map[subject] = []
+        subject_roles_map[subject].append(role)
+
+    role_assignments = []
+    for subject_key, role_keys in subject_roles_map.items():
+        subject = SubjectData(namespaced_key=subject_key)
+        roles = [RoleData(namespaced_key=role_key) for role_key in role_keys]
+        role_assignments.append(
+            SubjectRoleAssignmentData(
+                subject=subject,
+                roles=roles,
+            )
+        )
+
     return role_assignments
 
 

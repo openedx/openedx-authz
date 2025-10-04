@@ -4,27 +4,30 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from rest_framework.permissions import IsAuthenticated
 
 User = get_user_model()
 
 
-def view_auth_classes(func_or_class):
+def view_auth_classes(is_authenticated=True):
     """
-    Function and class decorator that abstracts the authentication classes for api views.
+    Function and class decorator that abstracts the authentication and permission checks for api views.
     """
 
     def _decorator(func_or_class):
         """
-        Requires either OAuth2 or Session-based authentication;
-        are the same authentication classes used on edx-platform
+        Requires either OAuth2 or Session-based authentication.
         """
         func_or_class.authentication_classes = (
             JwtAuthentication,
             SessionAuthenticationAllowInactiveUser,
         )
+        func_or_class.permission_classes = ()
+        if is_authenticated:
+            func_or_class.permission_classes += (IsAuthenticated,)
         return func_or_class
 
-    return _decorator(func_or_class)
+    return _decorator
 
 
 def get_user_by_username_or_email(username_or_email: str) -> User:

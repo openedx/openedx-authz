@@ -11,7 +11,6 @@ import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-@view_auth_classes
+@view_auth_classes()
 class PermissionValidationView(APIView):
     """
     API view for validating user permissions against authorization policies.
@@ -43,8 +42,6 @@ class PermissionValidationView(APIView):
     specific permissions for given actions and scopes within the system.
     Supports batch permission validation through POST request.
     """
-
-    permission_classes = [IsAuthenticated]
 
     @apidocs.schema(
         body=PermissionValidationSerializer(help_text="The permissions to validate", many=True),
@@ -81,13 +78,12 @@ class PermissionValidationView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-@view_auth_classes
+@view_auth_classes()
 class RoleUserAPIView(APIView):
     """
     API view for managing user-role assignments within specific scope.
     """
 
-    permission_classes = [IsAuthenticated]
     pagination_class = AuthZAPIViewPagination
 
     @apidocs.schema(
@@ -187,13 +183,12 @@ class RoleUserAPIView(APIView):
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
 
 
-@view_auth_classes
+@view_auth_classes()
 class RoleListView(APIView):
     """
     API view for retrieving role definitions and their associated permissions.
     """
 
-    permission_classes = [IsAuthenticated]
     pagination_class = AuthZAPIViewPagination
 
     @apidocs.schema(

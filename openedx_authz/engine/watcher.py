@@ -50,7 +50,7 @@ def create_watcher():
         return watcher
     except Exception as e:
         logger.error(f"Failed to create Redis watcher: {e}")
-        raise
+        return None
 
 
 if settings.CASBIN_WATCHER_ENABLED:

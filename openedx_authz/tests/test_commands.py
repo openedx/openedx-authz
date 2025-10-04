@@ -12,6 +12,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from openedx_authz.management.commands.enforcement import Command as EnforcementCommand
+from openedx_authz.tests.test_utils import make_action_key, make_scope_key, make_user_key
 
 
 # pylint: disable=protected-access
@@ -104,11 +105,12 @@ class EnforcementCommandTests(TestCase):
         with patch("builtins.input", side_effect=["quit"]):
             self.command._run_interactive_mode(self.enforcer)
 
+        example_text = f"Example: {make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
         self.assertIn("Interactive Mode", self.buffer.getvalue())
         self.assertIn("Test custom enforcement requests interactively.", self.buffer.getvalue())
         self.assertIn("Enter 'quit', 'exit', or 'q' to exit the interactive mode.", self.buffer.getvalue())
         self.assertIn("Format: subject action scope", self.buffer.getvalue())
-        self.assertIn("Example: user:alice act:read org:OpenedX", self.buffer.getvalue())
+        self.assertIn(example_text, self.buffer.getvalue())
 
     def test_run_interactive_mode_maintains_interactive_loop(self):
         """Test that the interactive mode maintains the interactive loop."""
@@ -120,9 +122,9 @@ class EnforcementCommandTests(TestCase):
         self.assertEqual(mock_input.call_count, len(input_values))
 
     @data(
-        ["user:alice act:read org:OpenedX"],
-        ["user:bob act:read org:OpenedX"] * 5,
-        ["user:john act:read org:OpenedX"] * 10,
+        [f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"],
+        [f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 5,
+        [f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 10,
     )
     def test_run_interactive_mode_processes_request(self, user_input: list[str]):
         """Test that the interactive mode processes the request."""
@@ -154,7 +156,7 @@ class EnforcementCommandTests(TestCase):
     def test_interactive_request_allowed(self):
         """Test that `_test_interactive_request` prints allowed output format."""
         self.enforcer.enforce.return_value = True
-        user_input = "user:alice act:read org:OpenedX"
+        user_input = f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
 
         self.command._test_interactive_request(self.enforcer, user_input)
 
@@ -164,7 +166,7 @@ class EnforcementCommandTests(TestCase):
     def test_interactive_request_denied(self):
         """Test that `_test_interactive_request` prints denied output format."""
         self.enforcer.enforce.return_value = False
-        user_input = "user:alice act:delete org:OpenedX"
+        user_input = f"{make_user_key('alice')} {make_action_key('delete')} {make_scope_key('org', 'OpenedX')}"
 
         self.command._test_interactive_request(self.enforcer, user_input)
 
@@ -173,21 +175,22 @@ class EnforcementCommandTests(TestCase):
 
     def test_interactive_request_invalid_format(self):
         """Test that `_test_interactive_request` reports invalid input format."""
-        user_input = "user:alice act:read"
+        user_input = f"{make_user_key('alice')} {make_action_key('read')}"
 
         self.command._test_interactive_request(self.enforcer, user_input)
 
         invalid_output = self.buffer.getvalue()
         self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
         self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(f"Example: {user_input} org:OpenedX", invalid_output)
+        self.assertIn(f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output)
 
     @data(ValueError(), IndexError(), TypeError())
     def test_interactive_request_error(self, exception: Exception):
         """Test that `_test_interactive_request` handles processing errors."""
         self.enforcer.enforce.side_effect = exception
+        user_input = f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
 
-        self.command._test_interactive_request(self.enforcer, "user:alice act:read org:OpenedX")
+        self.command._test_interactive_request(self.enforcer, user_input)
 
         error_output = self.buffer.getvalue()
         self.assertIn(f"✗ Error processing request: {str(exception)}", error_output)

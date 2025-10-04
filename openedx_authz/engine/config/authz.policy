@@ -1,11 +1,60 @@
-# ===== ACTION GROUPING (g2) =====
+############################################
+# Open edX AuthZ — Casbin Policy Configuration
+#
+# This file defines policies that work with the model configuration.
+# Uses namespaced subjects, actions, and scopes for maximum flexibility.
+############################################
 
-# manage implies edit, delete, read, write
-g2, act:manage, act:edit
-g2, act:manage, act:delete
-g2, act:edit, act:read
-g2, act:edit, act:write
+# Policy definitions - format: p = subject(role), action, scope, effect
+# For role definitions use: lib^*, course^*, org^* to specify the scope of the role
 
-# edit implies read, write
-g2, act:edit, act:read
-g2, act:edit, act:write
+# Library Admin Role Policies
+p, role^library_admin, act^delete_library, lib^*, allow
+p, role^library_admin, act^publish_library, lib^*, allow
+p, role^library_admin, act^manage_library_team, lib^*, allow
+p, role^library_admin, act^manage_library_tags, lib^*, allow
+p, role^library_admin, act^delete_library_content, lib^*, allow
+p, role^library_admin, act^publish_library_content, lib^*, allow
+p, role^library_admin, act^delete_library_collection, lib^*, allow
+p, role^library_admin, act^create_library, lib^*, allow
+p, role^library_admin, act^create_library_collection, lib^*, allow
+
+# Library Author Role Policies
+p, role^library_author, act^delete_library_content, lib^*, allow
+p, role^library_author, act^publish_library_content, lib^*, allow
+p, role^library_author, act^edit_library, lib^*, allow
+p, role^library_author, act^manage_library_tags, lib^*, allow
+p, role^library_author, act^create_library_collection, lib^*, allow
+p, role^library_author, act^edit_library_collection, lib^*, allow
+p, role^library_author, act^delete_library_collection, lib^*, allow
+
+# Library Collaborator Role Policies
+p, role^library_collaborator, act^edit_library, lib^*, allow
+p, role^library_collaborator, act^delete_library_content, lib^*, allow
+p, role^library_collaborator, act^manage_library_tags, lib^*, allow
+p, role^library_collaborator, act^create_library_collection, lib^*, allow
+p, role^library_collaborator, act^edit_library_collection, lib^*, allow
+p, role^library_collaborator, act^delete_library_collection, lib^*, allow
+
+# Library User Role Policies
+p, role^library_user, act^view_library, lib^*, allow
+p, role^library_user, act^view_library_team, lib^*, allow
+p, role^library_user, act^reuse_library_content, lib^*, allow
+
+# Action Inheritance (g2) - format: g2 = granted_action, implied_action
+# Higher-level permissions automatically grant lower-level permissions
+# If a user has the granted_action, they also have the implied_action
+# Example: g2, act^delete_library, act^view_library means delete permission includes view permission
+g2, act^delete_library, act^view_library
+g2, act^edit_library, act^view_library
+g2, act^create_library, act^view_library
+g2, act^publish_library, act^view_library
+g2, act^manage_library_team, act^view_library_team
+g2, act^manage_library_tags, act^view_library_tags
+g2, act^delete_library_collection, act^edit_library_collection
+g2, act^edit_library_collection, act^view_library_collection
+g2, act^create_library_collection, act^edit_library_collection
+g2, act^edit_library_content, act^view_library_content
+g2, act^delete_library_content, act^edit_library_content
+g2, act^publish_library_content, act^view_library_content
+g2, act^reuse_library_content, act^view_library_content

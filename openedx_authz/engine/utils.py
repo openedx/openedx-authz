@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 
 
-def migrate_policy_from_file_to_db(
+def migrate_policy_between_enforcers(
     source_enforcer: Enforcer,
     target_enforcer: Enforcer,
 ) -> None:

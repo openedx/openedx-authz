@@ -25,6 +25,7 @@ from openedx_authz.api.roles import (
     get_all_subject_role_assignments_in_scope,
     get_permissions_for_active_roles_in_scope,
     get_permissions_for_roles,
+    get_permissions_for_single_role,
     get_role_definitions_in_scope,
     get_subject_role_assignments,
     get_subject_role_assignments_in_scope,
@@ -32,7 +33,7 @@ from openedx_authz.api.roles import (
     unassign_role_from_subject_in_scope,
 )
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
-from openedx_authz.engine.utils import migrate_policy_from_file_to_db
+from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
 class RolesTestSetupMixin(TestCase):
@@ -46,7 +47,7 @@ class RolesTestSetupMixin(TestCase):
         during application deployment, separate from the runtime policy loading.
         """
         global_enforcer.load_policy()
-        migrate_policy_from_file_to_db(
+        migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
                 "openedx_authz/engine/config/model.conf",
                 "openedx_authz/engine/config/authz.policy",
@@ -248,200 +249,131 @@ class TestRolesAPI(RolesTestSetupMixin):
         # Library Admin role with actual permissions from authz.policy
         (
             "library_admin",
-            {
-                "library_admin": {
-                    "permissions": [
-                        PermissionData(
-                            action=ActionData(external_key="delete_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
-                }
-            },
+            [
+                PermissionData(
+                    action=ActionData(external_key="delete_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="publish_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="manage_library_team"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="manage_library_tags"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="delete_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="publish_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="delete_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="create_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="create_library_collection"),
+                    effect="allow",
+                ),
+            ],
         ),
         # Library Author role with actual permissions from authz.policy
         (
             "library_author",
-            {
-                "library_author": {
-                    "permissions": [
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="edit_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="edit_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
-                }
-            },
+            [
+                PermissionData(
+                    action=ActionData(external_key="delete_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="publish_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="edit_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="manage_library_tags"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="create_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="edit_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="delete_library_collection"),
+                    effect="allow",
+                ),
+            ],
         ),
         # Library Collaborator role with actual permissions from authz.policy
         (
             "library_collaborator",
-            {
-                "library_collaborator": {
-                    "permissions": [
-                        PermissionData(
-                            action=ActionData(external_key="edit_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="edit_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
-                }
-            },
+            [
+                PermissionData(
+                    action=ActionData(external_key="edit_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="delete_library_content"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="manage_library_tags"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="create_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="edit_library_collection"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="delete_library_collection"),
+                    effect="allow",
+                ),
+            ],
         ),
         # Library User role with minimal permissions
         (
             "library_user",
-            {
-                "library_user": {
-                    "permissions": [
-                        PermissionData(
-                            action=ActionData(external_key="view_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="view_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="reuse_library_content"),
-                            effect="allow",
-                        ),
-                    ],
-                }
-            },
+            [
+                PermissionData(
+                    action=ActionData(external_key="view_library"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="view_library_team"),
+                    effect="allow",
+                ),
+                PermissionData(
+                    action=ActionData(external_key="reuse_library_content"),
+                    effect="allow",
+                ),
+            ],
         ),
-        # Role in different scope for multi-role user (eve) - this user IS assigned this role in this scope
-        (
-            "library_admin",
-            {
-                "library_admin": {
-                    "permissions": [
-                        PermissionData(
-                            action=ActionData(external_key="delete_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
-                }
-            },
-        ),
-        # Non-existent role
-        (
-            "non_existent_role",
-            {"non_existent_role": {"permissions": []}},
-        ),
-        # Empty role list
-        # ("", {"": []}), TODO: this returns all roles, is this expected?
         # Non existent role
         (
             "non_existent_role",
-            {"non_existent_role": {"permissions": []}},
+            [],
         ),
     )
     @unpack
@@ -452,7 +384,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - Permissions are correctly retrieved for the given roles and scope.
             - The permissions match the expected permissions.
         """
-        assigned_permissions = get_permissions_for_roles(
+        assigned_permissions = get_permissions_for_single_role(
             RoleData(external_key=role_name)
         )
 

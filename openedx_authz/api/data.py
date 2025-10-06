@@ -89,9 +89,7 @@ class AuthZData(AuthzBaseClass):
 
         # Case 3: Neither provided, raise error
         if not self.external_key and not self.namespaced_key:
-            raise ValueError(
-                "Either external_key or namespaced_key must be provided."
-            )
+            raise ValueError("Either external_key or namespaced_key must be provided.")
 
 
 class ScopeMeta(type):
@@ -329,7 +327,6 @@ class ActionData(AuthZData):
     """
 
     NAMESPACE: ClassVar[str] = "act"
-    name: str = ""
 
     @property
     def name(self) -> str:
@@ -357,35 +354,16 @@ class PermissionData(AuthZData):
 
 
 @define
-class RoleMetadataData(AuthZData):
-    """Metadata for a role.
-
-    Attributes:
-        description: A description of the role.
-        created_at: The date and time the role was created.
-        created_by: The ID of the subject who created the role.
-    """
-
-    description: str = None
-    created_at: str = None
-    created_by: str = None
-
-
-@define
 class RoleData(AuthZData):
     """A role is a named group of permissions.
 
     Attributes:
         name: The name of the role. Must have 'role@' namespace prefix.
-        role_id: The role identifier namespaced (e.g., 'role@instructor').
         permissions: A list of permissions assigned to the role.
-        metadata: A dictionary of metadata assigned to the role. This can include
-            information such as the description of the role, creation date, etc.
     """
 
     NAMESPACE: ClassVar[str] = "role"
-    permissions: list[PermissionData] = None
-    metadata: RoleMetadataData = None
+    permissions: list[PermissionData] = list()
 
     @property
     def name(self) -> str:
@@ -405,10 +383,9 @@ class RoleAssignmentData(AuthZData):
     """A role assignment is the assignment of a role to a subject in a specific scope.
 
     Attributes:
-        subject: The ID of the user namespaced (e.g., 'user@john_doe').
-        email: The email of the user.
-        role_name: The name of the role.
-        scope: The scope in which the role is assigned.
+        subject: The subject to whom the role is assigned (e.g., user or service).
+        role: The role being assigned.
+        scope: The scope in which the role is assigned (e.g., organization, course).
     """
 
     subject: SubjectData = None  # Needs defaults to avoid value error from attrs

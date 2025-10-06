@@ -23,6 +23,7 @@ from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import enforcer
 
 __all__ = [
+    "get_permissions_for_single_role",
     "get_permissions_for_roles",
     "get_all_roles_names",
     "get_all_roles_in_scope",
@@ -47,8 +48,23 @@ __all__ = [
 # in this case, ALL the policies, but that might not be the case
 
 
+def get_permissions_for_single_role(
+    role: RoleData,
+) -> list[PermissionData]:
+    """Get the permissions (actions) for a single role.
+
+    Args:
+        role: A RoleData object representing the role.
+
+    Returns:
+        list[PermissionData]: A list of PermissionData objects associated with the given role.
+    """
+    policies = enforcer.get_implicit_permissions_for_user(role.namespaced_key)
+    return [get_permission_from_policy(policy) for policy in policies]
+
+
 def get_permissions_for_roles(
-    roles: list[RoleData] | RoleData,
+    roles: list[RoleData],
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
     """Get the permissions (actions) for a list of roles.
 
@@ -59,22 +75,11 @@ def get_permissions_for_roles(
         dict[str, list[PermissionData]]: A dictionary mapping role names to their permissions and scopes.
     """
     permissions_by_role = {}
-    if not roles:
-        return permissions_by_role
-
-    if isinstance(roles, RoleData):
-        roles = [roles]
 
     for role in roles:
-        policies = enforcer.get_implicit_permissions_for_user(role.namespaced_key)
-
-        permissions_by_role[role.external_key] = (
-            {  # Index by role external_key for easy lookup
-                "permissions": [
-                    get_permission_from_policy(policy) for policy in policies
-                ],
-            }
-        )
+        permissions_by_role[role.external_key] = {
+            "permissions": get_permissions_for_single_role(role)
+        }
 
     return permissions_by_role
 
@@ -252,7 +257,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     """Get all the roles for a subject across all scopes.
 
     Args:
-        subject: The ID of the subject namespaced (e.g., 'subject:john_doe').
+        subject: The ID of the subject namespaced (e.g., 'subject^john_doe').
 
     Returns:
         list[Role]: A list of role names and all their metadata assigned to the subject.
@@ -262,11 +267,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key
     ):
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_roles(role)[
-            role.external_key
-        ][  # Index by role external_key for readability
-            "permissions"
-        ]
+        role.permissions = get_permissions_for_single_role(role)
 
         role_assignments.append(
             RoleAssignmentData(
@@ -284,7 +285,7 @@ def get_subject_role_assignments_in_scope(
     """Get the roles for a subject in a specific scope.
 
     Args:
-        subject: The ID of the subject namespaced (e.g., 'subject:john_doe').
+        subject: The ID of the subject namespaced (e.g., 'subject^john_doe').
         scope: The scope to filter roles (e.g., 'library:123').
 
     Returns:
@@ -301,9 +302,7 @@ def get_subject_role_assignments_in_scope(
                 subject=subject,
                 role=RoleData(
                     namespaced_key=namespaced_key,
-                    permissions=get_permissions_for_roles(role)[role.external_key][
-                        "permissions"
-                    ],
+                    permissions=get_permissions_for_single_role(role),
                 ),
                 scope=scope,
             )
@@ -332,14 +331,10 @@ def get_subjects_role_assignments_for_role_in_scope(
             continue
         role_assignments.append(
             RoleAssignmentData(
-                subject=SubjectData(
-                    namespaced_key=subject
-                ),
+                subject=SubjectData(namespaced_key=subject),
                 role=RoleData(
                     external_key=role.external_key,
-                    permissions=get_permissions_for_roles(role)[role.external_key][
-                        "permissions"
-                    ],
+                    permissions=get_permissions_for_single_role(role),
                 ),
                 scope=scope,
             )
@@ -364,9 +359,7 @@ def get_all_subject_role_assignments_in_scope(
     for policy in roles_in_scope:
         subject = SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value])
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_roles(role)[role.external_key][
-            "permissions"
-        ]  # Index by role external_key for easy lookup
+        role.permissions = get_permissions_for_single_role(role)
 
         role_assignments.append(
             RoleAssignmentData(

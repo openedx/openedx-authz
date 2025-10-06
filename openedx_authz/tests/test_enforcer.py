@@ -12,7 +12,7 @@ from django.test import TestCase
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.filter import Filter
-from openedx_authz.engine.utils import migrate_policy_from_file_to_db
+from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
 class PolicyLoadingTestSetupMixin(TestCase):
@@ -65,7 +65,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         # Always start with completely clean state
         global_enforcer.clear_policy()
 
-        migrate_policy_from_file_to_db(
+        migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
                 "openedx_authz/engine/config/model.conf",
                 "openedx_authz/engine/config/authz.policy",

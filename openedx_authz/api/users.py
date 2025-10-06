@@ -9,7 +9,13 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user@john_doe').
 """
 
-from openedx_authz.api.data import ActionData, RoleAssignmentData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    RoleAssignmentData,
+    RoleData,
+    ScopeData,
+    UserData,
+)
 from openedx_authz.api.permissions import has_permission
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
@@ -24,7 +30,7 @@ from openedx_authz.api.roles import (
 
 __all__ = [
     "assign_role_to_user_in_scope",
-    "batch_assign_role_to_users",
+    "batch_assign_role_to_users_in_scope",
     "unassign_role_from_user",
     "batch_unassign_role_from_users",
     "get_user_role_assignments",
@@ -52,9 +58,7 @@ def assign_role_to_user_in_scope(
     )
 
 
-def batch_assign_role_to_users(
-    users: list[str], role_external_key: str, scope_external_key: str
-) -> dict[str, bool]:
+def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str, scope_external_key: str):
     """Assign a role to multiple users in a specific scope.
 
     Args:
@@ -70,9 +74,7 @@ def batch_assign_role_to_users(
     )
 
 
-def unassign_role_from_user(
-    user_external_key: str, role_external_key: str, scope_external_key: str
-) -> bool:
+def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str):
     """Unassign a role from a user in a specific scope.
 
     Args:
@@ -87,9 +89,7 @@ def unassign_role_from_user(
     )
 
 
-def batch_unassign_role_from_users(
-    users: list[str], role_external_key: str, scope_external_key: str
-) -> dict[str, bool]:
+def batch_unassign_role_from_users(users: list[str], role_external_key: str, scope_external_key: str):
     """Unassign a role from multiple users in a specific scope.
 
     Args:
@@ -112,7 +112,7 @@ def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData
         user_external_key (str): ID of the user (e.g., 'john_doe').
 
     Returns:
-        list[dict]: A list of role assignments and all their metadata assigned to the user.
+        list[RoleAssignmentData]: A list of role assignments and all their metadata assigned to the user.
     """
     return get_subject_role_assignments(UserData(external_key=user_external_key))
 
@@ -127,7 +127,7 @@ def get_user_role_assignments_in_scope(
         scope (str): Scope in which to retrieve the roles.
 
     Returns:
-        list: A list of role assignments assigned to the user in the specified scope.
+        list[RoleAssignmentData]: A list of role assignments assigned to the user in the specified scope.
     """
     return get_subject_role_assignments_in_scope(
         UserData(external_key=user_external_key),
@@ -145,7 +145,7 @@ def get_user_role_assignments_for_role_in_scope(
         scope (str): Scope in which to retrieve the role assignments.
 
     Returns:
-        list[dict]: A list of user names and all their metadata assigned to the role.
+        list[RoleAssignmentData]: A list of user names and all their metadata assigned to the role.
     """
     # TODO: this SHOULD definitely be managed in a better way by using class inheritance and factories
     # But for now we'll keep it simple and explicit
@@ -164,7 +164,7 @@ def get_all_user_role_assignments_in_scope(
         scope (str): Scope in which to retrieve the user role assignments.
 
     Returns:
-        list[dict]: A list of user role assignments and all their metadata in the specified scope.
+        list[RoleAssignmentData]: A list of user role assignments and all their metadata in the specified scope.
     """
     return get_all_subject_role_assignments_in_scope(
         ScopeData(external_key=scope_external_key)

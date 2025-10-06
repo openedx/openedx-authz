@@ -12,7 +12,7 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
-    batch_assign_role_to_users,
+    batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
     get_all_user_role_assignments_in_scope,
     get_user_role_assignments,
@@ -70,7 +70,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The role is successfully assigned to the user in the specified scope.
         """
         if batch:
-            batch_assign_role_to_users(
+            batch_assign_role_to_users_in_scope(
                 users=username, role_external_key=role, scope_external_key=scope_name
             )
             for user in username:

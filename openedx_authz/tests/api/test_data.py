@@ -74,7 +74,7 @@ class TestNamespacedData(TestCase):
 
 
 @ddt
-class TestPolymorphismLowLevelAPIs(TestCase):
+class TestPolymorphicData(TestCase):
     """Test polymorphic factory pattern for SubjectData and ScopeData."""
 
     @data(

@@ -13,7 +13,7 @@ import casbin
 from django.core.management.base import BaseCommand
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
-from openedx_authz.engine.utils import migrate_policy_from_file_to_db
+from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
 class Command(BaseCommand):
@@ -49,11 +49,6 @@ class Command(BaseCommand):
             default="openedx_authz/engine/config/model.conf",
             help="Path to the Casbin model configuration file",
         )
-        parser.add_argument(
-            "--clear-existing",
-            action="store_true",
-            help="Clear existing policies in the database before loading new ones",
-        )
 
     def handle(self, *args, **options):
         """Execute the policy loading command.
@@ -87,4 +82,4 @@ class Command(BaseCommand):
             source_enforcer: The Casbin enforcer instance to migrate policies from.
             target_enforcer: The Casbin enforcer instance to migrate policies to.
         """
-        migrate_policy_from_file_to_db(source_enforcer, target_enforcer)
+        migrate_policy_between_enforcers(source_enforcer, target_enforcer)

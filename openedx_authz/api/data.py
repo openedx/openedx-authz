@@ -74,16 +74,24 @@ class AuthZData(AuthzBaseClass):
 
         This method ensures that either external_key or namespaced_key is provided,
         and derives the other attribute based on the NAMESPACE and SEPARATOR.
-
-        Note:
-        I will always instantiate with either external_key or namespaced_key, never both.
-        So we need to derive the other one based on the NAMESPACE.
         """
-        if self.NAMESPACE and not self.namespaced_key:
+        if not self.NAMESPACE:
+            # No namespace defined, nothing to do
+            return
+
+        # Case 1: Initialized with external_key only, derive namespaced_key
+        if self.external_key and not self.namespaced_key:
             self.namespaced_key = f"{self.NAMESPACE}{self.SEPARATOR}{self.external_key}"
 
-        if self.NAMESPACE and not self.external_key and self.namespaced_key:
+        # Case 2: Initialized with namespaced_key only, derive external_key
+        if not self.external_key and self.namespaced_key:
             self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
+
+        # Case 3: Neither provided, raise error
+        if not self.external_key and not self.namespaced_key:
+            raise ValueError(
+                "Either external_key or namespaced_key must be provided."
+            )
 
 
 class ScopeMeta(type):

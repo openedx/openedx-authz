@@ -7,6 +7,19 @@ from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
+
+__all__ = [
+    "UserData",
+    "PermissionData",
+    "GroupingPolicyIndex",
+    "PolicyIndex",
+    "ActionData",
+    "RoleAssignmentData",
+    "RoleData",
+    "ScopeData",
+    "SubjectData",
+]
+
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 
 
@@ -289,6 +302,10 @@ class UserData(SubjectData):
     def username(self) -> str:
         """The username for the user (e.g., 'john_doe').
 
+        TODO: Temporary :no-index: to avoid duplicate object warnings from wildcard import in __init__.py
+
+        :no-index:
+
         This is an alias for external_key that represents the username without the namespace prefix.
 
         Returns:
@@ -358,15 +375,21 @@ class RoleData(AuthZData):
         permissions: A list of permissions assigned to the role.
         metadata: A dictionary of metadata assigned to the role. This can include
             information such as the description of the role, creation date, etc.
+
+    TODO: Temporary :no-index: on attributes to avoid duplicate object warnings from wildcard import in __init__.py
     """
 
     NAMESPACE: ClassVar[str] = "role"
-    permissions: list[PermissionData] = None
-    metadata: RoleMetadataData = None
+    permissions: list[PermissionData] = None  #: :no-index:
+    metadata: RoleMetadataData = None  #: :no-index:
 
     @property
     def name(self) -> str:
         """The human-readable name of the role (e.g., 'Library Admin', 'Course Instructor').
+
+        TODO: Temporary :no-index: to avoid duplicate object warnings from wildcard import in __init__.py
+
+        :no-index:
 
         This property transforms the external_key into a human-readable display name
         by replacing underscores with spaces and capitalizing each word.
@@ -386,8 +409,10 @@ class RoleAssignmentData(AuthZData):
         email: The email of the user.
         role_name: The name of the role.
         scope: The scope in which the role is assigned.
+
+    TODO: Temporary :no-index: on attributes to avoid duplicate object warnings from wildcard import in __init__.py
     """
 
-    subject: SubjectData = None  # Needs defaults to avoid value error from attrs
+    subject: SubjectData = None  #: :no-index:
     role: RoleData = None
-    scope: ScopeData = None
+    scope: ScopeData = None  #: :no-index:

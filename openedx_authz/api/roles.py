@@ -87,7 +87,8 @@ def get_permissions_for_active_roles_in_scope(
     This function operates on the principle that roles defined in policies are templates
     that become active only when assigned to subjects with specific scopes.
 
-    Role Definition vs Role Assignment:
+    **Role Definition vs Role Assignment:**
+
     - Policy roles define potential permissions with namespace patterns (e.g., 'lib@*')
     - Actual permissions are granted only when roles are assigned to subjects with
       concrete scopes (e.g., 'lib@123')
@@ -96,7 +97,8 @@ def get_permissions_for_active_roles_in_scope(
     - The specific scope at assignment time ('lib@123') determines the exact
       resource the permissions apply to
 
-    Behavior:
+    **Behavior:**
+
     - Returns permissions only for roles that have been assigned to subjects
     - Unassigned roles (those defined in policy but not given to any subject)
       contribute no permissions to the result

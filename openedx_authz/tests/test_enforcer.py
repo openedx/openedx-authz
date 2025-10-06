@@ -85,13 +85,11 @@ class PolicyLoadingTestSetupMixin(TestCase):
             scope: The scope to load policies for (e.g., 'lib@*' for all libraries).
                   If None, loads all policies using load_policy().
         """
-        print(f"Loading policies for scope: {scope}")
         if scope is None:
             global_enforcer.load_policy()
         else:
             policy_filter = Filter(v2=[scope])
             global_enforcer.load_filtered_policy(policy_filter)
-        print(global_enforcer.get_policy())
 
     def _load_policies_for_user_context(self, scopes: list[str] = None):
         """Load policies relevant to a user's context like accessible scopes.

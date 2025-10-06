@@ -378,9 +378,6 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         role_assignments = get_all_user_role_assignments_in_scope(
             scope_external_key=scope_name
         )
-        print("Here are the role assignments:", role_assignments)
-        print("\n")
-        print("Here are the expected assignments:", expected_assignments)
 
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:

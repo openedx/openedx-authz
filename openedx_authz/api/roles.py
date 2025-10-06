@@ -112,8 +112,6 @@ def get_permissions_for_active_roles_in_scope(
     filtered_policy = enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
-    print(enforcer.get_grouping_policy())
-    print(scope.namespaced_key)
 
     if role:
         filtered_policy = [
@@ -361,8 +359,6 @@ def get_all_subject_role_assignments_in_scope(
         list[RoleAssignment]: A list of subjects assigned to roles in the specified scope.
     """
     role_assignments = []
-    print(scope)
-    print(enforcer.get_grouping_policy())
     roles_in_scope = get_all_roles_in_scope(scope)
 
     for policy in roles_in_scope:

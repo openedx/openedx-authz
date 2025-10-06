@@ -5,7 +5,6 @@ for the Open edX AuthZ system using Casbin.
 """
 
 import logging
-import os
 
 from casbin import Enforcer
 
@@ -25,7 +24,7 @@ def migrate_policy_from_file_to_db(
         target_enforcer (Enforcer): The Casbin enforcer instance to migrate policies to (database).
     """
     try:
-        # TODO: need to avoid loading twice the same policies
+        # Load latest policies from the source enforcer
         source_enforcer.load_policy()
         policies = source_enforcer.get_policy()
         for policy in policies:
@@ -34,7 +33,6 @@ def migrate_policy_from_file_to_db(
 
         for grouping_policy_ptype in GROUPING_POLICY_PTYPES:
             try:
-                source_enforcer.load_policy()
                 grouping_policies = source_enforcer.get_named_grouping_policy(
                     grouping_policy_ptype
                 )

@@ -10,14 +10,26 @@ from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api import *
 from openedx_authz.api.data import (
     ActionData,
     ContentLibraryData,
     PermissionData,
+    RoleAssignmentData,
     RoleData,
     ScopeData,
     SubjectData,
+)
+from openedx_authz.api.roles import (
+    assign_role_to_subject_in_scope,
+    batch_assign_role_to_subjects_in_scope,
+    get_all_subject_role_assignments_in_scope,
+    get_permissions_for_active_roles_in_scope,
+    get_permissions_for_roles,
+    get_role_definitions_in_scope,
+    get_subject_role_assignments,
+    get_subject_role_assignments_in_scope,
+    get_subjects_role_assignments_for_role_in_scope,
+    unassign_role_from_subject_in_scope,
 )
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_from_file_to_db
@@ -912,11 +924,12 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleData(external_key=role),
                 ScopeData(external_key=scope_name),
             )
-            user_roles = get_subject_role_assignments_in_scope(
-                SubjectData(external_key=subject), ScopeData(external_key=scope_name)
-            )
-            role_names = {assignment.role.external_key for assignment in user_roles}
-            self.assertIn(role, role_names)
+            for subject_name in subject_names:
+                user_roles = get_subject_role_assignments_in_scope(
+                    SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
+                )
+                role_names = {assignment.role.external_key for assignment in user_roles}
+                self.assertIn(role, role_names)
         else:
             assign_role_to_subject_in_scope(
                 SubjectData(external_key=subject_names),

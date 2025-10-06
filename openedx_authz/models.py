@@ -1,4 +1,5 @@
-"""Database models for the authorization framework.
+"""
+Database models for the authorization framework.
 
 These models will be used to store additional data about roles and permissions
 that are not natively supported by Casbin, so as to avoid modifying the Casbin

@@ -10,7 +10,17 @@ from openedx_authz.api.data import (
     RoleData,
     UserData,
 )
-from openedx_authz.api.users import *
+from openedx_authz.api.users import (
+    assign_role_to_user_in_scope,
+    batch_assign_role_to_users,
+    batch_unassign_role_from_users,
+    get_all_user_role_assignments_in_scope,
+    get_user_role_assignments,
+    get_user_role_assignments_for_role_in_scope,
+    get_user_role_assignments_in_scope,
+    unassign_role_from_user,
+    user_has_permission,
+)
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
 

@@ -314,7 +314,13 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
 
     POLICY = [
         ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), make_scope_key("org", "restricted-org"), "deny"],
+        [
+            "p",
+            make_role_key("platform_admin"),
+            make_action_key("manage"),
+            make_scope_key("org", "restricted-org"),
+            "deny",
+        ],
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
     ] + COMMON_ACTION_GROUPING
 

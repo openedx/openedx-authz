@@ -16,10 +16,8 @@ from openedx_authz.api.data import (
     PolicyIndex,
     RoleAssignmentData,
     RoleData,
-    RoleMetadataData,
     ScopeData,
     SubjectData,
-    UserData,
 )
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import enforcer
@@ -163,9 +161,9 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     return [
         RoleData(
             namespaced_key=role,
-            permissions=permissions_per_role[role]["permissions"],
+            permissions=permissions["permissions"],
         )
-        for role in permissions_per_role.keys()
+        for role, permissions in permissions_per_role.items()
     ]
 
 
@@ -336,7 +334,7 @@ def get_subjects_role_assignments_for_role_in_scope(
             RoleAssignmentData(
                 subject=SubjectData(
                     namespaced_key=subject
-                ),  # TODO: I want this to behave like UserData or any other subclass of SubjectData depending on NAMESPACE
+                ),
                 role=RoleData(
                     external_key=role.external_key,
                     permissions=get_permissions_for_roles(role)[role.external_key][

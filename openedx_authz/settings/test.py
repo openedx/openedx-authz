@@ -4,8 +4,6 @@ Test settings for openedx_authz plugin.
 
 import os
 
-from django.conf import settings
-
 from openedx_authz import ROOT_DIRECTORY
 
 # Add Casbin configuration

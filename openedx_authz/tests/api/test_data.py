@@ -3,15 +3,7 @@
 from ddt import data, ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import (
-    ActionData,
-    ContentLibraryData,
-    RoleData,
-    ScopeData,
-    ScopeMeta,
-    SubjectData,
-    UserData,
-)
+from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, ScopeMeta, SubjectData, UserData
 
 
 @ddt
@@ -203,10 +195,10 @@ class TestScopeMetaClass(TestCase):
             - 'sc' namespace maps to ScopeData class
             - 'lib' namespace maps to ContentLibraryData class
         """
-        self.assertIn("sc", ScopeData._scope_registry)
-        self.assertIs(ScopeData._scope_registry["sc"], ScopeData)
-        self.assertIn("lib", ScopeData._scope_registry)
-        self.assertIs(ScopeData._scope_registry["lib"], ContentLibraryData)
+        self.assertIn("sc", ScopeData.scope_registry)
+        self.assertIs(ScopeData.scope_registry["sc"], ScopeData)
+        self.assertIn("lib", ScopeData.scope_registry)
+        self.assertIs(ScopeData.scope_registry["lib"], ContentLibraryData)
 
     @data(
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
@@ -240,7 +232,7 @@ class TestScopeMetaClass(TestCase):
             - 'sc^...' returns ScopeData
             - 'unknown^...' returns ScopeData (fallback)
         """
-        subclass = ScopeMeta.get_subclass_by_namespaced_key(ScopeData, namespaced_key)
+        subclass = ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
         self.assertIs(subclass, expected_class)
 
     @data(
@@ -257,7 +249,7 @@ class TestScopeMetaClass(TestCase):
             - 'sc:...' returns ScopeData
             - 'unknown:...' returns ScopeData (fallback)
         """
-        subclass = ScopeMeta.get_subclass_by_external_key(ScopeData, external_key)
+        subclass = ScopeMeta.get_subclass_by_external_key(external_key)
         self.assertIs(subclass, expected_class)
 
     @data(

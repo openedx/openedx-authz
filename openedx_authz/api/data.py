@@ -7,7 +7,6 @@ from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 
 
@@ -77,14 +76,14 @@ class AuthZData(AuthzBaseClass):
 class ScopeMeta(type):
     """Metaclass for ScopeData to handle dynamic subclass instantiation based on namespace."""
 
-    _scope_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
+    scope_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
 
     def __init__(cls, name, bases, attrs):
         """Initialize the metaclass and register subclasses."""
         super().__init__(name, bases, attrs)
-        if not hasattr(cls, "_scope_registry"):
-            cls._scope_registry = {}
-        cls._scope_registry[cls.NAMESPACE] = cls
+        if not hasattr(cls, "scope_registry"):
+            cls.scope_registry = {}
+        cls.scope_registry[cls.NAMESPACE] = cls
 
     def __call__(cls, *args, **kwargs):
         """Instantiate the appropriate subclass based on the namespace in namespaced_key.
@@ -115,7 +114,8 @@ class ScopeMeta(type):
 
         return super().__call__(*args, **kwargs)
 
-    def get_subclass_by_namespaced_key(cls, namespaced_key: str) -> Type["ScopeData"]:
+    @classmethod
+    def get_subclass_by_namespaced_key(mcs, namespaced_key: str) -> Type["ScopeData"]:
         """Get the appropriate subclass based on the namespace in namespaced_key.
 
         Args:
@@ -126,9 +126,10 @@ class ScopeMeta(type):
         """
         # TODO: Default separator, can't access directly from class so made it a constant
         namespace = namespaced_key.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[0]
-        return cls._scope_registry.get(namespace, ScopeData)
+        return mcs.scope_registry.get(namespace, ScopeData)
 
-    def get_subclass_by_external_key(cls, external_key: str) -> Type["ScopeData"]:
+    @classmethod
+    def get_subclass_by_external_key(mcs, external_key: str) -> Type["ScopeData"]:
         """Get the appropriate subclass based on the format of external_key.
 
         Args:
@@ -145,12 +146,13 @@ class ScopeMeta(type):
         # 3. If the namespace is not recognized, we return the base ScopeData class
         # 4. The subclass implements a validation method to validate the entire key
         namespace = external_key.split(":", 1)[0]
-        scope_subclass = cls._scope_registry.get(namespace)
+        scope_subclass = mcs.scope_registry.get(namespace)
         if not scope_subclass or not scope_subclass.validate_external_key(external_key):
             return ScopeData  # Fallback to base class if not found or invalid
         return scope_subclass
 
-    def validate_external_key(cls, external_key: str) -> bool:
+    @classmethod
+    def validate_external_key(mcs, external_key: str) -> bool:
         """Validate the external_key format for the subclass.
 
         Args:
@@ -217,14 +219,14 @@ class ContentLibraryData(ScopeData):
 class SubjectMeta(type):
     """Metaclass for SubjectData to handle dynamic subclass instantiation based on namespace."""
 
-    _subject_registry: ClassVar[dict[str, Type["SubjectData"]]] = {}
+    subject_registry: ClassVar[dict[str, Type["SubjectData"]]] = {}
 
     def __init__(cls, name, bases, attrs):
         """Initialize the metaclass and register subclasses."""
         super().__init__(name, bases, attrs)
-        if not hasattr(cls, "_subject_registry"):
-            cls._subject_registry = {}
-        cls._subject_registry[cls.NAMESPACE] = cls
+        if not hasattr(cls, "subject_registry"):
+            cls.subject_registry = {}
+        cls.subject_registry[cls.NAMESPACE] = cls
 
     def __call__(cls, *args, **kwargs):
         """Instantiate the appropriate subclass based on the namespace in namespaced_key.
@@ -244,7 +246,8 @@ class SubjectMeta(type):
 
         return super().__call__(*args, **kwargs)
 
-    def get_subclass_by_namespaced_key(cls, namespaced_key: str) -> Type["SubjectData"]:
+    @classmethod
+    def get_subclass_by_namespaced_key(mcs, namespaced_key: str) -> Type["SubjectData"]:
         """Get the appropriate subclass based on the namespace in namespaced_key.
 
         Args:
@@ -254,7 +257,7 @@ class SubjectMeta(type):
             The subclass of SubjectData corresponding to the namespace, or SubjectData if not found.
         """
         namespace = namespaced_key.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[0]
-        return cls._subject_registry.get(namespace, SubjectData)
+        return mcs.subject_registry.get(namespace, SubjectData)
 
 
 @define

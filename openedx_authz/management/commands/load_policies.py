@@ -10,7 +10,7 @@ Example Usage:
 """
 
 import casbin
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_from_file_to_db

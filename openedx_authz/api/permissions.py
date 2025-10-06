@@ -25,7 +25,7 @@ def get_permission_from_policy(policy: list[str]) -> PermissionData:
         PermissionData: The corresponding PermissionData object or an empty PermissionData if the policy is invalid.
     """
     if len(policy) < 4:  # Do not count ptype
-        return PermissionData(action=ActionData(namespaced_key=""), effect="allow")
+        raise ValueError("Invalid policy format. Expected at least 4 elements.")
 
     return PermissionData(
         action=ActionData(namespaced_key=policy[PolicyIndex.ACT.value]),

@@ -29,7 +29,7 @@ from openedx_authz.api.roles import (
     get_role_definitions_in_scope,
     get_subject_role_assignments,
     get_subject_role_assignments_in_scope,
-    get_subjects_role_assignments_for_role_in_scope,
+    get_subject_role_assignments_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
@@ -572,7 +572,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
         )
 
-        role_names = {assignment.role.external_key for assignment in role_assignments}
+        role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
         self.assertEqual(role_names, expected_roles)
 
     @ddt_data(
@@ -758,7 +758,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         for expected_role in expected_roles:
             # Compare the role part of the assignment
             found = any(
-                assignment.role == expected_role for assignment in role_assignments
+                expected_role in assignment.roles for assignment in role_assignments
             )
             self.assertTrue(
                 found, f"Expected role {expected_role} not found in assignments"
@@ -797,7 +797,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         Expected result:
             - The number of role assignments in the given scope is correctly retrieved.
         """
-        role_assignments = get_subjects_role_assignments_for_role_in_scope(
+        role_assignments = get_subject_role_assignments_for_role_in_scope(
             RoleData(external_key=role_name), ScopeData(external_key=scope_name)
         )
 
@@ -860,7 +860,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 user_roles = get_subject_role_assignments_in_scope(
                     SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
                 )
-                role_names = {assignment.role.external_key for assignment in user_roles}
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertIn(role, role_names)
         else:
             assign_role_to_subject_in_scope(
@@ -872,7 +872,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {assignment.role.external_key for assignment in user_roles}
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertIn(role, role_names)
 
     @ddt_data(
@@ -917,7 +917,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {assignment.role.external_key for assignment in user_roles}
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_subject_in_scope(
@@ -929,7 +929,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {assignment.role.external_key for assignment in user_roles}
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertNotIn(role, role_names)
 
     @ddt_data(
@@ -938,7 +938,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="alice"),
-                    role=RoleData(
+                    roles=[RoleData(
                         external_key="library_admin",
                         permissions=[
                             PermissionData(
@@ -986,7 +986,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                         ],
-                    ),
+                    )],
                     scope=ScopeData(external_key="lib:Org1:math_101"),
                 )
             ],
@@ -996,7 +996,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="bob"),
-                    role=RoleData(
+                    roles=[RoleData(
                         external_key="library_author",
                         permissions=[
                             PermissionData(
@@ -1038,7 +1038,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                         ],
-                    ),
+                    )],
                     scope=ScopeData(external_key="lib:Org1:history_201"),
                 )
             ],
@@ -1048,7 +1048,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="carol"),
-                    role=RoleData(
+                    roles=[RoleData(
                         external_key="library_collaborator",
                         permissions=[
                             PermissionData(
@@ -1084,7 +1084,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                         ],
-                    ),
+                    )],
                     scope=ScopeData(external_key="lib:Org1:science_301"),
                 )
             ],
@@ -1094,7 +1094,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="dave"),
-                    role=RoleData(
+                    roles=[RoleData(
                         external_key="library_user",
                         permissions=[
                             PermissionData(
@@ -1110,7 +1110,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                         ],
-                    ),
+                    )],
                     scope=ScopeData(external_key="lib:Org1:english_101"),
                 )
             ],

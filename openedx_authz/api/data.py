@@ -389,5 +389,5 @@ class RoleAssignmentData(AuthZData):
     """
 
     subject: SubjectData = None  # Needs defaults to avoid value error from attrs
-    role: RoleData = None
+    roles: list[RoleData] = list()
     scope: ScopeData = None

@@ -24,7 +24,7 @@ from openedx_authz.api.roles import (
     get_all_subject_role_assignments_in_scope,
     get_subject_role_assignments,
     get_subject_role_assignments_in_scope,
-    get_subjects_role_assignments_for_role_in_scope,
+    get_subject_role_assignments_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
 
@@ -145,11 +145,9 @@ def get_user_role_assignments_for_role_in_scope(
         scope (str): Scope in which to retrieve the role assignments.
 
     Returns:
-        list[RoleAssignmentData]: A list of user names and all their metadata assigned to the role.
+        list[RoleAssignmentData]: List of users assigned to the specified role in the given scope.
     """
-    # TODO: this SHOULD definitely be managed in a better way by using class inheritance and factories
-    # But for now we'll keep it simple and explicit
-    return get_subjects_role_assignments_for_role_in_scope(
+    return get_subject_role_assignments_for_role_in_scope(
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),
     )

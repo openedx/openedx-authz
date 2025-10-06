@@ -34,7 +34,7 @@ __all__ = [
     "unassign_role_from_subject_in_scope",
     "batch_unassign_role_from_subjects_in_scope",
     "get_subject_role_assignments_in_scope",
-    "get_subjects_role_assignments_for_role_in_scope",
+    "get_subject_role_assignments_for_role_in_scope",
     "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
 ]
@@ -182,7 +182,7 @@ def get_all_roles_names() -> list[str]:
 
 
 def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
-    """Get all the available roles names in a specific scope.
+    """Get all the available role grouping policies in a specific scope.
 
     Args:
         scope: The scope to filter roles (e.g., 'lib@*' or '*' for global).
@@ -272,7 +272,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         role_assignments.append(
             RoleAssignmentData(
                 subject=subject,
-                role=role,
+                roles=[role],
                 scope=ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value]),
             )
         )
@@ -300,17 +300,17 @@ def get_subject_role_assignments_in_scope(
         role_assignments.append(
             RoleAssignmentData(
                 subject=subject,
-                role=RoleData(
+                roles=[RoleData(
                     namespaced_key=namespaced_key,
                     permissions=get_permissions_for_single_role(role),
-                ),
+                )],
                 scope=scope,
             )
         )
     return role_assignments
 
 
-def get_subjects_role_assignments_for_role_in_scope(
+def get_subject_role_assignments_for_role_in_scope(
     role: RoleData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
     """Get the subjects assigned to a specific role in a specific scope.
@@ -329,31 +329,31 @@ def get_subjects_role_assignments_for_role_in_scope(
         if subject.startswith(f"{RoleData.NAMESPACE}{RoleData.SEPARATOR}"):
             # Skip roles that are also subjects
             continue
+
         role_assignments.append(
             RoleAssignmentData(
                 subject=SubjectData(namespaced_key=subject),
-                role=RoleData(
-                    external_key=role.external_key,
+                roles=[RoleData(
+                    namespaced_key=role.namespaced_key,
                     permissions=get_permissions_for_single_role(role),
-                ),
+                )],
                 scope=scope,
             )
         )
+
     return role_assignments
 
 
-def get_all_subject_role_assignments_in_scope(
-    scope: ScopeData,
-) -> list[RoleAssignmentData]:
+def get_all_subject_role_assignments_in_scope(scope: ScopeData) -> list[RoleAssignmentData]:
     """Get all the subjects assigned to any role in a specific scope.
 
     Args:
         scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
 
     Returns:
-        list[RoleAssignment]: A list of subjects assigned to roles in the specified scope.
+        list[RoleAssignment]: A list of role assignments for all subjects in the specified scope.
     """
-    role_assignments = []
+    role_assignments_per_subject = {}
     roles_in_scope = get_all_roles_in_scope(scope)
 
     for policy in roles_in_scope:
@@ -361,11 +361,14 @@ def get_all_subject_role_assignments_in_scope(
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
         role.permissions = get_permissions_for_single_role(role)
 
-        role_assignments.append(
-            RoleAssignmentData(
-                subject=subject,
-                role=role,
-                scope=scope,
-            )
+        if subject.external_key in role_assignments_per_subject:
+            role_assignments_per_subject[subject.external_key].roles.append(role)
+            continue
+
+        role_assignments_per_subject[subject.external_key] = RoleAssignmentData(
+            subject=subject,
+            roles=[role],
+            scope=scope,
         )
-    return role_assignments
+
+    return list(role_assignments_per_subject.values())

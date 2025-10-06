@@ -7,7 +7,7 @@ that would be used in production environments.
 
 import casbin
 from ddt import data as ddt_data
-from ddt import ddt, unpack
+from ddt import ddt
 from django.test import TestCase
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer

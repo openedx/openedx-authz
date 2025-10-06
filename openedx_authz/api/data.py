@@ -205,6 +205,8 @@ class ContentLibraryData(ScopeData):
     Attributes:
         library_id: The content library identifier (e.g., 'library-v1:edX+DemoX+2021_T1').
         namespaced_key: Inherited from ScopeData, auto-generated from name if not provided.
+
+    TODO: this class should live alongside library definitions and not here.
     """
 
     NAMESPACE: ClassVar[str] = "lib"

@@ -10,6 +10,8 @@ Example Usage:
 """
 
 import casbin
+import os
+from openedx_authz import ROOT_DIRECTORY
 from django.core.management.base import BaseCommand
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
@@ -40,13 +42,13 @@ class Command(BaseCommand):
         parser.add_argument(
             "--policy-file-path",
             type=str,
-            default="openedx_authz/engine/config/authz.policy",
+            default=None,
             help="Path to the Casbin policy file (supports CSV format with policies, roles, and action grouping)",
         )
         parser.add_argument(
             "--model-file-path",
             type=str,
-            default="openedx_authz/engine/config/model.conf",
+            default=None,
             help="Path to the Casbin model configuration file",
         )
 
@@ -63,13 +65,18 @@ class Command(BaseCommand):
         Raises:
             CommandError: If the policy file is not found or loading fails.
         """
-        file_enforcer = casbin.Enforcer(
-            options["model_file_path"], options["policy_file_path"]
-        )
-        global_enforcer.set_watcher(
-            None
-        )  # Disable watcher during bulk load until it's optional
-        self.migrate_policies(file_enforcer, global_enforcer)
+        policy_file_path, model_file_path = options["policy_file_path"], options["model_file_path"]
+        if policy_file_path is None:
+            policy_file_path = os.path.join(
+                ROOT_DIRECTORY, "engine", "config", "authz.policy"
+            )
+        if model_file_path is None:
+            model_file_path = os.path.join(
+                ROOT_DIRECTORY, "engine", "config", "model.conf"
+            )
+
+        source_enforcer = casbin.Enforcer(model_file_path, policy_file_path)
+        self.migrate_policies(source_enforcer, global_enforcer)
 
     def migrate_policies(self, source_enforcer, target_enforcer):
         """Migrate policies from the source enforcer to the target enforcer.

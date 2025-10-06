@@ -20,8 +20,8 @@ def migrate_policy_between_enforcers(
     """Load policies from a Casbin policy file into the Django database model.
 
     Args:
-        source_enforcer (Enforcer): The Casbin enforcer instance to migrate policies from (file-based).
-        target_enforcer (Enforcer): The Casbin enforcer instance to migrate policies to (database).
+        source_enforcer (Enforcer): The Casbin enforcer instance to migrate policies from (e.g., file-based).
+        target_enforcer (Enforcer): The Casbin enforcer instance to migrate policies to (e.g.,database).
     """
     try:
         # Load latest policies from the source enforcer

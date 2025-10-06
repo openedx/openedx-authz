@@ -12,11 +12,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from openedx_authz.management.commands.enforcement import Command as EnforcementCommand
-from openedx_authz.tests.test_utils import (
-    make_action_key,
-    make_scope_key,
-    make_user_key,
-)
+from openedx_authz.tests.test_utils import make_action_key, make_scope_key, make_user_key
 
 
 # pylint: disable=protected-access
@@ -46,10 +42,7 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement")
 
-        self.assertEqual(
-            "Error: the following arguments are required: --policy-file-path",
-            str(ctx.exception),
-        )
+        self.assertEqual("Error: the following arguments are required: --policy-file-path", str(ctx.exception))
 
     def test_policy_file_not_found_raises(self):
         """Test that command errors when the provided policy file does not exist."""
@@ -60,18 +53,13 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Policy file not found: {non_existent}", str(ctx.exception))
 
-    @patch.object(
-        EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf"
-    )
+    @patch.object(EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf")
     def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
         """Test that command errors when the provided model file does not exist."""
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual(
-            f"Model file not found: {mock_get_file_path.return_value}",
-            str(ctx.exception),
-        )
+        self.assertEqual(f"Model file not found: {mock_get_file_path.return_value}", str(ctx.exception))
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     def test_error_creating_enforcer_raises(self, mock_enforcer_cls: Mock):
@@ -81,16 +69,11 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual(
-            "Error creating Casbin enforcer: Enforcer creation error",
-            str(ctx.exception),
-        )
+        self.assertEqual("Error creating Casbin enforcer: Enforcer creation error", str(ctx.exception))
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     @patch.object(EnforcementCommand, "_run_interactive_mode")
-    def test_successful_run_prints_summary(
-        self, mock_run_interactive: Mock, mock_enforcer_cls: Mock
-    ):
+    def test_successful_run_prints_summary(self, mock_run_interactive: Mock, mock_enforcer_cls: Mock):
         """
         Test successful command execution with policy file and interactive mode.
         When files exist, command should create enforcer, print counts, and call interactive loop.
@@ -107,11 +90,7 @@ class EnforcementCommandTests(TestCase):
         mock_enforcer.get_named_grouping_policy.return_value = action_grouping
         mock_enforcer_cls.return_value = mock_enforcer
 
-        call_command(
-            "enforcement",
-            policy_file_path=self.policy_file_path.name,
-            stdout=self.buffer,
-        )
+        call_command("enforcement", policy_file_path=self.policy_file_path.name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
         self.assertIn("Casbin Interactive Enforcement", output)
@@ -128,13 +107,8 @@ class EnforcementCommandTests(TestCase):
 
         example_text = f"Example: {make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
         self.assertIn("Interactive Mode", self.buffer.getvalue())
-        self.assertIn(
-            "Test custom enforcement requests interactively.", self.buffer.getvalue()
-        )
-        self.assertIn(
-            "Enter 'quit', 'exit', or 'q' to exit the interactive mode.",
-            self.buffer.getvalue(),
-        )
+        self.assertIn("Test custom enforcement requests interactively.", self.buffer.getvalue())
+        self.assertIn("Enter 'quit', 'exit', or 'q' to exit the interactive mode.", self.buffer.getvalue())
         self.assertIn("Format: subject action scope", self.buffer.getvalue())
         self.assertIn(example_text, self.buffer.getvalue())
 
@@ -148,17 +122,9 @@ class EnforcementCommandTests(TestCase):
         self.assertEqual(mock_input.call_count, len(input_values))
 
     @data(
-        [
-            f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
-        ],
-        [
-            f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
-        ]
-        * 5,
-        [
-            f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
-        ]
-        * 10,
+        [f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"],
+        [f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 5,
+        [f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 10,
     )
     def test_run_interactive_mode_processes_request(self, user_input: list[str]):
         """Test that the interactive mode processes the request."""
@@ -216,9 +182,7 @@ class EnforcementCommandTests(TestCase):
         invalid_output = self.buffer.getvalue()
         self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
         self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(
-            f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output
-        )
+        self.assertIn(f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output)
 
     @data(ValueError(), IndexError(), TypeError())
     def test_interactive_request_error(self, exception: Exception):

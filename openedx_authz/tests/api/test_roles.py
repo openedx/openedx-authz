@@ -440,7 +440,9 @@ class TestRolesAPI(RolesTestSetupMixin):
             - Permissions are correctly retrieved for the given roles and scope.
             - The permissions match the expected permissions.
         """
-        assigned_permissions = get_permissions_for_roles(RoleData(external_key=role_name))
+        assigned_permissions = get_permissions_for_roles(
+            RoleData(external_key=role_name)
+        )
 
         self.assertEqual(assigned_permissions, expected_permissions)
 
@@ -450,7 +452,9 @@ class TestRolesAPI(RolesTestSetupMixin):
             "library_user",
             "lib:Org1:english_101",
             [
-                PermissionData(action=ActionData(external_key="view_library"), effect="allow"),
+                PermissionData(
+                    action=ActionData(external_key="view_library"), effect="allow"
+                ),
                 PermissionData(
                     action=ActionData(external_key="view_library_team"), effect="allow"
                 ),
@@ -473,7 +477,9 @@ class TestRolesAPI(RolesTestSetupMixin):
                     action=ActionData(external_key="publish_library_content"),
                     effect="allow",
                 ),
-                PermissionData(action=ActionData(external_key="edit_library"), effect="allow"),
+                PermissionData(
+                    action=ActionData(external_key="edit_library"), effect="allow"
+                ),
                 PermissionData(
                     action=ActionData(external_key="manage_library_tags"),
                     effect="allow",
@@ -800,7 +806,9 @@ class TestRolesAPI(RolesTestSetupMixin):
             - All roles assigned to the subject across all scopes are correctly retrieved.
             - Each role includes its associated permissions.
         """
-        role_assignments = get_subject_role_assignments(SubjectData(external_key=subject_name))
+        role_assignments = get_subject_role_assignments(
+            SubjectData(external_key=subject_name)
+        )
 
         self.assertEqual(len(role_assignments), len(expected_roles))
         for expected_role in expected_roles:
@@ -916,7 +924,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 ScopeData(external_key=scope_name),
             )
             user_roles = get_subject_role_assignments_in_scope(
-                SubjectData(external_key=subject_names), ScopeData(external_key=scope_name)
+                SubjectData(external_key=subject_names),
+                ScopeData(external_key=scope_name),
             )
             role_names = {assignment.role.external_key for assignment in user_roles}
             self.assertIn(role, role_names)
@@ -960,7 +969,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     ScopeData(external_key=scope_name),
                 )
                 user_roles = get_subject_role_assignments_in_scope(
-                    SubjectData(external_key=subject), ScopeData(external_key=scope_name)
+                    SubjectData(external_key=subject),
+                    ScopeData(external_key=scope_name),
                 )
                 role_names = {assignment.role.external_key for assignment in user_roles}
                 self.assertNotIn(role, role_names)
@@ -971,7 +981,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 ScopeData(external_key=scope_name),
             )
             user_roles = get_subject_role_assignments_in_scope(
-                SubjectData(external_key=subject_names), ScopeData(external_key=scope_name)
+                SubjectData(external_key=subject_names),
+                ScopeData(external_key=scope_name),
             )
             role_names = {assignment.role.external_key for assignment in user_roles}
             self.assertNotIn(role, role_names)
@@ -986,7 +997,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                         external_key="library_admin",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="delete_library"), effect="allow"
+                                action=ActionData(external_key="delete_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="publish_library"),
@@ -1001,22 +1013,31 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="publish_library_content"),
+                                action=ActionData(
+                                    external_key="publish_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library"), effect="allow"
+                                action=ActionData(external_key="create_library"),
+                                effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -1034,30 +1055,41 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                         external_key="library_author",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="publish_library_content"),
+                                action=ActionData(
+                                    external_key="publish_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="edit_library"), effect="allow"
+                                action=ActionData(external_key="edit_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="manage_library_tags"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="edit_library_collection"),
+                                action=ActionData(
+                                    external_key="edit_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -1075,10 +1107,13 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                         external_key="library_collaborator",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="edit_library"), effect="allow"
+                                action=ActionData(external_key="edit_library"),
+                                effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
@@ -1086,15 +1121,21 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="edit_library_collection"),
+                                action=ActionData(
+                                    external_key="edit_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -1112,7 +1153,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                         external_key="library_user",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="view_library"), effect="allow"
+                                action=ActionData(external_key="view_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="view_library_team"),

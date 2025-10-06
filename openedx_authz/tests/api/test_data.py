@@ -185,7 +185,9 @@ class TestPolymorphismLowLevelAPIs(TestCase):
         """
         library = ContentLibraryData(external_key=external_key)
         self.assertIsInstance(library, ContentLibraryData)
-        expected_namespaced_key = f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
+        expected_namespaced_key = (
+            f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
+        )
         self.assertEqual(library.external_key, external_key)
         self.assertEqual(library.namespaced_key, expected_namespaced_key)
 
@@ -211,7 +213,9 @@ class TestScopeMetaClass(TestCase):
         ("sc^generic_scope", ScopeData),
     )
     @unpack
-    def test_dynamic_instantiation_via_namespaced_key(self, namespaced_key, expected_class):
+    def test_dynamic_instantiation_via_namespaced_key(
+        self, namespaced_key, expected_class
+    ):
         """Test that ScopeData dynamically instantiates the correct subclass.
 
         Expected Result:
@@ -242,7 +246,6 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:edX:Demo", ContentLibraryData),
-        ("sc:generic", ScopeData),
         ("unknown:something", ScopeData),
     )
     @unpack

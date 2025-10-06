@@ -1,6 +1,12 @@
 """Test utilities for creating namespaced keys using class constants."""
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    RoleData,
+    ScopeData,
+    UserData,
+)
 
 
 def make_user_key(key: str) -> str:
@@ -27,7 +33,6 @@ def make_role_key(key: str) -> str:
     return f"{RoleData.NAMESPACE}{RoleData.SEPARATOR}{key}"
 
 
-
 def make_action_key(key: str) -> str:
     """Create a namespaced action key.
 
@@ -40,7 +45,6 @@ def make_action_key(key: str) -> str:
     return f"{ActionData.NAMESPACE}{ActionData.SEPARATOR}{key}"
 
 
-
 def make_library_key(key: str) -> str:
     """Create a namespaced library key.
 
@@ -51,7 +55,6 @@ def make_library_key(key: str) -> str:
         str: Namespaced library key (e.g., 'lib^lib@any-org@any-library')
     """
     return f"{ContentLibraryData.NAMESPACE}{ContentLibraryData.SEPARATOR}{key}"
-
 
 
 def make_scope_key(namespace: str, key: str) -> str:

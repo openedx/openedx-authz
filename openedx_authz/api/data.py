@@ -1,12 +1,14 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
-from opaque_keys.edx.locator import LibraryLocatorV2
-from opaque_keys import InvalidKeyError
-
 from enum import Enum
 from typing import ClassVar, Literal, Type
 
 from attrs import define
+from opaque_keys import InvalidKeyError
+from opaque_keys.edx.locator import LibraryLocatorV2
+
+
+AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 
 
 class GroupingPolicyIndex(Enum):
@@ -36,7 +38,7 @@ class AuthzBaseClass:
         NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role').
     """
 
-    SEPARATOR: ClassVar[str] = "^"
+    SEPARATOR: ClassVar[str] = AUTHZ_POLICY_ATTRIBUTES_SEPARATOR
     NAMESPACE: ClassVar[str] = None
 
 
@@ -88,13 +90,29 @@ class ScopeMeta(type):
         """Instantiate the appropriate subclass based on the namespace in namespaced_key.
 
         There are two ways to instantiate:
-        1. By providing external_key= and format for the external key determines the subclass (e.g., 'lib^any-library' = ContentLibraryData).
+        1. By providing external_key= and format for the external key determines the subclass
+        (e.g., 'lib^any-library' = ContentLibraryData).
         2. By providing namespaced_key= and the class is determined from the namespace prefix
         in namespaced_key (e.g., 'lib@any-library' = ContentLibraryData).
+
+        The namespaced key is usually used when getting objects from the policy store,
+        while the external key is usually used when initializing from user input or API calls. For example,
+        when creating a role assignment for a content library, the API call would provide the library ID
+        (external_key) and the system would need to determine the correct scope subclass based on the
+        format of the library ID. While when retrieving role assignments from the policy store, the
+        namespaced_key would be used to determine the subclass.
         """
-        if cls is ScopeData and "namespaced_key" in kwargs:
+        if cls is not ScopeData:
+            return super().__call__(*args, **kwargs)
+
+        if "namespaced_key" in kwargs:
             scope_cls = cls.get_subclass_by_namespaced_key(kwargs["namespaced_key"])
             return super(ScopeMeta, scope_cls).__call__(*args, **kwargs)
+
+        if "external_key" in kwargs:
+            scope_cls = cls.get_subclass_by_external_key(kwargs["external_key"])
+            return super(ScopeMeta, scope_cls).__call__(*args, **kwargs)
+
         return super().__call__(*args, **kwargs)
 
     def get_subclass_by_namespaced_key(cls, namespaced_key: str) -> Type["ScopeData"]:
@@ -106,9 +124,8 @@ class ScopeMeta(type):
         Returns:
             The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
         """
-        # Use the SEPARATOR from ScopeData since the metaclass doesn't have it
-        separator = "^"  # Default separator from AuthzBaseClass
-        namespace = namespaced_key.split(separator, 1)[0]
+        # TODO: Default separator, can't access directly from class so made it a constant
+        namespace = namespaced_key.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[0]
         return cls._scope_registry.get(namespace, ScopeData)
 
     def get_subclass_by_external_key(cls, external_key: str) -> Type["ScopeData"]:
@@ -121,12 +138,17 @@ class ScopeMeta(type):
             The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
         """
         # Here we need to assume a couple of things:
-        # 1. The external_key is always in the format 'namespace:other things'.
+        # 1. The external_key is always in the format 'namespace...:other things'. E.g., 'lib:any-library',
+        # even 'course-v1:edX+DemoX+2021_T1'. This won't work for org scopes because they don't explicitly indicate
+        # the namespace in the external key. TODO: We need to handle org scopes differently.
         # 2. The namespace is always the part before the first separator.
         # 3. If the namespace is not recognized, we return the base ScopeData class
         # 4. The subclass implements a validation method to validate the entire key
         namespace = external_key.split(":", 1)[0]
-        return cls._scope_registry.get(namespace, ScopeData)
+        scope_subclass = cls._scope_registry.get(namespace)
+        if not scope_subclass or not scope_subclass.validate_external_key(external_key):
+            return ScopeData  # Fallback to base class if not found or invalid
+        return scope_subclass
 
     def validate_external_key(cls, external_key: str) -> bool:
         """Validate the external_key format for the subclass.
@@ -163,7 +185,6 @@ class ContentLibraryData(ScopeData):
     """
 
     NAMESPACE: ClassVar[str] = "lib"
-    library_id: str = ""
 
     @property
     def library_id(self) -> str:
@@ -193,8 +214,51 @@ class ContentLibraryData(ScopeData):
             return False
 
 
+class SubjectMeta(type):
+    """Metaclass for SubjectData to handle dynamic subclass instantiation based on namespace."""
+
+    _subject_registry: ClassVar[dict[str, Type["SubjectData"]]] = {}
+
+    def __init__(cls, name, bases, attrs):
+        """Initialize the metaclass and register subclasses."""
+        super().__init__(name, bases, attrs)
+        if not hasattr(cls, "_subject_registry"):
+            cls._subject_registry = {}
+        cls._subject_registry[cls.NAMESPACE] = cls
+
+    def __call__(cls, *args, **kwargs):
+        """Instantiate the appropriate subclass based on the namespace in namespaced_key.
+
+        There are two ways to instantiate:
+        1. By providing external_key= and format for the external key determines the subclass.
+        2. By providing namespaced_key= and the class is determined from the namespace prefix
+        in namespaced_key (e.g., 'user^alice' = UserData).
+
+        TODO: we can't currently instantiate by external_key because we don't have a way to
+        determine the subclass from the external_key format. A temporary solution is to
+        use the users.py module to instantiate UserData directly when needed.
+        """
+        if cls is SubjectData and "namespaced_key" in kwargs:
+            subject_cls = cls.get_subclass_by_namespaced_key(kwargs["namespaced_key"])
+            return super(SubjectMeta, subject_cls).__call__(*args, **kwargs)
+
+        return super().__call__(*args, **kwargs)
+
+    def get_subclass_by_namespaced_key(cls, namespaced_key: str) -> Type["SubjectData"]:
+        """Get the appropriate subclass based on the namespace in namespaced_key.
+
+        Args:
+            namespaced_key: The namespaced key (e.g., 'user^alice').
+
+        Returns:
+            The subclass of SubjectData corresponding to the namespace, or SubjectData if not found.
+        """
+        namespace = namespaced_key.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[0]
+        return cls._subject_registry.get(namespace, SubjectData)
+
+
 @define
-class SubjectData(AuthZData):
+class SubjectData(AuthZData, metaclass=SubjectMeta):
     """A subject is an entity that can be assigned roles and permissions.
 
     Attributes:
@@ -321,6 +385,6 @@ class RoleAssignmentData(AuthZData):
         scope: The scope in which the role is assigned.
     """
 
-    subject: SubjectData = None
+    subject: SubjectData = None  # Needs defaults to avoid value error from attrs
     role: RoleData = None
     scope: ScopeData = None

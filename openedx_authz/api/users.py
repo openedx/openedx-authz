@@ -11,11 +11,9 @@ with the role management system, which uses namespaced subjects
 
 from openedx_authz.api.data import (
     ActionData,
-    ContentLibraryData,
     RoleAssignmentData,
     RoleData,
     ScopeData,
-    SubjectData,
     UserData,
 )
 from openedx_authz.api.permissions import has_permission
@@ -56,7 +54,7 @@ def assign_role_to_user_in_scope(
     assign_role_to_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )
 
 
@@ -74,7 +72,7 @@ def batch_assign_role_to_users(
     batch_assign_role_to_subjects_in_scope(
         namespaced_users,
         RoleData(external_key=role_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )
 
 
@@ -91,7 +89,7 @@ def unassign_role_from_user(
     unassign_role_from_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )
 
 
@@ -109,7 +107,7 @@ def batch_unassign_role_from_users(
     batch_unassign_role_from_subjects_in_scope(
         namespaced_users,
         RoleData(external_key=role_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )
 
 
@@ -139,7 +137,7 @@ def get_user_role_assignments_in_scope(
     """
     return get_subject_role_assignments_in_scope(
         UserData(external_key=user_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )
 
 
@@ -157,23 +155,10 @@ def get_user_role_assignments_for_role_in_scope(
     """
     # TODO: this SHOULD definitely be managed in a better way by using class inheritance and factories
     # But for now we'll keep it simple and explicit
-    user_role_assignments = []
-
-    for role_assignment in get_subjects_role_assignments_for_role_in_scope(
+    return get_subjects_role_assignments_for_role_in_scope(
         RoleData(external_key=role_external_key),
-        ContentLibraryData(external_key=scope_external_key),
-    ):
-        user_role_assignments.append(
-            RoleAssignmentData(
-                subject=UserData(
-                    namespaced_key=role_assignment.subject.namespaced_key
-                ),  # TODO: this gets the username from the namespaced_key
-                role=role_assignment.role,
-                scope=role_assignment.scope,
-            )
-        )
-
-    return user_role_assignments
+        ScopeData(external_key=scope_external_key),
+    )
 
 
 def get_all_user_role_assignments_in_scope(
@@ -187,21 +172,9 @@ def get_all_user_role_assignments_in_scope(
     Returns:
         list[dict]: A list of user role assignments and all their metadata in the specified scope.
     """
-    user_role_assignments = []
-    role_assignments = get_all_subject_role_assignments_in_scope(
-        ContentLibraryData(external_key=scope_external_key)
+    return get_all_subject_role_assignments_in_scope(
+        ScopeData(external_key=scope_external_key)
     )
-
-    for role_assignment in role_assignments:
-        user_role_assignments.append(
-            RoleAssignmentData(
-                subject=UserData(namespaced_key=role_assignment.subject.namespaced_key),
-                role=role_assignment.role,
-                scope=role_assignment.scope,
-            )
-        )
-
-    return user_role_assignments
 
 
 def user_has_permission(
@@ -222,5 +195,5 @@ def user_has_permission(
     return has_permission(
         UserData(external_key=user_external_key),
         ActionData(external_key=action_external_key),
-        ContentLibraryData(external_key=scope_external_key),
+        ScopeData(external_key=scope_external_key),
     )

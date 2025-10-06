@@ -2,7 +2,14 @@
 
 from ddt import data, ddt, unpack
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, PermissionData, RoleAssignmentData, RoleData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    PermissionData,
+    RoleAssignmentData,
+    RoleData,
+    UserData,
+)
 from openedx_authz.api.users import *
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
@@ -53,7 +60,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The role is successfully assigned to the user in the specified scope.
         """
         if batch:
-            batch_assign_role_to_users(users=username, role_external_key=role, scope_external_key=scope_name)
+            batch_assign_role_to_users(
+                users=username, role_external_key=role, scope_external_key=scope_name
+            )
             for user in username:
                 user_roles = get_user_role_assignments_in_scope(
                     user_external_key=user, scope_external_key=scope_name
@@ -62,7 +71,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 self.assertIn(role, role_names)
         else:
             assign_role_to_user_in_scope(
-                user_external_key=username, role_external_key=role, scope_external_key=scope_name
+                user_external_key=username,
+                role_external_key=role,
+                scope_external_key=scope_name,
             )
             user_roles = get_user_role_assignments_in_scope(
                 user_external_key=username, scope_external_key=scope_name
@@ -95,7 +106,11 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 role_names = {assignment.role.external_key for assignment in user_roles}
                 self.assertNotIn(role, role_names)
         else:
-            unassign_role_from_user(user_external_key=username, role_external_key=role, scope_external_key=scope_name)
+            unassign_role_from_user(
+                user_external_key=username,
+                role_external_key=role,
+                scope_external_key=scope_name,
+            )
             user_roles = get_user_role_assignments_in_scope(
                 user_external_key=username, scope_external_key=scope_name
             )
@@ -117,7 +132,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         role_assignments = get_user_role_assignments(user_external_key=username)
 
-        assigned_role_names = {assignment.role.external_key for assignment in role_assignments}
+        assigned_role_names = {
+            assignment.role.external_key for assignment in role_assignments
+        }
         self.assertEqual(assigned_role_names, expected_roles)
 
     @data(
@@ -178,7 +195,8 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                         external_key="library_admin",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="delete_library"), effect="allow"
+                                action=ActionData(external_key="delete_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="publish_library"),
@@ -193,22 +211,31 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="publish_library_content"),
+                                action=ActionData(
+                                    external_key="publish_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library"), effect="allow"
+                                action=ActionData(external_key="create_library"),
+                                effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -226,30 +253,41 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                         external_key="library_author",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="publish_library_content"),
+                                action=ActionData(
+                                    external_key="publish_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="edit_library"), effect="allow"
+                                action=ActionData(external_key="edit_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="manage_library_tags"),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="edit_library_collection"),
+                                action=ActionData(
+                                    external_key="edit_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -267,7 +305,8 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                         external_key="library_admin",
                         permissions=[
                             PermissionData(
-                                action=ActionData(external_key="delete_library"), effect="allow"
+                                action=ActionData(external_key="delete_library"),
+                                effect="allow",
                             ),
                             PermissionData(
                                 action=ActionData(external_key="publish_library"),
@@ -282,22 +321,31 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_content"),
+                                action=ActionData(
+                                    external_key="delete_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="publish_library_content"),
+                                action=ActionData(
+                                    external_key="publish_library_content"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="delete_library_collection"),
+                                action=ActionData(
+                                    external_key="delete_library_collection"
+                                ),
                                 effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library"), effect="allow"
+                                action=ActionData(external_key="create_library"),
+                                effect="allow",
                             ),
                             PermissionData(
-                                action=ActionData(external_key="create_library_collection"),
+                                action=ActionData(
+                                    external_key="create_library_collection"
+                                ),
                                 effect="allow",
                             ),
                         ],
@@ -317,7 +365,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - All user role assignments in the specified scope are correctly retrieved.
             - Each assignment includes the subject, role, and scope information.
         """
-        role_assignments = get_all_user_role_assignments_in_scope(scope_external_key=scope_name)
+        role_assignments = get_all_user_role_assignments_in_scope(
+            scope_external_key=scope_name
+        )
         print("Here are the role assignments:", role_assignments)
         print("\n")
         print("Here are the expected assignments:", expected_assignments)

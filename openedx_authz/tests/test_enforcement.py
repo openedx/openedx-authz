@@ -139,7 +139,9 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+            "scope": make_scope_key(
+                "course", "course-v1:any-org+any-course+any-course-run"
+            ),
             "expected_result": True,
         },
         {
@@ -167,8 +169,19 @@ class ActionGroupingTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", make_role_key("role-1"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
-        ["g", make_user_key("user-1"), make_role_key("role-1"), make_scope_key("org", "any-org")],
+        [
+            "p",
+            make_role_key("role-1"),
+            make_action_key("manage"),
+            make_scope_key("org", "*"),
+            "allow",
+        ],
+        [
+            "g",
+            make_user_key("user-1"),
+            make_role_key("role-1"),
+            make_scope_key("org", "any-org"),
+        ],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
@@ -216,29 +229,112 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
     POLICY = [
         # Policies
         ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
-        ["p", make_role_key("org_admin"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
-        ["p", make_role_key("org_editor"), make_action_key("edit"), make_scope_key("org", "*"), "allow"],
-        ["p", make_role_key("org_author"), make_action_key("write"), make_scope_key("org", "*"), "allow"],
-        ["p", make_role_key("course_admin"), make_action_key("manage"), make_scope_key("course", "*"), "allow"],
-        ["p", make_role_key("library_admin"), make_action_key("manage"), make_scope_key("lib", "*"), "allow"],
-        ["p", make_role_key("library_editor"), make_action_key("edit"), make_scope_key("lib", "*"), "allow"],
-        ["p", make_role_key("library_reviewer"), make_action_key("read"), make_scope_key("lib", "*"), "allow"],
-        ["p", make_role_key("library_author"), make_action_key("write"), make_scope_key("lib", "*"), "allow"],
+        [
+            "p",
+            make_role_key("org_admin"),
+            make_action_key("manage"),
+            make_scope_key("org", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("org_editor"),
+            make_action_key("edit"),
+            make_scope_key("org", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("org_author"),
+            make_action_key("write"),
+            make_scope_key("org", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("course_admin"),
+            make_action_key("manage"),
+            make_scope_key("course", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("library_admin"),
+            make_action_key("manage"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("library_editor"),
+            make_action_key("edit"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("library_reviewer"),
+            make_action_key("read"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("library_author"),
+            make_action_key("write"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ],
         # Role assignments
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
-        ["g", make_user_key("user-2"), make_role_key("org_admin"), make_scope_key("org", "any-org")],
-        ["g", make_user_key("user-3"), make_role_key("org_editor"), make_scope_key("org", "any-org")],
-        ["g", make_user_key("user-4"), make_role_key("org_author"), make_scope_key("org", "any-org")],
+        [
+            "g",
+            make_user_key("user-2"),
+            make_role_key("org_admin"),
+            make_scope_key("org", "any-org"),
+        ],
+        [
+            "g",
+            make_user_key("user-3"),
+            make_role_key("org_editor"),
+            make_scope_key("org", "any-org"),
+        ],
+        [
+            "g",
+            make_user_key("user-4"),
+            make_role_key("org_author"),
+            make_scope_key("org", "any-org"),
+        ],
         [
             "g",
             make_user_key("user-5"),
             make_role_key("course_admin"),
             make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
         ],
-        ["g", make_user_key("user-6"), make_role_key("library_admin"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-7"), make_role_key("library_editor"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-8"), make_role_key("library_reviewer"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-9"), make_role_key("library_author"), make_library_key("lib@any-org@any-library")],
+        [
+            "g",
+            make_user_key("user-6"),
+            make_role_key("library_admin"),
+            make_library_key("lib@any-org@any-library"),
+        ],
+        [
+            "g",
+            make_user_key("user-7"),
+            make_role_key("library_editor"),
+            make_library_key("lib@any-org@any-library"),
+        ],
+        [
+            "g",
+            make_user_key("user-8"),
+            make_role_key("library_reviewer"),
+            make_library_key("lib@any-org@any-library"),
+        ],
+        [
+            "g",
+            make_user_key("user-9"),
+            make_role_key("library_author"),
+            make_library_key("lib@any-org@any-library"),
+        ],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
@@ -269,7 +365,9 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-5"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+            "scope": make_scope_key(
+                "course", "course-v1:any-org+any-course+any-course-run"
+            ),
             "expected_result": True,
         },
         {
@@ -314,7 +412,13 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
 
     POLICY = [
         ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), make_scope_key("org", "restricted-org"), "deny"],
+        [
+            "p",
+            make_role_key("platform_admin"),
+            make_action_key("manage"),
+            make_scope_key("org", "restricted-org"),
+            "deny",
+        ],
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
     ] + COMMON_ACTION_GROUPING
 
@@ -375,9 +479,27 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     POLICY = [
         # Policies
         ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
-        ["p", make_role_key("org_admin"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
-        ["p", make_role_key("course_admin"), make_action_key("manage"), make_scope_key("course", "*"), "allow"],
-        ["p", make_role_key("library_admin"), make_action_key("manage"), make_scope_key("lib", "*"), "allow"],
+        [
+            "p",
+            make_role_key("org_admin"),
+            make_action_key("manage"),
+            make_scope_key("org", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("course_admin"),
+            make_action_key("manage"),
+            make_scope_key("course", "*"),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key("library_admin"),
+            make_action_key("manage"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ],
         # Role assignments
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
         ["g", make_user_key("user-2"), make_role_key("org_admin"), "*"],

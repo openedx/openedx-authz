@@ -50,7 +50,6 @@ class BaseRolesTestCase(TestCase):
         This simulates the one-time database seeding that would happen
         during application deployment, separate from the runtime policy loading.
         """
-        global_enforcer.load_policy()
         migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
                 "openedx_authz/engine/config/model.conf",

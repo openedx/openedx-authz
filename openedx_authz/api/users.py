@@ -16,7 +16,7 @@ from openedx_authz.api.data import (
     ScopeData,
     UserData,
 )
-from openedx_authz.api.permissions import has_permission
+from openedx_authz.api.permissions import is_subject_allowed
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
@@ -37,7 +37,7 @@ __all__ = [
     "get_user_role_assignments_in_scope",
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
-    "user_has_permission",
+    "is_user_allowed",
 ]
 
 
@@ -169,7 +169,7 @@ def get_all_user_role_assignments_in_scope(
     )
 
 
-def user_has_permission(
+def is_user_allowed(
     user_external_key: str,
     action_external_key: str,
     scope_external_key: str,
@@ -184,7 +184,7 @@ def user_has_permission(
     Returns:
         bool: True if the user has the specified permission in the scope, False otherwise.
     """
-    return has_permission(
+    return is_subject_allowed(
         UserData(external_key=user_external_key),
         ActionData(external_key=action_external_key),
         ScopeData(external_key=scope_external_key),

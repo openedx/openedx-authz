@@ -19,7 +19,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
     unassign_role_from_user,
-    user_has_permission,
+    is_user_allowed,
 )
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
@@ -401,13 +401,13 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
         ("peggy", "create_library_collection", "lib:Org2:physics_401", False),
     )
     @unpack
-    def test_user_has_permission(self, username, action, scope_name, expected_result):
+    def test_is_user_allowed(self, username, action, scope_name, expected_result):
         """Test checking if a user has a specific permission in a given scope.
 
         Expected result:
             - The function correctly identifies whether the user has the specified permission in the scope.
         """
-        result = user_has_permission(
+        result = is_user_allowed(
             user_external_key=username,
             action_external_key=action,
             scope_external_key=scope_name,

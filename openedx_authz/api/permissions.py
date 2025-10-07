@@ -17,7 +17,7 @@ from openedx_authz.engine.enforcer import enforcer
 __all__ = [
     "get_permission_from_policy",
     "get_all_permissions_in_scope",
-    "has_permission",
+    "is_subject_allowed",
 ]
 
 
@@ -54,7 +54,7 @@ def get_all_permissions_in_scope(scope: ScopeData) -> list[PermissionData]:
     return [get_permission_from_policy(action) for action in actions]
 
 
-def has_permission(
+def is_subject_allowed(
     subject: SubjectData,
     action: ActionData,
     scope: ScopeData,

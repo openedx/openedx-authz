@@ -52,8 +52,11 @@ def assign_role_to_user_in_scope(
         user (str): ID of the user (e.g., 'john_doe').
         role_external_key (str): Name of the role to assign.
         scope (str): Scope in which to assign the role.
+
+    Returns:
+        bool: True if the role was assigned successfully, False otherwise.
     """
-    assign_role_to_subject_in_scope(
+    return assign_role_to_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),
@@ -87,8 +90,11 @@ def unassign_role_from_user(
         user_external_key (str): ID of the user (e.g., 'john_doe').
         role_external_key (str): Name of the role to unassign.
         scope_external_key (str): Scope in which to unassign the role.
+
+    Returns:
+        bool: True if the role was unassigned successfully, False otherwise.
     """
-    unassign_role_from_subject_in_scope(
+    return unassign_role_from_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),

@@ -202,15 +202,19 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
 
 def assign_role_to_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
-) -> None:
+) -> bool:
     """Assign a role to a subject.
 
     Args:
         subject: The ID of the subject.
         role: The role to assign.
+        scope: The scope to assign the role to.
+
+    Returns:
+        bool: True if the role was assigned successfully, False otherwise.
     """
     enforcer.load_policy()
-    enforcer.add_role_for_user_in_domain(
+    return enforcer.add_role_for_user_in_domain(
         subject.namespaced_key,
         role.namespaced_key,
         scope.namespaced_key,
@@ -232,16 +236,19 @@ def batch_assign_role_to_subjects_in_scope(
 
 def unassign_role_from_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
-) -> None:
+) -> bool:
     """Unassign a role from a subject.
 
     Args:
         subject: The ID of the subject.
         role: The role to unassign.
         scope: The scope from which to unassign the role.
+
+    Returns:
+        bool: True if the role was unassigned successfully, False otherwise.
     """
     enforcer.load_policy()
-    enforcer.delete_roles_for_user_in_domain(
+    return enforcer.delete_roles_for_user_in_domain(
         subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
 

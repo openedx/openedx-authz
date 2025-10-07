@@ -7,7 +7,6 @@ from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-
 __all__ = [
     "UserData",
     "PermissionData",
@@ -206,7 +205,7 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     NAMESPACE: ClassVar[str] = "sc"
 
     @classmethod
-    def validate_external_key(cls, external_key: str) -> bool:
+    def validate_external_key(cls, _: str) -> bool:
         """Validate the external_key format for ScopeData.
 
         For the base ScopeData class, we accept any external_key works. This
@@ -389,7 +388,7 @@ class RoleData(AuthZData):
     """
 
     NAMESPACE: ClassVar[str] = "role"
-    permissions: list[PermissionData] = list()
+    permissions: list[PermissionData] = []
 
     @property
     def name(self) -> str:
@@ -415,5 +414,5 @@ class RoleAssignmentData(AuthZData):
     """
 
     subject: SubjectData = None  # Needs defaults to avoid value error from attrs
-    roles: list[RoleData] = list()
+    roles: list[RoleData] = []
     scope: ScopeData = None

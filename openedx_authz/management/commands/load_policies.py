@@ -9,11 +9,12 @@ Example Usage:
     python manage.py load_policies --policy-file-path /path/to/policy.csv
 """
 
-import casbin
 import os
-from openedx_authz import ROOT_DIRECTORY
+
+import casbin
 from django.core.management.base import BaseCommand
 
+from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 

@@ -9,13 +9,7 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user@john_doe').
 """
 
-from openedx_authz.api.data import (
-    ActionData,
-    RoleAssignmentData,
-    RoleData,
-    ScopeData,
-    UserData,
-)
+from openedx_authz.api.data import ActionData, RoleAssignmentData, RoleData, ScopeData, UserData
 from openedx_authz.api.permissions import is_subject_allowed
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
@@ -23,8 +17,8 @@ from openedx_authz.api.roles import (
     batch_unassign_role_from_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
     get_subject_role_assignments,
-    get_subject_role_assignments_in_scope,
     get_subject_role_assignments_for_role_in_scope,
+    get_subject_role_assignments_in_scope,
     unassign_role_from_subject_in_scope,
 )
 

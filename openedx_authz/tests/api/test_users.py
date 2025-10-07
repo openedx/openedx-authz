@@ -18,8 +18,8 @@ from openedx_authz.api.users import (
     get_user_role_assignments,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
-    unassign_role_from_user,
     is_user_allowed,
+    unassign_role_from_user,
 )
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 

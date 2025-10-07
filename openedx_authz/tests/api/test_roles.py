@@ -24,12 +24,11 @@ from openedx_authz.api.roles import (
     batch_assign_role_to_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
     get_permissions_for_active_roles_in_scope,
-    get_permissions_for_roles,
     get_permissions_for_single_role,
     get_role_definitions_in_scope,
     get_subject_role_assignments,
-    get_subject_role_assignments_in_scope,
     get_subject_role_assignments_for_role_in_scope,
+    get_subject_role_assignments_in_scope,
     unassign_role_from_subject_in_scope,
 )
 from openedx_authz.engine.enforcer import enforcer as global_enforcer

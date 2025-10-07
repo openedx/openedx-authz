@@ -6,13 +6,15 @@ that would be used in production environments.
 """
 
 import casbin
+from casbin_adapter.models import CasbinRule
 from ddt import data as ddt_data
-from ddt import ddt
+from ddt import ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
 
 class PolicyLoadingTestSetupMixin(TestCase):
@@ -406,3 +408,434 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         total_count = len(global_enforcer.get_policy())
 
         self.assertEqual(total_count, lib_count + course_count + org_count)
+
+
+@ddt
+class TestFilteredPolicyEnforcement(TestCase):
+    """
+    Integration tests for filtered policy loading with enforcement decisions.
+
+    These tests verify that after loading filtered policies and role assignments,
+    the enforcer can correctly make allow/deny decisions based on what's loaded.
+    This ensures filtered loading works end-to-end for scope-based authorization.
+    """
+
+    def setUp(self):
+        """Set up test environment with enforcer and sample data."""
+        super().setUp()
+        self.enforcer = global_enforcer
+        self.enforcer.clear_policy()
+
+        # Create policy rules with wildcard scope templates (like authz.policy)
+        # These define what roles can do in ANY library/course
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_admin"),
+            v1=make_action_key("edit"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_admin"),
+            v1=make_action_key("delete"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_user"),
+            v1=make_action_key("view"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        # Create role assignments for specific scope instances
+        # These assign users to roles in SPECIFIC libraries
+        CasbinRule.objects.create(
+            ptype="g",
+            v0=make_user_key("alice"),
+            v1=make_role_key("library_admin"),
+            v2=make_scope_key("lib", "test-lib-1")  # Specific instance
+        )
+        CasbinRule.objects.create(
+            ptype="g",
+            v0=make_user_key("bob"),
+            v1=make_role_key("library_user"),
+            v2=make_scope_key("lib", "test-lib-2")  # Specific instance
+        )
+
+    def tearDown(self):
+        """Clean up after test."""
+        self.enforcer.clear_policy()
+        super().tearDown()
+
+    def test_enforcement_with_filtered_scope_allows_action(self):
+        """Test that filtering by scope allows correct enforcement decisions.
+
+        When loading policies for a specific scope with role assignments,
+        users should be allowed to perform actions defined in that scope.
+
+        Expected result:
+            - Alice can edit in test-lib-1 (her scope, her permission)
+            - Alice can delete in test-lib-1 (her scope, her permission)
+        """
+        # Load policies and role assignments for test-lib-1 scope
+        scope_filter = Filter(
+            v2=[
+                make_scope_key("lib", "test-lib-1"),
+                make_scope_key("lib", "*"),  # Load wildcard policies too
+            ],
+        )
+        self.enforcer.load_filtered_policy(scope_filter)
+
+        # Alice should be allowed to edit in test-lib-1
+        result = self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "test-lib-1")
+        )
+        self.assertTrue(result)
+
+        # Alice should be allowed to delete in test-lib-1
+        result = self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("delete"),
+            make_scope_key("lib", "test-lib-1")
+        )
+        self.assertTrue(result)
+
+    def test_enforcement_with_filtered_scope_denies_out_of_scope(self):
+        """Test that filtering by scope denies actions outside the loaded scope.
+
+        When only loading policies for one specific scope instance, actions in
+        other scope instances should be denied even if the user has roles there.
+        Note: Since policies use wildcards (lib^*), we filter by specific instances
+        in the role assignments.
+
+        Expected result:
+            - Alice cannot view in test-lib-2 (role assignment not loaded)
+            - Bob's actions are not allowed (his role assignment not loaded)
+        """
+        # Load only test-lib-1 scope (alice's role assignment + wildcard policies)
+        scope_filter = Filter(v2=[make_scope_key("lib", "test-lib-1")])
+        self.enforcer.load_filtered_policy(scope_filter)
+
+        # Alice should NOT be allowed to act in test-lib-2 (role assignment not loaded)
+        result = self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("view"),
+            make_scope_key("lib", "test-lib-2")
+        )
+        self.assertFalse(result)
+
+        # Bob should NOT be allowed (his role assignment not loaded)
+        result = self.enforcer.enforce(
+            make_user_key("bob"),
+            make_action_key("view"),
+            make_scope_key("lib", "test-lib-2")
+        )
+        self.assertFalse(result)
+
+    def test_enforcement_with_multiple_scopes_loaded(self):
+        """Test enforcement when multiple scopes are loaded.
+
+        When loading policies for multiple scopes, users should have
+        access according to their roles in each loaded scope.
+
+        Expected result:
+            - Alice can edit in test-lib-1
+            - Bob can view in test-lib-2
+            - Alice cannot view in test-lib-2 (no role there)
+            - Bob cannot edit in test-lib-1 (no role there)
+        """
+        scope_filter = Filter(v2=[
+            make_scope_key("lib", "test-lib-1"),
+            make_scope_key("lib", "test-lib-2"),
+            make_scope_key("lib", "*"),  # Load wildcard policies too to load definitions
+        ])
+        self.enforcer.load_filtered_policy(scope_filter)
+
+        # Alice can edit in test-lib-1
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "test-lib-1")
+        ))
+
+        # Bob can view in test-lib-2
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("bob"),
+            make_action_key("view"),
+            make_scope_key("lib", "test-lib-2")
+        ))
+
+        # Alice cannot view in test-lib-2 (no role assignment)
+        self.assertFalse(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("view"),
+            make_scope_key("lib", "test-lib-2")
+        ))
+
+        # Bob cannot edit in test-lib-1 (no role assignment)
+        self.assertFalse(self.enforcer.enforce(
+            make_user_key("bob"),
+            make_action_key("edit"),
+            make_scope_key("lib", "test-lib-1")
+        ))
+
+    def test_enforcement_without_grouping_policy_denies(self):
+        """Test that loading only policies without role assignments denies access.
+
+        When only loading 'p' type policies without 'g' grouping policies,
+        users cannot access anything because role assignments aren't loaded.
+        Note: We filter by wildcard scope since that's what's in the policies.
+
+        Expected result:
+            - Alice cannot edit even though the policy exists
+            - No users can perform any actions
+        """
+        # Load only 'p' type policies with wildcard scope, no role assignments
+        policy_filter = Filter(ptype=["p"], v2=[make_scope_key("lib", "*")])
+        self.enforcer.load_filtered_policy(policy_filter)
+
+        # Alice should NOT be allowed (no role assignment loaded)
+        result = self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "test-lib-1")
+        )
+        self.assertFalse(result)
+
+    def test_enforcement_with_only_grouping_policy_denies(self):
+        """Test that loading only role assignments without policies denies access.
+
+        When only loading 'g' type grouping policies without 'p' policies,
+        users cannot access anything because the permissions aren't defined.
+
+        Expected result:
+            - Alice cannot edit even though she has the role assignment
+        """
+        # Load only 'g' type grouping policies, no permission policies
+        grouping_filter = Filter(ptype=["g"], v2=[make_scope_key("lib", "test-lib-1")])
+        self.enforcer.load_filtered_policy(grouping_filter)
+
+        # Alice should NOT be allowed (no permission policies loaded)
+        result = self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "test-lib-1")
+        )
+        self.assertFalse(result)
+
+    # TODO: add tests for global scopes once supported
+
+
+@ddt
+class TestUserContextPolicyLoading(TestCase):
+    """
+    Tests for loading policies in a user-specific context.
+
+    These tests demonstrate strategies for loading only the policies relevant
+    to a specific user, which is a common production scenario for optimizing
+    memory usage and performance in multi-tenant applications.
+    """
+
+    def setUp(self):
+        """Set up test environment with user-specific policy data."""
+        super().setUp()
+        self.enforcer = global_enforcer
+        self.enforcer.clear_policy()
+
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_admin"),
+            v1=make_action_key("edit"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_admin"),
+            v1=make_action_key("delete"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("library_user"),
+            v1=make_action_key("view"),
+            v2=make_scope_key("lib", "*"),
+            v3="allow"
+        )
+        CasbinRule.objects.create(
+            ptype="p",
+            v0=make_role_key("course_instructor"),
+            v1=make_action_key("manage"),
+            v2=make_scope_key("course", "*"),
+            v3="allow"
+        )
+
+        CasbinRule.objects.create(
+            ptype="g",
+            v0=make_user_key("alice"),
+            v1=make_role_key("library_admin"),
+            v2=make_scope_key("lib", "alice-lib")
+        )
+        CasbinRule.objects.create(
+            ptype="g",
+            v0=make_user_key("alice"),
+            v1=make_role_key("course_instructor"),
+            v2=make_scope_key("course", "alice-course")
+        )
+        CasbinRule.objects.create(
+            ptype="g",
+            v0=make_user_key("bob"),
+            v1=make_role_key("library_user"),
+            v2=make_scope_key("lib", "bob-lib")
+        )
+
+    def tearDown(self):
+        """Clean up after test."""
+        self.enforcer.clear_policy()
+        super().tearDown()
+
+    def test_load_user_context_by_scope(self):
+        """Test loading policies for a user by their accessible scopes.
+
+        This is the simplest approach: if you know which scopes a user
+        can access, filter by those scopes to load all relevant policies
+        and role assignments. Must include both wildcard template and specific scope.
+
+        Expected result:
+            - Only library-related policies are loaded
+            - Alice can edit in her library scope
+            - Alice cannot manage courses (not loaded)
+        """
+        # Load library policies: both the template (lib^*) and alice's specific scope
+        user_scopes = [make_scope_key("lib", "*"), make_scope_key("lib", "alice-lib")]
+        scope_filter = Filter(v2=user_scopes)
+        self.enforcer.load_filtered_policy(scope_filter)
+
+        # Alice should be able to edit in her library
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "alice-lib")
+        ))
+
+        # Alice should NOT be able to manage courses (not loaded)
+        self.assertFalse(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("manage"),
+            make_scope_key("course", "alice-course")
+        ))
+
+    def test_load_multiple_users_in_shared_scope(self):
+        """Test loading policies for multiple users in a shared scope.
+
+        When multiple users share access to the same scope, loading
+        by scope is more efficient than loading per-user. Must include
+        both wildcard template and specific scopes.
+
+        Expected result:
+            - All users in the library scope are loaded
+            - Each user has appropriate access based on their roles
+        """
+        # Load all library policies: template and specific instances
+        lib_filter = Filter(v2=[
+            make_scope_key("lib", "*"),  # Policy template
+            make_scope_key("lib", "alice-lib"),  # Alice's role assignment
+            make_scope_key("lib", "bob-lib"),  # Bob's role assignment
+        ])
+        self.enforcer.load_filtered_policy(lib_filter)
+
+        # Both alice and bob should have access based on their roles
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "alice-lib")
+        ))
+
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("bob"),
+            make_action_key("view"),
+            make_scope_key("lib", "bob-lib")
+        ))
+
+    def test_load_user_specific_scope_policies(self):
+        """Test loading policies for specific user-scope combination.
+
+        This is useful when you want to load only the policies for a user
+        in a specific scope they're currently working in. Must include
+        both wildcard template and specific scope.
+
+        Expected result:
+            - Only alice's library policies are loaded
+            - Alice's course policies are not loaded
+            - Bob's library policies are not loaded
+        """
+        # Load alice's library scope: template + specific scope
+        alice_lib_filter = Filter(v2=[
+            make_scope_key("lib", "*"),  # Policy template
+            make_scope_key("lib", "alice-lib")  # Alice's role assignment
+        ])
+        self.enforcer.load_filtered_policy(alice_lib_filter)
+
+        # Alice can act in her library
+        self.assertTrue(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("edit"),
+            make_scope_key("lib", "alice-lib")
+        ))
+
+        # Alice cannot act in courses (not loaded)
+        self.assertFalse(self.enforcer.enforce(
+            make_user_key("alice"),
+            make_action_key("manage"),
+            make_scope_key("course", "alice-course")
+        ))
+
+        # Bob cannot act in his library (not loaded)
+        self.assertFalse(self.enforcer.enforce(
+            make_user_key("bob"),
+            make_action_key("view"),
+            make_scope_key("lib", "bob-lib")
+        ))
+
+    @ddt_data(
+        # (user, scopes_to_load, expected_accessible_scopes)
+        (
+            make_user_key("alice"),
+            [make_scope_key("lib", "alice-lib")],
+            {make_scope_key("lib", "alice-lib")}
+        ),
+        (
+            make_user_key("alice"),
+            [make_scope_key("lib", "alice-lib"), make_scope_key("course", "alice-course")],
+            {make_scope_key("lib", "alice-lib"), make_scope_key("course", "alice-course")}
+        ),
+        (
+            make_user_key("bob"),
+            [make_scope_key("lib", "bob-lib")],
+            {make_scope_key("lib", "bob-lib")}
+        ),
+    )
+    @unpack
+    def test_user_context_loading_scenarios(self, user, scopes_to_load, expected_accessible_scopes):
+        """Test various user context loading scenarios.
+
+        This parameterized test verifies that loading policies for different
+        user-scope combinations produces the expected access patterns.
+
+        Expected result:
+            - User can only access scopes that were loaded
+            - User cannot access scopes that were not loaded
+        """
+        scope_filter = Filter(v2=scopes_to_load)
+        self.enforcer.load_filtered_policy(scope_filter)
+
+        all_grouping = self.enforcer.get_grouping_policy()
+        user_assignments = [g for g in all_grouping if g[0] == user]
+
+        loaded_scopes = {assignment[2] for assignment in user_assignments}
+        self.assertEqual(loaded_scopes, expected_accessible_scopes)

@@ -238,7 +238,7 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:edX:Demo", ContentLibraryData),
-        ("unknown:something", ScopeData),
+        ("sc:generic_scope", ScopeData),
     )
     @unpack
     def test_get_subclass_by_external_key(self, external_key, expected_class):
@@ -247,7 +247,6 @@ class TestScopeMetaClass(TestCase):
         Expected Result:
             - 'lib:...' returns ContentLibraryData
             - 'sc:...' returns ScopeData
-            - 'unknown:...' returns ScopeData (fallback)
         """
         subclass = ScopeMeta.get_subclass_by_external_key(external_key)
         self.assertIs(subclass, expected_class)
@@ -287,8 +286,8 @@ class TestScopeMetaClass(TestCase):
             - ScopeData(external_key='...') creates ScopeData instance
             - No dynamic subclass selection occurs
         """
-        scope = ScopeData(external_key="generic_scope")
+        scope = ScopeData(external_key="sc:generic_scope")
         self.assertIsInstance(scope, ScopeData)
-        self.assertEqual(scope.external_key, "generic_scope")
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}generic_scope"
+        self.assertEqual(scope.external_key, "sc:generic_scope")
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
         self.assertEqual(scope.namespaced_key, expected_namespaced)

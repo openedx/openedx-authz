@@ -21,6 +21,7 @@ __all__ = [
 ]
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
+EXTERNAL_KEY_SEPARATOR = ":"
 
 
 class GroupingPolicyIndex(Enum):
@@ -162,12 +163,21 @@ class ScopeMeta(type):
         # even 'course-v1:edX+DemoX+2021_T1'. This won't work for org scopes because they don't explicitly indicate
         # the namespace in the external key. TODO: We need to handle org scopes differently.
         # 2. The namespace is always the part before the first separator.
-        # 3. If the namespace is not recognized, we return the base ScopeData class
-        # 4. The subclass implements a validation method to validate the entire key
-        namespace = external_key.split(":", 1)[0]
+        # 3. If the namespace is not recognized, we raise an error.
+        # 4. The subclass implements a validation method to validate the entire key. E.g., ContentLibraryData
+        # validates that the external_key is a valid library ID.
+        if EXTERNAL_KEY_SEPARATOR not in external_key:
+            raise ValueError(f"Invalid external_key format: {external_key}")
+
+        namespace = external_key.split(EXTERNAL_KEY_SEPARATOR, 1)[0]
         scope_subclass = mcs.scope_registry.get(namespace)
-        if not scope_subclass or not scope_subclass.validate_external_key(external_key):
-            return ScopeData  # Fallback to base class if not found or invalid
+
+        if not scope_subclass:
+            raise ValueError(f"Unknown scope: {namespace} for external_key: {external_key}")
+
+        if not scope_subclass.validate_external_key(external_key):
+            raise ValueError(f"Invalid external_key format: {external_key}")
+
         return scope_subclass
 
     @classmethod
@@ -194,6 +204,22 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     """
 
     NAMESPACE: ClassVar[str] = "sc"
+
+    @classmethod
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for ScopeData.
+
+        For the base ScopeData class, we accept any external_key works. This
+        is only implemented for the sake of completeness. Subclasses should
+        implement their own validation logic.
+
+        Args:
+            external_key: The external key to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        return True
 
 
 @define

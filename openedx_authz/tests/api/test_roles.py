@@ -786,9 +786,9 @@ class TestRolesAPI(RolesTestSetupMixin):
         ("library_author", "lib:Org6:project_beta", 1),
         ("library_collaborator", "lib:Org6:project_gamma", 1),
         ("library_user", "lib:Org6:project_delta", 1),
-        ("non_existent_role", "any_library", 0),
-        ("library_admin", "non_existent_scope", 0),
-        ("non_existent_role", "non_existent_scope", 0),
+        ("non_existent_role", "sc:any_library", 0),
+        ("library_admin", "sc:non_existent_scope", 0),
+        ("non_existent_role", "sc:non_existent_scope", 0),
     )
     @unpack
     def test_get_role_assignments_in_scope(self, role_name, scope_name, expected_count):
@@ -817,7 +817,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     """
 
     @ddt_data(
-        (["mary", "john"], "library_user", "batch_test", True),
+        (["mary", "john"], "library_user", "sc:batch_test", True),
         (
             ["paul", "diana", "lila"],
             "library_collaborator",
@@ -876,7 +876,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             self.assertIn(role, role_names)
 
     @ddt_data(
-        (["mary", "john"], "library_user", "batch_test", True),
+        (["mary", "john"], "library_user", "sc:batch_test", True),
         (
             ["paul", "diana", "lila"],
             "library_collaborator",
@@ -1115,7 +1115,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 )
             ],
         ),
-        ("non_existent_scope", []),
+        ("sc:non_existent_scope", []),
     )
     @unpack
     def test_get_all_role_assignments_in_scope(self, scope_name, expected_assignments):

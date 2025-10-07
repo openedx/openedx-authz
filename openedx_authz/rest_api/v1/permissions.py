@@ -2,7 +2,7 @@
 
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from openedx_authz.api.users import user_has_permission
+from openedx_authz.api.users import is_user_allowed
 
 
 class HasLibraryPermission(BasePermission):
@@ -22,11 +22,16 @@ class HasLibraryPermission(BasePermission):
             Requires a 'scope' parameter in either request.data or query_params.
             Returns False if no scope is provided.
         """
+        user = request.user
+
+        if user.is_superuser or user.is_staff:
+            return True
+
         scope = request.data.get("scope") if request.data else request.query_params.get("scope")
 
         if not scope:
             return False
 
         if request.method in SAFE_METHODS:
-            return user_has_permission(request.user.username, "view_library_team", scope)
-        return user_has_permission(request.user.username, "manage_library_team", scope)
+            return is_user_allowed(user.username, "view_library_team", scope)
+        return is_user_allowed(user.username, "manage_library_team", scope)

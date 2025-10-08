@@ -44,8 +44,8 @@ class AddUsersToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disab
     users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
 
-class RemoveUserFromRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
-    """Serializer for removing a user from a role with a scope."""
+class RemoveUsersFromRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
+    """Serializer for removing users from a role with a scope."""
 
     users = CommaSeparatedListField(allow_blank=False)
 

@@ -32,7 +32,7 @@ from openedx_authz.rest_api.v1.serializers import (
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
-    RemoveUserFromRoleWithScopeSerializer,
+    RemoveUsersFromRoleWithScopeSerializer,
     UserRoleAssignmentSerializer,
 )
 
@@ -268,7 +268,7 @@ class RoleUserAPIView(APIView):
     )
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
-        serializer = RemoveUserFromRoleWithScopeSerializer(data=request.query_params)
+        serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
         user_identifiers = serializer.validated_data["users"]

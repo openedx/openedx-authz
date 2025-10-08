@@ -38,8 +38,8 @@ class PermissionValidationResponseSerializer(PermissionValidationSerializer):  #
     allowed = serializers.BooleanField()
 
 
-class AddUserToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
-    """Serializer for adding a user to a role with a scope."""
+class AddUsersToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
+    """Serializer for adding users to a role with a scope."""
 
     users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 

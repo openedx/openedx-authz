@@ -26,7 +26,7 @@ from openedx_authz.rest_api.utils import (
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import HasLibraryPermission
 from openedx_authz.rest_api.v1.serializers import (
-    AddUserToRoleWithScopeSerializer,
+    AddUsersToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
     ListUsersInRoleWithScopeSerializer,
@@ -213,7 +213,7 @@ class RoleUserAPIView(APIView):
         return paginator.get_paginated_response(paginated_response_data)
 
     @apidocs.schema(
-        body=AddUserToRoleWithScopeSerializer,
+        body=AddUsersToRoleWithScopeSerializer,
         responses={
             status.HTTP_207_MULTI_STATUS: "The users were added to the role",
             status.HTTP_400_BAD_REQUEST: "The request data is invalid",
@@ -222,7 +222,7 @@ class RoleUserAPIView(APIView):
     )
     def put(self, request: HttpRequest) -> Response:
         """Assign multiple users to a specific role within a scope."""
-        serializer = AddUserToRoleWithScopeSerializer(data=request.data)
+        serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         # TODO: Should we validate that the role or scope exists?

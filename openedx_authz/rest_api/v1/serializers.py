@@ -5,7 +5,6 @@ from rest_framework import serializers
 
 from openedx_authz.api.data import RoleAssignmentData
 from openedx_authz.rest_api.enums import SortField, SortOrder
-from openedx_authz.rest_api.utils import get_user_by_username_or_email
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
 User = get_user_model()
@@ -96,38 +95,25 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         super().__init__(*args, **kwargs)
         self._user_cache = {}
 
-    def _get_user(self, obj: RoleAssignmentData) -> User | None:
-        """
-        Retrieve and cache the user object for the given role assignment to minimize database queries.
-
-        Args:
-            obj (RoleAssignmentData): The role assignment data containing the user identifier.
-
-        Returns:
-            User | None: The corresponding User object if found, otherwise None.
-        """
-        username = obj.subject.username
-        if username not in self._user_cache:
-            try:
-                self._user_cache[username] = get_user_by_username_or_email(username)
-            except User.DoesNotExist:
-                self._user_cache[username] = None
-        return self._user_cache[username]
+    def _get_user(self, obj) -> User | None:
+        """Get the user object for the given role assignment."""
+        user_map = self.context.get("user_map", {})
+        return user_map.get(obj.subject.username)
 
     def get_username(self, obj: RoleAssignmentData) -> str:
+        """Get the username for the given role assignment."""
         return obj.subject.username
 
-    def get_full_name(self, obj: RoleAssignmentData) -> str:
+    def get_full_name(self, obj) -> str:
+        """Get the full name for the given role assignment."""
         user = self._get_user(obj)
-        if not user or not hasattr(user, "profile"):
-            return ""
-        return getattr(user.profile, "name", "")
+        return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
-    def get_email(self, obj: RoleAssignmentData) -> str:
+    def get_email(self, obj) -> str:
+        """Get the email for the given role assignment."""
         user = self._get_user(obj)
-        if not user:
-            return ""
-        return getattr(user, "email", "")
+        return getattr(user, "email", "") if user else ""
 
     def get_roles(self, obj: RoleAssignmentData) -> list[str]:
+        """Get the roles for the given role assignment."""
         return [role.external_key for role in obj.roles]

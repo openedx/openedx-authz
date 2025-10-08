@@ -20,34 +20,32 @@ from openedx_authz.api.data import ActionData, PermissionData, RoleAssignmentDat
 User = get_user_model()
 
 
+def get_user_map_without_profile(usernames: list[str]) -> dict[str, User]:
+    """
+    Test version of get_user_map that doesn't use select_related('profile').
+
+    The generic Django User model doesn't have a profile relation,
+    so we override this in tests to avoid FieldError.
+    """
+    users = User.objects.filter(username__in=usernames)
+    return {user.username: user for user in users}
+
+
 class ViewTestMixin(APITestCase):
     """Mixin providing common test utilities for view tests."""
-
-    @staticmethod
-    def create_user(username: str, email: str, is_superuser: bool = False, is_staff: bool = False):
-        """Create a user with the given data."""
-        return User.objects.create_user(
-            username=username,
-            email=email,
-            password="testpass123",
-            is_superuser=is_superuser,
-            is_staff=is_staff,
-        )
 
     @classmethod
     def setUpTestData(cls):
         """Set up test fixtures once for the entire test class."""
-        cls.admin_user = cls.create_user(
+        cls.admin_user = User.objects.create_superuser(
             username="admin_user",
             email="admin@example.com",
-            is_superuser=True,
-            is_staff=True,
         )
-        cls.regular_user = cls.create_user(
+        cls.regular_user = User.objects.create_user(
             username="regular_user",
             email="regular@example.com",
         )
-        cls.regular_user2 = cls.create_user(
+        cls.regular_user2 = User.objects.create_user(
             username="regular_user2",
             email="regular2@example.com",
         )
@@ -186,6 +184,11 @@ class TestRoleUserAPIView(ViewTestMixin):
         super().setUp()
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-user-list")
+        self.get_user_map_patcher = patch(
+            "openedx_authz.rest_api.v1.views.get_user_map",
+            side_effect=get_user_map_without_profile,
+        )
+        self.get_user_map_patcher.start()
 
     def create_mock_assignments(self, users_data: list[dict], scope: str):
         """Create mock assignments for the given users data."""

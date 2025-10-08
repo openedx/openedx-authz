@@ -2,7 +2,7 @@
 
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from openedx_authz.api.users import is_user_allowed
+from openedx_authz import api
 
 
 class HasLibraryPermission(BasePermission):
@@ -33,5 +33,5 @@ class HasLibraryPermission(BasePermission):
             return False
 
         if request.method in SAFE_METHODS:
-            return is_user_allowed(user.username, "view_library_team", scope)
-        return is_user_allowed(user.username, "manage_library_team", scope)
+            return api.is_user_allowed(user.username, "view_library_team", scope)
+        return api.is_user_allowed(user.username, "manage_library_team", scope)

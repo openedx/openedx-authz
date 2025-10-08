@@ -104,6 +104,10 @@ class PermissionValidationMeView(APIView):
                 )
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error validating permission for user {username}: {e}")
+                return Response(
+                    data={"message": "An error occurred while validating permissions"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         serializer = PermissionValidationResponseSerializer(response_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -218,13 +222,16 @@ class RoleUserAPIView(APIView):
         for user_identifier in serializer.validated_data["users"]:
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                api.assign_role_to_user_in_scope(user.username, role_name, scope)
+                result = api.assign_role_to_user_in_scope(user.username, role_name, scope)
+                if not result:
+                    errors.append({"user_identifier": user_identifier, "error": "user_already_has_role"})
+                    continue
                 completed.append({"user_identifier": user_identifier, "status": "role_added"})
             except User.DoesNotExist:
                 errors.append({"user_identifier": user_identifier, "error": "user_not_found"})
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error assigning role to user {user_identifier}: {e}")
-                errors.append({"user_identifier": user_identifier, "error": "assignment_failed"})
+                errors.append({"user_identifier": user_identifier, "error": "role_assignment_failed"})
 
         response_data = {"completed": completed, "errors": errors}
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
@@ -256,7 +263,10 @@ class RoleUserAPIView(APIView):
         for user_identifier in user_identifiers:
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                api.unassign_role_from_user(user.username, role_name, scope)
+                result = api.unassign_role_from_user(user.username, role_name, scope)
+                if not result:
+                    errors.append({"user_identifier": user_identifier, "error": "user_does_not_have_role"})
+                    continue
                 completed.append({"user_identifier": user_identifier, "status": "role_removed"})
             except User.DoesNotExist:
                 errors.append({"user_identifier": user_identifier, "error": "user_not_found"})

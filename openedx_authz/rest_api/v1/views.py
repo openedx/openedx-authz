@@ -15,7 +15,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
-from openedx_authz.rest_api.utils import filter_users, get_user_by_username_or_email, sort_users, view_auth_classes
+from openedx_authz.rest_api.utils import (
+    filter_users,
+    get_user_by_username_or_email,
+    get_user_map,
+    sort_users,
+    view_auth_classes,
+)
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import HasLibraryPermission
 from openedx_authz.rest_api.v1.serializers import (
@@ -193,7 +199,11 @@ class RoleUserAPIView(APIView):
         query_params = serializer.validated_data
 
         user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
-        response_data = UserRoleAssignmentSerializer(user_role_assignments, many=True).data
+        usernames = {assignment.subject.username for assignment in user_role_assignments}
+        response_data = UserRoleAssignmentSerializer(
+            user_role_assignments, many=True, context={"user_map": get_user_map(usernames)}
+        ).data
+
         filtered_users = filter_users(response_data, query_params["search"], query_params["roles"])
         user_role_assignments = sort_users(filtered_users, query_params["sort_by"], query_params["order"])
 
@@ -345,17 +355,16 @@ class RoleListView(APIView):
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        scope = api.ScopeData(namespaced_key=serializer.validated_data["scope"])
+        scope = api.ContentLibraryData(external_key=serializer.validated_data["scope"])
         roles = api.get_role_definitions_in_scope(scope)
 
         response_data = []
         for role in roles:
             users = api.get_users_for_role(role.external_key)
-            permissions = [perm.action.external_key for perm in role.permissions]
             response_data.append(
                 {
                     "role": role.external_key,
-                    "permissions": permissions,
+                    "permissions": role.get_permission_identifiers(),
                     "user_count": len(users),
                 }
             )

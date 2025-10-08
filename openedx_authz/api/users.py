@@ -9,7 +9,13 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user@john_doe').
 """
 
-from openedx_authz.api.data import ActionData, RoleAssignmentData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    RoleAssignmentData,
+    RoleData,
+    ScopeData,
+    UserData,
+)
 from openedx_authz.api.permissions import is_subject_allowed
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
@@ -52,7 +58,9 @@ def assign_role_to_user_in_scope(
     )
 
 
-def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str, scope_external_key: str):
+def batch_assign_role_to_users_in_scope(
+    users: list[str], role_external_key: str, scope_external_key: str
+):
     """Assign a role to multiple users in a specific scope.
 
     Args:
@@ -68,7 +76,9 @@ def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str
     )
 
 
-def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str):
+def unassign_role_from_user(
+    user_external_key: str, role_external_key: str, scope_external_key: str
+):
     """Unassign a role from a user in a specific scope.
 
     Args:
@@ -83,7 +93,9 @@ def unassign_role_from_user(user_external_key: str, role_external_key: str, scop
     )
 
 
-def batch_unassign_role_from_users(users: list[str], role_external_key: str, scope_external_key: str):
+def batch_unassign_role_from_users(
+    users: list[str], role_external_key: str, scope_external_key: str
+):
     """Unassign a role from multiple users in a specific scope.
 
     Args:

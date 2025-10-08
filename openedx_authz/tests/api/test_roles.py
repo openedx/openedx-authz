@@ -570,7 +570,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         role_assignments = get_subject_role_assignments_in_scope(
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
         )
-
+        print(role_assignments)
         role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
         self.assertEqual(role_names, expected_roles)
 

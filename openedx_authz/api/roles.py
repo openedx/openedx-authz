@@ -300,10 +300,12 @@ def get_subject_role_assignments_in_scope(
         role_assignments.append(
             RoleAssignmentData(
                 subject=subject,
-                roles=[RoleData(
-                    namespaced_key=namespaced_key,
-                    permissions=get_permissions_for_single_role(role),
-                )],
+                roles=[
+                    RoleData(
+                        namespaced_key=namespaced_key,
+                        permissions=get_permissions_for_single_role(role),
+                    )
+                ],
                 scope=scope,
             )
         )
@@ -333,10 +335,12 @@ def get_subject_role_assignments_for_role_in_scope(
         role_assignments.append(
             RoleAssignmentData(
                 subject=SubjectData(namespaced_key=subject),
-                roles=[RoleData(
-                    namespaced_key=role.namespaced_key,
-                    permissions=get_permissions_for_single_role(role),
-                )],
+                roles=[
+                    RoleData(
+                        namespaced_key=role.namespaced_key,
+                        permissions=get_permissions_for_single_role(role),
+                    )
+                ],
                 scope=scope,
             )
         )
@@ -344,7 +348,9 @@ def get_subject_role_assignments_for_role_in_scope(
     return role_assignments
 
 
-def get_all_subject_role_assignments_in_scope(scope: ScopeData) -> list[RoleAssignmentData]:
+def get_all_subject_role_assignments_in_scope(
+    scope: ScopeData,
+) -> list[RoleAssignmentData]:
     """Get all the subjects assigned to any role in a specific scope.
 
     Args:

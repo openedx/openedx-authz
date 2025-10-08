@@ -172,7 +172,9 @@ class ScopeMeta(type):
         scope_subclass = mcs.scope_registry.get(namespace)
 
         if not scope_subclass:
-            raise ValueError(f"Unknown scope: {namespace} for external_key: {external_key}")
+            raise ValueError(
+                f"Unknown scope: {namespace} for external_key: {external_key}"
+            )
 
         if not scope_subclass.validate_external_key(external_key):
             raise ValueError(f"Invalid external_key format: {external_key}")
@@ -261,6 +263,14 @@ class ContentLibraryData(ScopeData):
         except InvalidKeyError:
             return False
 
+    def __str__(self):
+        """Human readable string representation of the content library."""
+        return self.library_id
+
+    def __repr__(self):
+        """Developer friendly string representation of the content library."""
+        return self.namespaced_key
+
 
 class SubjectMeta(type):
     """Metaclass for SubjectData to handle dynamic subclass instantiation based on namespace."""
@@ -342,6 +352,14 @@ class UserData(SubjectData):
         """
         return self.external_key
 
+    def __str__(self):
+        """Human readable string representation of the user."""
+        return self.username
+
+    def __repr__(self):
+        """Developer friendly string representation of the user."""
+        return self.namespaced_key
+
 
 @define
 class ActionData(AuthZData):
@@ -365,9 +383,17 @@ class ActionData(AuthZData):
         """
         return self.external_key.replace("_", " ").title()
 
+    def __str__(self):
+        """Human readable string representation of the action."""
+        return self.name
+
+    def __repr__(self):
+        """Developer friendly string representation of the action."""
+        return self.namespaced_key
+
 
 @define
-class PermissionData(AuthZData):
+class PermissionData:
     """A permission is an action that can be performed under certain conditions.
 
     Attributes:
@@ -376,6 +402,14 @@ class PermissionData(AuthZData):
 
     action: ActionData = None
     effect: Literal["allow", "deny"] = "allow"
+
+    def __str__(self):
+        """Human readable string representation of the permission and its effect."""
+        return f"{self.action} - {self.effect}"
+
+    def __repr__(self):
+        """Developer friendly string representation of the permission."""
+        return f"{self.action.namespaced_key} => {self.effect}"
 
 
 @define
@@ -402,9 +436,17 @@ class RoleData(AuthZData):
         """
         return self.external_key.replace("_", " ").title()
 
+    def __str__(self):
+        """Human readable string representation of the role and its permissions."""
+        return f"{self.name}: {', '.join(str(p) for p in self.permissions)}"
+
+    def __repr__(self):
+        """Developer friendly string representation of the role."""
+        return self.namespaced_key
+
 
 @define
-class RoleAssignmentData(AuthZData):
+class RoleAssignmentData:
     """A role assignment is the assignment of a role to a subject in a specific scope.
 
     Attributes:
@@ -416,3 +458,13 @@ class RoleAssignmentData(AuthZData):
     subject: SubjectData = None  # Needs defaults to avoid value error from attrs
     roles: list[RoleData] = []
     scope: ScopeData = None
+
+    def __str__(self):
+        """Human readable string representation of the role assignment."""
+        role_names = ", ".join(role.name for role in self.roles)
+        return f"{self.subject} => {role_names} @ {self.scope}"
+
+    def __repr__(self):
+        """Developer friendly string representation of the role assignment."""
+        role_keys = ", ".join(role.namespaced_key for role in self.roles)
+        return f"{self.subject.namespaced_key} => [{role_keys}] @ {self.scope.namespaced_key}"

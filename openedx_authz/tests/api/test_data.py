@@ -3,7 +3,17 @@
 from ddt import data, ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, ScopeMeta, SubjectData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    PermissionData,
+    RoleAssignmentData,
+    RoleData,
+    ScopeData,
+    ScopeMeta,
+    SubjectData,
+    UserData,
+)
 
 
 @ddt
@@ -23,7 +33,9 @@ class TestNamespacedData(TestCase):
             - If input is 'admin', expected is 'role^admin'
         """
         role = RoleData(external_key=external_key)
+
         expected = f"{role.NAMESPACE}{role.SEPARATOR}{external_key}"
+
         self.assertEqual(role.namespaced_key, expected)
 
     @data(
@@ -39,7 +51,9 @@ class TestNamespacedData(TestCase):
             - If input is 'jane_smith', expected is 'user^jane_smith'
         """
         user = UserData(external_key=external_key)
+
         expected = f"{user.NAMESPACE}{user.SEPARATOR}{external_key}"
+
         self.assertEqual(user.namespaced_key, expected)
 
     @data(
@@ -55,7 +69,9 @@ class TestNamespacedData(TestCase):
             - If input is 'write', expected is 'act^write'
         """
         action = ActionData(external_key=external_key)
+
         expected = f"{action.NAMESPACE}{action.SEPARATOR}{external_key}"
+
         self.assertEqual(action.namespaced_key, expected)
 
     @data(
@@ -69,7 +85,9 @@ class TestNamespacedData(TestCase):
             - If input is 'lib:DemoX:CSPROB', expected is 'lib^lib:DemoX:CSPROB'
         """
         scope = ContentLibraryData(external_key=external_key)
+
         expected = f"{scope.NAMESPACE}{scope.SEPARATOR}{external_key}"
+
         self.assertEqual(scope.namespaced_key, expected)
 
 
@@ -89,6 +107,7 @@ class TestPolymorphicData(TestCase):
             - UserData(namespaced_key='user^john_doe') creates UserData instance
         """
         namespaced_key = f"{UserData.NAMESPACE}{UserData.SEPARATOR}{external_key}"
+
         user = UserData(namespaced_key=namespaced_key)
 
         self.assertIsInstance(user, UserData)
@@ -102,6 +121,7 @@ class TestPolymorphicData(TestCase):
             - SubjectData(namespaced_key='sub^generic') creates SubjectData instance
         """
         namespaced_key = f"{SubjectData.NAMESPACE}{SubjectData.SEPARATOR}generic"
+
         subject = SubjectData(namespaced_key=namespaced_key)
 
         self.assertIsInstance(subject, SubjectData)
@@ -120,6 +140,7 @@ class TestPolymorphicData(TestCase):
             - ContentLibraryData(namespaced_key='lib^math_101') creates ContentLibraryData instance
         """
         namespaced_key = f"{ContentLibraryData.NAMESPACE}{ContentLibraryData.SEPARATOR}{external_key}"
+
         library = ContentLibraryData(namespaced_key=namespaced_key)
 
         self.assertIsInstance(library, ContentLibraryData)
@@ -133,6 +154,7 @@ class TestPolymorphicData(TestCase):
             - ScopeData(namespaced_key='sc^generic') creates ScopeData instance
         """
         namespaced_key = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}generic"
+
         scope = ScopeData(namespaced_key=namespaced_key)
 
         self.assertIsInstance(scope, ScopeData)
@@ -146,8 +168,10 @@ class TestPolymorphicData(TestCase):
             - UserData(external_key='alice') creates UserData instance
         """
         user = UserData(external_key="alice")
-        self.assertIsInstance(user, UserData)
+
         expected_namespaced = f"{user.NAMESPACE}{user.SEPARATOR}alice"
+
+        self.assertIsInstance(user, UserData)
         self.assertEqual(user.namespaced_key, expected_namespaced)
         self.assertEqual(user.external_key, "alice")
 
@@ -158,8 +182,10 @@ class TestPolymorphicData(TestCase):
             - ContentLibraryData(external_key='lib:Demo:CS') creates ContentLibraryData instance
         """
         library = ContentLibraryData(external_key="lib:demo:cs")
-        self.assertIsInstance(library, ContentLibraryData)
+
         expected_namespaced = f"{library.NAMESPACE}{library.SEPARATOR}lib:demo:cs"
+
+        self.assertIsInstance(library, ContentLibraryData)
         self.assertEqual(library.namespaced_key, expected_namespaced)
         self.assertEqual(library.external_key, "lib:demo:cs")
 
@@ -176,10 +202,12 @@ class TestPolymorphicData(TestCase):
             - namespaced_key is 'lib^lib:math_101'
         """
         library = ContentLibraryData(external_key=external_key)
-        self.assertIsInstance(library, ContentLibraryData)
+
         expected_namespaced_key = (
             f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
         )
+
+        self.assertIsInstance(library, ContentLibraryData)
         self.assertEqual(library.external_key, external_key)
         self.assertEqual(library.namespaced_key, expected_namespaced_key)
 
@@ -215,6 +243,7 @@ class TestScopeMetaClass(TestCase):
             - ScopeData(namespaced_key='sc^...') returns ScopeData instance
         """
         instance = ScopeData(namespaced_key=namespaced_key)
+
         self.assertIsInstance(instance, expected_class)
         self.assertEqual(instance.namespaced_key, namespaced_key)
 
@@ -233,6 +262,7 @@ class TestScopeMetaClass(TestCase):
             - 'unknown^...' returns ScopeData (fallback)
         """
         subclass = ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
+
         self.assertIs(subclass, expected_class)
 
     @data(
@@ -249,6 +279,7 @@ class TestScopeMetaClass(TestCase):
             - 'sc:...' returns ScopeData
         """
         subclass = ScopeMeta.get_subclass_by_external_key(external_key)
+
         self.assertIs(subclass, expected_class)
 
     @data(
@@ -266,6 +297,7 @@ class TestScopeMetaClass(TestCase):
             - Invalid formats return False
         """
         result = ContentLibraryData.validate_external_key(external_key)
+
         self.assertEqual(result, expected_valid)
 
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
@@ -276,6 +308,7 @@ class TestScopeMetaClass(TestCase):
             - No metaclass dynamic instantiation occurs
         """
         library = ContentLibraryData(external_key="lib:Demo:CS")
+
         self.assertIsInstance(library, ContentLibraryData)
         self.assertEqual(library.external_key, "lib:Demo:CS")
 
@@ -287,7 +320,177 @@ class TestScopeMetaClass(TestCase):
             - No dynamic subclass selection occurs
         """
         scope = ScopeData(external_key="sc:generic_scope")
+
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
+
         self.assertIsInstance(scope, ScopeData)
         self.assertEqual(scope.external_key, "sc:generic_scope")
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
         self.assertEqual(scope.namespaced_key, expected_namespaced)
+
+
+@ddt
+class TestDataRepresentation(TestCase):
+    """Test the string representations of data classes."""
+
+    @data(
+        ("john_doe", "john_doe", "user^john_doe"),
+        ("jane_smith", "jane_smith", "user^jane_smith"),
+    )
+    @unpack
+    def test_user_data_str_and_repr(self, external_key, expected_str, expected_repr):
+        """Test UserData __str__ and __repr__ methods.
+
+        Expected Result:
+            - __str__ returns the username (external_key)
+            - __repr__ returns the namespaced_key
+        """
+        user = UserData(external_key=external_key)
+
+        actual_str = str(user)
+        actual_repr = repr(user)
+
+        self.assertEqual(actual_str, expected_str)
+        self.assertEqual(actual_repr, expected_repr)
+
+    @data(
+        ("read", "Read", "act^read"),
+        ("write", "Write", "act^write"),
+        ("delete_library", "Delete Library", "act^delete_library"),
+        ("edit_content", "Edit Content", "act^edit_content"),
+    )
+    @unpack
+    def test_action_data_str_and_repr(self, external_key, expected_str, expected_repr):
+        """Test ActionData __str__ and __repr__ methods.
+
+        Expected Result:
+            - __str__ returns the human-readable name (title case with spaces)
+            - __repr__ returns the namespaced_key
+        """
+        action = ActionData(external_key=external_key)
+
+        actual_str = str(action)
+        actual_repr = repr(action)
+
+        self.assertEqual(actual_str, expected_str)
+        self.assertEqual(actual_repr, expected_repr)
+
+    @data(
+        ("lib:DemoX:CSPROB", "lib:DemoX:CSPROB", "lib^lib:DemoX:CSPROB"),
+        ("lib:edX:Demo", "lib:edX:Demo", "lib^lib:edX:Demo"),
+    )
+    @unpack
+    def test_scope_data_str_and_repr(self, external_key, expected_str, expected_repr):
+        """Test ScopeData __str__ and __repr__ methods.
+
+        Expected Result:
+            - __str__ returns the external_key
+            - __repr__ returns the namespaced_key
+        """
+        scope = ContentLibraryData(external_key=external_key)
+
+        actual_str = str(scope)
+        actual_repr = repr(scope)
+
+        self.assertEqual(actual_str, expected_str)
+        self.assertEqual(actual_repr, expected_repr)
+
+    @data(
+        ("instructor", "Instructor", "role^instructor"),
+        ("library_admin", "Library Admin", "role^library_admin"),
+        ("course_staff", "Course Staff", "role^course_staff"),
+    )
+    @unpack
+    def test_role_data_str_without_permissions(
+        self, external_key, expected_name, expected_repr
+    ):
+        """Test RoleData __str__ and __repr__ methods without permissions.
+
+        Expected Result:
+            - __str__ returns the role name with empty permissions list
+            - __repr__ returns the namespaced_key
+        """
+        role = RoleData(external_key=external_key)
+
+        actual_str = str(role)
+        actual_repr = repr(role)
+
+        expected_str = f"{expected_name}: "
+        self.assertEqual(actual_str, expected_str)
+        self.assertEqual(actual_repr, expected_repr)
+
+    def test_role_data_str_with_permissions(self):
+        """Test RoleData __str__ method with permissions.
+
+        Expected Result:
+            - __str__ returns role name followed by permissions list
+        """
+        action1 = ActionData(external_key="read")
+        action2 = ActionData(external_key="write")
+        permission1 = PermissionData(action=action1, effect="allow")
+        permission2 = PermissionData(action=action2, effect="deny")
+        role = RoleData(external_key="instructor", permissions=[permission1, permission2])
+
+        actual_str = str(role)
+
+        expected_str = "Instructor: Read - allow, Write - deny"
+        self.assertEqual(actual_str, expected_str)
+
+    @data(
+        ("read", "allow", "Read - allow", "act^read => allow"),
+        ("write", "deny", "Write - deny", "act^write => deny"),
+        ("delete_library", "allow", "Delete Library - allow", "act^delete_library => allow"),
+    )
+    @unpack
+    def test_permission_data_str_and_repr(
+        self, action_key, effect, expected_str, expected_repr
+    ):
+        """Test PermissionData __str__ and __repr__ methods.
+
+        Expected Result:
+            - __str__ returns 'Action Name - effect'
+            - __repr__ returns 'namespaced_key => effect'
+        """
+        action = ActionData(external_key=action_key)
+        permission = PermissionData(action=action, effect=effect)
+
+        actual_str = str(permission)
+        actual_repr = repr(permission)
+
+        self.assertEqual(actual_str, expected_str)
+        self.assertEqual(actual_repr, expected_repr)
+
+    def test_role_assignment_data_str(self):
+        """Test RoleAssignmentData __str__ method.
+
+        Expected Result:
+            - __str__ returns 'user => role names @ scope'
+        """
+        user = UserData(external_key="john_doe")
+        role1 = RoleData(external_key="instructor")
+        role2 = RoleData(external_key="library_admin")
+        scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
+        assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
+
+        actual_str = str(assignment)
+
+        expected_str = "john_doe => Instructor, Library Admin @ lib:DemoX:CSPROB"
+        self.assertEqual(actual_str, expected_str)
+
+    def test_role_assignment_data_repr(self):
+        """Test RoleAssignmentData __repr__ method.
+
+        Expected Result:
+            - __repr__ returns 'namespaced_subject => [namespaced_roles] @ namespaced_scope'
+        """
+        user = UserData(external_key="john_doe")
+        role1 = RoleData(external_key="instructor")
+        role2 = RoleData(external_key="library_admin")
+        scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
+        assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
+
+        actual_repr = repr(assignment)
+
+        expected_repr = (
+            "user^john_doe => [role^instructor, role^library_admin] @ lib^lib:DemoX:CSPROB"
+        )
+        self.assertEqual(actual_repr, expected_repr)

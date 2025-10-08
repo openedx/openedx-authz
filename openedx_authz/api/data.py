@@ -18,6 +18,7 @@ __all__ = [
     "RoleData",
     "ScopeData",
     "SubjectData",
+    "ContentLibraryData",
 ]
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
@@ -562,6 +563,15 @@ class PermissionData:
     action: ActionData = None
     effect: Literal["allow", "deny"] = "allow"
 
+    @property
+    def identifier(self) -> str:
+        """Get the permission identifier.
+
+        Returns:
+            str: The permission identifier (e.g., 'delete_library').
+        """
+        return self.action.external_key
+
     def __str__(self):
         """Human readable string representation of the permission and its effect."""
         return f"{self.action} - {self.effect}"
@@ -611,6 +621,14 @@ class RoleData(AuthZData):
             str: The human-readable role name (e.g., 'Library Admin').
         """
         return self.external_key.replace("_", " ").title()
+
+    def get_permission_identifiers(self) -> list[str]:
+        """Get the technical identifiers for all permissions in this role.
+
+        Returns:
+            list[str]: Permission identifiers (e.g., ['delete_library', 'edit_content']).
+        """
+        return [permission.identifier for permission in self.permissions]
 
     def __str__(self):
         """Human readable string representation of the role and its permissions."""

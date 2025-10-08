@@ -145,7 +145,7 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_library_key("lib@any-org@any-library"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
     ]
@@ -235,10 +235,10 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
             make_role_key("course_admin"),
             make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
         ],
-        ["g", make_user_key("user-6"), make_role_key("library_admin"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-7"), make_role_key("library_editor"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-8"), make_role_key("library_reviewer"), make_library_key("lib@any-org@any-library")],
-        ["g", make_user_key("user-9"), make_role_key("library_author"), make_library_key("lib@any-org@any-library")],
+        ["g", make_user_key("user-6"), make_role_key("library_admin"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-7"), make_role_key("library_editor"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-8"), make_role_key("library_reviewer"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-9"), make_role_key("library_author"), make_library_key("lib:DemoX:CSPROB")],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
@@ -275,25 +275,25 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-6"),
             "action": make_action_key("manage"),
-            "scope": make_library_key("lib@any-org@any-library"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-7"),
             "action": make_action_key("edit"),
-            "scope": make_library_key("lib@any-org@any-library"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-8"),
             "action": make_action_key("read"),
-            "scope": make_library_key("lib@any-org@any-library"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-9"),
             "action": make_action_key("write"),
-            "scope": make_library_key("lib@any-org@any-library"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
     ]
@@ -395,7 +395,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ("*", True),
         (make_scope_key("org", "MIT"), True),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
-        (make_library_key("lib@OpenedX:math-basics"), True),
+        (make_library_key("lib:OpenedX:math-basics"), True),
     )
     @unpack
     def test_wildcard_global_access(self, scope: str, expected_result: bool):
@@ -412,7 +412,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ("*", False),
         (make_scope_key("org", "MIT"), True),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
-        (make_library_key("lib@OpenedX:math-basics"), False),
+        (make_library_key("lib:OpenedX:math-basics"), False),
     )
     @unpack
     def test_wildcard_org_access(self, scope: str, expected_result: bool):
@@ -429,7 +429,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ("*", False),
         (make_scope_key("org", "MIT"), False),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
-        (make_library_key("lib@OpenedX:math-basics"), False),
+        (make_library_key("lib:OpenedX:math-basics"), False),
     )
     @unpack
     def test_wildcard_course_access(self, scope: str, expected_result: bool):
@@ -446,7 +446,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ("*", False),
         (make_scope_key("org", "MIT"), False),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
-        (make_library_key("lib@OpenedX:math-basics"), True),
+        (make_library_key("lib:OpenedX:math-basics"), True),
     )
     @unpack
     def test_wildcard_library_access(self, scope: str, expected_result: bool):

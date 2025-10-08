@@ -4,9 +4,6 @@ The command supports:
 - Specifying the path to the Casbin policy file. Default is 'openedx_authz/engine/config/authz.policy'.
 - Specifying the Casbin model configuration file. Default is 'openedx_authz/engine/config/model.conf'.
 - Optionally clearing existing policies in the database before loading new ones.
-
-Example Usage:
-    python manage.py load_policies --policy-file-path /path/to/policy.csv
 """
 
 import os
@@ -27,8 +24,8 @@ class Command(BaseCommand):
     and persistence of authorization policies within the Django application.
 
     Example Usage:
-        python manage.py load_policies --policy-file-path /path/to/policy.csv
-        python manage.py load_policies --policy-file-path /path/to/policy.csv --clear-existing
+        python manage.py load_policies --policy-file-path /path/to/authz.policy
+        python manage.py load_policies --policy-file-path /path/to/authz.policy --model-file-path /path/to/model.conf
         python manage.py load_policies
     """
 

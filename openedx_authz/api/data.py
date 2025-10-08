@@ -63,7 +63,7 @@ class AuthZData(AuthzBaseClass):
         SEPARATOR: The separator between the namespace and the identifier (e.g., ':', '@').
         external_key: The ID for the object outside of the authz system (e.g., username).
             Could also be used for human-readable names (e.g., role or action name).
-        namespaced_key: The ID for the object within the authz system (e.g., 'user@john_doe').
+        namespaced_key: The ID for the object within the authz system (e.g., 'user^john_doe').
     """
 
     external_key: str = ""
@@ -109,9 +109,9 @@ class ScopeMeta(type):
 
         There are two ways to instantiate:
         1. By providing external_key= and format for the external key determines the subclass
-        (e.g., 'lib^any-library' = ContentLibraryData).
+        (e.g., 'lib:DemoX:CSPROB' = ContentLibraryData).
         2. By providing namespaced_key= and the class is determined from the namespace prefix
-        in namespaced_key (e.g., 'lib@any-library' = ContentLibraryData).
+        in namespaced_key (e.g., 'lib^lib:DemoX:CSPROB' = ContentLibraryData).
 
         The namespaced key is usually used when getting objects from the policy store,
         while the external key is usually used when initializing from user input or API calls. For example,
@@ -138,7 +138,7 @@ class ScopeMeta(type):
         """Get the appropriate subclass based on the namespace in namespaced_key.
 
         Args:
-            namespaced_key: The namespaced key (e.g., 'lib^any-library').
+            namespaced_key: The namespaced key (e.g., 'lib^lib:DemoX:CSPROB').
 
         Returns:
             The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
@@ -152,13 +152,13 @@ class ScopeMeta(type):
         """Get the appropriate subclass based on the format of external_key.
 
         Args:
-            external_key: The external key (e.g., 'lib:any-library').
+            external_key: The external key (e.g., 'lib^lib:DemoX:CSPROB').
 
         Returns:
             The subclass of ScopeData corresponding to the namespace, or ScopeData if not found.
         """
         # Here we need to assume a couple of things:
-        # 1. The external_key is always in the format 'namespace...:other things'. E.g., 'lib:any-library',
+        # 1. The external_key is always in the format 'namespace...:other things'. E.g., 'lib:DemoX:CSPROB',
         # even 'course-v1:edX+DemoX+2021_T1'. This won't work for org scopes because they don't explicitly indicate
         # the namespace in the external key. TODO: We need to handle org scopes differently.
         # 2. The namespace is always the part before the first separator.
@@ -228,7 +228,7 @@ class ContentLibraryData(ScopeData):
     """A content library is a collection of content items.
 
     Attributes:
-        library_id: The content library identifier (e.g., 'library-v1:edX+DemoX+2021_T1').
+        library_id: The content library identifier (e.g., 'lib:DemoX:CSPROB').
         namespaced_key: Inherited from ScopeData, auto-generated from name if not provided.
 
     TODO: this class should live alongside library definitions and not here.
@@ -238,7 +238,7 @@ class ContentLibraryData(ScopeData):
 
     @property
     def library_id(self) -> str:
-        """The library identifier as used in Open edX (e.g., 'math_101', 'library-v1:edX+DemoX').
+        """The library identifier as used in Open edX (e.g., 'lib:DemoX:CSPROB').
 
         This is an alias for external_key that represents the library ID without the namespace prefix.
 
@@ -321,7 +321,7 @@ class SubjectData(AuthZData, metaclass=SubjectMeta):
     """A subject is an entity that can be assigned roles and permissions.
 
     Attributes:
-        namespaced_key: The subject identifier namespaced (e.g., 'sub@generic').
+        namespaced_key: The subject identifier namespaced (e.g., 'sub^generic').
     """
 
     NAMESPACE: ClassVar[str] = "sub"
@@ -335,7 +335,7 @@ class UserData(SubjectData):
         username: The username for the user (e.g., 'john_doe').
         namespaced_key: Inherited from SubjectData, auto-generated from username if not provided.
 
-    This class automatically adds the 'user@' namespace prefix to the subject ID.
+    This class automatically adds the 'user^' namespace prefix to the subject ID.
     Can be initialized with either external_key= or namespaced_key= parameter.
     """
 
@@ -366,7 +366,7 @@ class ActionData(AuthZData):
     """An action is an operation that can be performed in a specific scope.
 
     Attributes:
-        action: The action name. Automatically prefixed with 'act@' if not present.
+        action: The action name. Automatically prefixed with 'act^' if not present.
     """
 
     NAMESPACE: ClassVar[str] = "act"
@@ -417,7 +417,7 @@ class RoleData(AuthZData):
     """A role is a named group of permissions.
 
     Attributes:
-        name: The name of the role. Must have 'role@' namespace prefix.
+        name: The name of the role. Must have 'role^' namespace prefix.
         permissions: A list of permissions assigned to the role.
     """
 

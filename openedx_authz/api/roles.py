@@ -94,12 +94,12 @@ def get_permissions_for_active_roles_in_scope(
 
     Role Definition vs Role Assignment:
 
-    - Policy roles define potential permissions with namespace patterns (e.g., 'lib@*')
+    - Policy roles define potential permissions with namespace patterns (e.g., 'lib^*')
     - Actual permissions are granted only when roles are assigned to subjects with
-      concrete scopes (e.g., 'lib@123')
-    - The namespace pattern in the policy ('lib@*') indicates the role is designed
+      concrete scopes (e.g., 'lib^lib:DemoX:CSPROB')
+    - The namespace pattern in the policy ('lib^*') indicates the role is designed
       for resources in that namespace, but doesn't grant blanket access
-    - The specific scope at assignment time ('lib@123') determines the exact
+    - The specific scope at assignment time ('lib^lib:DemoX:CSPROB') determines the exact
       resource the permissions apply to
 
     Behavior:
@@ -140,7 +140,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     definitions vs assignments.
 
     Args:
-        scope: The scope to filter roles (e.g., 'lib@*' or '*' for global).
+        scope: The scope to filter roles (e.g., 'lib^*' or '*' for global).
 
     Returns:
         list[Role]: A list of roles.
@@ -185,7 +185,7 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     """Get all the available role grouping policies in a specific scope.
 
     Args:
-        scope: The scope to filter roles (e.g., 'lib@*' or '*' for global).
+        scope: The scope to filter roles (e.g., 'lib^*' or '*' for global).
 
     Returns:
         list[list[str]]: A list of policies in the specified scope.
@@ -260,7 +260,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         subject: The ID of the subject namespaced (e.g., 'subject^john_doe').
 
     Returns:
-        list[Role]: A list of role names and all their metadata assigned to the subject.
+        list[RoleAssignmentData]: A list of role assignments for the subject.
     """
     role_assignments = []
     for policy in enforcer.get_filtered_grouping_policy(
@@ -289,7 +289,7 @@ def get_subject_role_assignments_in_scope(
         scope: The scope to filter roles (e.g., 'library:123').
 
     Returns:
-        list[RoleAssignment]: A list of role assignments for the subject in the scope.
+        list[RoleAssignmentData]: A list of role assignments for the subject in the scope.
     """
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
@@ -322,7 +322,7 @@ def get_subject_role_assignments_for_role_in_scope(
         scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
 
     Returns:
-        list[RoleAssignment]: A list of subjects assigned to the specified role in the specified scope.
+        list[RoleAssignmentData]: A list of subjects assigned to the specified role in the specified scope.
     """
     role_assignments = []
     for subject in enforcer.get_users_for_role_in_domain(
@@ -357,7 +357,7 @@ def get_all_subject_role_assignments_in_scope(
         scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
 
     Returns:
-        list[RoleAssignment]: A list of role assignments for all subjects in the specified scope.
+        list[RoleAssignmentData]: A list of role assignments for all subjects in the specified scope.
     """
     role_assignments_per_subject = {}
     roles_in_scope = get_all_roles_in_scope(scope)

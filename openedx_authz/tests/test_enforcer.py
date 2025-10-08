@@ -26,8 +26,8 @@ class PolicyLoadingTestSetupMixin(TestCase):
         hardcoding values that might change as the policy file evolves.
 
         Args:
-            scope_pattern: Scope pattern to match (e.g., 'lib@*')
-            role: Role to match (e.g., 'role@library_admin')
+            scope_pattern: Scope pattern to match (e.g., 'lib^*')
+            role: Role to match (e.g., 'role^library_admin')
 
         Returns:
             int: Number of matching policies
@@ -82,7 +82,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         loads only relevant policies based on the current context.
 
         Args:
-            scope: The scope to load policies for (e.g., 'lib@*' for all libraries).
+            scope: The scope to load policies for (e.g., 'lib^*' for all libraries).
                   If None, loads all policies using load_policy().
         """
         if scope is None:

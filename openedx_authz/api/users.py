@@ -6,7 +6,7 @@ the Open edX AuthZ framework.
 
 These methods internally namespace user identifiers to ensure consistency
 with the role management system, which uses namespaced subjects
-(e.g., 'user@john_doe').
+(e.g., 'user^john_doe').
 """
 
 from openedx_authz.api.data import (

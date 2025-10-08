@@ -67,7 +67,7 @@ class RolesTestSetupMixin(TestCase):
 
         Args:
             assignments (list of dict): List of assignment dictionaries, each containing:
-                - subject (str): ID of the user namespaced (e.g., 'user:john_doe').
+                - subject (str): ID of the user namespaced (e.g., 'user^john_doe').
                 - role_id (str): Name of the role to assign.
                 - scope (str): Scope in which to assign the role.
         """

@@ -43,10 +43,10 @@ def make_library_key(key: str) -> str:
     """Create a namespaced library key.
 
     Args:
-        key: The library identifier (e.g., 'lib@any-org@any-library')
+        key: The library identifier (e.g., 'lib:DemoX:CSPROB')
 
     Returns:
-        str: Namespaced library key (e.g., 'lib^lib@any-org@any-library')
+        str: Namespaced library key (e.g., 'lib^lib:DemoX:CSPROB')
     """
     return f"{ContentLibraryData.NAMESPACE}{ContentLibraryData.SEPARATOR}{key}"
 

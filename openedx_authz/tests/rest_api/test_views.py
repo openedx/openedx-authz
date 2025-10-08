@@ -15,14 +15,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from openedx_authz import api
-from openedx_authz.api.data import (
-    ActionData,
-    PermissionData,
-    RoleAssignmentData,
-    RoleData,
-    ScopeData,
-    UserData,
-)
+from openedx_authz.api.data import ActionData, PermissionData, RoleAssignmentData, RoleData, ScopeData, UserData
 
 User = get_user_model()
 
@@ -329,7 +322,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         expected_errors: int,
         mock_assign_role_side_effect: list[bool],
         mock_assign_role,
-    ):
+    ):  # pylint: disable=too-many-positional-arguments
         """Test adding users to a role within a scope.
 
         Expected result:
@@ -430,7 +423,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         expected_errors: int,
         mock_unassign_role_side_effect: list[bool],
         mock_unassign_role,
-    ):
+    ):  # pylint: disable=too-many-positional-arguments
         """Test removing users from a role within a scope.
 
         Expected result:

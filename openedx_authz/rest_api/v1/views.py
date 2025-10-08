@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
+from openedx_authz.rest_api.enums import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_user_by_username_or_email,
@@ -159,8 +160,8 @@ class RoleUserAPIView(APIView):
     **Response Format (PUT/DELETE)**
         Returns HTTP 207 Multi-Status with:
         {
-            "completed": [{"user_identifier": "...", "status": "role_added|role_removed"}],
-            "errors": [{"user_identifier": "...", "error": "error_type"}]
+            "completed": [{"user_identifier": "john_doe", "status": "role_added|role_removed"}],
+            "errors": [{"user_identifier": "jane_doe", "error": "error_type"}]
         }
 
     **Authentication and Permissions**
@@ -230,18 +231,23 @@ class RoleUserAPIView(APIView):
 
         completed, errors = [], []
         for user_identifier in serializer.validated_data["users"]:
+            response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
                 result = api.assign_role_to_user_in_scope(user.username, role_name, scope)
-                if not result:
-                    errors.append({"user_identifier": user_identifier, "error": "user_already_has_role"})
-                    continue
-                completed.append({"user_identifier": user_identifier, "status": "role_added"})
+                if result:
+                    response_dict["status"] = RoleOperationStatus.ROLE_ADDED
+                    completed.append(response_dict)
+                else:
+                    response_dict["error"] = RoleOperationError.USER_ALREADY_HAS_ROLE
+                    errors.append(response_dict)
             except User.DoesNotExist:
-                errors.append({"user_identifier": user_identifier, "error": "user_not_found"})
+                response_dict["error"] = RoleOperationError.USER_NOT_FOUND
+                errors.append(response_dict)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error assigning role to user {user_identifier}: {e}")
-                errors.append({"user_identifier": user_identifier, "error": "role_assignment_failed"})
+                response_dict["error"] = RoleOperationError.ROLE_ASSIGNMENT_ERROR
+                errors.append(response_dict)
 
         response_data = {"completed": completed, "errors": errors}
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
@@ -271,18 +277,23 @@ class RoleUserAPIView(APIView):
 
         completed, errors = [], []
         for user_identifier in user_identifiers:
+            response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
                 result = api.unassign_role_from_user(user.username, role_name, scope)
-                if not result:
-                    errors.append({"user_identifier": user_identifier, "error": "user_does_not_have_role"})
-                    continue
-                completed.append({"user_identifier": user_identifier, "status": "role_removed"})
+                if result:
+                    response_dict["status"] = RoleOperationStatus.ROLE_REMOVED
+                    completed.append(response_dict)
+                else:
+                    response_dict["error"] = RoleOperationError.USER_DOES_NOT_HAVE_ROLE
+                    errors.append(response_dict)
             except User.DoesNotExist:
-                errors.append({"user_identifier": user_identifier, "error": "user_not_found"})
+                response_dict["error"] = RoleOperationError.USER_NOT_FOUND
+                errors.append(response_dict)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error removing role from user {user_identifier}: {e}")
-                errors.append({"user_identifier": user_identifier, "error": "removal_failed"})
+                response_dict["error"] = RoleOperationError.ROLE_REMOVAL_ERROR
+                errors.append(response_dict)
 
         response_data = {"completed": completed, "errors": errors}
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)

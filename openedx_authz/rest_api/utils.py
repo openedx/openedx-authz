@@ -31,6 +31,26 @@ def view_auth_classes(is_authenticated=True):
     return _decorator
 
 
+def get_user_map(usernames: list[str]) -> dict[str, User]:
+    """
+    Retrieve a dictionary mapping usernames to User objects for efficient batch lookups.
+
+    This function performs a single optimized database query to fetch multiple users,
+    making it ideal for scenarios where we need to look up several users at once
+    (e.g., when serializing multiple user role assignments).
+
+    Args:
+        usernames (list[str]): List of usernames to retrieve. Duplicates are automatically
+            handled by the database query.
+
+    Returns:
+        dict[str, User]: Dictionary mapping each username to its corresponding User object.
+            Only users that exist in the database are included in the returned dictionary.
+    """
+    users = User.objects.filter(username__in=usernames).select_related("profile")
+    return {user.username: user for user in users}
+
+
 def get_user_by_username_or_email(username_or_email: str) -> User:
     """
     Retrieve a user by their username or email address.

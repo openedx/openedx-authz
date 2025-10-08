@@ -39,9 +39,9 @@ class UserAssignmentsSetupMixin(RolesTestSetupMixin):
 
         Args:
             assignments (list of dict): List of assignment dictionaries, each containing:
-                - subject (str): ID of the user namespaced (e.g., 'user^john_doe').
-                - role_id (str): Name of the role to assign.
-                - scope (str): Scope in which to assign the role.
+                - subject_name (str): External key of the user (e.g., 'john_doe').
+                - role_name (str): External key of the role to assign (e.g., 'library_admin').
+                - scope_name (str): External key of the scope in which to assign the role (e.g., 'lib:Org1:math_101').
         """
         if assignments:
             for assignment in assignments:

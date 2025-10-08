@@ -67,9 +67,9 @@ class RolesTestSetupMixin(TestCase):
 
         Args:
             assignments (list of dict): List of assignment dictionaries, each containing:
-                - subject (str): ID of the user namespaced (e.g., 'user^john_doe').
-                - role_id (str): Name of the role to assign.
-                - scope (str): Scope in which to assign the role.
+                - subject_name (str): External key of the subject (e.g., 'john_doe').
+                - role_name (str): External key of the role to assign (e.g., 'library_admin').
+                - scope_name (str): External key of the scope in which to assign the role (e.g., 'lib:Org1:math_101').
         """
         if assignments:
             for assignment in assignments:
@@ -108,7 +108,7 @@ class RolesTestSetupMixin(TestCase):
                 "role_name": "library_user",
                 "scope_name": "lib:Org1:english_101",
             },
-            # Multi-role assignments - same user with different roles in different libraries
+            # Multi-role assignments - same subject with different roles in different libraries
             {
                 "subject_name": "eve",
                 "role_name": "library_admin",
@@ -124,7 +124,7 @@ class RolesTestSetupMixin(TestCase):
                 "role_name": "library_user",
                 "scope_name": "lib:Org2:biology_601",
             },
-            # Multiple users with same role in same namespaced_key
+            # Multiple subjects with same role in same scope
             {
                 "subject_name": "grace",
                 "role_name": "library_collaborator",
@@ -135,7 +135,7 @@ class RolesTestSetupMixin(TestCase):
                 "role_name": "library_collaborator",
                 "scope_name": "lib:Org1:math_advanced",
             },
-            # Hierarchical namespaced_key assignments - different specificity levels
+            # Hierarchical scope assignments - different specificity levels
             {
                 "subject_name": "ivy",
                 "role_name": "library_admin",
@@ -515,14 +515,14 @@ class TestRolesAPI(RolesTestSetupMixin):
     )
     @unpack
     def test_get_roles_in_scope(self, scope_name, expected_roles):
-        """Test retrieving roles definitions in a specific scope_name.
+        """Test retrieving roles definitions in a specific scope.
 
         Currently, this function returns all roles defined in the system because
-        we're using only lib:* scope_name. This should be updated when we have more
-        (template) scopes in the policy file.
+        we're using only lib:* scope (which maps to lib^* internally). This should
+        be updated when we have more (template) scopes in the policy file.
 
         Expected result:
-            - Roles in the given scope_name are correctly retrieved.
+            - Roles in the given scope are correctly retrieved.
         """
         # TODO: cheat and use ContentLibraryData until we have more scope types
         roles_in_scope = get_role_definitions_in_scope(
@@ -562,10 +562,10 @@ class TestRolesAPI(RolesTestSetupMixin):
     def test_get_subject_role_assignments_in_scope(
         self, subject_name, scope_name, expected_roles
     ):
-        """Test retrieving roles assigned to a subject in a specific namespaced_key.
+        """Test retrieving roles assigned to a subject in a specific scope.
 
         Expected result:
-            - Roles assigned to the user in the given namespaced_key are correctly retrieved.
+            - Roles assigned to the subject in the given scope are correctly retrieved.
         """
         role_assignments = get_subject_role_assignments_in_scope(
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
@@ -898,10 +898,10 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     def test_unassign_role_from_subject_in_scope(
         self, subject_names, role, scope_name, batch
     ):
-        """Test unassigning a role from a subject or multiple subjects in a specific scope_name.
+        """Test unassigning a role from a subject or multiple subjects in a specific scope.
 
         Expected result:
-            - Role is successfully unassigned from the subject in the specified scope_name.
+            - Role is successfully unassigned from the subject in the specified scope.
             - Subject no longer has permissions associated with the unassigned role.
             - The subject cannot perform actions that were allowed by the role.
         """

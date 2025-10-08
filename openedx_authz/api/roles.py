@@ -257,7 +257,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     """Get all the roles for a subject across all scopes.
 
     Args:
-        subject: The ID of the subject namespaced (e.g., 'subject^john_doe').
+        subject: The SubjectData object representing the subject (e.g., SubjectData(external_key='john_doe')).
 
     Returns:
         list[RoleAssignmentData]: A list of role assignments for the subject.
@@ -285,8 +285,8 @@ def get_subject_role_assignments_in_scope(
     """Get the roles for a subject in a specific scope.
 
     Args:
-        subject: The ID of the subject namespaced (e.g., 'subject^john_doe').
-        scope: The scope to filter roles (e.g., 'library:123').
+        subject: The SubjectData object representing the subject (e.g., SubjectData(external_key='john_doe')).
+        scope: The ScopeData object representing the scope (e.g., ScopeData(external_key='lib:DemoX:CSPROB')).
 
     Returns:
         list[RoleAssignmentData]: A list of role assignments for the subject in the scope.
@@ -318,8 +318,8 @@ def get_subject_role_assignments_for_role_in_scope(
     """Get the subjects assigned to a specific role in a specific scope.
 
     Args:
-        role: The role data.
-        scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
+        role: The RoleData object representing the role (e.g., RoleData(external_key='library_admin')).
+        scope: The ScopeData object representing the scope (e.g., ScopeData(external_key='lib:DemoX:CSPROB')).
 
     Returns:
         list[RoleAssignmentData]: A list of subjects assigned to the specified role in the specified scope.
@@ -354,7 +354,7 @@ def get_all_subject_role_assignments_in_scope(
     """Get all the subjects assigned to any role in a specific scope.
 
     Args:
-        scope: The scope to filter subjects (e.g., 'library:123' or '*' for global).
+        scope: The ScopeData object representing the scope (e.g., ScopeData(external_key='lib:DemoX:CSPROB')).
 
     Returns:
         list[RoleAssignmentData]: A list of role assignments for all subjects in the specified scope.

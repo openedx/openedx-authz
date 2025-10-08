@@ -42,13 +42,13 @@ class PermissionValidationResponseSerializer(PermissionValidationSerializer):  #
 class AddUserToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for adding a user to a role with a scope."""
 
-    users = serializers.ListField(child=serializers.CharField(max_length=255))
+    users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
 
 class RemoveUserFromRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for removing a user from a role with a scope."""
 
-    users = CommaSeparatedListField()
+    users = CommaSeparatedListField(allow_blank=False)
 
 
 class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method

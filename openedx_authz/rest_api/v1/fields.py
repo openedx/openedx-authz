@@ -3,7 +3,7 @@
 from rest_framework import serializers
 
 
-class CommaSeparatedListField(serializers.Field):
+class CommaSeparatedListField(serializers.CharField):
     """Serializer for a comma-separated list of strings."""
 
     def to_internal_value(self, data):

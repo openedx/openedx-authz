@@ -3,7 +3,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from openedx_authz.api.data import RoleAssignmentData
+from openedx_authz import api
 from openedx_authz.rest_api.enums import SortField, SortOrder
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
@@ -38,13 +38,48 @@ class PermissionValidationResponseSerializer(PermissionValidationSerializer):  #
     allowed = serializers.BooleanField()
 
 
-class AddUsersToRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
+class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstract-method
+    """Mixin providing role and scope validation logic."""
+
+    def validate(self, attrs):
+        """Validate that role exists in scope."""
+        validated_data = super().validate(attrs)
+        scope_value = validated_data["scope"]
+        role_value = validated_data["role"]
+
+        try:
+            scope = api.ScopeData(external_key=scope_value)
+        except ValueError as exc:
+            raise serializers.ValidationError(exc) from exc
+
+        if not scope.exists():
+            raise serializers.ValidationError(f"Scope '{scope_value}' does not exist")
+
+        role = api.RoleData(external_key=role_value)
+        general_scope = api.ScopeData(namespaced_key=f"{scope.NAMESPACE}{scope.SEPARATOR}*")
+        role_definitions = api.get_role_definitions_in_scope(general_scope)
+
+        if role not in role_definitions:
+            raise serializers.ValidationError(f"Role '{role_value}' does not exist in scope '{scope_value}'")
+
+        return validated_data
+
+
+class AddUsersToRoleWithScopeSerializer(
+    RoleScopeValidationMixin,
+    RoleMixin,
+    ScopeMixin,
+):  # pylint: disable=abstract-method
     """Serializer for adding users to a role with a scope."""
 
     users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
 
-class RemoveUsersFromRoleWithScopeSerializer(RoleMixin, ScopeMixin):  # pylint: disable=abstract-method
+class RemoveUsersFromRoleWithScopeSerializer(
+    RoleScopeValidationMixin,
+    RoleMixin,
+    ScopeMixin,
+):  # pylint: disable=abstract-method
     """Serializer for removing users from a role with a scope."""
 
     users = CommaSeparatedListField(allow_blank=False)
@@ -100,7 +135,7 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         user_map = self.context.get("user_map", {})
         return user_map.get(obj.subject.username)
 
-    def get_username(self, obj: RoleAssignmentData) -> str:
+    def get_username(self, obj: api.RoleAssignmentData) -> str:
         """Get the username for the given role assignment."""
         return obj.subject.username
 
@@ -114,6 +149,6 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         user = self._get_user(obj)
         return getattr(user, "email", "") if user else ""
 
-    def get_roles(self, obj: RoleAssignmentData) -> list[str]:
+    def get_roles(self, obj: api.RoleAssignmentData) -> list[str]:
         """Get the roles for the given role assignment."""
         return [role.external_key for role in obj.roles]

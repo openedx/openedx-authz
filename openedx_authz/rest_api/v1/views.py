@@ -225,7 +225,6 @@ class RoleUserAPIView(APIView):
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # TODO: Should we validate that the role or scope exists?
         role_name = serializer.validated_data["role"]
         scope = serializer.validated_data["scope"]
 

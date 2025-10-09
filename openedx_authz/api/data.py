@@ -1,12 +1,18 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
 import re
+from abc import abstractmethod
 from enum import Enum
 from typing import ClassVar, Literal, Type
 
 from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
+
+try:
+    from openedx.core.djangoapps.content_libraries.models import ContentLibrary
+except ImportError:
+    ContentLibrary = None
 
 __all__ = [
     "UserData",
@@ -302,6 +308,15 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         """
         return True
 
+    @abstractmethod
+    def exists(self) -> bool:
+        """Check if the scope exists.
+
+        Returns:
+            bool: True if the scope exists, False otherwise.
+        """
+        raise NotImplementedError("Subclasses must implement exists method.")
+
 
 @define
 class ContentLibraryData(ScopeData):
@@ -356,6 +371,19 @@ class ContentLibraryData(ScopeData):
         except InvalidKeyError:
             return False
 
+    def exists(self) -> bool:
+        """Check if the content library exists.
+
+        Returns:
+            bool: True if the content library exists, False otherwise.
+        """
+        try:
+            library_key = LibraryLocatorV2.from_string(self.library_id)
+            ContentLibrary.objects.get_by_key(library_key=library_key)
+            return True
+        except ContentLibrary.DoesNotExist:
+            return False
+
     def __str__(self):
         """Human readable string representation of the content library."""
         return self.library_id
@@ -363,6 +391,32 @@ class ContentLibraryData(ScopeData):
     def __repr__(self):
         """Developer friendly string representation of the content library."""
         return self.namespaced_key
+
+
+class CourseData(ScopeData):
+    """A course scope for authorization in the Open edX platform.
+
+    This class represents a course scope for authorization in the Open edX platform.
+    """
+
+    NAMESPACE: ClassVar[str] = "course-v1"
+
+    @classmethod
+    def validate_external_key(cls, _: str) -> bool:
+        """Validate the external_key format for CourseData.
+
+        Args:
+            external_key: The external key to validate.
+        """
+        return True
+
+    def exists(self) -> bool:
+        """Check if the course exists.
+
+        Returns:
+            bool: True if the course exists, False otherwise.
+        """
+        return True
 
 
 class SubjectMeta(type):
@@ -581,7 +635,7 @@ class PermissionData:
         return f"{self.action.namespaced_key} => {self.effect}"
 
 
-@define
+@define(eq=False)
 class RoleData(AuthZData):
     """A role is a named collection of permissions that can be assigned to subjects.
 
@@ -609,6 +663,12 @@ class RoleData(AuthZData):
 
     NAMESPACE: ClassVar[str] = "role"
     permissions: list[PermissionData] = []
+
+    def __eq__(self, other):
+        """Compare roles based on their namespaced_key."""
+        if not isinstance(other, RoleData):
+            return False
+        return self.namespaced_key == other.namespaced_key
 
     @property
     def name(self) -> str:

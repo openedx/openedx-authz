@@ -374,8 +374,10 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     """Tests for wildcard scope authorization patterns.
 
     Verifies that users with roles assigned to wildcard scopes (like "*" for global access
-    or "org@*" for organization-wide access) can properly access resources within their
+    or "org^*" for organization-wide access) can properly access resources within their
     authorized scope boundaries.
+
+    TODO: this needs to be updated with the latest changes in the model.
     """
 
     POLICY = [

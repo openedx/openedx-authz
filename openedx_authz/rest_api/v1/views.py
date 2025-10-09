@@ -27,8 +27,8 @@ from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import HasLibraryPermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
+    ListRolesWithNamespaceSerializer,
     ListRolesWithScopeResponseSerializer,
-    ListRolesWithScopeSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
@@ -300,17 +300,17 @@ class RoleUserAPIView(APIView):
 
 @view_auth_classes()
 class RoleListView(APIView):
-    """API view for retrieving role definitions and their associated permissions.
+    """API view for retrieving role definitions and their associated permissions within a specific namespace.
 
     This view provides read-only access to role definitions within a specific
-    authorization scope. It returns detailed information about each role including
+    authorization namespace. It returns detailed information about each role including
     the permissions granted and the number of users assigned to each role.
 
     **Endpoints**
-        GET: Retrieve all roles and their permissions for a specific scope
+        GET: Retrieve all roles and their permissions for a specific namespace
 
     **Query Parameters**
-        - scope (Required): The authorization scope to query roles for (e.g., 'lib^*')
+        - namespace (Required): The namespace to query roles for (e.g., 'lib')
         - page (Optional): Page number for pagination
         - page_size (Optional): Number of items per page
 
@@ -324,7 +324,7 @@ class RoleListView(APIView):
         Requires authenticated user.
 
     **Example Request**
-        GET /api/authz/v1/roles/?scope=lib^*&page=1&page_size=10
+        GET /api/authz/v1/roles/?namespace=lib&page=1&page_size=10
 
     **Example Response**
         {
@@ -350,7 +350,7 @@ class RoleListView(APIView):
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
+            apidocs.query_parameter("namespace", str, description="The namespace to query roles for"),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
             apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
@@ -361,13 +361,11 @@ class RoleListView(APIView):
         },
     )
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all roles and their permissions for a specific scope."""
-        serializer = ListRolesWithScopeSerializer(data=request.query_params)
+        """Retrieve all roles and their permissions for a specific namespace."""
+        serializer = ListRolesWithNamespaceSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        scope = api.ContentLibraryData(external_key=serializer.validated_data["scope"])
-        roles = api.get_role_definitions_in_scope(scope)
-
+        roles = api.get_role_definitions_in_scope(serializer.validated_data["namespace"])
         response_data = []
         for role in roles:
             users = api.get_users_for_role(role.external_key)

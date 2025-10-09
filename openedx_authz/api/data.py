@@ -257,6 +257,20 @@ class ScopeMeta(type):
         return scope_subclass
 
     @classmethod
+    def get_all_namespaces(mcs) -> dict[str, Type["ScopeData"]]:
+        """Get all registered scope namespaces.
+
+        Returns:
+            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes registered in the scope registry.
+                Each namespace corresponds to a ScopeData subclass (e.g., 'lib', 'sc').
+
+        Examples:
+            >>> ScopeMeta.get_all_namespaces()
+            {'sc': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
+        """
+        return mcs.scope_registry
+
+    @classmethod
     def validate_external_key(mcs, external_key: str) -> bool:
         """Validate the external_key format for the subclass.
 

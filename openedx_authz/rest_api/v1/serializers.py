@@ -98,8 +98,36 @@ class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstrac
     search = LowercaseCharField(required=False, default=None)
 
 
-class ListRolesWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method
-    """Serializer for listing roles with a scope."""
+class ListRolesWithNamespaceSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for listing roles within a namespace."""
+
+    namespace = serializers.CharField(max_length=255)
+
+    def validate_namespace(self, value: str) -> api.ScopeData:
+        """Validate and convert namespace string to a ScopeData instance.
+
+        Checks that the provided namespace is registered in the scope registry and
+        returns an instance of the appropriate ScopeData subclass with a wildcard
+        external_key to represent all scopes within that namespace.
+
+        Args:
+            value: The namespace string to validate (e.g., 'lib', 'sc', 'org').
+
+        Returns:
+            ScopeData: An instance of the appropriate ScopeData subclass for the
+                namespace, initialized with external_key="*".
+
+        Raises:
+            serializers.ValidationError: If the namespace is not registered in the scope registry.
+
+        Examples:
+            >>> validate_namespace('lib')
+            ContentLibraryData(external_key='*')
+        """
+        namespaces = api.ScopeData.get_all_namespaces()
+        if value not in namespaces:
+            raise serializers.ValidationError(f"'{value}' is not a valid namespace")
+        return namespaces[value](external_key="*")
 
 
 class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method

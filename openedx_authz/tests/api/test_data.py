@@ -327,6 +327,24 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(scope.external_key, "sc:generic_scope")
         self.assertEqual(scope.namespaced_key, expected_namespaced)
 
+    def test_empty_namespaced_key_raises_value_error(self):
+        """Test that providing an empty namespaced_key raises ValueError.
+
+        Expected Result:
+            - ValueError is raised
+        """
+        with self.assertRaises(ValueError):
+            ScopeData(namespaced_key="")
+
+    def test_empty_external_key_raises_value_error(self):
+        """Test that providing an empty external_key raises ValueError.
+
+        Expected Result:
+            - ValueError is raised
+        """
+        with self.assertRaises(ValueError):
+            SubjectData(external_key="")
+
 
 @ddt
 class TestDataRepresentation(TestCase):

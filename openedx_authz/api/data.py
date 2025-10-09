@@ -393,32 +393,6 @@ class ContentLibraryData(ScopeData):
         return self.namespaced_key
 
 
-class CourseData(ScopeData):
-    """A course scope for authorization in the Open edX platform.
-
-    This class represents a course scope for authorization in the Open edX platform.
-    """
-
-    NAMESPACE: ClassVar[str] = "course-v1"
-
-    @classmethod
-    def validate_external_key(cls, _: str) -> bool:
-        """Validate the external_key format for CourseData.
-
-        Args:
-            external_key: The external key to validate.
-        """
-        return True
-
-    def exists(self) -> bool:
-        """Check if the course exists.
-
-        Returns:
-            bool: True if the course exists, False otherwise.
-        """
-        return True
-
-
 class SubjectMeta(type):
     """Metaclass for SubjectData to handle dynamic subclass instantiation based on namespace."""
 

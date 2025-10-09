@@ -269,7 +269,8 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     """A scope is a context in which roles and permissions are assigned.
 
     This is the base class for scope types. Specific scope types (like ContentLibraryData)
-    are subclasses with their own namespace prefixes.
+    are subclasses with their own namespace prefixes. This class is supposed to be generic
+    and not tied to any specific scope type, holding attributes common to all scopes.
 
     Attributes:
         NAMESPACE: 'sc' for generic scopes.

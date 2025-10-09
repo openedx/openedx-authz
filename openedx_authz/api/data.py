@@ -1,5 +1,6 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
+import re
 from enum import Enum
 from typing import ClassVar, Literal, Type
 
@@ -21,6 +22,7 @@ __all__ = [
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 EXTERNAL_KEY_SEPARATOR = ":"
+NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
 
 
 class GroupingPolicyIndex(Enum):
@@ -113,17 +115,17 @@ class AuthZData(AuthzBaseClass):
             # No namespace defined, nothing to do
             return
 
-        # Case 1: Initialized with external_key only, derive namespaced_key
-        if self.external_key and not self.namespaced_key:
-            self.namespaced_key = f"{self.NAMESPACE}{self.SEPARATOR}{self.external_key}"
-
-        # Case 2: Initialized with namespaced_key only, derive external_key
-        if not self.external_key and self.namespaced_key:
-            self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
-
-        # Case 3: Neither provided, raise error
         if not self.external_key and not self.namespaced_key:
             raise ValueError("Either external_key or namespaced_key must be provided.")
+
+        # Case 1: Initialized with external_key only, derive namespaced_key
+        if not self.namespaced_key:
+            self.namespaced_key = f"{self.NAMESPACE}{self.SEPARATOR}{self.external_key}"
+
+        # Case 2: Initialized with namespaced_key only, derive external_key. Assume valid format for
+        # namespaced_key at this point.
+        if not self.external_key:
+            self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
 
 
 class ScopeMeta(type):
@@ -198,6 +200,9 @@ class ScopeMeta(type):
             <class 'ScopeData'>
         """
         # TODO: Default separator, can't access directly from class so made it a constant
+        if not re.match(NAMESPACED_KEY_PATTERN, namespaced_key):
+            raise ValueError(f"Invalid namespaced_key format: {namespaced_key}")
+
         namespace = namespaced_key.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[0]
         return mcs.scope_registry.get(namespace, ScopeData)
 

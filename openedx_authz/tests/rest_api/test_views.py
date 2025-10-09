@@ -275,13 +275,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     )
     @unpack
     @patch.object(api, "is_user_allowed")
-    def test_get_users_in_role_permissions(
-        self,
-        username: str,
-        status_code: int,
-        return_value: bool,
-        mock_is_allowed,
-    ):
+    def test_get_users_in_role_permissions(self, username: str, status_code: int, return_value: bool, mock_is_allowed):
         """Test retrieving users in a role with different user permissions.
 
         Expected result:
@@ -318,7 +312,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     )
     @unpack
     @patch.object(api, "assign_role_to_user_in_scope")
-    def test_put_add_users_to_role(
+    def test_add_users_to_role(
         self,
         users: list[str],
         expected_completed: int,
@@ -353,7 +347,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         {"role": "", "scope": "lib:DemoX:CSPROB", "users": ["admin_user"]},
         {"role": "library_admin", "scope": "", "users": ["admin_user"]},
     )
-    def test_put_add_users_to_role_invalid_data(self, request_data: dict):
+    def test_add_users_to_role_invalid_data(self, request_data: dict):
         """Test adding users with invalid request data.
 
         Expected result:
@@ -375,13 +369,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     )
     @unpack
     @patch.object(api, "is_user_allowed")
-    def test_put_add_users_to_role_permissions(
-        self,
-        username: str,
-        status_code: int,
-        return_value: bool,
-        mock_is_allowed,
-    ):
+    def test_add_users_to_role_permissions(self, username: str, status_code: int, return_value: bool, mock_is_allowed):
         """Test adding users to role with different permission scenarios.
 
         Expected result:
@@ -419,7 +407,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     )
     @unpack
     @patch.object(api, "unassign_role_from_user")
-    def test_delete_remove_users_from_role(
+    def test_remove_users_from_role(
         self,
         users: list[str],
         expected_completed: int,
@@ -458,7 +446,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         {"role": "", "scope": "lib:DemoX:CSPROB", "users": "admin_user"},
         {"role": "library_admin", "scope": "", "users": "admin_user"},
     )
-    def test_delete_remove_users_from_role_invalid_params(self, query_params: dict):
+    def test_remove_users_from_role_invalid_params(self, query_params: dict):
         """Test removing users with invalid query parameters.
 
         Expected result:
@@ -480,12 +468,8 @@ class TestRoleUserAPIView(ViewTestMixin):
     )
     @unpack
     @patch.object(api, "is_user_allowed")
-    def test_delete_remove_users_from_role_permissions(
-        self,
-        username: str,
-        status_code: int,
-        return_value: bool,
-        mock_is_allowed,
+    def test_remove_users_from_role_permissions(
+        self, username: str, status_code: int, return_value: bool, mock_is_allowed
     ):
         """Test removing users from role with different permission scenarios.
 

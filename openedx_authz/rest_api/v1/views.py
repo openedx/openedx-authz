@@ -24,7 +24,7 @@ from openedx_authz.rest_api.utils import (
     view_auth_classes,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import HasScopedPermission
+from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListRolesWithNamespaceSerializer,
@@ -175,7 +175,7 @@ class RoleUserAPIView(APIView):
     """
 
     pagination_class = AuthZAPIViewPagination
-    permission_classes = [HasScopedPermission]
+    permission_classes = [DynamicScopePermission]
 
     @apidocs.schema(
         parameters=[

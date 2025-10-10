@@ -33,3 +33,11 @@ Added
 * ADRs for key design decisions.
 * Casbin model (CONF) and engine layer for authorization.
 * Implementation of public API for roles and permissions management.
+
+0.3.0 - 2025-10-10
+******************
+
+Added
+=====
+
+* Implementation of REST API for roles and permissions management.

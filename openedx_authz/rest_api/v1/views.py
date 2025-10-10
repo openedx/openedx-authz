@@ -11,6 +11,7 @@ import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from rest_framework import status
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -382,7 +383,7 @@ class RoleListView(APIView):
     """
 
     pagination_class = AuthZAPIViewPagination
-    permission_classes = [DynamicScopePermission]
+    permission_classes = [IsAdminUser]
 
     @apidocs.schema(
         parameters=[

@@ -4,6 +4,8 @@ openedx_authz Django application initialization.
 
 from django.apps import AppConfig
 
+from openedx_authz.engine.enforcer import AuthzEnforcer
+
 
 class OpenedxAuthzConfig(AppConfig):
     """
@@ -42,6 +44,5 @@ class OpenedxAuthzConfig(AppConfig):
 
     def ready(self):
         """Initialization layer for the openedx_authz app."""
-        from openedx_authz.engine.enforcer import AuthzEnforcer
         # Initialize the enforcer to ensure it's ready when the app starts
         AuthzEnforcer()

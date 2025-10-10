@@ -89,8 +89,8 @@ class PermissionValidationMeView(APIView):
     .. code-block:: json
 
         [
-            {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": True},
-            {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2", "allowed": False}
+            {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": true},
+            {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2", "allowed": false}
         ]
     """
 
@@ -184,8 +184,8 @@ class RoleUserAPIView(APIView):
     .. code-block:: json
 
         {
-            "completed": [{"user_identifier": "john_doe", "status": "role_added|role_removed"}],
-            "errors": [{"user_identifier": "jane_doe", "error": "error_type"}]
+            "completed": [{"user_identifier": "john_doe", "status": "role_added"}],
+            "errors": [{"user_identifier": "jane_doe", "error": "user_already_has_role"}]
         }
 
     **Authentication and Permissions**

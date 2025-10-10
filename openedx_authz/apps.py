@@ -39,3 +39,9 @@ class OpenedxAuthzConfig(AppConfig):
             },
         },
     }
+
+    def ready(self):
+        """Initialization layer for the openedx_authz app."""
+        from openedx_authz.engine.enforcer import AuthzEnforcer
+        # Initialize the enforcer to ensure it's ready when the app starts
+        AuthzEnforcer()

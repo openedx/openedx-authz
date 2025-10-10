@@ -49,12 +49,10 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     in the REST API. It extracts scope information from requests and provides hooks for
     permission validation. Subclasses should override the permission methods to implement
     specific authorization logic for their scope types.
-
-    Attributes:
-        NAMESPACE: The namespace identifier for this permission class (default: 'sc' for generic scopes).
     """
 
     NAMESPACE = "sc"
+    """The namespace identifier for this permission class (default: 'sc' for generic scopes)."""
 
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
@@ -124,15 +122,13 @@ class ContentLibraryPermission(BaseScopePermission):
     It uses the authz API to verify whether a user has the necessary permissions
     to perform actions on library team members.
 
-    Attributes:
-        NAMESPACE: 'lib' for content library scopes.
-
     Permission Rules:
         - POST/PUT/PATCH/DELETE requests require ``manage_library_team`` permission.
         - GET requests require ``view_library_team`` permission.
     """
 
     NAMESPACE = "lib"
+    """'lib' for content library scopes."""
 
     def has_permission(self, request, view) -> bool:
         """Check if the user has permission to perform the requested action.
@@ -162,9 +158,6 @@ class DynamicScopePermission(BaseScopePermission):
     permission class based on the request's scope namespace. It also provides special handling
     for superusers and staff members.
 
-    Attributes:
-        NAMESPACE: None (this is a dispatcher, not tied to a specific namespace).
-
     Permission Flow:
         1. Check if user is superuser or staff (automatic approval).
         2. Extract the scope namespace from the request.
@@ -185,6 +178,7 @@ class DynamicScopePermission(BaseScopePermission):
     """
 
     NAMESPACE = None
+    """None (this is a dispatcher, not tied to a specific namespace)."""
 
     def _get_permission_instance(self, request) -> BaseScopePermission:
         """Instantiate the permission class for the request scope.

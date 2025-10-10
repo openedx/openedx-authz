@@ -74,6 +74,10 @@ class AddUsersToRoleWithScopeSerializer(
 
     users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
+    def validate_users(self, value) -> list[str]:
+        """Eliminate duplicates preserving order"""
+        return list(dict.fromkeys(value))
+
 
 class RemoveUsersFromRoleWithScopeSerializer(
     RoleScopeValidationMixin,

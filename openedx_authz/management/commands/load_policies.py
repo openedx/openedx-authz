@@ -11,10 +11,10 @@ import os
 import casbin
 from django.core.management.base import BaseCommand
 
+from casbin_adapter.models import CasbinRule
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
-
 
 class Command(BaseCommand):
     """Django management command to load policies into the authorization Django model.
@@ -49,6 +49,11 @@ class Command(BaseCommand):
             default=None,
             help="Path to the Casbin model configuration file",
         )
+        parser.add_argument(
+            "--clear-existing",
+            action="store_true",
+            help="Flag to clear existing policies before loading new ones",
+        )
 
     def handle(self, *args, **options):
         """Execute the policy loading command.
@@ -72,6 +77,9 @@ class Command(BaseCommand):
             model_file_path = os.path.join(
                 ROOT_DIRECTORY, "engine", "config", "model.conf"
             )
+
+        if options.get("clear_existing"):
+            CasbinRule.objects.all().delete()
 
         source_enforcer = casbin.Enforcer(model_file_path, policy_file_path)
         self.migrate_policies(source_enforcer, global_enforcer)

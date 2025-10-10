@@ -10,7 +10,7 @@ Components:
     - Watcher: Redis-based watcher for real-time policy updates
 
 Usage:
-    from openedx_authz.engine.enforcer import enforcer
+    from openedx_authz.engine.enforcer import AuthzEnforcer
     allowed = enforcer.enforce(user, resource, action)
 
 Requires `CASBIN_MODEL` setting and Redis configuration for watcher functionality.
@@ -33,17 +33,33 @@ class AuthzEnforcer:
 
     Ensures a single enforcer instance is created safely and configured with the
     ExtendedAdapter and Redis watcher for policy management and synchronization.
+
+    Usage:
+        enforcer = AuthzEnforcer.get_enforcer()
+        allowed = enforcer.enforce(user, resource, action)
     """
 
-    enforcer = None
+    _enforcer = None
 
     def __new__(cls):
         """Singleton pattern to ensure a single enforcer instance."""
-        if cls.enforcer is None:
-            cls.enforcer = cls.initialize_enforcer()
-        return cls.enforcer
+        if cls._enforcer is None:
+            cls._enforcer = cls._initialize_enforcer()
+        return cls._enforcer
 
-    def initialize_enforcer(self) -> FastEnforcer:
+    @classmethod
+    def get_enforcer(cls) -> FastEnforcer:
+        """Get the enforcer instance, creating it if needed.
+
+        Returns:
+            FastEnforcer: The singleton enforcer instance.
+        """
+        if cls._enforcer is None:
+            cls._enforcer = cls._initialize_enforcer()
+        return cls._enforcer
+
+    @staticmethod
+    def _initialize_enforcer() -> FastEnforcer:
         """
         Create and configure the Casbin FastEnforcer instance.
 

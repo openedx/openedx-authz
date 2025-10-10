@@ -21,7 +21,6 @@ import logging
 from casbin import FastEnforcer
 from django.conf import settings
 
-from openedx_authz.engine import adapter
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.watcher import Watcher
 

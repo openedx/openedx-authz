@@ -1,4 +1,4 @@
-"""Enums for the Open edX AuthZ REST API."""
+"""Data classes and enums for the Open edX AuthZ REST API."""
 
 from enum import Enum
 

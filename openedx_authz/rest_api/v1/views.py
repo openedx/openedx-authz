@@ -51,30 +51,43 @@ class PermissionValidationMeView(APIView):
     validation of multiple permissions in a single request.
 
     **Endpoints**
-        POST: Validate one or more permissions for the authenticated user
+
+    POST: Validate one or more permissions for the authenticated user
 
     **Request Format**
-        Expects a list of permission objects, each containing:
-        - action: The action to validate (e.g., 'edit_library', 'delete_library_content')
-        - scope: The authorization scope (e.g., 'lib:DemoX:CSPROB')
+
+    Expects a list of permission objects, each containing:
+
+    - action: The action to validate (e.g., 'edit_library', 'delete_library_content')
+    - scope: The authorization scope (e.g., 'lib:DemoX:CSPROB')
 
     **Response Format**
-        Returns a list of validation results, each containing:
-        - action: The requested action
-        - scope: The requested scope
-        - allowed: Boolean indicating if the user has the permission
+
+    Returns a list of validation results, each containing:
+
+    - action: The requested action
+    - scope: The requested scope
+    - allowed: Boolean indicating if the user has the permission
 
     **Authentication and Permissions**
-        Requires authenticated user.
+
+    Requires authenticated user.
 
     **Example Request**
-        POST /api/authz/v1/permissions/validate/me
+
+    POST /api/authz/v1/permissions/validate/me
+
+    .. code-block:: json
+
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB"},
             {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2"}
         ]
 
     **Example Response**
+
+    .. code-block:: json
+
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": True},
             {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2", "allowed": False}
@@ -131,20 +144,25 @@ class RoleUserAPIView(APIView):
     sorting, and pagination of results.
 
     **Endpoints**
-        GET: Retrieve all users with their role assignments in a scope
-        PUT: Assign multiple users to a specific role within a scope
-        DELETE: Remove multiple users from a specific role within a scope
+
+    - GET: Retrieve all users with their role assignments in a scope
+    - PUT: Assign multiple users to a specific role within a scope
+    - DELETE: Remove multiple users from a specific role within a scope
 
     **Query Parameters (GET)**
-        - scope (Required): The authorization scope to query (e.g., 'lib:DemoX:CSPROB')
-        - search (Optional): Search term to filter users by username or email
-        - roles (Optional): Filter by specific role names
-        - page (Optional): Page number for pagination
-        - page_size (Optional): Number of items per page
-        - sort_by (Optional): Field to sort by (e.g., 'username', 'email')
-        - order (Optional): Sort order ('asc' or 'desc')
+
+    - scope (Required): The authorization scope to query (e.g., 'lib:DemoX:CSPROB')
+    - search (Optional): Search term to filter users by username, email or full name
+    - roles (Optional): Filter by specific role names
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+    - sort_by (Optional): Field to sort by (e.g., 'username', 'email', 'full_name')
+    - order (Optional): Sort order ('asc' or 'desc')
 
     **Request Format (PUT)**
+
+    .. code-block:: json
+
         {
             "role": "library_admin",
             "scope": "lib:DemoX:CSPROB",
@@ -152,26 +170,34 @@ class RoleUserAPIView(APIView):
         }
 
     **Request Format (DELETE)**
-        Query parameters:
-        - users: Comma-separated list of user identifiers
-        - role: The role to remove users from
-        - scope: The scope to remove users from
+
+    Query parameters:
+
+    - users: Comma-separated list of user identifiers
+    - role: The role to remove users from
+    - scope: The scope to remove users from
 
     **Response Format (PUT/DELETE)**
-        Returns HTTP 207 Multi-Status with:
+
+    Returns HTTP 207 Multi-Status with:
+
+    .. code-block:: json
+
         {
             "completed": [{"user_identifier": "john_doe", "status": "role_added|role_removed"}],
             "errors": [{"user_identifier": "jane_doe", "error": "error_type"}]
         }
 
     **Authentication and Permissions**
-        Requires authenticated user.
-        Requires ``HasLibraryPermission``. Users must have appropriate permissions for the specified scope.
+
+    Requires authenticated user.
+    Requires ``HasLibraryPermission``. Users must have appropriate permissions for the specified scope.
 
     **Notes**
-        - User identifiers can be either username or email
-        - Bulk operations return 207 Multi-Status to indicate partial success
-        - Individual operation failures are reported in the errors array
+
+    - User identifiers can be either username or email
+    - Bulk operations return 207 Multi-Status to indicate partial success
+    - Individual operation failures are reported in the errors array
     """
 
     pagination_class = AuthZAPIViewPagination
@@ -307,26 +333,35 @@ class RoleListView(APIView):
     the permissions granted and the number of users assigned to each role.
 
     **Endpoints**
-        GET: Retrieve all roles and their permissions for a specific namespace
+
+    GET: Retrieve all roles and their permissions for a specific namespace
 
     **Query Parameters**
-        - namespace (Required): The namespace to query roles for (e.g., 'lib')
-        - page (Optional): Page number for pagination
-        - page_size (Optional): Number of items per page
+
+    - namespace (Required): The namespace to query roles for (e.g., 'lib')
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
 
     **Response Format**
-        Returns a paginated list of role objects, each containing:
-        - role: The role's external identifier (e.g., 'library_author', 'library_user')
-        - permissions: List of permission action keys granted by this role
-        - user_count: Number of users currently assigned to this role
+
+    Returns a paginated list of role objects, each containing:
+
+    - role: The role's external identifier (e.g., 'library_author', 'library_user')
+    - permissions: List of permission action keys granted by this role
+    - user_count: Number of users currently assigned to this role
 
     **Authentication and Permissions**
-        Requires authenticated user.
+
+    Requires authenticated user.
 
     **Example Request**
-        GET /api/authz/v1/roles/?namespace=lib&page=1&page_size=10
+
+    GET /api/authz/v1/roles/?namespace=lib&page=1&page_size=10
 
     **Example Response**
+
+    .. code-block:: json
+
         {
             "count": 2,
             "next": null,

@@ -6,7 +6,9 @@ are not explicitly defined, but are inferred from the policy rules.
 """
 
 from openedx_authz.api.data import ActionData, PermissionData, PolicyIndex, ScopeData, SubjectData
-from openedx_authz.engine.enforcer import enforcer
+from openedx_authz.engine.enforcer import AuthzEnforcer
+
+enforcer = AuthzEnforcer.get_enforcer()
 
 __all__ = [
     "get_permission_from_policy",

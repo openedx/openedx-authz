@@ -20,7 +20,9 @@ from openedx_authz.api.data import (
     SubjectData,
 )
 from openedx_authz.api.permissions import get_permission_from_policy
-from openedx_authz.engine.enforcer import enforcer
+from openedx_authz.engine.enforcer import AuthzEnforcer
+
+enforcer = AuthzEnforcer.get_enforcer()
 
 __all__ = [
     "get_permissions_for_single_role",

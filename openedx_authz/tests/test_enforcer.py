@@ -10,9 +10,11 @@ from ddt import data as ddt_data
 from ddt import ddt
 from django.test import TestCase
 
-from openedx_authz.engine.enforcer import enforcer as global_enforcer
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+
+global_enforcer = AuthzEnforcer.get_enforcer()
 
 
 class PolicyLoadingTestSetupMixin(TestCase):

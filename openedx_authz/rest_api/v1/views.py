@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
-from openedx_authz.rest_api.enums import RoleOperationError, RoleOperationStatus
+from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_user_by_username_or_email,

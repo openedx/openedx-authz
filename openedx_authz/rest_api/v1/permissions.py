@@ -1,5 +1,7 @@
 """Permissions for the Open edX AuthZ REST API."""
 
+from typing import ClassVar
+
 from rest_framework.permissions import BasePermission
 
 from openedx_authz import api
@@ -51,8 +53,8 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     specific authorization logic for their scope types.
     """
 
-    NAMESPACE = "sc"
-    """The namespace identifier for this permission class (default: ``sc`` for generic scopes)."""
+    NAMESPACE: ClassVar[str] = "sc"
+    """The namespace identifier for this permission class. Default ``sc`` for generic scopes."""
 
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
@@ -127,7 +129,7 @@ class ContentLibraryPermission(BaseScopePermission):
         - GET requests require ``view_library_team`` permission.
     """
 
-    NAMESPACE = "lib"
+    NAMESPACE: ClassVar[str] = "lib"
     """``lib`` for content library scopes."""
 
     def has_permission(self, request, view) -> bool:
@@ -177,8 +179,8 @@ class DynamicScopePermission(BaseScopePermission):
         Superusers and staff members always have permission regardless of scope.
     """
 
-    NAMESPACE = None
-    """``None`` (this is a dispatcher, not tied to a specific namespace)."""
+    NAMESPACE: ClassVar[None] = None
+    """This is a dispatcher, not tied to a specific namespace."""
 
     def _get_permission_instance(self, request) -> BaseScopePermission:
         """Instantiate the permission class for the request scope.

@@ -16,6 +16,7 @@ from rest_framework.test import APIClient
 
 from openedx_authz import api
 from openedx_authz.rest_api.enums import RoleOperationError, RoleOperationStatus
+from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
 from openedx_authz.tests.api.test_users import UserAssignmentsSetupMixin
 
 User = get_user_model()
@@ -43,6 +44,10 @@ class ViewTestMixin(UserAssignmentsSetupMixin):
         cls.admin_user = User.objects.create_superuser(
             username="alice",
             email="alice@example.com",
+        )
+        cls.admin_user2 = User.objects.create_superuser(
+            username="eve",
+            email="eve@example.com",
         )
         cls.regular_user = User.objects.create_user(
             username="bob",
@@ -306,23 +311,23 @@ class TestRoleUserAPIView(ViewTestMixin):
     @data(
         # With username -----------------------------
         # Single user - success (admin user)
-        (["alice"], 1, 0),
+        (["eve"], 1, 0),
         # Single user - success (regular user)
         (["bob"], 1, 0),
         # Multiple users - success (admin and regular users)
-        (["alice", "bob", "carol"], 3, 0),
+        (["eve", "bob", "carol"], 3, 0),
         # With email ---------------------------------
         # Single user - success (admin user)
-        (["alice@example.com"], 1, 0),
+        (["eve@example.com"], 1, 0),
         # Single user - success (regular user)
         (["bob@example.com"], 1, 0),
         # Multiple users - admin and regular users
-        (["alice@example.com", "bob@example.com", "carol@example.com"], 3, 0),
+        (["eve@example.com", "bob@example.com", "carol@example.com"], 3, 0),
         # With username and email --------------------
         # All success
-        (["alice", "bob@example.com", "carol@example.com"], 3, 0),
+        (["eve", "bob@example.com", "carol@example.com"], 3, 0),
         # Mixed results (user not found)
-        (["alice", "bob@example.com", "nonexistent", "notexistent@example.com"], 2, 2),
+        (["eve", "bob@example.com", "nonexistent", "notexistent@example.com"], 2, 2),
     )
     @unpack
     def test_add_users_to_role_success(self, users: list[str], expected_completed: int, expected_errors: int):
@@ -333,7 +338,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate completed and error counts
         """
         role = "library_admin"
-        request_data = {"role": role, "scope": "lib:DemoX:CSPROB", "users": users}
+        request_data = {"role": role, "scope": "lib:Org1:math_101", "users": users}
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
             response = self.client.put(self.url, data=request_data, format="json")
@@ -377,7 +382,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     @patch.object(api, "assign_role_to_user_in_scope")
     def test_add_users_to_role_exception_handling(self, mock_assign_role_to_user_in_scope):
         """Test adding users to a role with exception handling."""
-        request_data = {"role": "library_admin", "scope": "lib:DemoX:CSPROB", "users": ["alice"]}
+        request_data = {"role": "library_admin", "scope": "lib:Org1:math_101", "users": ["alice"]}
         mock_assign_role_to_user_in_scope.side_effect = Exception()
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
@@ -407,9 +412,10 @@ class TestRoleUserAPIView(ViewTestMixin):
         Expected result:
             - Returns 400 BAD REQUEST status
         """
-        response = self.client.put(self.url, data=request_data, format="json")
+        with patch.object(DynamicScopePermission, "has_permission", return_value=True):
+            response = self.client.put(self.url, data=request_data, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
         # Unauthenticated
@@ -569,7 +575,7 @@ class TestRoleListView(ViewTestMixin):
             - Returns 200 OK status
             - Returns correct role definitions with permissions and user counts
         """
-        response = self.client.get(self.url, {"scope": "*"})
+        response = self.client.get(self.url, {"namespace": "lib"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
@@ -587,7 +593,7 @@ class TestRoleListView(ViewTestMixin):
         """
         mock_get_roles.return_value = []
 
-        response = self.client.get(self.url, {"scope": "*"})
+        response = self.client.get(self.url, {"namespace": "lib"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
@@ -597,11 +603,11 @@ class TestRoleListView(ViewTestMixin):
 
     @data(
         {},
-        {"scope": ""},
-        {"scope": "a" * 256},
+        {"scope": "custom_scope"},
+        {"another_param": "a" * 256, "custom_scope": "custom_scope"},
     )
-    def test_get_roles_invalid_params(self, query_params: dict):
-        """Test retrieving roles with invalid query parameters.
+    def test_get_roles_namespace_is_missing(self, query_params: dict):
+        """Test retrieving roles with namespace is missing.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -609,6 +615,24 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["namespace"], ["This field is required."])
+
+    @data(
+        ({"namespace": ""}, "blank"),
+        ({"namespace": "a" * 256}, "max_length"),
+        ({"namespace": "invalid"}, "invalid"),
+    )
+    @unpack
+    def test_get_roles_namespace_is_invalid(self, query_params: dict, error_code: str):
+        """Test retrieving roles with invalid namespace.
+
+        Expected result:
+            - Returns 400 BAD REQUEST status
+        """
+        response = self.client.get(self.url, query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(error_code, [error.code for error in response.data["namespace"]])
 
     @data(
         ({}, 4, False),
@@ -624,7 +648,7 @@ class TestRoleListView(ViewTestMixin):
             - Returns 200 OK status
             - Returns paginated results with correct page size
         """
-        query_params["scope"] = "*"
+        query_params["namespace"] = "lib"
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

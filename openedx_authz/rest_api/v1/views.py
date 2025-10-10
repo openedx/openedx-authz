@@ -382,6 +382,7 @@ class RoleListView(APIView):
     """
 
     pagination_class = AuthZAPIViewPagination
+    permission_classes = [DynamicScopePermission]
 
     @apidocs.schema(
         parameters=[

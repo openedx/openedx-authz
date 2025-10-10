@@ -15,7 +15,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from openedx_authz import api
-from openedx_authz.rest_api.enums import RoleOperationError, RoleOperationStatus
+from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
 from openedx_authz.tests.api.test_users import UserAssignmentsSetupMixin
 

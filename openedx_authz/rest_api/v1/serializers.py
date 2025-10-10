@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from openedx_authz import api
-from openedx_authz.rest_api.enums import SortField, SortOrder
+from openedx_authz.rest_api.data import SortField, SortOrder
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
 User = get_user_model()

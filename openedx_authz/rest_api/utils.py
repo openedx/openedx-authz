@@ -6,7 +6,7 @@ from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthenticat
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from rest_framework.permissions import IsAuthenticated
 
-from openedx_authz.rest_api.enums import SearchField, SortField, SortOrder
+from openedx_authz.rest_api.data import SearchField, SortField, SortOrder
 
 User = get_user_model()
 

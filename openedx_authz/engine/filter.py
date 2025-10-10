@@ -43,24 +43,24 @@ class Filter:
     v0: Optional[list[str]] = attr.field(factory=list)
     """v0 (Optional[list[str]]): First policy value filter.
 
-    - For ``p`` → Subject (e.g., ``role:org_admin``, ``user:alice``).
-    - For ``g`` → User (e.g., ``user:alice``).
-    - For ``g2`` → Parent action (e.g., ``act:manage``).
+    - For ``p`` → Subject (e.g., ``role^org_admin``, ``user^alice``).
+    - For ``g`` → User (e.g., ``user^alice``).
+    - For ``g2`` → Parent action (e.g., ``act^manage``).
     """
 
     v1: Optional[list[str]] = attr.field(factory=list)
     """v1 (Optional[list[str]]): Second policy value filter.
 
-    - For ``p`` → Action (e.g., ``act:manage``, ``act:edit``).
-    - For ``g`` → Role (e.g., ``role:org_admin``).
-    - For ``g2`` → Child action (e.g., ``act:edit``).
+    - For ``p`` → Action (e.g., ``act^manage``, ``act^edit``).
+    - For ``g`` → Role (e.g., ``role^org_admin``).
+    - For ``g2`` → Child action (e.g., ``act^edit``).
     """
 
     v2: Optional[list[str]] = attr.field(factory=list)
     """v2 (Optional[list[str]]): Third policy value filter.
 
-    - For ``p`` → Object or resource (e.g., ``lib:*``, ``org:MIT``).
-    - For ``g`` → Scope or resource (e.g., ``org:MIT``).
+    - For ``p`` → Object or resource (e.g., ``lib^*``, ``org^MIT``).
+    - For ``g`` → Scope or resource (e.g., ``org^MIT``).
     - For ``g2`` → Not used.
     """
 

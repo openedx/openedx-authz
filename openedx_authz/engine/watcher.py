@@ -48,9 +48,9 @@ def create_watcher():
         watcher = new_watcher(watcher_options)
         logger.info("Redis watcher created successfully")
         return watcher
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Failed to create Redis watcher: {e}")
-        raise
+        return None
 
 
 if settings.CASBIN_WATCHER_ENABLED:

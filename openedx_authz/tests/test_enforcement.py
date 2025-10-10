@@ -13,6 +13,13 @@ import casbin
 from ddt import data, ddt, unpack
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.tests.test_utils import (
+    make_action_key,
+    make_library_key,
+    make_role_key,
+    make_scope_key,
+    make_user_key,
+)
 
 
 class AuthRequest(TypedDict):
@@ -28,11 +35,11 @@ class AuthRequest(TypedDict):
 
 COMMON_ACTION_GROUPING = [
     # manage implies edit and delete
-    ["g2", "act:manage", "act:edit"],
-    ["g2", "act:manage", "act:delete"],
+    ["g2", make_action_key("manage"), make_action_key("edit")],
+    ["g2", make_action_key("manage"), make_action_key("delete")],
     # edit implies read and write
-    ["g2", "act:edit", "act:read"],
-    ["g2", "act:edit", "act:write"],
+    ["g2", make_action_key("edit"), make_action_key("read")],
+    ["g2", make_action_key("edit"), make_action_key("write")],
 ]
 
 
@@ -112,33 +119,33 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", "role:platform_admin", "act:manage", "*", "allow"],
-        ["g", "user:user-1", "role:platform_admin", "*"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
     ] + COMMON_ACTION_GROUPING
 
     GENERAL_CASES = [
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
             "scope": "*",
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "course:course-v1:any-org+any-course+any-course-run",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "lib:lib:any-org:any-library",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
     ]
@@ -160,33 +167,33 @@ class ActionGroupingTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", "role:role-1", "act:manage", "org:*", "allow"],
-        ["g", "user:user-1", "role:role-1", "org:any-org"],
+        ["p", make_role_key("role-1"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
+        ["g", make_user_key("user-1"), make_role_key("role-1"), make_scope_key("org", "any-org")],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
         {
-            "subject": "user:user-1",
-            "action": "act:edit",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("edit"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:read",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("read"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:write",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("write"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:delete",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("delete"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
     ]
@@ -208,80 +215,85 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
 
     POLICY = [
         # Policies
-        ["p", "role:platform_admin", "act:manage", "*", "allow"],
-        ["p", "role:org_admin", "act:manage", "org:*", "allow"],
-        ["p", "role:org_editor", "act:edit", "org:*", "allow"],
-        ["p", "role:org_author", "act:write", "org:*", "allow"],
-        ["p", "role:course_admin", "act:manage", "course:*", "allow"],
-        ["p", "role:library_admin", "act:manage", "lib:*", "allow"],
-        ["p", "role:library_editor", "act:edit", "lib:*", "allow"],
-        ["p", "role:library_reviewer", "act:read", "lib:*", "allow"],
-        ["p", "role:library_author", "act:write", "lib:*", "allow"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["p", make_role_key("org_admin"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
+        ["p", make_role_key("org_editor"), make_action_key("edit"), make_scope_key("org", "*"), "allow"],
+        ["p", make_role_key("org_author"), make_action_key("write"), make_scope_key("org", "*"), "allow"],
+        ["p", make_role_key("course_admin"), make_action_key("manage"), make_scope_key("course", "*"), "allow"],
+        ["p", make_role_key("library_admin"), make_action_key("manage"), make_scope_key("lib", "*"), "allow"],
+        ["p", make_role_key("library_editor"), make_action_key("edit"), make_scope_key("lib", "*"), "allow"],
+        ["p", make_role_key("library_reviewer"), make_action_key("read"), make_scope_key("lib", "*"), "allow"],
+        ["p", make_role_key("library_author"), make_action_key("write"), make_scope_key("lib", "*"), "allow"],
         # Role assignments
-        ["g", "user:user-1", "role:platform_admin", "*"],
-        ["g", "user:user-2", "role:org_admin", "org:any-org"],
-        ["g", "user:user-3", "role:org_editor", "org:any-org"],
-        ["g", "user:user-4", "role:org_author", "org:any-org"],
-        ["g", "user:user-5", "role:course_admin", "course:course-v1:any-org+any-course+any-course-run"],
-        ["g", "user:user-6", "role:library_admin", "lib:lib:any-org:any-library"],
-        ["g", "user:user-7", "role:library_editor", "lib:lib:any-org:any-library"],
-        ["g", "user:user-8", "role:library_reviewer", "lib:lib:any-org:any-library"],
-        ["g", "user:user-9", "role:library_author", "lib:lib:any-org:any-library"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
+        ["g", make_user_key("user-2"), make_role_key("org_admin"), make_scope_key("org", "any-org")],
+        ["g", make_user_key("user-3"), make_role_key("org_editor"), make_scope_key("org", "any-org")],
+        ["g", make_user_key("user-4"), make_role_key("org_author"), make_scope_key("org", "any-org")],
+        [
+            "g",
+            make_user_key("user-5"),
+            make_role_key("course_admin"),
+            make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+        ],
+        ["g", make_user_key("user-6"), make_role_key("library_admin"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-7"), make_role_key("library_editor"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-8"), make_role_key("library_reviewer"), make_library_key("lib:DemoX:CSPROB")],
+        ["g", make_user_key("user-9"), make_role_key("library_author"), make_library_key("lib:DemoX:CSPROB")],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-2",
-            "action": "act:manage",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-2"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-3",
-            "action": "act:edit",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-3"),
+            "action": make_action_key("edit"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-4",
-            "action": "act:write",
-            "scope": "org:any-org",
+            "subject": make_user_key("user-4"),
+            "action": make_action_key("write"),
+            "scope": make_scope_key("org", "any-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-5",
-            "action": "act:manage",
-            "scope": "course:course-v1:any-org+any-course+any-course-run",
+            "subject": make_user_key("user-5"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-6",
-            "action": "act:manage",
-            "scope": "lib:lib:any-org:any-library",
+            "subject": make_user_key("user-6"),
+            "action": make_action_key("manage"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-7",
-            "action": "act:edit",
-            "scope": "lib:lib:any-org:any-library",
+            "subject": make_user_key("user-7"),
+            "action": make_action_key("edit"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-8",
-            "action": "act:read",
-            "scope": "lib:lib:any-org:any-library",
+            "subject": make_user_key("user-8"),
+            "action": make_action_key("read"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-9",
-            "action": "act:write",
-            "scope": "lib:lib:any-org:any-library",
+            "subject": make_user_key("user-9"),
+            "action": make_action_key("write"),
+            "scope": make_library_key("lib:DemoX:CSPROB"),
             "expected_result": True,
         },
     ]
@@ -301,46 +313,52 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", "role:platform_admin", "act:manage", "*", "allow"],
-        ["p", "role:platform_admin", "act:manage", "org:restricted-org", "deny"],
-        ["g", "user:user-1", "role:platform_admin", "*"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        [
+            "p",
+            make_role_key("platform_admin"),
+            make_action_key("manage"),
+            make_scope_key("org", "restricted-org"),
+            "deny",
+        ],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "org:allowed-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("org", "allowed-org"),
             "expected_result": True,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:manage",
-            "scope": "org:restricted-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
+            "scope": make_scope_key("org", "restricted-org"),
             "expected_result": False,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:edit",
-            "scope": "org:restricted-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("edit"),
+            "scope": make_scope_key("org", "restricted-org"),
             "expected_result": False,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:read",
-            "scope": "org:restricted-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("read"),
+            "scope": make_scope_key("org", "restricted-org"),
             "expected_result": False,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:write",
-            "scope": "org:restricted-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("write"),
+            "scope": make_scope_key("org", "restricted-org"),
             "expected_result": False,
         },
         {
-            "subject": "user:user-1",
-            "action": "act:delete",
-            "scope": "org:restricted-org",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("delete"),
+            "scope": make_scope_key("org", "restricted-org"),
             "expected_result": False,
         },
     ]
@@ -356,35 +374,37 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
     """Tests for wildcard scope authorization patterns.
 
     Verifies that users with roles assigned to wildcard scopes (like "*" for global access
-    or "org:*" for organization-wide access) can properly access resources within their
+    or "org^*" for organization-wide access) can properly access resources within their
     authorized scope boundaries.
+
+    TODO: this needs to be updated with the latest changes in the model.
     """
 
     POLICY = [
         # Policies
-        ["p", "role:platform_admin", "act:manage", "*", "allow"],
-        ["p", "role:org_admin", "act:manage", "org:*", "allow"],
-        ["p", "role:course_admin", "act:manage", "course:*", "allow"],
-        ["p", "role:library_admin", "act:manage", "lib:*", "allow"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["p", make_role_key("org_admin"), make_action_key("manage"), make_scope_key("org", "*"), "allow"],
+        ["p", make_role_key("course_admin"), make_action_key("manage"), make_scope_key("course", "*"), "allow"],
+        ["p", make_role_key("library_admin"), make_action_key("manage"), make_scope_key("lib", "*"), "allow"],
         # Role assignments
-        ["g", "user:user-1", "role:platform_admin", "*"],
-        ["g", "user:user-2", "role:org_admin", "*"],
-        ["g", "user:user-3", "role:course_admin", "*"],
-        ["g", "user:user-4", "role:library_admin", "*"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
+        ["g", make_user_key("user-2"), make_role_key("org_admin"), "*"],
+        ["g", make_user_key("user-3"), make_role_key("course_admin"), "*"],
+        ["g", make_user_key("user-4"), make_role_key("library_admin"), "*"],
     ] + COMMON_ACTION_GROUPING
 
     @data(
         ("*", True),
-        ("org:MIT", True),
-        ("course:course-v1:OpenedX+DemoX+CS101", True),
-        ("lib:lib:OpenedX:math-basics", True),
+        (make_scope_key("org", "MIT"), True),
+        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
+        (make_library_key("lib:OpenedX:math-basics"), True),
     )
     @unpack
     def test_wildcard_global_access(self, scope: str, expected_result: bool):
         """Test that users have access through wildcard global scope."""
         request = {
-            "subject": "user:user-1",
-            "action": "act:manage",
+            "subject": make_user_key("user-1"),
+            "action": make_action_key("manage"),
             "scope": scope,
             "expected_result": expected_result,
         }
@@ -392,16 +412,16 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 
     @data(
         ("*", False),
-        ("org:MIT", True),
-        ("course:course-v1:OpenedX+DemoX+CS101", False),
-        ("lib:lib:OpenedX:math-basics", False),
+        (make_scope_key("org", "MIT"), True),
+        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
+        (make_library_key("lib:OpenedX:math-basics"), False),
     )
     @unpack
     def test_wildcard_org_access(self, scope: str, expected_result: bool):
         """Test that users have access through wildcard org scope."""
         request = {
-            "subject": "user:user-2",
-            "action": "act:manage",
+            "subject": make_user_key("user-2"),
+            "action": make_action_key("manage"),
             "scope": scope,
             "expected_result": expected_result,
         }
@@ -409,16 +429,16 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 
     @data(
         ("*", False),
-        ("org:MIT", False),
-        ("course:course-v1:OpenedX+DemoX+CS101", True),
-        ("lib:lib:OpenedX:math-basics", False),
+        (make_scope_key("org", "MIT"), False),
+        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
+        (make_library_key("lib:OpenedX:math-basics"), False),
     )
     @unpack
     def test_wildcard_course_access(self, scope: str, expected_result: bool):
         """Test that users have access through wildcard course scope."""
         request = {
-            "subject": "user:user-3",
-            "action": "act:manage",
+            "subject": make_user_key("user-3"),
+            "action": make_action_key("manage"),
             "scope": scope,
             "expected_result": expected_result,
         }
@@ -426,16 +446,16 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 
     @data(
         ("*", False),
-        ("org:MIT", False),
-        ("course:course-v1:OpenedX+DemoX+CS101", False),
-        ("lib:lib:OpenedX:math-basics", True),
+        (make_scope_key("org", "MIT"), False),
+        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
+        (make_library_key("lib:OpenedX:math-basics"), True),
     )
     @unpack
     def test_wildcard_library_access(self, scope: str, expected_result: bool):
         """Test that users have access through wildcard library scope."""
         request = {
-            "subject": "user:user-4",
-            "action": "act:manage",
+            "subject": make_user_key("user-4"),
+            "action": make_action_key("manage"),
             "scope": scope,
             "expected_result": expected_result,
         }

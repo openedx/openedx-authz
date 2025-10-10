@@ -1,11 +1,11 @@
-"""
-URLs for openedx_authz.
-"""
+"""Open edX AuthZ API URLs."""
 
-from django.urls import re_path  # pylint: disable=unused-import
-from django.views.generic import TemplateView  # pylint: disable=unused-import
+from django.urls import include, path
+
+from openedx_authz.rest_api import urls
+
+app_name = "openedx_authz"
 
 urlpatterns = [
-    # TODO: Fill in URL patterns and views here.
-    # re_path(r'', TemplateView.as_view(template_name="openedx_authz/base.html")),
+    path("authz/", include((urls, "openedx_authz"))),
 ]

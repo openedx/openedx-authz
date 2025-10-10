@@ -22,4 +22,14 @@ Unreleased
 Added
 =====
 
-* First release on PyPI.
+* Basic repo structure and initial setup.
+
+0.2.0 - 2025-10-10
+******************
+
+Added
+=====
+
+* ADRs for key design decisions.
+* Casbin model (CONF) and engine layer for authorization.
+* Implementation of public API for roles and permissions management.

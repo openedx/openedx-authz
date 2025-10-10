@@ -1,6 +1,8 @@
 """Decorators for the authorization public API."""
 from functools import wraps
 
+from django.conf import settings
+
 from openedx_authz.api.data import ScopeData
 from openedx_authz.engine.enforcer import enforcer
 from openedx_authz.engine.filter import Filter
@@ -35,8 +37,18 @@ def manage_policy_lifecycle(filter_on: str = ""):
         def get_roles_in_scope(scope: ScopeData):
             return enforcer.get_filtered_roles(scope.namespaced_key)
     """
-    FILTER_DATA_CLASSES = {
+    FILTER_DATA_CLASSES = { # Consider empty for no filtering
         "scope": ScopeData,
+        # TODO: currently ALLOW_FILTERED_POLICY_LOADING is False to avoid partial policy loads. We can
+        # Allow filtering on scope (initially) once we have a CONF model that supports this so filtering is meaningful,
+        # consistent and doesn't lead to partial policy loads.
+        # We can consider this modeling to avoid partial loads and inconsistent states:
+        # 1. g only for user-role-scope bindings
+        # 2. p only for permission-role bindings
+        # 3. g2 only for role-role bindings
+        # 4. g3 only for permission grouping
+        # This way for a user we'd only need to load g ( filter only for the scope or user) , p, g2, g3 policies in each request
+        # The only filter binding would be g, the rest loads entirely to avoid not loading definitions.
     }
 
     def build_filter_from_args(args) -> Filter:
@@ -48,6 +60,10 @@ def manage_policy_lifecycle(filter_on: str = ""):
         Returns:
             Filter: A Filter object populated with relevant filter values.
         """
+        # Fallback to no filtering in case of misbehavior
+        if settings.ALLOW_FILTERED_POLICY_LOADING is False:
+            return Filter()
+
         filter_obj = Filter()
         if not filter_on or filter_on not in FILTER_DATA_CLASSES:
             return filter_obj

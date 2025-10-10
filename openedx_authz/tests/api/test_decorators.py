@@ -375,3 +375,51 @@ class TestPolicyLifecycleDecorator(TestCase):
             )
         else:
             self.assertEqual(len(permissions), 0)
+
+    def test_decorator_with_permission_grouping(self):
+        """Test decorator behavior with permission grouping in policies.
+
+        For example:
+            - manage_library_team includes view_library_team through g2
+
+        This test verifies that when a user has edit permissions, they also implicitly have
+        delete permissions due to the permission grouping defined in the policy.
+
+        Expected result:
+            - Decorator loads filtered policies for the given scope
+            - User with manage_library_team role can also view_library_team
+            - Enforcer is cleared after execution
+        """
+        scope = ScopeData(external_key="lib:Org1:math_101")
+        subject = SubjectData(external_key="alice")
+
+        @manage_policy_lifecycle(filter_on="scope")
+        def check_grouped_permissions(scope_arg, subject_arg):
+            """Check if subject has grouped permissions in the given scope.
+
+            Expected scenario:
+            - Alice has library_admin role in lib:Org1:math_101
+            - library_admin role includes manage_library_team
+            - manage_library_team includes view_library_team through g2
+            """
+            can_manage_team = global_enforcer.enforce(
+                subject_arg.namespaced_key,
+                ActionData(external_key="manage_library_team").namespaced_key,
+                scope_arg.namespaced_key,
+            )
+
+            can_view_team = global_enforcer.enforce(
+                subject_arg.namespaced_key,
+                ActionData(external_key="view_library_team").namespaced_key,
+                scope_arg.namespaced_key,
+            )
+
+            return {
+                "can_manage_team": can_manage_team,
+                "can_view_team": can_view_team,
+            }
+
+        result = check_grouped_permissions(scope, subject)
+
+        self.assertTrue(result["can_manage_team"], "Alice should be able to manage library team")
+        self.assertTrue(result["can_view_team"], "Alice should be able to view library team due to grouping")

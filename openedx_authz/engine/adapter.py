@@ -18,7 +18,7 @@ from casbin.model import Model
 from casbin.persist import FilteredAdapter
 from casbin_adapter.adapter import Adapter
 from casbin_adapter.models import CasbinRule
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Q
 
 from openedx_authz.engine.filter import Filter
 

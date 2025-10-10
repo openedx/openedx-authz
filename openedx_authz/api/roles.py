@@ -21,6 +21,7 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import enforcer
+from openedx_authz.api.decorators import manage_policy_lifecycle
 
 __all__ = [
     "get_permissions_for_single_role",
@@ -48,6 +49,7 @@ __all__ = [
 # in this case, ALL the policies, but that might not be the case
 
 
+@manage_policy_lifecycle()
 def get_permissions_for_single_role(
     role: RoleData,
 ) -> list[PermissionData]:
@@ -63,6 +65,7 @@ def get_permissions_for_single_role(
     return [get_permission_from_policy(policy) for policy in policies]
 
 
+@manage_policy_lifecycle()
 def get_permissions_for_roles(
     roles: list[RoleData],
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
@@ -84,6 +87,7 @@ def get_permissions_for_roles(
     return permissions_by_role
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def get_permissions_for_active_roles_in_scope(
     scope: ScopeData, role: RoleData | None = None
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
@@ -133,6 +137,7 @@ def get_permissions_for_active_roles_in_scope(
     )
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     """Get all role definitions available in a specific scope.
 
@@ -171,7 +176,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
         for role, permissions in permissions_per_role.items()
     ]
 
-
+@manage_policy_lifecycle()
 def get_all_roles_names() -> list[str]:
     """Get all the available roles names in the current environment.
 
@@ -181,6 +186,7 @@ def get_all_roles_names() -> list[str]:
     return enforcer.get_all_subjects()
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     """Get all the available role grouping policies in a specific scope.
 
@@ -195,6 +201,7 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     )
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def assign_role_to_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
 ) -> None:
@@ -211,6 +218,7 @@ def assign_role_to_subject_in_scope(
     )
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def batch_assign_role_to_subjects_in_scope(
     subjects: list[SubjectData], role: RoleData, scope: ScopeData
 ) -> None:
@@ -224,6 +232,7 @@ def batch_assign_role_to_subjects_in_scope(
         assign_role_to_subject_in_scope(subject, role, scope)
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def unassign_role_from_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
 ) -> None:
@@ -239,6 +248,7 @@ def unassign_role_from_subject_in_scope(
     )
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def batch_unassign_role_from_subjects_in_scope(
     subjects: list[SubjectData], role: RoleData, scope: ScopeData
 ) -> None:
@@ -253,6 +263,7 @@ def batch_unassign_role_from_subjects_in_scope(
         unassign_role_from_subject_in_scope(subject, role, scope)
 
 
+@manage_policy_lifecycle()
 def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentData]:
     """Get all the roles for a subject across all scopes.
 
@@ -279,6 +290,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     return role_assignments
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def get_subject_role_assignments_in_scope(
     subject: SubjectData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
@@ -312,6 +324,7 @@ def get_subject_role_assignments_in_scope(
     return role_assignments
 
 
+@manage_policy_lifecycle(filter_on="scope")
 def get_subject_role_assignments_for_role_in_scope(
     role: RoleData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
@@ -348,9 +361,8 @@ def get_subject_role_assignments_for_role_in_scope(
     return role_assignments
 
 
-def get_all_subject_role_assignments_in_scope(
-    scope: ScopeData,
-) -> list[RoleAssignmentData]:
+@manage_policy_lifecycle(filter_on="scope")
+def get_all_subject_role_assignments_in_scope(scope: ScopeData) -> list[RoleAssignmentData]:
     """Get all the subjects assigned to any role in a specific scope.
 
     Args:

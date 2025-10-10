@@ -284,6 +284,8 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     """
 
     NAMESPACE: ClassVar[str] = "sc"
+    POLICY_POSITION = 2  # Position of scope in Casbin policy rules (p = sub, act, obj)
+    GROUPING_POLICY_POSITION = 2  # Position of scope in Casbin grouping policy rules (g = sub, role, scope)
 
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
@@ -300,6 +302,15 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
             bool: True if valid, False otherwise.
         """
         return True
+
+    @property
+    def policy_template(self) -> str:
+        """Get the policy template for the scope.
+
+        Returns:
+            str: The policy template string.
+        """
+        return f"{self.NAMESPACE}{self.SEPARATOR}*"
 
 
 @define

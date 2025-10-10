@@ -52,7 +52,7 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     """
 
     NAMESPACE = "sc"
-    """The namespace identifier for this permission class (default: 'sc' for generic scopes)."""
+    """The namespace identifier for this permission class (default: ``sc`` for generic scopes)."""
 
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
@@ -128,7 +128,7 @@ class ContentLibraryPermission(BaseScopePermission):
     """
 
     NAMESPACE = "lib"
-    """'lib' for content library scopes."""
+    """``lib`` for content library scopes."""
 
     def has_permission(self, request, view) -> bool:
         """Check if the user has permission to perform the requested action.
@@ -178,7 +178,7 @@ class DynamicScopePermission(BaseScopePermission):
     """
 
     NAMESPACE = None
-    """None (this is a dispatcher, not tied to a specific namespace)."""
+    """``None`` (this is a dispatcher, not tied to a specific namespace)."""
 
     def _get_permission_instance(self, request) -> BaseScopePermission:
         """Instantiate the permission class for the request scope.

@@ -49,12 +49,15 @@ def manage_policy_lifecycle(filter_on: str = ""):
             Filter: A Filter object populated with relevant filter values.
         """
         filter_obj = Filter()
-        if filter_on and filter_on in FILTER_DATA_CLASSES:
-            for arg in args:
-                if isinstance(arg, FILTER_DATA_CLASSES[filter_on]):
-                    filter_value = getattr(filter_obj, f"v{arg.POLICY_POSITION}")
-                    filter_value.append(arg.policy_template)  # Used to load p type policies as well. E.g., lib^*
-                    filter_value.append(arg.namespaced_key)  # E.g., lib^lib:DemoX:CSPROB
+        if not filter_on or filter_on not in FILTER_DATA_CLASSES:
+            return filter_obj
+
+        for arg in args:
+            if isinstance(arg, FILTER_DATA_CLASSES[filter_on]):
+                filter_value = getattr(filter_obj, f"v{arg.POLICY_POSITION}")
+                filter_value.append(arg.policy_template)  # Used to load p type policies as well. E.g., lib^*
+                filter_value.append(arg.namespaced_key)  # E.g., lib^lib:DemoX:CSPROB
+
         return filter_obj
 
     def decorator(f):

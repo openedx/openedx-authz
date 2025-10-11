@@ -1,12 +1,18 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
 import re
+from abc import abstractmethod
 from enum import Enum
 from typing import ClassVar, Literal, Type
 
 from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
+
+try:
+    from openedx.core.djangoapps.content_libraries.models import ContentLibrary
+except ImportError:
+    ContentLibrary = None
 
 __all__ = [
     "UserData",
@@ -18,10 +24,12 @@ __all__ = [
     "RoleData",
     "ScopeData",
     "SubjectData",
+    "ContentLibraryData",
 ]
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 EXTERNAL_KEY_SEPARATOR = ":"
+GENERIC_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
 
 
@@ -250,6 +258,20 @@ class ScopeMeta(type):
         return scope_subclass
 
     @classmethod
+    def get_all_namespaces(mcs) -> dict[str, Type["ScopeData"]]:
+        """Get all registered scope namespaces.
+
+        Returns:
+            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes registered in the scope registry.
+                Each namespace corresponds to a ScopeData subclass (e.g., 'lib', 'sc').
+
+        Examples:
+            >>> ScopeMeta.get_all_namespaces()
+            {'sc': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
+        """
+        return mcs.scope_registry
+
+    @classmethod
     def validate_external_key(mcs, external_key: str) -> bool:
         """Validate the external_key format for the subclass.
 
@@ -300,6 +322,15 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
             bool: True if valid, False otherwise.
         """
         return True
+
+    @abstractmethod
+    def exists(self) -> bool:
+        """Check if the scope exists.
+
+        Returns:
+            bool: True if the scope exists, False otherwise.
+        """
+        raise NotImplementedError("Subclasses must implement exists method.")
 
 
 @define
@@ -353,6 +384,19 @@ class ContentLibraryData(ScopeData):
             LibraryLocatorV2.from_string(external_key)
             return True
         except InvalidKeyError:
+            return False
+
+    def exists(self) -> bool:
+        """Check if the content library exists.
+
+        Returns:
+            bool: True if the content library exists, False otherwise.
+        """
+        try:
+            library_key = LibraryLocatorV2.from_string(self.library_id)
+            ContentLibrary.objects.get_by_key(library_key=library_key)
+            return True
+        except ContentLibrary.DoesNotExist:
             return False
 
     def __str__(self):
@@ -562,6 +606,15 @@ class PermissionData:
     action: ActionData = None
     effect: Literal["allow", "deny"] = "allow"
 
+    @property
+    def identifier(self) -> str:
+        """Get the permission identifier.
+
+        Returns:
+            str: The permission identifier (e.g., 'delete_library').
+        """
+        return self.action.external_key
+
     def __str__(self):
         """Human readable string representation of the permission and its effect."""
         return f"{self.action} - {self.effect}"
@@ -571,7 +624,7 @@ class PermissionData:
         return f"{self.action.namespaced_key} => {self.effect}"
 
 
-@define
+@define(eq=False)
 class RoleData(AuthZData):
     """A role is a named collection of permissions that can be assigned to subjects.
 
@@ -600,6 +653,12 @@ class RoleData(AuthZData):
     NAMESPACE: ClassVar[str] = "role"
     permissions: list[PermissionData] = []
 
+    def __eq__(self, other):
+        """Compare roles based on their namespaced_key."""
+        if not isinstance(other, RoleData):
+            return False
+        return self.namespaced_key == other.namespaced_key
+
     @property
     def name(self) -> str:
         """The human-readable name of the role (e.g., 'Library Admin', 'Course Instructor').
@@ -611,6 +670,14 @@ class RoleData(AuthZData):
             str: The human-readable role name (e.g., 'Library Admin').
         """
         return self.external_key.replace("_", " ").title()
+
+    def get_permission_identifiers(self) -> list[str]:
+        """Get the technical identifiers for all permissions in this role.
+
+        Returns:
+            list[str]: Permission identifiers (e.g., ['delete_library', 'edit_content']).
+        """
+        return [permission.identifier for permission in self.permissions]
 
     def __str__(self):
         """Human readable string representation of the role and its permissions."""

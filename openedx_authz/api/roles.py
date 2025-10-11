@@ -114,6 +114,7 @@ def get_permissions_for_active_roles_in_scope(
         dict[str, list[PermissionData]]: A dictionary mapping the role external_key to its
         permissions and scopes.
     """
+    enforcer.load_policy()
     filtered_policy = enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -145,6 +146,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     Returns:
         list[Role]: A list of roles.
     """
+    enforcer.load_policy()
     policy_filtered = enforcer.get_filtered_policy(
         PolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -190,6 +192,7 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     Returns:
         list[list[str]]: A list of policies in the specified scope.
     """
+    enforcer.load_policy()
     return enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -197,14 +200,19 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
 
 def assign_role_to_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
-) -> None:
+) -> bool:
     """Assign a role to a subject.
 
     Args:
         subject: The ID of the subject.
         role: The role to assign.
+        scope: The scope to assign the role to.
+
+    Returns:
+        bool: True if the role was assigned successfully, False otherwise.
     """
-    enforcer.add_role_for_user_in_domain(
+    enforcer.load_policy()
+    return enforcer.add_role_for_user_in_domain(
         subject.namespaced_key,
         role.namespaced_key,
         scope.namespaced_key,
@@ -226,15 +234,19 @@ def batch_assign_role_to_subjects_in_scope(
 
 def unassign_role_from_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
-) -> None:
+) -> bool:
     """Unassign a role from a subject.
 
     Args:
         subject: The ID of the subject.
         role: The role to unassign.
         scope: The scope from which to unassign the role.
+
+    Returns:
+        bool: True if the role was unassigned successfully, False otherwise.
     """
-    enforcer.delete_roles_for_user_in_domain(
+    enforcer.load_policy()
+    return enforcer.delete_roles_for_user_in_domain(
         subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
 
@@ -291,6 +303,7 @@ def get_subject_role_assignments_in_scope(
     Returns:
         list[RoleAssignmentData]: A list of role assignments for the subject in the scope.
     """
+    enforcer.load_policy()
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
     for namespaced_key in enforcer.get_roles_for_user_in_domain(
@@ -378,3 +391,17 @@ def get_all_subject_role_assignments_in_scope(
         )
 
     return list(role_assignments_per_subject.values())
+
+
+def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
+    """Get all the subjects assigned to a specific role.
+
+    Args:
+        role (RoleData): The role to filter subjects.
+
+    Returns:
+        list[SubjectData]: A list of subjects assigned to the specified role.
+    """
+    enforcer.load_policy()
+    policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)
+    return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]

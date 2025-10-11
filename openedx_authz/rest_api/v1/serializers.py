@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.rest_api.data import SortField, SortOrder
+from openedx_authz.rest_api.utils import get_generic_scope
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
 User = get_user_model()
@@ -41,8 +42,24 @@ class PermissionValidationResponseSerializer(PermissionValidationSerializer):  #
 class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstract-method
     """Mixin providing role and scope validation logic."""
 
-    def validate(self, attrs):
-        """Validate that role exists in scope."""
+    def validate(self, attrs) -> dict:
+        """Validate that the specified role and scope are valid and that the role exists in the scope.
+
+        This method performs the following validations:
+        1. Validates that the scope is registered in the scope registry
+        2. Validates that the scope exists in the system
+        3. Validates that the role is defined into the roles assigned to the scope
+
+        Args:
+            attrs: Dictionary containing 'role' and 'scope' keys with their string values.
+
+        Returns:
+            dict: The validated data dictionary with 'role' and 'scope' keys.
+
+        Raises:
+            serializers.ValidationError: If the scope is not registered, doesn't exist,
+                or if the role is not defined in the scope.
+        """
         validated_data = super().validate(attrs)
         scope_value = validated_data["scope"]
         role_value = validated_data["role"]
@@ -56,8 +73,8 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
             raise serializers.ValidationError(f"Scope '{scope_value}' does not exist")
 
         role = api.RoleData(external_key=role_value)
-        general_scope = api.ScopeData(namespaced_key=f"{scope.NAMESPACE}{scope.SEPARATOR}*")
-        role_definitions = api.get_role_definitions_in_scope(general_scope)
+        generic_scope = get_generic_scope(scope)
+        role_definitions = api.get_role_definitions_in_scope(generic_scope)
 
         if role not in role_definitions:
             raise serializers.ValidationError(f"Role '{role_value}' does not exist in scope '{scope_value}'")
@@ -102,36 +119,34 @@ class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstrac
     search = LowercaseCharField(required=False, default=None)
 
 
-class ListRolesWithNamespaceSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for listing roles within a namespace."""
+class ListRolesWithScopeSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for listing roles within a scope."""
 
-    namespace = serializers.CharField(max_length=255)
+    scope = serializers.CharField(max_length=255)
 
-    def validate_namespace(self, value: str) -> api.ScopeData:
-        """Validate and convert namespace string to a ScopeData instance.
+    def validate_scope(self, value: str) -> api.ScopeData:
+        """Validate and convert scope string to a ScopeData instance.
 
-        Checks that the provided namespace is registered in the scope registry and
-        returns an instance of the appropriate ScopeData subclass with a wildcard
-        external_key to represent all scopes within that namespace.
+        Checks that the provided scope is registered in the scope registry and
+        returns an instance of the appropriate ScopeData subclass.
 
         Args:
-            value: The namespace string to validate (e.g., 'lib', 'sc', 'org').
+            value: The scope string to validate (e.g., 'lib', 'sc', 'org').
 
         Returns:
-            ScopeData: An instance of the appropriate ScopeData subclass for the
-                namespace, initialized with external_key="*".
+            ScopeData: An instance of the appropriate ScopeData subclass for the scope.
 
         Raises:
-            serializers.ValidationError: If the namespace is not registered in the scope registry.
+            serializers.ValidationError: If the scope is not registered in the scope registry.
 
         Examples:
-            >>> validate_namespace('lib')
-            ContentLibraryData(external_key='*')
+            >>> validate_scope('lib:DemoX:CSPROB')
+            ContentLibraryData(external_key='lib:DemoX:CSPROB')
         """
-        namespaces = api.ScopeData.get_all_namespaces()
-        if value not in namespaces:
-            raise serializers.ValidationError(f"'{value}' is not a valid namespace")
-        return namespaces[value](external_key="*")
+        try:
+            return api.ScopeData(external_key=value)
+        except ValueError as exc:
+            raise serializers.ValidationError(exc) from exc
 
 
 class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method

@@ -53,7 +53,7 @@ class PermissionValidationMeView(APIView):
 
     **Endpoints**
 
-    POST: Validate one or more permissions for the authenticated user
+    - POST: Validate one or more permissions for the authenticated user
 
     **Request Format**
 
@@ -72,7 +72,7 @@ class PermissionValidationMeView(APIView):
 
     **Authentication and Permissions**
 
-    Requires authenticated user.
+    - Requires authenticated user.
 
     **Example Request**
 
@@ -82,7 +82,7 @@ class PermissionValidationMeView(APIView):
 
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB"},
-            {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2"}
+            {"action": "delete_library_content", "scope": "lib:OpenedX:CS50"}
         ]
 
     **Example Response**
@@ -91,7 +91,7 @@ class PermissionValidationMeView(APIView):
 
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": true},
-            {"action": "delete_library_content", "scope": "lib:DemoX:CSPR2", "allowed": false}
+            {"action": "delete_library_content", "scope": "lib:OpenedX:CS50", "allowed": false}
         ]
     """
 
@@ -109,7 +109,6 @@ class PermissionValidationMeView(APIView):
         serializer.is_valid(raise_exception=True)
 
         username = request.user.username
-
         response_data = []
         for perm in serializer.validated_data:
             try:
@@ -123,6 +122,9 @@ class PermissionValidationMeView(APIView):
                         "allowed": allowed,
                     }
                 )
+            except ValueError as e:
+                logger.error(f"Error validating permission for user {username}: {e}")
+                return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(
@@ -154,7 +156,7 @@ class RoleUserAPIView(APIView):
 
     - scope (Required): The authorization scope to query (e.g., 'lib:DemoX:CSPROB')
     - search (Optional): Search term to filter users by username, email or full name
-    - roles (Optional): Filter by specific role names
+    - roles (Optional): Filter by comma-separated list of specific role names
     - page (Optional): Page number for pagination
     - page_size (Optional): Number of items per page
     - sort_by (Optional): Field to sort by (e.g., 'username', 'email', 'full_name')
@@ -162,23 +164,45 @@ class RoleUserAPIView(APIView):
 
     **Request Format (PUT)**
 
-    .. code-block:: json
-
-        {
-            "role": "library_admin",
-            "scope": "lib:DemoX:CSPROB",
-            "users": ["user1@example.com", "username2"]
-        }
+    - users: List of user identifiers (username or email)
+    - role: The role to add users to
+    - scope: The scope to add users to
 
     **Request Format (DELETE)**
 
     Query parameters:
 
-    - users: Comma-separated list of user identifiers
+    - users: Comma-separated list of user identifiers (username or email)
     - role: The role to remove users from
     - scope: The scope to remove users from
 
-    **Response Format (PUT/DELETE)**
+    **Response Format (GET)**
+
+    Returns HTTP 200 OK with:
+
+    .. code-block:: json
+
+        {
+            "count": 2,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "username": "john_doe",
+                    "email": "john_doe@example.com",
+                    "full_name": "John Doe"
+                    "roles": ["library_admin", "library_user"]
+                },
+                {
+                    "username": "jane_doe",
+                    "email": "jane_doe@example.com",
+                    "full_name": "Jane Doe"
+                    "roles": ["library_user"]
+                }
+            ]
+        }
+
+    **Response Format (PUT)**
 
     Returns HTTP 207 Multi-Status with:
 
@@ -189,16 +213,37 @@ class RoleUserAPIView(APIView):
             "errors": [{"user_identifier": "jane_doe", "error": "user_already_has_role"}]
         }
 
+    **Response Format (DELETE)**
+
+    Returns HTTP 207 Multi-Status with:
+
+    .. code-block:: json
+
+        {
+            "completed": [{"user_identifier": "john_doe", "status": "role_removed"}],
+            "errors": [{"user_identifier": "jane_doe", "error": "user_does_not_have_role"}]
+        }
+
     **Authentication and Permissions**
 
-    Requires authenticated user.
-    Requires ``HasLibraryPermission``. Users must have appropriate permissions for the specified scope.
+    - Requires authenticated user.
+    - Requires ``manage_library_team`` permission for the scope.
 
-    **Notes**
+    **Example Request**
 
-    - User identifiers can be either username or email
-    - Bulk operations return 207 Multi-Status to indicate partial success
-    - Individual operation failures are reported in the errors array
+    GET /api/authz/v1/roles/users/?scope=lib:DemoX:CSPROB&search=john&roles=library_admin
+
+    PUT /api/authz/v1/roles/users/
+
+    .. code-block:: json
+
+        {
+            "role": "library_admin",
+            "scope": "lib:DemoX:CSPROB",
+            "users": ["user1@example.com", "username2"]
+        }
+
+    DELETE /api/authz/v1/roles/users/?role=library_admin&scope=lib:DemoX:CSPROB&users=user1@example.com,username2
     """
 
     pagination_class = AuthZAPIViewPagination
@@ -217,7 +262,7 @@ class RoleUserAPIView(APIView):
         responses={
             status.HTTP_200_OK: "The users were retrieved successfully",
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
     @authz_permissions(["view_library_team"])
@@ -229,11 +274,10 @@ class RoleUserAPIView(APIView):
 
         user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
         usernames = {assignment.subject.username for assignment in user_role_assignments}
-        response_data = UserRoleAssignmentSerializer(
-            user_role_assignments, many=True, context={"user_map": get_user_map(usernames)}
-        ).data
+        context = {"user_map": get_user_map(usernames)}
+        serialized_data = UserRoleAssignmentSerializer(user_role_assignments, many=True, context=context)
 
-        filtered_users = filter_users(response_data, query_params["search"], query_params["roles"])
+        filtered_users = filter_users(serialized_data.data, query_params["search"], query_params["roles"])
         user_role_assignments = sort_users(filtered_users, query_params["sort_by"], query_params["order"])
 
         paginator = self.pagination_class()
@@ -245,7 +289,7 @@ class RoleUserAPIView(APIView):
         responses={
             status.HTTP_207_MULTI_STATUS: "The users were added to the role",
             status.HTTP_400_BAD_REQUEST: "The request data is invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
     @authz_permissions(["manage_library_team"])
@@ -254,15 +298,14 @@ class RoleUserAPIView(APIView):
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        role_name = serializer.validated_data["role"]
+        role = serializer.validated_data["role"]
         scope = serializer.validated_data["scope"]
-
         completed, errors = [], []
         for user_identifier in serializer.validated_data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                result = api.assign_role_to_user_in_scope(user.username, role_name, scope)
+                result = api.assign_role_to_user_in_scope(user.username, role, scope)
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_ADDED
                     completed.append(response_dict)
@@ -291,7 +334,7 @@ class RoleUserAPIView(APIView):
         responses={
             status.HTTP_207_MULTI_STATUS: "The users were removed from the role",
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
     @authz_permissions(["manage_library_team"])
@@ -300,16 +343,14 @@ class RoleUserAPIView(APIView):
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        user_identifiers = serializer.validated_data["users"]
-        role_name = serializer.validated_data["role"]
+        role = serializer.validated_data["role"]
         scope = serializer.validated_data["scope"]
-
         completed, errors = [], []
-        for user_identifier in user_identifiers:
+        for user_identifier in serializer.validated_data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                result = api.unassign_role_from_user(user.username, role_name, scope)
+                result = api.unassign_role_from_user(user.username, role, scope)
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_REMOVED
                     completed.append(response_dict)
@@ -330,19 +371,19 @@ class RoleUserAPIView(APIView):
 
 @view_auth_classes()
 class RoleListView(APIView):
-    """API view for retrieving role definitions and their associated permissions within a specific namespace.
+    """API view for retrieving role definitions and their associated permissions within a specific scope.
 
     This view provides read-only access to role definitions within a specific
-    authorization namespace. It returns detailed information about each role including
+    authorization scope. It returns detailed information about each role including
     the permissions granted and the number of users assigned to each role.
 
     **Endpoints**
 
-    GET: Retrieve all roles and their permissions for a specific namespace
+    - GET: Retrieve all roles and their permissions for a specific scope
 
     **Query Parameters**
 
-    - namespace (Required): The namespace to query roles for (e.g., 'lib')
+    - scope (Required): The scope to query roles for (e.g., 'lib:OpenedX:CSPROB')
     - page (Optional): Page number for pagination
     - page_size (Optional): Number of items per page
 
@@ -351,16 +392,17 @@ class RoleListView(APIView):
     Returns a paginated list of role objects, each containing:
 
     - role: The role's external identifier (e.g., 'library_author', 'library_user')
-    - permissions: List of permission action keys granted by this role
+    - permissions: List of permission action keys granted by this role (e.g., 'delete_library_content')
     - user_count: Number of users currently assigned to this role
 
     **Authentication and Permissions**
 
-    Requires authenticated user.
+    - Requires authenticated user.
+    - Requires ``manage_library_team`` permission for the scope.
 
     **Example Request**
 
-    GET /api/authz/v1/roles/?namespace=lib&page=1&page_size=10
+    GET /api/authz/v1/roles/?scope=lib:OpenedX:CSPROB&page=1&page_size=10
 
     **Example Response**
 
@@ -397,7 +439,7 @@ class RoleListView(APIView):
         responses={
             status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
     @authz_permissions(["manage_library_team"])
@@ -419,8 +461,7 @@ class RoleListView(APIView):
                 }
             )
 
-        serializer = ListRolesWithScopeResponseSerializer(response_data, many=True)
-
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(response_data, request)
-        return paginator.get_paginated_response(paginated_response_data)
+        serialized_data = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
+        return paginator.get_paginated_response(serialized_data.data)

@@ -575,7 +575,7 @@ class TestRoleListView(ViewTestMixin):
             - Returns 200 OK status
             - Returns correct role definitions with permissions and user counts
         """
-        response = self.client.get(self.url, {"namespace": "lib"})
+        response = self.client.get(self.url, {"scope": "lib:DemoX:CSPROB"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
@@ -593,7 +593,7 @@ class TestRoleListView(ViewTestMixin):
         """
         mock_get_roles.return_value = []
 
-        response = self.client.get(self.url, {"namespace": "lib"})
+        response = self.client.get(self.url, {"scope": "lib:DemoX:CSPROB"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("results", response.data)
@@ -603,11 +603,11 @@ class TestRoleListView(ViewTestMixin):
 
     @data(
         {},
-        {"scope": "custom_scope"},
-        {"another_param": "a" * 256, "custom_scope": "custom_scope"},
+        {"custom_param": "custom_value"},
+        {"custom_param": "a" * 256, "another_param": "custom_value"},
     )
-    def test_get_roles_namespace_is_missing(self, query_params: dict):
-        """Test retrieving roles with namespace is missing.
+    def test_get_roles_scope_is_missing(self, query_params: dict):
+        """Test retrieving roles with scope is missing.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -615,16 +615,16 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["namespace"], ["This field is required."])
+        self.assertIn("required", [error.code for error in response.data["scope"]])
 
     @data(
-        ({"namespace": ""}, "blank"),
-        ({"namespace": "a" * 256}, "max_length"),
-        ({"namespace": "invalid"}, "invalid"),
+        ({"scope": ""}, "blank"),
+        ({"scope": "a" * 256}, "max_length"),
+        ({"scope": "invalid"}, "invalid"),
     )
     @unpack
-    def test_get_roles_namespace_is_invalid(self, query_params: dict, error_code: str):
-        """Test retrieving roles with invalid namespace.
+    def test_get_roles_scope_is_invalid(self, query_params: dict, error_code: str):
+        """Test retrieving roles with invalid scope.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -632,7 +632,7 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(error_code, [error.code for error in response.data["namespace"]])
+        self.assertIn(error_code, [error.code for error in response.data["scope"]])
 
     @data(
         ({}, 4, False),
@@ -648,7 +648,7 @@ class TestRoleListView(ViewTestMixin):
             - Returns 200 OK status
             - Returns paginated results with correct page size
         """
-        query_params["namespace"] = "lib"
+        query_params["scope"] = "lib:DemoX:CSPROB"
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -2,33 +2,33 @@
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
-from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
-from rest_framework.permissions import IsAuthenticated
 
+from openedx_authz.api.data import GENERIC_SCOPE_WILDCARD, ScopeData
 from openedx_authz.rest_api.data import SearchField, SortField, SortOrder
 
 User = get_user_model()
 
 
-def view_auth_classes(is_authenticated=True):
+def get_generic_scope(scope: ScopeData) -> ScopeData:
     """
-    Function and class decorator that abstracts the authentication and permission checks for api views.
+    Create a generic scope from a given scope by replacing its key with a wildcard.
+
+    This function preserves the namespace of the original scope but replaces the specific
+    key with a wildcard, allowing for broader permission checks across all scopes within
+    the same namespace.
+
+    Args:
+        scope (ScopeData): The specific scope to generalize.
+
+    Returns:
+        ScopeData: A new scope with the same namespace but a wildcard key.
+
+    Examples:
+        >>> scope = ScopeData(namespaced_key="lib^lib:DemoX:CSPROB")
+        >>> get_generic_scope(scope)
+        ScopeData(namespaced_key="lib^*")
     """
-
-    def _decorator(func_or_class):
-        """
-        Requires either OAuth2 or Session-based authentication.
-        """
-        func_or_class.authentication_classes = [
-            JwtAuthentication,
-            SessionAuthenticationAllowInactiveUser,
-        ]
-        if is_authenticated:
-            func_or_class.permission_classes.insert(0, IsAuthenticated)
-        return func_or_class
-
-    return _decorator
+    return ScopeData(namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}")
 
 
 def get_user_map(usernames: list[str]) -> dict[str, User]:

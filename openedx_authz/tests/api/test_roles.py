@@ -11,9 +11,7 @@ from ddt import ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.api.data import (
-    ActionData,
     ContentLibraryData,
-    PermissionData,
     RoleAssignmentData,
     RoleData,
     ScopeData,
@@ -33,6 +31,12 @@ from openedx_authz.api.roles import (
 )
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.tests.constants import (
+    LIST_LIBRARY_ADMIN_PERMISSIONS,
+    LIST_LIBRARY_AUTHOR_PERMISSIONS,
+    LIST_LIBRARY_COLLABORATOR_PERMISSIONS,
+    LIST_LIBRARY_USER_PERMISSIONS,
+)
 
 
 class BaseRolesTestCase(TestCase):
@@ -266,126 +270,22 @@ class TestRolesAPI(RolesTestSetupMixin):
         # Library Admin role with actual permissions from authz.policy
         (
             "library_admin",
-            [
-                PermissionData(
-                    action=ActionData(external_key="delete_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_team"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_tags"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library_collection"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_ADMIN_PERMISSIONS,
         ),
         # Library Author role with actual permissions from authz.policy
         (
             "library_author",
-            [
-                PermissionData(
-                    action=ActionData(external_key="delete_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="edit_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_tags"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="edit_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_collection"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_AUTHOR_PERMISSIONS,
         ),
         # Library Collaborator role with actual permissions from authz.policy
         (
             "library_collaborator",
-            [
-                PermissionData(
-                    action=ActionData(external_key="edit_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_tags"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="edit_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_collection"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_COLLABORATOR_PERMISSIONS,
         ),
         # Library User role with minimal permissions
         (
             "library_user",
-            [
-                PermissionData(
-                    action=ActionData(external_key="view_library"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="view_library_team"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="reuse_library_content"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_USER_PERMISSIONS,
         ),
         # Non existent role
         (
@@ -412,92 +312,19 @@ class TestRolesAPI(RolesTestSetupMixin):
         (
             "library_user",
             "lib:Org1:english_101",
-            [
-                PermissionData(
-                    action=ActionData(external_key="view_library"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="view_library_team"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="reuse_library_content"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_USER_PERMISSIONS,
         ),
         # Role assigned to single user in single scope
         (
             "library_author",
             "lib:Org1:history_201",
-            [
-                PermissionData(
-                    action=ActionData(external_key="delete_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="edit_library"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_tags"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="edit_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_collection"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_AUTHOR_PERMISSIONS,
         ),
         # Role assigned to single user in multiple scopes
         (
             "library_admin",
             "lib:Org1:math_101",
-            [
-                PermissionData(
-                    action=ActionData(external_key="delete_library"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_team"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="manage_library_tags"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="publish_library_content"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="delete_library_collection"),
-                    effect="allow",
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library"), effect="allow"
-                ),
-                PermissionData(
-                    action=ActionData(external_key="create_library_collection"),
-                    effect="allow",
-                ),
-            ],
+            LIST_LIBRARY_ADMIN_PERMISSIONS,
         ),
     )
     @unpack
@@ -598,44 +425,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             [
                 RoleData(
                     external_key="library_admin",
-                    permissions=[
-                        PermissionData(
-                            action=ActionData(external_key="delete_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
+                    permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
                 ),
             ],
         ),
@@ -644,94 +434,15 @@ class TestRolesAPI(RolesTestSetupMixin):
             [
                 RoleData(
                     external_key="library_admin",
-                    permissions=[
-                        PermissionData(
-                            action=ActionData(external_key="delete_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
+                    permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
                 ),
                 RoleData(
                     external_key="library_author",
-                    permissions=[
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="publish_library_content"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="edit_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="manage_library_tags"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="create_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="edit_library_collection"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="delete_library_collection"),
-                            effect="allow",
-                        ),
-                    ],
+                    permissions=LIST_LIBRARY_AUTHOR_PERMISSIONS,
                 ),
                 RoleData(
                     external_key="library_user",
-                    permissions=[
-                        PermissionData(
-                            action=ActionData(external_key="view_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="view_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="reuse_library_content"),
-                            effect="allow",
-                        ),
-                    ],
+                    permissions=LIST_LIBRARY_USER_PERMISSIONS,
                 ),
             ],
         ),
@@ -740,20 +451,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             [
                 RoleData(
                     external_key="library_user",
-                    permissions=[
-                        PermissionData(
-                            action=ActionData(external_key="view_library"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="view_library_team"),
-                            effect="allow",
-                        ),
-                        PermissionData(
-                            action=ActionData(external_key="reuse_library_content"),
-                            effect="allow",
-                        ),
-                    ],
+                    permissions=LIST_LIBRARY_USER_PERMISSIONS,
                 ),
             ],
         ),
@@ -957,52 +655,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     subject=SubjectData(external_key="alice"),
                     roles=[RoleData(
                         external_key="library_admin",
-                        permissions=[
-                            PermissionData(
-                                action=ActionData(external_key="delete_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="publish_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="manage_library_team"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="manage_library_tags"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_content"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="publish_library_content"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="create_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="create_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                        ],
+                        permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
                     )],
                     scope=ScopeData(external_key="lib:Org1:math_101"),
                 )
@@ -1015,46 +668,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     subject=SubjectData(external_key="bob"),
                     roles=[RoleData(
                         external_key="library_author",
-                        permissions=[
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_content"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="publish_library_content"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="edit_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="manage_library_tags"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="create_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="edit_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                        ],
+                        permissions=LIST_LIBRARY_AUTHOR_PERMISSIONS,
                     )],
                     scope=ScopeData(external_key="lib:Org1:history_201"),
                 )
@@ -1067,40 +681,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     subject=SubjectData(external_key="carol"),
                     roles=[RoleData(
                         external_key="library_collaborator",
-                        permissions=[
-                            PermissionData(
-                                action=ActionData(external_key="edit_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_content"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="manage_library_tags"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="create_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="edit_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(
-                                    external_key="delete_library_collection"
-                                ),
-                                effect="allow",
-                            ),
-                        ],
+                        permissions=LIST_LIBRARY_COLLABORATOR_PERMISSIONS,
                     )],
                     scope=ScopeData(external_key="lib:Org1:science_301"),
                 )
@@ -1113,20 +694,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     subject=SubjectData(external_key="dave"),
                     roles=[RoleData(
                         external_key="library_user",
-                        permissions=[
-                            PermissionData(
-                                action=ActionData(external_key="view_library"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="view_library_team"),
-                                effect="allow",
-                            ),
-                            PermissionData(
-                                action=ActionData(external_key="reuse_library_content"),
-                                effect="allow",
-                            ),
-                        ],
+                        permissions=LIST_LIBRARY_USER_PERMISSIONS,
                     )],
                     scope=ScopeData(external_key="lib:Org1:english_101"),
                 )

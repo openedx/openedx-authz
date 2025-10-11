@@ -16,6 +16,7 @@ from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
+
 class Command(BaseCommand):
     """Django management command to load policies into the authorization Django model.
 

@@ -117,42 +117,6 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
         return False
 
 
-class ContentLibraryPermission(BaseScopePermission):
-    """Permission handler for content library scopes.
-
-    This class implements permission checks specific to content library operations.
-    It uses the authz API to verify whether a user has the necessary permissions
-    to perform actions on library team members.
-
-    Permission Rules:
-        - POST/PUT/PATCH/DELETE requests require ``manage_library_team`` permission.
-        - GET requests require ``view_library_team`` permission.
-    """
-
-    NAMESPACE: ClassVar[str] = "lib"
-    """``lib`` for content library scopes."""
-
-    def has_permission(self, request, view) -> bool:
-        """Check if the user has permission to perform the requested action.
-
-        Verifies that the user has the appropriate library team permission based on
-        the HTTP method. Modification operations require ``manage_library_team``, while read
-        operations require ``view_library_team``.
-
-        Returns:
-            bool: True if the user has the required permission, False otherwise.
-                Also returns False if no scope value is provided in the request.
-        """
-        scope_value = self.get_scope_value(request)
-        if not scope_value:
-            return False
-
-        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            return api.is_user_allowed(request.user.username, "manage_library_team", scope_value)
-
-        return api.is_user_allowed(request.user.username, "view_library_team", scope_value)
-
-
 class DynamicScopePermission(BaseScopePermission):
     """Dispatcher permission class that delegates permission checks to scope-specific handlers.
 
@@ -235,3 +199,94 @@ class DynamicScopePermission(BaseScopePermission):
         if request.user.is_superuser or request.user.is_staff:
             return True
         return self._get_permission_instance(request).has_object_permission(request, view, obj)
+
+
+class MethodPermissionMixin:
+    """Mixin that validates permissions defined via @authz_permissions decorator.
+
+    This mixin reads the required_permissions attribute set by the @authz_permissions
+    decorator and validates each permission using ``is_user_allowed``. All permissions
+    must be satisfied for the check to pass.
+
+    Usage:
+        Combine this mixin with BaseScopePermission to create permission classes
+        that use method-level permission declarations:
+
+        >>> class MyPermission(MethodPermissionMixin, BaseScopePermission):
+        ...     NAMESPACE = "lib"
+        ...
+        >>> class MyView(APIView):
+        ...     permission_classes = [MyPermission]
+        ...
+        ...     @authz_permissions(["view_library_team"])
+        ...     def get(self, request):
+        ...         pass
+    """
+
+    def get_required_permissions(self, request, view) -> list[str]:
+        """Extract required permissions from the view method.
+
+        Args:
+            request: The Django REST framework request object.
+            view: The view being accessed.
+
+        Returns:
+            list[str]: List of permission identifiers, or empty list if not defined.
+        """
+        method = request.method.lower()
+        handler = getattr(view, method, None)
+        if handler and hasattr(handler, "required_permissions"):
+            return handler.required_permissions
+        return []
+
+    def validate_permissions(self, request, permissions: list[str], scope_value: str) -> bool:
+        """Validate that the user has all required permissions for the scope.
+
+        Args:
+            request: The Django REST framework request object.
+            permissions: List of permission identifiers to check.
+            scope_value: The scope to check permissions against.
+
+        Returns:
+            bool: True if user has all required permissions, False otherwise.
+        """
+        if not permissions:
+            return False
+
+        for permission in permissions:
+            if not api.is_user_allowed(request.user.username, permission, scope_value):
+                return False
+        return True
+
+
+class ContentLibraryPermission(MethodPermissionMixin, BaseScopePermission):
+    """Permission handler for content library scopes.
+
+    This class implements permission checks specific to content library operations.
+    It uses the authz API to verify whether a user has the necessary permissions
+    to perform actions on library team members.
+    """
+
+    NAMESPACE: ClassVar[str] = "lib"
+    """``lib`` for content library scopes."""
+
+    def has_permission(self, request, view) -> bool:
+        """Check if the user has permission to perform the requested action.
+
+        First checks if the view method has @authz_permissions decorator.
+        If present, validates all required permissions. If not present,
+        allows access by default.
+
+        Returns:
+            bool: True if the user has the required permission, False otherwise.
+                Also returns False if no scope value is provided in the request.
+        """
+        scope_value = self.get_scope_value(request)
+        if not scope_value:
+            return False
+
+        permissions = self.get_required_permissions(request, view)
+        if permissions:
+            return self.validate_permissions(request, permissions, scope_value)
+
+        return True

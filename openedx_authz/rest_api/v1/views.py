@@ -11,25 +11,25 @@ import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from rest_framework import status
-from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
+from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
     filter_users,
+    get_generic_scope,
     get_user_by_username_or_email,
     get_user_map,
     sort_users,
-    view_auth_classes,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
-    ListRolesWithNamespaceSerializer,
     ListRolesWithScopeResponseSerializer,
+    ListRolesWithScopeSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
@@ -220,6 +220,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
         },
     )
+    @authz_permissions(["view_library_team"])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all users with role assignments within a specific scope."""
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
@@ -247,6 +248,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
         },
     )
+    @authz_permissions(["manage_library_team"])
     def put(self, request: HttpRequest) -> Response:
         """Assign multiple users to a specific role within a scope."""
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
@@ -292,6 +294,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
         },
     )
+    @authz_permissions(["manage_library_team"])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
@@ -383,11 +386,11 @@ class RoleListView(APIView):
     """
 
     pagination_class = AuthZAPIViewPagination
-    permission_classes = [IsAdminUser]
+    permission_classes = [DynamicScopePermission]
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter("namespace", str, description="The namespace to query roles for"),
+            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
             apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
@@ -397,12 +400,14 @@ class RoleListView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
         },
     )
+    @authz_permissions(["manage_library_team"])
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all roles and their permissions for a specific namespace."""
-        serializer = ListRolesWithNamespaceSerializer(data=request.query_params)
+        """Retrieve all roles and their permissions for a specific scope."""
+        serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        roles = api.get_role_definitions_in_scope(serializer.validated_data["namespace"])
+        generic_scope = get_generic_scope(serializer.validated_data["scope"])
+        roles = api.get_role_definitions_in_scope(generic_scope)
         response_data = []
         for role in roles:
             users = api.get_users_for_role(role.external_key)

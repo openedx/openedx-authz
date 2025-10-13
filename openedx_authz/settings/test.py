@@ -28,8 +28,8 @@ INSTALLED_APPS = (
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
+    "openedx_authz.engine.apps.CasbinAdapterConfig",
     "openedx_authz.apps.OpenedxAuthzConfig",
-    "casbin_adapter.apps.CasbinAdapterConfig",
 )
 
 MIDDLEWARE = [

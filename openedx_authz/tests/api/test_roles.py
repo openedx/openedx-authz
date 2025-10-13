@@ -35,8 +35,13 @@ from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
-class RolesTestSetupMixin(TestCase):
-    """Mixin to set up roles and assignments for tests."""
+class BaseRolesTestCase(TestCase):
+    """Base test case with helper methods for roles testing.
+
+    This class provides the infrastructure for testing roles without
+    loading any specific test data. Subclasses should override setUpClass
+    to define their own test data assignments.
+    """
 
     @classmethod
     def _seed_database_with_policies(cls):
@@ -83,9 +88,33 @@ class RolesTestSetupMixin(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Set up test class environment."""
+        """Set up test class environment.
+
+        Seeds the database with policies. Subclasses should override this
+        to add their specific role assignments by calling _assign_roles_to_users.
+        """
         super().setUpClass()
-        # Ensure the database is seeded once for all tests in this class
+        cls._seed_database_with_policies()
+
+    def setUp(self):
+        """Set up test environment."""
+        super().setUp()
+        global_enforcer.load_policy()  # Load policies before each test to simulate fresh start
+
+    def tearDown(self):
+        """Clean up after each test to ensure isolation."""
+        super().tearDown()
+        global_enforcer.clear_policy()  # Clear policies after each test to ensure isolation
+
+
+class RolesTestSetupMixin(BaseRolesTestCase):
+    """Test case with comprehensive role assignments for general roles testing."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up test class environment with predefined role assignments."""
+        super().setUpClass()
+        # Define specific assignments for this test class
         assignments = [
             # Basic library roles from authz.policy
             {
@@ -210,18 +239,7 @@ class RolesTestSetupMixin(TestCase):
                 "scope_name": "lib:Org6:project_epsilon",
             },
         ]
-        cls._seed_database_with_policies()
         cls._assign_roles_to_users(assignments=assignments)
-
-    def setUp(self):
-        """Set up test environment."""
-        super().setUp()
-        global_enforcer.load_policy()  # Load policies before each test to simulate fresh start
-
-    def tearDown(self):
-        """Clean up after each test to ensure isolation."""
-        super().tearDown()
-        global_enforcer.clear_policy()  # Clear policies after each test to ensure isolation
 
 
 @ddt

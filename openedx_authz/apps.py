@@ -45,8 +45,5 @@ class OpenedxAuthzConfig(AppConfig):
     def ready(self):
         """Initialization layer for the openedx_authz app."""
         # Initialize the enforcer to ensure it's ready when the app starts
-        casbin_adapter_app = "casbin_adapter.apps.CasbinAdapterConfig"
-        if casbin_adapter_app not in settings.INSTALLED_APPS:
-            settings.INSTALLED_APPS.append(casbin_adapter_app)
         from openedx_authz.engine.enforcer import AuthzEnforcer
         AuthzEnforcer()

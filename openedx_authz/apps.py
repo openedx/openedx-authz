@@ -3,6 +3,7 @@ openedx_authz Django application initialization.
 """
 
 from django.apps import AppConfig
+from django.conf import settings
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
 
@@ -45,4 +46,7 @@ class OpenedxAuthzConfig(AppConfig):
     def ready(self):
         """Initialization layer for the openedx_authz app."""
         # Initialize the enforcer to ensure it's ready when the app starts
+        casbin_adapter_app = "casbin_adapter.apps.CasbinAdapterConfig"
+        if casbin_adapter_app not in settings.INSTALLED_APPS:
+            settings.INSTALLED_APPS.append(casbin_adapter_app)
         AuthzEnforcer()

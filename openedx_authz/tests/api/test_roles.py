@@ -34,7 +34,6 @@ from openedx_authz.api.roles import (
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
-global_enforcer = AuthzEnforcer.get_enforcer()
 
 
 class BaseRolesTestCase(TestCase):
@@ -52,6 +51,7 @@ class BaseRolesTestCase(TestCase):
         This simulates the one-time database seeding that would happen
         during application deployment, separate from the runtime policy loading.
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.load_policy()
         migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
@@ -242,6 +242,16 @@ class RolesTestSetupMixin(BaseRolesTestCase):
             },
         ]
         cls._assign_roles_to_users(assignments=assignments)
+
+    def setUp(self):
+        """Set up test environment."""
+        super().setUp()
+        AuthzEnforcer.get_enforcer().load_policy()  # Load policies before each test to simulate fresh start
+
+    def tearDown(self):
+        """Clean up after each test to ensure isolation."""
+        super().tearDown()
+        AuthzEnforcer.get_enforcer().clear_policy()  # Clear policies after each test to ensure isolation
 
 
 @ddt

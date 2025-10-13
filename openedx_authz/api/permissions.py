@@ -8,8 +8,6 @@ are not explicitly defined, but are inferred from the policy rules.
 from openedx_authz.api.data import ActionData, PermissionData, PolicyIndex, ScopeData, SubjectData
 from openedx_authz.engine.enforcer import AuthzEnforcer
 
-enforcer = AuthzEnforcer.get_enforcer()
-
 __all__ = [
     "get_permission_from_policy",
     "get_all_permissions_in_scope",
@@ -44,7 +42,9 @@ def get_all_permissions_in_scope(scope: ScopeData) -> list[PermissionData]:
     Returns:
         list of PermissionData: A list of PermissionData objects associated with the given scope.
     """
-    actions = enforcer.get_filtered_policy(PolicyIndex.SCOPE.value, scope.namespaced_key)
+    actions = AuthzEnforcer.get_enforcer().get_filtered_policy(
+        PolicyIndex.SCOPE.value, scope.namespaced_key
+    )
     return [get_permission_from_policy(action) for action in actions]
 
 
@@ -63,5 +63,6 @@ def is_subject_allowed(
     Returns:
         bool: True if the subject has the specified permission in the scope, False otherwise.
     """
-    enforcer.load_policy()
-    return enforcer.enforce(subject.namespaced_key, action.namespaced_key, scope.namespaced_key)
+    return AuthzEnforcer.get_enforcer().enforce(
+        subject.namespaced_key, action.namespaced_key, scope.namespaced_key
+    )

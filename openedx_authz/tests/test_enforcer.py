@@ -14,8 +14,6 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
-global_enforcer = AuthzEnforcer.get_enforcer()
-
 
 class PolicyLoadingTestSetupMixin(TestCase):
     """Mixin providing policy loading test utilities."""
@@ -65,6 +63,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         during application deployment, separate from runtime policy loading.
         """
         # Always start with completely clean state
+        global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.clear_policy()
 
         migrate_policy_between_enforcers(
@@ -87,6 +86,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
             scope: The scope to load policies for (e.g., 'lib^*' for all libraries).
                   If None, loads all policies using load_policy().
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         if scope is None:
             global_enforcer.load_policy()
         else:
@@ -99,6 +99,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         Args:
             scopes: List of scopes the user is operating in.
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.clear_policy()
 
         if scopes:
@@ -116,6 +117,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         Args:
             role_name: Specific role to load policies for, if any.
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.clear_policy()
 
         if role_name:
@@ -131,6 +133,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         This adds course and organization policies in addition to existing
         library policies to create a realistic multi-scope environment.
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         test_policies = [
             # Course policies
             ["role^course_instructor", "act^edit_course", "course^*", "allow"],
@@ -172,7 +175,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
 
     def tearDown(self):
         """Clean up after each test to ensure isolation."""
-        global_enforcer.clear_policy()
+        AuthzEnforcer.get_enforcer().clear_policy()
         super().tearDown()
 
     @ddt_data(
@@ -191,6 +194,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Only scope-relevant policies are loaded
             - Policy count matches expected for scope
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         expected_policy_count = self._count_policies_in_file(scope_pattern=scope)
         initial_policy_count = len(global_enforcer.get_policy())
 
@@ -221,6 +225,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Policies are loaded for user's scopes
             - Policy count is reasonable for context
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         initial_policy_count = len(global_enforcer.get_policy())
 
         self._load_policies_for_user_context(user_scopes)
@@ -241,6 +246,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Role-specific policies are loaded
             - Loaded policies contain expected role
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         initial_policy_count = len(global_enforcer.get_policy())
 
         self._load_policies_for_role_management(role_name)
@@ -263,6 +269,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Policy counts change appropriately between stages
             - No policies exist at startup
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         startup_policy_count = len(global_enforcer.get_policy())
 
         self.assertEqual(startup_policy_count, 0)
@@ -293,6 +300,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Policy queries return empty results
             - No enforcement decisions are possible
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         initial_policy_count = len(global_enforcer.get_policy())
         all_policies = global_enforcer.get_policy()
         all_grouping_policies = global_enforcer.get_grouping_policy()
@@ -320,6 +328,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Filtered loading works without errors
             - Appropriate policies are loaded based on filter
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         initial_policy_count = len(global_enforcer.get_policy())
 
         global_enforcer.clear_policy()
@@ -337,6 +346,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Cleared enforcer has no policies
             - Reloading produces same count as initial load
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         self._load_policies_for_scope("lib^*")
         initial_load_count = len(global_enforcer.get_policy())
 
@@ -360,6 +370,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Filtered count matches policies in file for that role
             - All loaded policies contain the specified role
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         expected_count = self._count_policies_in_file(role=role_name)
 
         self._load_policies_for_role_management(role_name)
@@ -377,6 +388,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Combined scope filter loads sum of individual scopes
             - Total load equals sum of all scope policies
         """
+        global_enforcer = AuthzEnforcer.get_enforcer()
         lib_scope = "lib^*"
         course_scope = "course^*"
         org_scope = "org^*"

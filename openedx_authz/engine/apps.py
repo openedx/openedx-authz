@@ -8,13 +8,7 @@ class CasbinAdapterConfig(AppConfig):
 
     def ready(self):
         """Initialization layer for the casbin_adapter app."""
-
-        try:
-            from casbin_adapter.enforcer import initialize_enforcer
-
-            db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
-            initialize_enforcer(db_alias)
-        except ImproperlyConfigured:
-            # The app might not be fully configured yet (e.g., during migrations).
-            # In such cases, we skip the enforcer initialization.
-            pass
+        # DO NOT initialize the enforcer here to avoid issues when
+        # apps are not fully loaded (e.g., while pulling translations).
+        # It's best to lazy load the enforcer when needed it's first used.
+        pass

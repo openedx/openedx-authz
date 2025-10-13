@@ -43,11 +43,7 @@ class OpenedxAuthzConfig(AppConfig):
 
     def ready(self):
         """Initialization layer for the openedx_authz app."""
-        # Initialize the enforcer to ensure it's ready when the app starts
-        try:
-            from openedx_authz.engine.enforcer import AuthzEnforcer
-            AuthzEnforcer()
-        except ImproperlyConfigured:
-            # The app might not be fully configured yet (e.g., during migrations).
-            # In such cases, we skip the enforcer initialization.
-            pass
+        # DO NOT initialize the enforcer here to avoid issues when
+        # apps are not fully loaded (e.g., while pulling translations).
+        # It's best to lazy load the enforcer when needed it's first used.
+        pass

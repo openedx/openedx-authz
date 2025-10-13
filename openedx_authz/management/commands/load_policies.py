@@ -9,9 +9,9 @@ The command supports:
 import os
 
 import casbin
+from casbin_adapter.models import CasbinRule
 from django.core.management.base import BaseCommand
 
-from casbin_adapter.models import CasbinRule
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers

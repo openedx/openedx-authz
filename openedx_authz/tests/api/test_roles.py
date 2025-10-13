@@ -10,13 +10,7 @@ from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import (
-    ContentLibraryData,
-    RoleAssignmentData,
-    RoleData,
-    ScopeData,
-    SubjectData,
-)
+from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, ScopeData, SubjectData
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,

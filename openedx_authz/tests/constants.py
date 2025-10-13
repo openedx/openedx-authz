@@ -2,10 +2,7 @@
 Constants for library roles and permissions tests.
 """
 
-from openedx_authz.api.data import (
-    ActionData,
-    PermissionData,
-)
+from openedx_authz.api.data import ActionData, PermissionData
 
 LIST_LIBRARY_ADMIN_PERMISSIONS = [
     PermissionData(

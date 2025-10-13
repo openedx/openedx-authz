@@ -19,9 +19,9 @@ from openedx_authz.api.data import (
     ScopeData,
     SubjectData,
 )
+from openedx_authz.api.decorators import manage_policy_lifecycle
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import enforcer
-from openedx_authz.api.decorators import manage_policy_lifecycle
 
 __all__ = [
     "get_permissions_for_single_role",

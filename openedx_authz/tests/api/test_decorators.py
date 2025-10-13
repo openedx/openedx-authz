@@ -5,21 +5,15 @@ which manages policy loading and clearing around API function calls.
 """
 
 import casbin
+import pytest
 from ddt import data as ddt_data
 from ddt import ddt, unpack
+from django.conf import settings
 from django.test import TestCase
 
-from openedx_authz.api.data import (
-    ActionData,
-    RoleData,
-    ScopeData,
-    SubjectData,
-)
+from openedx_authz.api.data import ActionData, RoleData, ScopeData, SubjectData
 from openedx_authz.api.decorators import manage_policy_lifecycle
-from openedx_authz.api.roles import (
-    assign_role_to_subject_in_scope,
-    get_permissions_for_active_roles_in_scope,
-)
+from openedx_authz.api.roles import assign_role_to_subject_in_scope, get_permissions_for_active_roles_in_scope
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
@@ -90,6 +84,7 @@ class TestPolicyLifecycleDecorator(TestCase):
         super().tearDown()
         global_enforcer.clear_policy()
 
+    @pytest.mark.skipif(settings.ALLOW_FILTERED_POLICY_LOADING is False, reason="Filtered policy loading not allowed")
     def test_decorator_filters_by_scope_and_clears(self):
         """Test decorator loads filtered policies by scope and clears after execution.
 
@@ -102,7 +97,7 @@ class TestPolicyLifecycleDecorator(TestCase):
         scope = ScopeData(external_key="lib:Org1:math_101")
 
         @manage_policy_lifecycle(filter_on="scope")
-        def get_policy_info(scope_arg):
+        def get_policy_info(scope_arg):  # pylint: disable=unused-argument
             policy_count = len(global_enforcer.get_policy())
             grouping_policy_count = len(global_enforcer.get_grouping_policy())
             return {
@@ -133,7 +128,7 @@ class TestPolicyLifecycleDecorator(TestCase):
         """
 
         @manage_policy_lifecycle(filter_on="scope")
-        def get_full_policy_count(some_arg):
+        def get_full_policy_count(some_arg):  # pylint: disable=unused-argument
             """Function that does not take a scope argument.
 
             This should cause the decorator to load the full policy.
@@ -161,7 +156,7 @@ class TestPolicyLifecycleDecorator(TestCase):
         """
 
         @manage_policy_lifecycle(filter_on="scope")
-        def failing_function(scope_arg):
+        def failing_function(scope_arg):  # pylint: disable=unused-argument
             """Function that raises an exception to test decorator cleanup."""
             if len(global_enforcer.get_policy()) >= 0:
                 raise ValueError("Intentional test exception")
@@ -174,7 +169,8 @@ class TestPolicyLifecycleDecorator(TestCase):
 
         self.assertEqual(str(context.exception), "Intentional test exception")
 
-    def test_decorator_with_enforcement_checks(self):
+    @pytest.mark.skipif(settings.ALLOW_FILTERED_POLICY_LOADING is False, reason="Filtered policy loading not allowed")
+    def test_decorator_with_enforcement_checks_with_filtered_loading(self):
         """Test that policies loaded by decorator enable correct enforcement decisions.
 
         Expected result:
@@ -235,6 +231,7 @@ class TestPolicyLifecycleDecorator(TestCase):
         self.assertEqual(result["policy_count"], expected_policies)
         self.assertEqual(result["grouping_count"], expected_grouping)
 
+    @pytest.mark.skipif(settings.ALLOW_FILTERED_POLICY_LOADING is False, reason="Filtered policy loading not allowed")
     def test_decorator_enforcement_with_different_subjects(self):
         """Test enforcement with different subjects having different roles.
 

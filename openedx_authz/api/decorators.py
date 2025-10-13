@@ -47,8 +47,8 @@ def manage_policy_lifecycle(filter_on: str = ""):
         # 2. p only for permission-role bindings
         # 3. g2 only for role-role bindings
         # 4. g3 only for permission grouping
-        # This way for a user we'd only need to load g ( filter only for the scope or user) , p, g2, g3 policies in each request
-        # The only filter binding would be g, the rest loads entirely to avoid not loading definitions.
+        # This way for a user we'd only need to load g ( filter only for the scope or user) , p, g2, g3 policies in
+        # each request. The only filter binding would be g, the rest loads entirely to avoid not loading definitions.
     }
 
     def build_filter_from_args(args) -> Filter:

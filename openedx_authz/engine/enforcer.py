@@ -80,16 +80,28 @@ class AuthzEnforcer:
             FastEnforcer: Configured Casbin enforcer with adapter and watcher
         """
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
-        initialize_enforcer(db_alias)
+
+        try:
+            # Initialize the enforcer with the specified database alias to set up the adapter.
+            # Best to lazy load it when it's first used to ensure the database is ready and avoid
+            # issues when the app is not fully loaded (e.g., while pulling translations, etc.).
+            initialize_enforcer(db_alias)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}")
+            raise
+
         adapter = ExtendedAdapter()
         enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
         enforcer.enable_auto_save(True)
 
-        if Watcher:
-            try:
-                enforcer.set_watcher(Watcher)
-                logger.info("Watcher successfully set on Casbin enforcer")
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error(f"Failed to set watcher on Casbin enforcer: {e}")
+        if not Watcher:
+            logger.warning("Redis configuration not completed successfully. Watcher is disabled.")
+            return enforcer
+
+        try:
+            enforcer.set_watcher(Watcher)
+            logger.info("Watcher successfully set on Casbin enforcer")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to set watcher on Casbin enforcer: {e}")
 
         return enforcer

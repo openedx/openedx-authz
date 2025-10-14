@@ -19,11 +19,11 @@ Requires `CASBIN_MODEL` setting and Redis configuration for watcher functionalit
 import logging
 
 from casbin import FastEnforcer
+from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.watcher import Watcher
-from casbin_adapter.enforcer import initialize_enforcer
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class AuthzEnforcer:
             # Best to lazy load it when it's first used to ensure the database is ready and avoid
             # issues when the app is not fully loaded (e.g., while pulling translations, etc.).
             initialize_enforcer(db_alias)
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.error(f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}")
             raise
 

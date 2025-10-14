@@ -3,7 +3,6 @@ openedx_authz Django application initialization.
 """
 
 from django.apps import AppConfig
-from django.core.exceptions import ImproperlyConfigured
 
 
 class OpenedxAuthzConfig(AppConfig):
@@ -40,10 +39,3 @@ class OpenedxAuthzConfig(AppConfig):
             },
         },
     }
-
-    def ready(self):
-        """Initialization layer for the openedx_authz app."""
-        # DO NOT initialize the enforcer here to avoid issues when
-        # apps are not fully loaded (e.g., while pulling translations).
-        # It's best to lazy load the enforcer when needed it's first used.
-        pass

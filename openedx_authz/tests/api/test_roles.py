@@ -35,7 +35,6 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
-
 class BaseRolesTestCase(TestCase):
     """Base test case with helper methods for roles testing.
 

@@ -9,6 +9,7 @@ internally to manage the underlying policies and role assignments.
 """
 
 from collections import defaultdict
+from django.db import transaction
 
 from openedx_authz.api.data import (
     GroupingPolicyIndex,
@@ -21,6 +22,7 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.models import ExtendedCasbinRule
 
 __all__ = [
     "get_permissions_for_single_role",
@@ -197,11 +199,22 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
         bool: True if the role was assigned successfully, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    return enforcer.add_role_for_user_in_domain(
-        subject.namespaced_key,
-        role.namespaced_key,
-        scope.namespaced_key,
-    )
+    enforcer.load_policy()
+
+    with transaction.atomic():
+        role_assignment = enforcer.add_role_for_user_in_domain(
+            subject.namespaced_key,
+            role.namespaced_key,
+            scope.namespaced_key,
+        )
+        if not role_assignment:
+            return False
+        extended_rule = ExtendedCasbinRule.create_based_on_policy(
+            subject, role, scope, enforcer
+        )
+        if not extended_rule:
+            raise Exception("Failed to create ExtendedCasbinRule for the assignment")
+    return True
 
 
 def batch_assign_role_to_subjects_in_scope(subjects: list[SubjectData], role: RoleData, scope: ScopeData) -> None:

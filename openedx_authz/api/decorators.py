@@ -3,7 +3,6 @@ from functools import wraps
 
 from django.conf import settings
 
-from openedx_authz.api.data import ScopeData
 from openedx_authz.engine.enforcer import enforcer
 from openedx_authz.engine.filter import Filter
 
@@ -38,18 +37,21 @@ def manage_policy_lifecycle(filter_on: str = ""):
             return enforcer.get_filtered_roles(scope.namespaced_key)
     """
 
-    FILTER_DATA_CLASSES = { # Consider empty for no filtering
+    FILTER_DATA_CLASSES = {  # Consider empty for no filtering
         # "scope": ScopeData,
-        # TODO: currently ALLOW_FILTERED_POLICY_LOADING is False to avoid partial policy loads. We can
-        # Allow filtering on scope (initially) once we have a CONF model that supports this so filtering is meaningful,
-        # consistent and doesn't lead to partial policy loads.
-        # We can consider this modeling to avoid partial loads and inconsistent states:
-        # 1. g only for user-role-scope bindings
-        # 2. p only for permission-role bindings
-        # 3. g2 only for role-role bindings
-        # 4. g3 only for permission grouping
-        # This way for a user we'd only need to load g ( filter only for the scope or user) , p, g2, g3 policies in
-        # each request. The only filter binding would be g, the rest loads entirely to avoid not loading definitions.
+        # TODO: Currently, ALLOW_FILTERED_POLICY_LOADING is set to False to prevent partial policy loads,
+        # so this dictionary is also intentionally left empty.
+        # We can enable scope-based filtering once we have a CONF model that supports it,
+        # ensuring the filtering is meaningful, consistent, and does not cause partial policy loads.
+        #
+        # One possible model to support safe filtering and avoid inconsistent states could be:
+        # 1. g  -> user-role-scope bindings
+        # 2. p  -> permission-role bindings
+        # 3. g2 -> role-role bindings
+        # 4. g3 -> permission grouping
+        #
+        # With this structure, for a given user we would only need to load g (filtered by scope or user),
+        # while p, g2, and g3 would be fully loaded to ensure all definitions are available.
     }
 
     def build_filter_from_args(args) -> Filter:

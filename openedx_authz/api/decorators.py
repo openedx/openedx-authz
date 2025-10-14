@@ -91,10 +91,9 @@ def manage_policy_lifecycle(filter_on: str = ""):
             else:
                 enforcer.load_policy()
 
-            try:
-                return f(*args, **kwargs)
-            finally:
-                enforcer.clear_policy()
+            # Avoid clearing policies to prevent issues with shared enforcer state
+            # in long-running processes or concurrent requests.
+            return f(*args, **kwargs)
 
         return wrapper
 

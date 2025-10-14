@@ -37,8 +37,9 @@ def manage_policy_lifecycle(filter_on: str = ""):
         def get_roles_in_scope(scope: ScopeData):
             return enforcer.get_filtered_roles(scope.namespaced_key)
     """
+
     FILTER_DATA_CLASSES = { # Consider empty for no filtering
-        "scope": ScopeData,
+        # "scope": ScopeData,
         # TODO: currently ALLOW_FILTERED_POLICY_LOADING is False to avoid partial policy loads. We can
         # Allow filtering on scope (initially) once we have a CONF model that supports this so filtering is meaningful,
         # consistent and doesn't lead to partial policy loads.

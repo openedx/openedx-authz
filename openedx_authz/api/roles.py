@@ -178,6 +178,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
         for role, permissions in permissions_per_role.items()
     ]
 
+
 @manage_policy_lifecycle()
 def get_all_roles_names() -> list[str]:
     """Get all the available roles names in the current environment.

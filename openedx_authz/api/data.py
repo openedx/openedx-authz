@@ -318,6 +318,8 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
     NAMESPACE: ClassVar[str] = "global"
 
+    scope_id: int = None  # Optional field to link to actual scope instance
+
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
         """Validate the external_key format for ScopeData.
@@ -545,6 +547,7 @@ class SubjectData(AuthZData, metaclass=SubjectMeta):
 
     NAMESPACE: ClassVar[str] = "sub"
 
+    subject_id: int = None  # Optional field to link to actual subject instance
 
 @define
 class UserData(SubjectData):

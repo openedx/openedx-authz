@@ -87,7 +87,7 @@ def get_permissions_for_roles(
     return permissions_by_role
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_permissions_for_active_roles_in_scope(
     scope: ScopeData, role: RoleData | None = None
 ) -> dict[str, dict[str, list[PermissionData | str]]]:
@@ -118,7 +118,6 @@ def get_permissions_for_active_roles_in_scope(
         dict[str, list[PermissionData]]: A dictionary mapping the role external_key to its
         permissions and scopes.
     """
-    enforcer.load_policy()
     filtered_policy = enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -138,7 +137,7 @@ def get_permissions_for_active_roles_in_scope(
     )
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     """Get all role definitions available in a specific scope.
 
@@ -151,7 +150,6 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
     Returns:
         list[Role]: A list of roles.
     """
-    enforcer.load_policy()
     policy_filtered = enforcer.get_filtered_policy(
         PolicyIndex.SCOPE.value, scope.namespaced_key
     )
@@ -189,7 +187,7 @@ def get_all_roles_names() -> list[str]:
     return enforcer.get_all_subjects()
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     """Get all the available role grouping policies in a specific scope.
 
@@ -199,13 +197,12 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
     Returns:
         list[list[str]]: A list of policies in the specified scope.
     """
-    enforcer.load_policy()
     return enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
     )
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def assign_role_to_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
 ) -> bool:
@@ -219,7 +216,6 @@ def assign_role_to_subject_in_scope(
     Returns:
         bool: True if the role was assigned successfully, False otherwise.
     """
-    enforcer.load_policy()
     return enforcer.add_role_for_user_in_domain(
         subject.namespaced_key,
         role.namespaced_key,
@@ -227,7 +223,7 @@ def assign_role_to_subject_in_scope(
     )
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def batch_assign_role_to_subjects_in_scope(
     subjects: list[SubjectData], role: RoleData, scope: ScopeData
 ) -> None:
@@ -241,7 +237,7 @@ def batch_assign_role_to_subjects_in_scope(
         assign_role_to_subject_in_scope(subject, role, scope)
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def unassign_role_from_subject_in_scope(
     subject: SubjectData, role: RoleData, scope: ScopeData
 ) -> bool:
@@ -255,13 +251,12 @@ def unassign_role_from_subject_in_scope(
     Returns:
         bool: True if the role was unassigned successfully, False otherwise.
     """
-    enforcer.load_policy()
     return enforcer.delete_roles_for_user_in_domain(
         subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def batch_unassign_role_from_subjects_in_scope(
     subjects: list[SubjectData], role: RoleData, scope: ScopeData
 ) -> None:
@@ -303,7 +298,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     return role_assignments
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_subject_role_assignments_in_scope(
     subject: SubjectData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
@@ -316,7 +311,6 @@ def get_subject_role_assignments_in_scope(
     Returns:
         list[RoleAssignmentData]: A list of role assignments for the subject in the scope.
     """
-    enforcer.load_policy()
     # TODO: we still need to get the remaining data for the role like email, etc
     role_assignments = []
     for namespaced_key in enforcer.get_roles_for_user_in_domain(
@@ -338,7 +332,7 @@ def get_subject_role_assignments_in_scope(
     return role_assignments
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_subject_role_assignments_for_role_in_scope(
     role: RoleData, scope: ScopeData
 ) -> list[RoleAssignmentData]:
@@ -375,7 +369,7 @@ def get_subject_role_assignments_for_role_in_scope(
     return role_assignments
 
 
-@manage_policy_lifecycle(filter_on="scope")
+@manage_policy_lifecycle()
 def get_all_subject_role_assignments_in_scope(scope: ScopeData) -> list[RoleAssignmentData]:
     """Get all the subjects assigned to any role in a specific scope.
 
@@ -415,6 +409,5 @@ def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
     Returns:
         list[SubjectData]: A list of subjects assigned to the specified role.
     """
-    enforcer.load_policy()
     policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)
     return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]

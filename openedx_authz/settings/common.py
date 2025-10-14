@@ -28,3 +28,8 @@ def plugin_settings(settings):
     # Redis host and port are temporarily loaded here for the MVP
     settings.REDIS_HOST = "redis"
     settings.REDIS_PORT = 6379
+
+    # TODO: Set to True when we have a CONF model that supports filtered policy loading meaningfully
+    # to avoid partial policy loads and inconsistent states.
+    # See comments in api/decorators.py for more details.
+    settings.ALLOW_FILTERED_POLICY_LOADING = False

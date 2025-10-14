@@ -21,4 +21,3 @@ class CasbinAdapterConfig(AppConfig):
         ready (e.g., while pulling translations). To avoid this, we override
         the ready method and do not initialize the enforcer here.
         """
-

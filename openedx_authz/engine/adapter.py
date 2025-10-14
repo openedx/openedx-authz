@@ -123,7 +123,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         return queryset.order_by("id")
 
 
-    def query_policies(self, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
+    def query_policy(self, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
         """
         Retrieve policy rules from the database based on filter criteria.
 

@@ -10,18 +10,9 @@ from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import (
-    ActionData,
-    RoleData,
-    ScopeData,
-    SubjectData,
-)
-from openedx_authz.api.permissions import (
-    is_subject_allowed,
-)
-from openedx_authz.api.roles import (
-    assign_role_to_subject_in_scope,
-)
+from openedx_authz.api.data import ActionData, RoleData, ScopeData, SubjectData
+from openedx_authz.api.permissions import is_subject_allowed
+from openedx_authz.api.roles import assign_role_to_subject_in_scope
 from openedx_authz.engine.enforcer import enforcer as global_enforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 

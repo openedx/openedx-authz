@@ -14,7 +14,11 @@ class CasbinAdapterConfig(AppConfig):
     name = "casbin_adapter"
 
     def ready(self):
-        """Initialize the casbin_adapter app."""
-        # DO NOT initialize the enforcer here to avoid issues when
-        # apps are not fully loaded (e.g., while pulling translations).
-        # It's best to lazy load the enforcer when needed it's first used.
+        """Initialize the casbin_adapter app.
+
+        The upstream casbin_adapter app tries to initialize the enforcer
+        when the app is loaded, which can lead to issues if the database is not
+        ready (e.g., while pulling translations). To avoid this, we override
+        the ready method and do not initialize the enforcer here.
+        """
+

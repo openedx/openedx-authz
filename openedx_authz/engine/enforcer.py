@@ -35,11 +35,15 @@ class AuthzEnforcer:
     ExtendedAdapter and Redis watcher for policy management and synchronization.
 
     There are two main use cases for this class:
-    1. Directly get the enforcer instance and initialize it if needed:
+
+    1. Directly get the enforcer instance and initialize it if needed::
+
         from openedx_authz.engine.enforcer import AuthzEnforcer
         enforcer = AuthzEnforcer.get_enforcer()
         allowed = enforcer.enforce(user, resource, action)
-    2. Instantiate the class to get the singleton enforcer instance:
+
+    2. Instantiate the class to get the singleton enforcer instance::
+
         from openedx_authz.engine.enforcer import AuthzEnforcer
         enforcer = AuthzEnforcer()
         allowed = enforcer.get_enforcer().enforce(user, resource, action)

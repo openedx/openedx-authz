@@ -40,8 +40,8 @@ def create_watcher():
         The configured watcher instance
     """
     watcher_options = WatcherOptions()
-    watcher_options.host = settings.REDIS_HOST
-    watcher_options.port = settings.REDIS_PORT
+    watcher_options.host = settings.CASBIN_WATCHER_REDIS_HOST
+    watcher_options.port = settings.CASBIN_WATCHER_REDIS_PORT
     watcher_options.optional_update_callback = callback_function
 
     try:

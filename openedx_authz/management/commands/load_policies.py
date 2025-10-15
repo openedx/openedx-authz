@@ -9,6 +9,7 @@ The command supports:
 import os
 
 import casbin
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from openedx_authz import ROOT_DIRECTORY
@@ -65,12 +66,12 @@ class Command(BaseCommand):
         """
         policy_file_path, model_file_path = options["policy_file_path"], options["model_file_path"]
         if policy_file_path is None:
-            policy_file_path = os.path.join(
-                ROOT_DIRECTORY, "engine", "config", "authz.policy"
+            policy_file_path = getattr(
+                settings, "CASBIN_POLICY_DEFAULTS", os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
             )
         if model_file_path is None:
-            model_file_path = os.path.join(
-                ROOT_DIRECTORY, "engine", "config", "model.conf"
+            model_file_path = getattr(
+                settings, "CASBIN_MODEL", os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
             )
 
         source_enforcer = casbin.Enforcer(model_file_path, policy_file_path)

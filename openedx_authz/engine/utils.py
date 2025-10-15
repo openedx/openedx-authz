@@ -27,9 +27,27 @@ def migrate_policy_between_enforcers(
         # Load latest policies from the source enforcer
         source_enforcer.load_policy()
         policies = source_enforcer.get_policy()
+        logger.info(f"Loaded {len(policies)} policies from source enforcer.")
+
+        # Load target enforcer policies to check for duplicates
+        target_enforcer.load_policy()
+        logger.info(f"Target enforcer has {len(target_enforcer.get_policy())} existing policies before migration.")
+
+        # TODO: this operations use the enforcer directly, which may not be ideal
+        # since we have to load the policy after each addition to avoid duplicates.
+        # I think we should consider using an API which can validate whether
+        # all policies exist before adding them or we have the
+        # latest policies loaded in the enforcer.
+
         for policy in policies:
-            if not target_enforcer.has_policy(*policy):
-                target_enforcer.add_policy(*policy)
+            if target_enforcer.has_policy(*policy):
+                logger.info(f"Policy {policy} already exists in target, skipping.")
+                continue
+            target_enforcer.add_policy(*policy)
+
+            # Ensure latest policies are loaded in the target enforcer after each addition
+            # to avoid duplicates
+            target_enforcer.load_policy()
 
         for grouping_policy_ptype in GROUPING_POLICY_PTYPES:
             try:
@@ -37,14 +55,22 @@ def migrate_policy_between_enforcers(
                     grouping_policy_ptype
                 )
                 for grouping in grouping_policies:
-                    if not target_enforcer.has_named_grouping_policy(
+                    if target_enforcer.has_named_grouping_policy(
                         grouping_policy_ptype, *grouping
                     ):
-                        target_enforcer.add_named_grouping_policy(
-                            grouping_policy_ptype, *grouping
+                        logger.info(
+                            f"Grouping policy {grouping_policy_ptype}, {grouping} already exists in target, skipping."
                         )
+                        continue
+                    target_enforcer.add_named_grouping_policy(
+                        grouping_policy_ptype, *grouping
+                    )
+
+                    # Ensure latest policies are loaded in the target enforcer after each addition
+                    # to avoid duplicates
+                    target_enforcer.load_policy()
             except KeyError as e:
-                logger.debug(
+                logger.info(
                     f"Skipping {grouping_policy_ptype} policies: {e} not found in source enforcer."
                 )
         logger.info(

@@ -16,13 +16,21 @@ Unreleased
 
 *
 
-0.1.0 - 2025-08-27
+0.4.0 - 2025-16-10
+******************
+
+Changed
+=======
+
+* Initialize enforcer when application is ready to avoid access errors.
+
+0.3.0 - 2025-10-10
 ******************
 
 Added
 =====
 
-* Basic repo structure and initial setup.
+* Implementation of REST API for roles and permissions management.
 
 0.2.0 - 2025-10-10
 ******************
@@ -34,10 +42,10 @@ Added
 * Casbin model (CONF) and engine layer for authorization.
 * Implementation of public API for roles and permissions management.
 
-0.3.0 - 2025-10-10
+0.1.0 - 2025-08-27
 ******************
 
 Added
 =====
 
-* Implementation of REST API for roles and permissions management.
+* Basic repo structure and initial setup.

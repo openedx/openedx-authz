@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.4.1 - 2025-10-16
+******************
+
+Fixed
+=====
+
+* Load policy before adding policies in the loading script to avoid duplicates.
+
 0.4.0 - 2025-16-10
 ******************
 

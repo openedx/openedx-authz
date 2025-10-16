@@ -10,42 +10,109 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('casbin_adapter', '0001_initial'),
-        ('content_libraries', '0011_remove_contentlibrary_bundle_uuid_and_more'),
+        ("casbin_adapter", "0001_initial"),
+        ("content_libraries", "0011_remove_contentlibrary_bundle_uuid_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Scope',
+            name="Scope",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('content_library', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='authz_scopes', to='content_libraries.contentlibrary')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "content_library",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="authz_scopes",
+                        to="content_libraries.contentlibrary",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Subject',
+            name="Subject",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='authz_subjects', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="authz_subjects",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ExtendedCasbinRule',
+            name="ExtendedCasbinRule",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('casbin_rule_key', models.CharField(max_length=255, unique=True)),
-                ('description', models.TextField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('metadata', models.JSONField(blank=True, null=True)),
-                ('casbin_rule', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='extended_rule', to='casbin_adapter.casbinrule')),
-                ('scope', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.scope')),
-                ('subject', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.subject')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("casbin_rule_key", models.CharField(max_length=255, unique=True)),
+                ("description", models.TextField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("metadata", models.JSONField(blank=True, null=True)),
+                (
+                    "casbin_rule",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="extended_rule",
+                        to="casbin_adapter.casbinrule",
+                    ),
+                ),
+                (
+                    "scope",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="casbin_rules",
+                        to="openedx_authz.scope",
+                    ),
+                ),
+                (
+                    "subject",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="casbin_rules",
+                        to="openedx_authz.subject",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Extended Casbin Rule',
-                'verbose_name_plural': 'Extended Casbin Rules',
+                "verbose_name": "Extended Casbin Rule",
+                "verbose_name_plural": "Extended Casbin Rules",
             },
         ),
     ]

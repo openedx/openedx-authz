@@ -1,2 +1,0 @@
-# USE THIS FOR LIBRARY AND OTHER SCOPES so we don't have to immediate use generic foreigh keys
-# But for users and metadata use the extended casbin model, it has to be generic (user, groups, etc) subjects in general

@@ -7,18 +7,17 @@ management command.
 """
 
 import os
-from django.db.models import Count
-from django.test import TestCase
 
 import casbin
 from casbin_adapter.models import CasbinRule
-
 from ddt import data, ddt, unpack
+from django.db.models import Count
+from django.test import TestCase
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
-from openedx_authz.engine.enforcer import enforcer as global_enforcer
 
 
 @ddt
@@ -57,7 +56,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.source_enforcer = casbin.Enforcer(self.model_file, self.policy_file)
 
         # Target enforcer is the database-backed global enforcer
-        self.target_enforcer = global_enforcer
+        self.target_enforcer = AuthzEnforcer.get_enforcer()
 
         # Clear the target enforcer's database to start fresh
         # This simulates a clean database state before migration
@@ -85,16 +84,29 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.target_enforcer.load_policy()
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), expected_policy_count,
-                        f"Expected {expected_policy_count} policies from file, got {len(target_policies)}")
+        self.assertEqual(
+            len(target_policies),
+            expected_policy_count,
+            f"Expected {expected_policy_count} policies from file, got {len(target_policies)}",
+        )
 
         self.assertIn(
-            [make_role_key("library_admin"), make_action_key("delete_library"), make_scope_key("lib", "*"), "allow"],
-            target_policies
+            [
+                make_role_key("library_admin"),
+                make_action_key("delete_library"),
+                make_scope_key("lib", "*"),
+                "allow",
+            ],
+            target_policies,
         )
         self.assertIn(
-            [make_role_key("library_user"), make_action_key("view_library"), make_scope_key("lib", "*"), "allow"],
-            target_policies
+            [
+                make_role_key("library_user"),
+                make_action_key("view_library"),
+                make_scope_key("lib", "*"),
+                "allow",
+            ],
+            target_policies,
         )
 
     def test_migrate_no_grouping_policies_from_file(self):
@@ -110,8 +122,11 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         target_grouping = self.target_enforcer.get_grouping_policy()
         # The file contains no g rules - those come from database/runtime assignment
-        self.assertEqual(len(target_grouping), 0,
-                        "authz.policy file should not contain user role assignments (g rules)")
+        self.assertEqual(
+            len(target_grouping),
+            0,
+            "authz.policy file should not contain user role assignments (g rules)",
+        )
 
     def test_migrate_action_inheritance_from_file(self):
         """Test migration of g2 policies (action inheritance) from authz.policy file.
@@ -127,17 +142,23 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.target_enforcer.load_policy()
 
         target_g2 = self.target_enforcer.get_named_grouping_policy("g2")
-        self.assertEqual(len(target_g2), expected_g2_count,
-                        f"Expected {expected_g2_count} g2 rules from file, got {len(target_g2)}")
+        self.assertEqual(
+            len(target_g2),
+            expected_g2_count,
+            f"Expected {expected_g2_count} g2 rules from file, got {len(target_g2)}",
+        )
 
         # Verify a sample of expected g2 rules from the file
         self.assertIn(
             [make_action_key("delete_library"), make_action_key("view_library")],
-            target_g2
+            target_g2,
         )
         self.assertIn(
-            [make_action_key("manage_library_team"), make_action_key("view_library_team")],
-            target_g2
+            [
+                make_action_key("manage_library_team"),
+                make_action_key("view_library_team"),
+            ],
+            target_g2,
         )
 
     def test_migrate_idempotent(self):
@@ -160,21 +181,27 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         second_policy_count = len(self.target_enforcer.get_policy())
         second_g2_count = len(self.target_enforcer.get_named_grouping_policy("g2"))
 
-        self.assertEqual(first_policy_count, second_policy_count,
-                        "Running migration twice should not duplicate policies")
-        self.assertEqual(first_g2_count, second_g2_count,
-                        "Running migration twice should not duplicate g2 rules")
+        self.assertEqual(
+            first_policy_count,
+            second_policy_count,
+            "Running migration twice should not duplicate policies",
+        )
+        self.assertEqual(
+            first_g2_count,
+            second_g2_count,
+            "Running migration twice should not duplicate g2 rules",
+        )
 
         duplicates = (
-            CasbinRule.objects
-            .values("v0", "v1", "v2")
+            CasbinRule.objects.values("v0", "v1", "v2")
             .annotate(total=Count("*"))
             .filter(total__gt=1)
         )
         duplicate_list = list(duplicates)
         self.assertEqual(
-            len(duplicate_list), 0,
-            f"Found {len(duplicate_list)} duplicate policies in database: {duplicate_list}"
+            len(duplicate_list),
+            0,
+            f"Found {len(duplicate_list)} duplicate policies in database: {duplicate_list}",
         )
 
     def test_migrate_complete_file_contents(self):
@@ -187,12 +214,21 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
-        self.assertEqual(len(self.target_enforcer.get_policy()), 25,
-                        "Should have 25 regular policies from file")
-        self.assertEqual(len(self.target_enforcer.get_grouping_policy()), 0,
-                        "Should have 0 g rules (not stored in file)")
-        self.assertEqual(len(self.target_enforcer.get_named_grouping_policy("g2")), 13,
-                        "Should have 13 g2 rules from file")
+        self.assertEqual(
+            len(self.target_enforcer.get_policy()),
+            25,
+            "Should have 25 regular policies from file",
+        )
+        self.assertEqual(
+            len(self.target_enforcer.get_grouping_policy()),
+            0,
+            "Should have 0 g rules (not stored in file)",
+        )
+        self.assertEqual(
+            len(self.target_enforcer.get_named_grouping_policy("g2")),
+            13,
+            "Should have 13 g2 rules from file",
+        )
 
     def test_migrate_partial_duplicates(self):
         """Test migration when database already has some policies from the file.
@@ -203,31 +239,49 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             - Mixed state is handled correctly
         """
         self.target_enforcer.add_policy(
-            make_role_key("library_admin"), make_action_key("delete_library"), make_scope_key("lib", "*"), "allow"
+            make_role_key("library_admin"),
+            make_action_key("delete_library"),
+            make_scope_key("lib", "*"),
+            "allow",
         )
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 25,
-                        "Should have 25 policies total, with no duplicates")
+        self.assertEqual(
+            len(target_policies),
+            25,
+            "Should have 25 policies total, with no duplicates",
+        )
 
         duplicates = (
-            CasbinRule.objects
-            .values("v0", "v1", "v2")
+            CasbinRule.objects.values("v0", "v1", "v2")
             .annotate(total=Count("*"))
             .filter(total__gt=1)
         )
         duplicate_list = list(duplicates)
         self.assertEqual(
-            len(duplicate_list), 0,
-            f"Found {len(duplicate_list)} duplicate policies in database: {duplicate_list}"
+            len(duplicate_list),
+            0,
+            f"Found {len(duplicate_list)} duplicate policies in database: {duplicate_list}",
         )
 
     @data(
-        (make_role_key("library_admin"), make_action_key("delete_library"), make_scope_key("lib", "*")),
-        (make_role_key("library_user"), make_action_key("view_library"), make_scope_key("lib", "*")),
-        (make_role_key("library_author"), make_action_key("edit_library"), make_scope_key("lib", "*")),
+        (
+            make_role_key("library_admin"),
+            make_action_key("delete_library"),
+            make_scope_key("lib", "*"),
+        ),
+        (
+            make_role_key("library_user"),
+            make_action_key("view_library"),
+            make_scope_key("lib", "*"),
+        ),
+        (
+            make_role_key("library_author"),
+            make_action_key("edit_library"),
+            make_scope_key("lib", "*"),
+        ),
     )
     @unpack
     def test_migrate_specific_file_policies(self, role, action, scope):
@@ -240,8 +294,11 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertIn([role, action, scope, "allow"], target_policies,
-                     f"Policy {role}, {action}, {scope} should be in database")
+        self.assertIn(
+            [role, action, scope, "allow"],
+            target_policies,
+            f"Policy {role}, {action}, {scope} should be in database",
+        )
 
     @data(
         (make_action_key("delete_library"), make_action_key("view_library")),
@@ -259,8 +316,11 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_g2 = self.target_enforcer.get_named_grouping_policy("g2")
-        self.assertIn([parent_action, child_action], target_g2,
-                     f"Action inheritance {parent_action} -> {child_action} should be in database")
+        self.assertIn(
+            [parent_action, child_action],
+            target_g2,
+            f"Action inheritance {parent_action} -> {child_action} should be in database",
+        )
 
     def test_migrate_preserves_existing_db_policies(self):
         """Test that migration preserves existing database policies not in the file.
@@ -274,17 +334,19 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             make_role_key("custom_admin"),
             make_action_key("custom_action"),
             make_scope_key("org", "custom"),
-            "allow"
+            "allow",
         ]
         self.target_enforcer.add_policy(*custom_policy)
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 26,
-                        "Should have 25 file policies + 1 custom policy")
-        self.assertIn(custom_policy, target_policies,
-                     "Custom database policy should be preserved")
+        self.assertEqual(
+            len(target_policies), 26, "Should have 25 file policies + 1 custom policy"
+        )
+        self.assertIn(
+            custom_policy, target_policies, "Custom database policy should be preserved"
+        )
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
         """Test that migration preserves user role assignments (g rules) in the database.
@@ -295,22 +357,32 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             - No user assignments are removed
         """
         self.target_enforcer.add_grouping_policy(
-            make_user_key("user-1"), make_role_key("library_admin"), make_scope_key("lib", "demo")
+            make_user_key("user-1"),
+            make_role_key("library_admin"),
+            make_scope_key("lib", "demo"),
         )
         self.target_enforcer.add_grouping_policy(
-            make_user_key("user-2"), make_role_key("library_user"), make_scope_key("lib", "*")
+            make_user_key("user-2"),
+            make_role_key("library_user"),
+            make_scope_key("lib", "*"),
         )
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_grouping = self.target_enforcer.get_grouping_policy()
-        self.assertEqual(len(target_grouping), 2,
-                        "User role assignments should be preserved")
+        self.assertEqual(
+            len(target_grouping), 2, "User role assignments should be preserved"
+        )
         self.assertIn(
-            [make_user_key("user-1"), make_role_key("library_admin"), make_scope_key("lib", "demo")],
-            target_grouping
+            [
+                make_user_key("user-1"),
+                make_role_key("library_admin"),
+                make_scope_key("lib", "demo"),
+            ],
+            target_grouping,
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 25,
-                        "All 25 policies from file should be loaded")
+        self.assertEqual(
+            len(target_policies), 25, "All 25 policies from file should be loaded"
+        )

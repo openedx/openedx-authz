@@ -17,8 +17,10 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase
 from opaque_keys.edx.locator import LibraryLocatorV2
+from organizations.api import ensure_organization
 from unittest.mock import Mock
 
+from openedx.core.djangoapps.content_libraries import api as library_api
 from openedx.core.djangoapps.content_libraries.models import ContentLibrary
 from openedx_authz.api.data import ContentLibraryData, RoleData, ScopeData, SubjectData, UserData
 from openedx_authz.engine.filter import Filter
@@ -27,17 +29,60 @@ from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 User = get_user_model()
 
 
+def create_test_library(org_short_name, slug=None, title="Test Library"):
+    """
+    Helper function to create a content library using the proper API.
+
+    This uses library_api.create_library() which:
+    - Creates the ContentLibrary database record
+    - Creates the associated LearningPackage
+    - Fires CONTENT_LIBRARY_CREATED event
+    - Returns ContentLibraryMetadata
+
+    Args:
+        org_short_name: Organization short name (e.g., "TestOrg")
+        slug: Library slug (e.g., "TestLib"). If None, generates a unique slug using uuid4.
+        title: Library title (default: "Test Library")
+
+    Returns:
+        tuple: (library_metadata, library_key, content_library)
+            - library_metadata: ContentLibraryMetadata instance from API
+            - library_key: LibraryLocatorV2 instance
+            - content_library: ContentLibrary model instance
+    """
+    import uuid
+    from organizations.models import Organization
+
+    # Generate unique slug if not provided
+    if slug is None:
+        slug = f"testlib-{uuid.uuid4().hex[:8]}"
+
+    # ensure_organization returns a dict, so we need to get the actual model instance
+    ensure_organization(org_short_name)
+    org = Organization.objects.get(short_name=org_short_name)
+
+    library_metadata = library_api.create_library(
+        org=org,
+        slug=slug,
+        title=title,
+        description=f"A library for testing authorization: {slug}",
+    )
+    library_key = library_metadata.key
+    # Note: ContentLibrary model doesn't have library_key as a database field
+    # It's a property constructed from org and slug. Use get_by_key() method.
+    content_library = ContentLibrary.objects.get_by_key(library_key)
+    return library_metadata, library_key, content_library
+
+
 @ddt
 class TestScopeModel(TestCase):
     """Test cases for the Scope model."""
 
     def setUp(self):
         """Set up test fixtures."""
-        self.library_key = LibraryLocatorV2.from_string("lib:TestOrg:TestLib")
-        self.content_library = ContentLibrary.objects.create(
-            library_key=self.library_key,
-            org=self.library_key.org,
-            slug=self.library_key.slug,
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_get_or_create_scope_for_content_library_creates_new(self):
@@ -50,7 +95,7 @@ class TestScopeModel(TestCase):
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         self.assertIsNotNone(scope)
         self.assertEqual(scope.content_library, self.content_library)
@@ -66,8 +111,8 @@ class TestScopeModel(TestCase):
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        scope1 = Scope.get_or_create_scope_for_content_library(scope_data)
-        scope2 = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope1 = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope2 = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         self.assertEqual(scope1.id, scope2.id)
         self.assertEqual(Scope.objects.filter(content_library=self.content_library).count(), 1)
@@ -92,7 +137,7 @@ class TestScopeModel(TestCase):
             - Deleting ContentLibrary also deletes the Scope
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
         scope_id = scope.id
 
         self.content_library.delete()
@@ -119,7 +164,7 @@ class TestSubjectModel(TestCase):
         """
         subject_data = UserData(external_key=self.test_username)
 
-        subject = Subject.get_or_create_subject_for_user(subject_data)
+        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
 
         self.assertIsNotNone(subject)
         self.assertEqual(subject.user, self.test_user)
@@ -135,8 +180,8 @@ class TestSubjectModel(TestCase):
         """
         subject_data = UserData(external_key=self.test_username)
 
-        subject1 = Subject.get_or_create_subject_for_user(subject_data)
-        subject2 = Subject.get_or_create_subject_for_user(subject_data)
+        subject1 = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject2 = Subject.get_or_create_subject_for_user(subject_data.external_key)
 
         self.assertEqual(subject1.id, subject2.id)
         self.assertEqual(Subject.objects.filter(user=self.test_user).count(), 1)
@@ -161,7 +206,7 @@ class TestSubjectModel(TestCase):
             - Deleting User also deletes the Subject
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data)
+        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
         subject_id = subject.id
 
         self.test_user.delete()
@@ -178,11 +223,9 @@ class TestExtendedCasbinRuleModel(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_key = LibraryLocatorV2.from_string("lib:TestOrg:TestLib")
-        self.content_library = ContentLibrary.objects.create(
-            library_key=self.library_key,
-            org=self.library_key.org,
-            slug=self.library_key.slug,
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
         self.casbin_rule = CasbinRule.objects.create(
@@ -196,7 +239,7 @@ class TestExtendedCasbinRuleModel(TestCase):
         self.subject = Subject.objects.create(user=self.test_user)
 
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        self.scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        self.scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
     def test_extended_casbin_rule_creation_with_all_fields(self):
         """Test creating ExtendedCasbinRule with all fields populated.
@@ -399,11 +442,9 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_key = LibraryLocatorV2.from_string("lib:TestOrg:TestLib")
-        self.content_library = ContentLibrary.objects.create(
-            library_key=self.library_key,
-            org=self.library_key.org,
-            slug=self.library_key.slug,
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_create_based_on_policy_generates_correct_casbin_rule_key(self):
@@ -419,7 +460,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
         subject = Subject.objects.create(user=self.test_user)
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -436,9 +477,9 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
 
         extended_rule_instance = ExtendedCasbinRule()
         result = extended_rule_instance.create_based_on_policy(
-            subject=subject_data,
-            role=role_data,
-            scope=scope_data,
+            subject_external_key=subject_data.external_key,
+            role_external_key=role_data.external_key,
+            scope_external_key=scope_data.external_key,
             enforcer=mock_enforcer
         )
 
@@ -460,7 +501,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
         subject = Subject.objects.create(user=self.test_user)
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -475,17 +516,17 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
 
         extended_rule_instance1 = ExtendedCasbinRule()
         result1 = extended_rule_instance1.create_based_on_policy(
-            subject=subject_data,
-            role=role_data,
-            scope=scope_data,
+            subject_external_key=subject_data.external_key,
+            role_external_key=role_data.external_key,
+            scope_external_key=scope_data.external_key,
             enforcer=mock_enforcer
         )
 
         extended_rule_instance2 = ExtendedCasbinRule()
         result2 = extended_rule_instance2.create_based_on_policy(
-            subject=subject_data,
-            role=role_data,
-            scope=scope_data,
+            subject_external_key=subject_data.external_key,
+            role_external_key=role_data.external_key,
+            scope_external_key=scope_data.external_key,
             enforcer=mock_enforcer
         )
 
@@ -504,7 +545,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
         Subject.objects.create(user=self.test_user)
-        Scope.get_or_create_scope_for_content_library(scope_data)
+        Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -519,9 +560,9 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
 
         extended_rule_instance = ExtendedCasbinRule()
         extended_rule_instance.create_based_on_policy(
-            subject=subject_data,
-            role=role_data,
-            scope=scope_data,
+            subject_external_key=subject_data.external_key,
+            role_external_key=role_data.external_key,
+            scope_external_key=scope_data.external_key,
             enforcer=mock_enforcer
         )
 
@@ -540,11 +581,9 @@ class TestModelRelationships(TestCase):
         self.test_user = User.objects.create_user(username=self.test_username)
         self.subject = Subject.objects.create(user=self.test_user)
 
-        self.library_key = LibraryLocatorV2.from_string("lib:TestOrg:TestLib")
-        self.content_library = ContentLibrary.objects.create(
-            library_key=self.library_key,
-            org=self.library_key.org,
-            slug=self.library_key.slug,
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
         self.casbin_rule = CasbinRule.objects.create(
@@ -590,7 +629,7 @@ class TestModelRelationships(TestCase):
             - Related ExtendedCasbinRule matches the created rule
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
         extended_rule = ExtendedCasbinRule.objects.create(
@@ -626,7 +665,7 @@ class TestModelRelationships(TestCase):
             - Related Scope matches the created Scope
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         self.assertEqual(self.content_library.authz_scopes.count(), 1)
         self.assertEqual(self.content_library.authz_scopes.first(), scope)
@@ -641,11 +680,9 @@ class TestModelCascadeDeletionChain(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_key = LibraryLocatorV2.from_string("lib:TestOrg:TestLib")
-        self.content_library = ContentLibrary.objects.create(
-            library_key=self.library_key,
-            org=self.library_key.org,
-            slug=self.library_key.slug,
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_content_library_deletion_cascades_to_extended_casbin_rules(self):
@@ -656,7 +693,7 @@ class TestModelCascadeDeletionChain(TestCase):
             - Deleting Scope cascades to delete ExtendedCasbinRule
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -687,7 +724,7 @@ class TestModelCascadeDeletionChain(TestCase):
             - Deleting Subject cascades to delete ExtendedCasbinRule
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data)
+        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -719,10 +756,10 @@ class TestModelCascadeDeletionChain(TestCase):
             - User and ContentLibrary remain after ExtendedCasbinRule deletion
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data)
+        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
 
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data)
+        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",

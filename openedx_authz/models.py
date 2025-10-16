@@ -8,7 +8,7 @@ schema that focuses on the core authorization logic.
 For example, we may want to store metadata about roles, such as a description
 or the date it was created.
 """
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from openedx_authz.engine.filter import Filter
@@ -38,8 +38,19 @@ class Scope(models.Model):
 
     @classmethod
     def get_or_create_scope_for_content_library(cls, scope_external_key: str):
-        """Helper method to get or create a Scope for a given ContentLibrary."""
-        content_library = ContentLibrary.objects.get(id=scope_external_key)
+        """Helper method to get or create a Scope for a given ContentLibrary.
+
+        Args:
+            scope_external_key: Library key string (e.g., "lib:TestOrg:TestLib")
+
+        Returns:
+            Scope: The Scope instance for the given ContentLibrary
+        """
+        from opaque_keys.edx.locator import LibraryLocatorV2
+
+        # Convert string to LibraryLocatorV2 and get ContentLibrary
+        library_key = LibraryLocatorV2.from_string(scope_external_key)
+        content_library = ContentLibrary.objects.get_by_key(library_key)
         scope, created = cls.objects.get_or_create(content_library=content_library)
         return scope
 
@@ -64,7 +75,14 @@ class Subject(models.Model):
 
     @classmethod
     def get_or_create_subject_for_user(cls, subject_external_key: str):
-        """Helper method to get or create a Subject for a given User."""
+        """Helper method to get or create a Subject for a given User.
+
+        Args:
+            subject_external_key: Username string
+
+        Returns:
+            Subject: The Subject instance for the given User
+        """
         user = User.objects.get(username=subject_external_key)
         subject, created = cls.objects.get_or_create(user=user)
         return subject
@@ -140,7 +158,7 @@ class ExtendedCasbinRule(models.Model):
         # Create a unique key for the ExtendedCasbinRule
         casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
 
-        with models.transaction.atomic():
+        with transaction.atomic():
             extended_rule, created = ExtendedCasbinRule.objects.get_or_create(
                 casbin_rule_key=casbin_rule_key,
                 defaults={

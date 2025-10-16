@@ -59,7 +59,8 @@ def get_permissions_for_single_role(
     Returns:
         list[PermissionData]: A list of PermissionData objects associated with the given role.
     """
-    policies = AuthzEnforcer.get_enforcer().get_implicit_permissions_for_user(role.namespaced_key)
+    enforcer = AuthzEnforcer.get_enforcer()
+    policies = enforcer.get_implicit_permissions_for_user(role.namespaced_key)
     return [get_permission_from_policy(policy) for policy in policies]
 
 
@@ -279,8 +280,9 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     Returns:
         list[RoleAssignmentData]: A list of role assignments for the subject.
     """
+    enforcer = AuthzEnforcer.get_enforcer()
     role_assignments = []
-    for policy in AuthzEnforcer.get_enforcer().get_filtered_grouping_policy(
+    for policy in enforcer.get_filtered_grouping_policy(
         GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key
     ):
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
@@ -343,8 +345,9 @@ def get_subject_role_assignments_for_role_in_scope(
     Returns:
         list[RoleAssignmentData]: A list of subjects assigned to the specified role in the specified scope.
     """
+    enforcer = AuthzEnforcer.get_enforcer()
     role_assignments = []
-    for subject in AuthzEnforcer.get_enforcer().get_users_for_role_in_domain(
+    for subject in enforcer.get_users_for_role_in_domain(
         role.namespaced_key, scope.namespaced_key
     ):
         if subject.startswith(f"{RoleData.NAMESPACE}{RoleData.SEPARATOR}"):

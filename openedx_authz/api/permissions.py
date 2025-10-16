@@ -42,7 +42,8 @@ def get_all_permissions_in_scope(scope: ScopeData) -> list[PermissionData]:
     Returns:
         list of PermissionData: A list of PermissionData objects associated with the given scope.
     """
-    actions = AuthzEnforcer.get_enforcer().get_filtered_policy(
+    enforcer = AuthzEnforcer.get_enforcer()
+    actions = enforcer.get_filtered_policy(
         PolicyIndex.SCOPE.value, scope.namespaced_key
     )
     return [get_permission_from_policy(action) for action in actions]

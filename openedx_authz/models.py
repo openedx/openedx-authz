@@ -8,11 +8,17 @@ schema that focuses on the core authorization logic.
 For example, we may want to store metadata about roles, such as a description
 or the date it was created.
 """
-from django.db import models, transaction
+
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
+from django.db import models, transaction
+from opaque_keys.edx.locator import LibraryLocatorV2
+
 from openedx_authz.engine.filter import Filter
-from openedx.core.djangoapps.content_libraries.models import ContentLibrary
+
+try:
+    from openedx.core.djangoapps.content_libraries.models import ContentLibrary
+except ImportError:
+    ContentLibrary = None
 
 User = get_user_model()
 
@@ -46,13 +52,11 @@ class Scope(models.Model):
         Returns:
             Scope: The Scope instance for the given ContentLibrary
         """
-        from opaque_keys.edx.locator import LibraryLocatorV2
-
-        # Convert string to LibraryLocatorV2 and get ContentLibrary
         library_key = LibraryLocatorV2.from_string(scope_external_key)
         content_library = ContentLibrary.objects.get_by_key(library_key)
         scope, created = cls.objects.get_or_create(content_library=content_library)
         return scope
+
 
 class Subject(models.Model):
     """
@@ -129,12 +133,17 @@ class ExtendedCasbinRule(models.Model):
         related_name="casbin_rules",
     )
 
-
     class Meta:
         verbose_name = "Extended Casbin Rule"
         verbose_name_plural = "Extended Casbin Rules"
 
-    def create_based_on_policy(self, subject_external_key: str, role_external_key: str, scope_external_key: str, enforcer):
+    def create_based_on_policy(
+        self,
+        subject_external_key: str,
+        role_external_key: str,
+        scope_external_key: str,
+        enforcer,
+    ):
         """Helper method to create an ExtendedCasbinRule based on policy components.
 
         Args:
@@ -163,8 +172,12 @@ class ExtendedCasbinRule(models.Model):
                 casbin_rule_key=casbin_rule_key,
                 defaults={
                     "casbin_rule": casbin_rule,
-                    "scope": Scope.objects.get_or_create_scope_for_content_library(scope_external_key),
-                    "subject": Subject.objects.get_or_create_subject_for_user(subject_external_key),
+                    "scope": Scope.get_or_create_scope_for_content_library(
+                        scope_external_key
+                    ),
+                    "subject": Subject.get_or_create_subject_for_user(
+                        subject_external_key
+                    ),
                 },
             )
 

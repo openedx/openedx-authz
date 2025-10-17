@@ -95,6 +95,16 @@ class BaseRolesTestCase(TestCase):
         super().setUpClass()
         cls._seed_database_with_policies()
 
+    def setUp(self):
+        """Set up test environment."""
+        super().setUp()
+        AuthzEnforcer.get_enforcer().load_policy()  # Load policies before each test to simulate fresh start
+
+    def tearDown(self):
+        """Clean up after each test to ensure isolation."""
+        super().tearDown()
+        AuthzEnforcer.get_enforcer().clear_policy()  # Clear policies after each test to ensure isolation
+
 
 class RolesTestSetupMixin(BaseRolesTestCase):
     """Test case with comprehensive role assignments for general roles testing."""
@@ -229,16 +239,6 @@ class RolesTestSetupMixin(BaseRolesTestCase):
             },
         ]
         cls._assign_roles_to_users(assignments=assignments)
-
-    def setUp(self):
-        """Set up test environment."""
-        super().setUp()
-        AuthzEnforcer.get_enforcer().load_policy()  # Load policies before each test to simulate fresh start
-
-    def tearDown(self):
-        """Clean up after each test to ensure isolation."""
-        super().tearDown()
-        AuthzEnforcer.get_enforcer().clear_policy()  # Clear policies after each test to ensure isolation
 
 
 @ddt

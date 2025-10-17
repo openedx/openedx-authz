@@ -178,9 +178,7 @@ class RoleUserAPIView(APIView):
 
     **Response Format (GET)**
 
-    Returns HTTP 200 OK with:
-
-    .. code-block:: json
+    Returns HTTP 200 OK with::
 
         {
             "count": 2,
@@ -204,9 +202,7 @@ class RoleUserAPIView(APIView):
 
     **Response Format (PUT)**
 
-    Returns HTTP 207 Multi-Status with:
-
-    .. code-block:: json
+    Returns HTTP 207 Multi-Status with::
 
         {
             "completed": [{"user_identifier": "john_doe", "status": "role_added"}],
@@ -215,9 +211,7 @@ class RoleUserAPIView(APIView):
 
     **Response Format (DELETE)**
 
-    Returns HTTP 207 Multi-Status with:
-
-    .. code-block:: json
+    Returns HTTP 207 Multi-Status with::
 
         {
             "completed": [{"user_identifier": "john_doe", "status": "role_removed"}],
@@ -233,9 +227,7 @@ class RoleUserAPIView(APIView):
 
     GET /api/authz/v1/roles/users/?scope=lib:DemoX:CSPROB&search=john&roles=library_admin
 
-    PUT /api/authz/v1/roles/users/
-
-    .. code-block:: json
+    PUT /api/authz/v1/roles/users/ ::
 
         {
             "role": "library_admin",

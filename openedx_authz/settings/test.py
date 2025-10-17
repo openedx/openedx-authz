@@ -56,5 +56,6 @@ TEMPLATES = [
 
 SECRET_KEY = "test-secret-key"
 CASBIN_WATCHER_ENABLED = False
+CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
 USE_TZ = True
 ROOT_URLCONF = "openedx_authz.urls"

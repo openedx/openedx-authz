@@ -65,7 +65,6 @@ def is_subject_allowed(
         bool: True if the subject has the specified permission in the scope, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    enforcer.load_policy()
     return enforcer.enforce(
         subject.namespaced_key, action.namespaced_key, scope.namespaced_key
     )

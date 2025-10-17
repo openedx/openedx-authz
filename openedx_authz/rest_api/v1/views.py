@@ -76,18 +76,14 @@ class PermissionValidationMeView(APIView):
 
     **Example Request**
 
-    POST /api/authz/v1/permissions/validate/me
-
-    .. code-block:: json
+    POST /api/authz/v1/permissions/validate/me::
 
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB"},
             {"action": "delete_library_content", "scope": "lib:OpenedX:CS50"}
         ]
 
-    **Example Response**
-
-    .. code-block:: json
+    **Example Response**::
 
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": true},
@@ -396,9 +392,7 @@ class RoleListView(APIView):
 
     GET /api/authz/v1/roles/?scope=lib:OpenedX:CSPROB&page=1&page_size=10
 
-    **Example Response**
-
-    .. code-block:: json
+    **Example Response**::
 
         {
             "count": 2,

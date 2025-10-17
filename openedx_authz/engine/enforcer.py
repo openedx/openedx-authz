@@ -23,12 +23,14 @@ from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.watcher import Watcher
+from openedx_authz.engine.config.casbin_utilities import check_custom_conditions
 
 logger = logging.getLogger(__name__)
 
 adapter = ExtendedAdapter()
 enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
 enforcer.enable_auto_save(True)
+enforcer.add_function("custom_check", check_custom_conditions)
 
 if Watcher:
     try:

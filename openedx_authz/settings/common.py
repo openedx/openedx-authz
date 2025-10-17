@@ -21,6 +21,9 @@ def plugin_settings(settings):
     if casbin_adapter_app not in settings.INSTALLED_APPS:
         settings.INSTALLED_APPS.append(casbin_adapter_app)
 
+    # For testing purposes, we add the test app
+    settings.INSTALLED_APPS.append('cms.djangoapps.course_creators')
+
     # Add Casbin configuration
     settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
     settings.CASBIN_WATCHER_ENABLED = True

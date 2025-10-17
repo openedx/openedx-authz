@@ -18,7 +18,7 @@ Requires `CASBIN_MODEL` setting and Redis configuration for watcher functionalit
 
 import logging
 
-from casbin import FastEnforcer
+from casbin import SyncedEnforcer
 from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuthzEnforcer:
-    """Singleton class to manage the Casbin FastEnforcer instance.
+    """Singleton class to manage the Casbin SyncedEnforcer instance.
 
     Ensures a single enforcer instance is created safely and configured with the
     ExtendedAdapter and Redis watcher for policy management and synchronization.
@@ -60,20 +60,20 @@ class AuthzEnforcer:
         return cls._enforcer
 
     @classmethod
-    def get_enforcer(cls) -> FastEnforcer:
+    def get_enforcer(cls) -> SyncedEnforcer:
         """Get the enforcer instance, creating it if needed.
 
         Returns:
-            FastEnforcer: The singleton enforcer instance.
+            SyncedEnforcer: The singleton enforcer instance.
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
         return cls._enforcer
 
     @staticmethod
-    def _initialize_enforcer() -> FastEnforcer:
+    def _initialize_enforcer() -> SyncedEnforcer:
         """
-        Create and configure the Casbin FastEnforcer instance.
+        Create and configure the Casbin SyncedEnforcer instance.
 
         This method initializes the FastEnforcer with the ExtendedAdapter
         for database policy storage and sets up the Redis watcher for real-time
@@ -81,7 +81,7 @@ class AuthzEnforcer:
         the enforcer with the specified database alias from settings.
 
         Returns:
-            FastEnforcer: Configured Casbin enforcer with adapter and watcher
+            SyncedEnforcer: Configured Casbin enforcer with adapter and watcher
         """
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
 
@@ -95,7 +95,8 @@ class AuthzEnforcer:
             raise
 
         adapter = ExtendedAdapter()
-        enforcer = FastEnforcer(settings.CASBIN_MODEL, adapter, enable_log=True)
+        enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
+        enforcer.start_auto_load_policy(settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL)
         enforcer.enable_auto_save(True)
 
         if not Watcher:

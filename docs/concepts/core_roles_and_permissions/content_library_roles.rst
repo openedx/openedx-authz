@@ -3,18 +3,27 @@ Core Roles and Permissions: Content Library
 
 This document outlines the built-in roles and permissions associated with the Content Library feature in the Open edX platform.
 
-Index
------
-
-- `Core Roles and Permissions: Content Library`_
+- `Roles`_
 - `Permissions`_
     - `Library Permissions`_
     - `Library Content Permissions`_
     - `Library Team Permissions`_
     - `Library Collections Permissions`_
     - `Permissions Inheritance`_
-- `Roles`_
 - `Roles and Permissions Summary Table`_
+
+Roles
+-----
+
+A **role** is a set of permissions that defines what actions a user can perform. When you **grant a role to a user**, you assign it within a specific scope, which determines where those permissions apply. Here is the list of default roles for Libraries.
+
+- The **Library Admin** has full control over the library, including managing users, modifying content, and handling publishing workflows. They ensure content is properly maintained and accessible as needed.
+
+- The **Library Author** is responsible for creating, editing, and publishing content within a library. They can manage tags and collections but cannot delete libraries or manage users.
+
+- The **Library Contributor** can create and edit content within a library but cannot publish it. They support the authoring process while leaving final publishing to Authors or Admins.
+
+- The **Library User** can view and reuse content but cannot edit or delete anything.
 
 Permissions
 -----------
@@ -65,16 +74,6 @@ Permissions Inheritance
 * **Creating a library collection** (``create_library_collection``) implies **editing a library collection** (``edit_library_collection``).
 * **Editing a library collection** (``edit_library_collection``) implies **viewing the library** (``view_library``).
 
-Roles
------
-
-- The **Library Admin** has full control over the library, including managing users, modifying content, and handling publishing workflows. They ensure content is properly maintained and accessible as needed.
-
-- The **Library Author** is responsible for creating, editing, and publishing content within a library. They can manage tags and collections but cannot delete libraries or manage users.
-
-- The **Library Collaborator** can create and edit content within a library but cannot publish it. They support the authoring process while leaving final publishing to Authors or Admins.
-
-- The **Library User** can view and reuse content but cannot edit or delete anything.
 
 Roles and Permissions Summary Table
 ------------------------------------
@@ -82,9 +81,9 @@ Roles and Permissions Summary Table
 .. table:: Matrix of Content Library Roles and Permissions
    :widths: auto
 
-   ============================= ================= ================ ====================== ==============
-   Permissions                   Library Admin     Library Author   Library Collaborator   Library User
-   ============================= ================= ================ ====================== ==============
+   ============================= ================= ================ ===================== ==============
+   Permissions                   Library Admin     Library Author   Library Contributor   Library User
+   ============================= ================= ================ ===================== ==============
    **Library**
    view_library                  ✅                 ✅                ✅                      ✅
    manage_library_tags           ✅                 ✅                ✅                      ❌
@@ -100,7 +99,7 @@ Roles and Permissions Summary Table
    create_library_collection     ✅                 ✅                ✅                      ❌
    edit_library_collection       ✅                 ✅                ✅                      ❌
    delete_library_collection     ✅                 ✅                ✅                      ❌
-   ============================= ================= ================ ====================== ==============
+   ============================= ================= ================ ===================== ==============
 
 
 **Maintenance chart**

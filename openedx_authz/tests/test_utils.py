@@ -1,6 +1,12 @@
 """Test utilities for creating namespaced keys using class constants."""
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    RoleData,
+    ScopeData,
+    UserData,
+)
 
 
 def make_user_key(key: str) -> str:

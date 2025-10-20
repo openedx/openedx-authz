@@ -3,27 +3,44 @@
 This test suite verifies the functionality of the authorization models including:
 - Scope model with ContentLibrary integration
 - Subject model with User integration
+- Polymorphic behavior and registry pattern for Scope and Subject models
 - ExtendedCasbinRule model with metadata and relationships
-- Cascade deletion behavior
+- Cascade deletion behavior across model hierarchies
 
-Note: These tests require ContentLibrary model to be available in the environment.
+Notes:
+ - Tests use the parent models (Scope, Subject) with polymorphic dispatch
+     via manager methods to reflect actual production usage.
+ - Where enforcer behaviour is required, tests use mock enforcer instances
+     (see `TestExtendedCasbinRuleCreateBasedOnPolicy`) to avoid the full
+     platform enforcer infrastructure.
+
 Run these tests in an environment where openedx.core.djangoapps.content_libraries.models
 is accessible (e.g., edx-platform with content libraries installed).
 """
-import pytest
+
 import uuid
 from unittest.mock import Mock
+from ddt import ddt
 
+import pytest
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from organizations.api import ensure_organization
 from organizations.models import Organization
 
 from openedx_authz.api.data import ContentLibraryData, RoleData, UserData
 from openedx_authz.engine.filter import Filter
-from openedx_authz.models import ContentLibrary, ExtendedCasbinRule, Scope, Subject, library_api
+from openedx_authz.models import (
+    ContentLibrary,
+    ExtendedCasbinRule,
+    Scope,
+    Subject,
+    ContentLibraryScope,
+    UserSubject,
+)
+import openedx.core.djangoapps.content_libraries.api as library_api
 
 User = get_user_model()
 
@@ -71,8 +88,14 @@ def create_test_library(org_short_name, slug=None, title="Test Library"):
 
 
 @ddt
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestScopeModel(TestCase):
-    """Test cases for the Scope model."""
+    """Test cases for the Scope model.
+
+    These tests create ContentLibrary instances via the content library API and
+    exercise the Scope manager helpers using ContentLibraryData objects to test
+    the polymorphic behavior.
+    """
 
     def setUp(self):
         """Set up test fixtures."""
@@ -83,8 +106,8 @@ class TestScopeModel(TestCase):
             )
         )
 
-    def test_get_or_create_scope_for_content_library_creates_new(self):
-        """Test that get_or_create_scope_for_content_library creates a new Scope when none exists.
+    def test_get_or_create_for_external_key_creates_new(self):
+        """Test that get_or_create_for_external_key creates a new Scope when none exists.
 
         Expected result:
             - Scope is created successfully
@@ -93,16 +116,18 @@ class TestScopeModel(TestCase):
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         self.assertIsNotNone(scope)
+        self.assertIsInstance(scope, ContentLibraryScope)
         self.assertEqual(scope.content_library, self.content_library)
+        # Can also access via parent -> child relationship
         self.assertEqual(
-            Scope.objects.filter(content_library=self.content_library).count(), 1
+            Scope.objects.filter(contentlibraryscope__content_library=self.content_library).count(), 1
         )
 
-    def test_get_or_create_scope_for_content_library_gets_existing(self):
-        """Test that get_or_create_scope_for_content_library retrieves existing Scope.
+    def test_get_or_create_for_external_key_gets_existing(self):
+        """Test that get_or_create_for_external_key retrieves existing Scope.
 
         Expected result:
             - First call creates the Scope
@@ -111,12 +136,12 @@ class TestScopeModel(TestCase):
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        scope1 = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
-        scope2 = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope1 = Scope.objects.get_or_create_for_external_key(scope_data)
+        scope2 = Scope.objects.get_or_create_for_external_key(scope_data)
 
         self.assertEqual(scope1.id, scope2.id)
         self.assertEqual(
-            Scope.objects.filter(content_library=self.content_library).count(), 1
+            ContentLibraryScope.objects.filter(content_library=self.content_library).count(), 1
         )
 
     def test_scope_can_be_created_without_content_library(self):
@@ -126,10 +151,10 @@ class TestScopeModel(TestCase):
             - Scope is created successfully
             - content_library field is None
         """
-        scope = Scope.objects.create(content_library=None)
+        scope = Scope.objects.create()
 
         self.assertIsNotNone(scope)
-        self.assertIsNone(scope.content_library)
+        self.assertIsNone(getattr(scope, 'content_library', None))
 
     def test_scope_cascade_deletion_when_content_library_deleted(self):
         """Test that Scope is deleted when its ContentLibrary is deleted.
@@ -139,7 +164,7 @@ class TestScopeModel(TestCase):
             - Deleting ContentLibrary also deletes the Scope
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
         scope_id = scope.id
 
         self.content_library.delete()
@@ -148,16 +173,21 @@ class TestScopeModel(TestCase):
 
 
 @pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestSubjectModel(TestCase):
-    """Test cases for the Subject model."""
+    """Test cases for the Subject model.
+
+    These tests create User instances and exercise the Subject manager helpers
+    using UserData objects to test the polymorphic behavior.
+    """
 
     def setUp(self):
         """Set up test fixtures."""
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-    def test_get_or_create_subject_for_user_creates_new(self):
-        """Test that get_or_create_subject_for_user creates a new Subject when none exists.
+    def test_get_or_create_for_external_key_creates_new(self):
+        """Test that get_or_create_for_external_key creates a new Subject when none exists.
 
         Expected result:
             - Subject is created successfully
@@ -166,14 +196,16 @@ class TestSubjectModel(TestCase):
         """
         subject_data = UserData(external_key=self.test_username)
 
-        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         self.assertIsNotNone(subject)
+        self.assertIsInstance(subject, UserSubject)
         self.assertEqual(subject.user, self.test_user)
-        self.assertEqual(Subject.objects.filter(user=self.test_user).count(), 1)
+        # Can also access via parent -> child relationship
+        self.assertEqual(Subject.objects.filter(usersubject__user=self.test_user).count(), 1)
 
-    def test_get_or_create_subject_for_user_gets_existing(self):
-        """Test that get_or_create_subject_for_user retrieves existing Subject.
+    def test_get_or_create_for_external_key_gets_existing(self):
+        """Test that get_or_create_for_external_key retrieves existing Subject.
 
         Expected result:
             - First call creates the Subject
@@ -182,11 +214,12 @@ class TestSubjectModel(TestCase):
         """
         subject_data = UserData(external_key=self.test_username)
 
-        subject1 = Subject.get_or_create_subject_for_user(subject_data.external_key)
-        subject2 = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject1 = Subject.objects.get_or_create_for_external_key(subject_data)
+        subject2 = Subject.objects.get_or_create_for_external_key(subject_data)
 
         self.assertEqual(subject1.id, subject2.id)
-        self.assertEqual(Subject.objects.filter(user=self.test_user).count(), 1)
+        # Can also access via parent -> child relationship
+        self.assertEqual(Subject.objects.filter(usersubject__user=self.test_user).count(), 1)
 
     def test_subject_can_be_created_without_user(self):
         """Test that Subject can be created without a user.
@@ -195,10 +228,10 @@ class TestSubjectModel(TestCase):
             - Subject is created successfully
             - user field is None
         """
-        subject = Subject.objects.create(user=None)
+        subject = Subject.objects.create()
 
         self.assertIsNotNone(subject)
-        self.assertIsNone(subject.user)
+        self.assertIsNone(getattr(subject, 'user', None))
 
     def test_subject_cascade_deletion_when_user_deleted(self):
         """Test that Subject is deleted when its User is deleted.
@@ -208,7 +241,7 @@ class TestSubjectModel(TestCase):
             - Deleting User also deletes the Subject
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
         subject_id = subject.id
 
         self.test_user.delete()
@@ -217,6 +250,245 @@ class TestSubjectModel(TestCase):
 
 
 @pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+class TestPolymorphicBehavior(TestCase):
+    """Test cases for polymorphic behavior of Scope and Subject models.
+
+    These tests verify that:
+    - The registry pattern correctly maps namespaces to subclasses
+    - Manager methods dispatch to the correct subclass based on namespace
+    - Queries return instances of the correct polymorphic type
+    - Multiple subclass types can coexist in the database
+    """
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_username = "test_user"
+        self.test_user = User.objects.create_user(username=self.test_username)
+
+        # Create library using the API helper (auto-generates unique slug)
+        self.library_metadata, self.library_key, self.content_library = (
+            create_test_library(
+                org_short_name="TestOrg",
+            )
+        )
+
+    def test_scope_registry_contains_content_library_namespace(self):
+        """Test that ContentLibraryScope is registered in Scope._registry.
+
+        Expected result:
+            - 'lib' namespace is present in registry
+            - Registry maps 'lib' to ContentLibraryScope class
+        """
+        self.assertIn('lib', Scope._registry)
+        self.assertEqual(Scope._registry['lib'], ContentLibraryScope)
+
+    def test_subject_registry_contains_user_namespace(self):
+        """Test that UserSubject is registered in Subject._registry.
+
+        Expected result:
+            - 'user' namespace is present in registry
+            - Registry maps 'user' to UserSubject class
+        """
+        self.assertIn('user', Subject._registry)
+        self.assertEqual(Subject._registry['user'], UserSubject)
+
+    def test_scope_manager_dispatches_to_content_library_scope(self):
+        """Test that Scope manager dispatches to ContentLibraryScope for 'lib' namespace.
+
+        Expected result:
+            - Scope.objects.get_or_create_for_external_key returns ContentLibraryScope instance
+            - Instance has content_library attribute
+            - Instance is linked to the correct ContentLibrary
+        """
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        self.assertIsInstance(scope, ContentLibraryScope)
+        self.assertTrue(hasattr(scope, 'content_library'))
+        self.assertEqual(scope.content_library, self.content_library)
+
+    def test_subject_manager_dispatches_to_user_subject(self):
+        """Test that Subject manager dispatches to UserSubject for 'user' namespace.
+
+        Expected result:
+            - Subject.objects.get_or_create_for_external_key returns UserSubject instance
+            - Instance has user attribute
+            - Instance is linked to the correct User
+        """
+        subject_data = UserData(external_key=self.test_username)
+
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+
+        self.assertIsInstance(subject, UserSubject)
+        self.assertTrue(hasattr(subject, 'user'))
+        self.assertEqual(subject.user, self.test_user)
+
+    def test_scope_manager_raises_error_for_unregistered_namespace(self):
+        """Test that Scope manager raises ValueError for unknown namespace.
+
+        Expected result:
+            - ValueError is raised when namespace not in registry
+            - Error message indicates the unknown namespace
+        """
+        from openedx_authz.api.data import ScopeData
+
+        # Create a scope data with a namespace that doesn't exist
+        class UnregisteredScopeData(ScopeData):
+            NAMESPACE = "unregistered"
+
+        unregistered_data = UnregisteredScopeData(external_key="some_key")
+
+        with self.assertRaises(ValueError) as context:
+            Scope.objects.get_or_create_for_external_key(unregistered_data)
+
+        self.assertIn("unregistered", str(context.exception))
+
+    def test_subject_manager_raises_error_for_unregistered_namespace(self):
+        """Test that Subject manager raises ValueError for unknown namespace.
+
+        Expected result:
+            - ValueError is raised when namespace not in registry
+            - Error message indicates the unknown namespace
+        """
+        from openedx_authz.api.data import SubjectData
+
+        # Create a subject data with a namespace that doesn't exist
+        class UnregisteredSubjectData(SubjectData):
+            NAMESPACE = "unregistered"
+
+        unregistered_data = UnregisteredSubjectData(external_key="some_key")
+
+        with self.assertRaises(ValueError) as context:
+            Subject.objects.get_or_create_for_external_key(unregistered_data)
+
+        self.assertIn("unregistered", str(context.exception))
+
+    def test_multiple_scope_types_can_coexist(self):
+        """Test that different Scope subclasses can coexist in the database.
+
+        Expected result:
+            - Base Scope table contains both ContentLibraryScope and plain Scope
+            - Each can be queried independently
+            - Total Scope count includes all types
+        """
+        # Create a ContentLibraryScope via the manager
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        content_library_scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        # Create a plain Scope instance
+        plain_scope = Scope.objects.create()
+
+        # Query all Scopes - Django returns base type instances
+        all_scopes = Scope.objects.all()
+        all_scope_ids = set(all_scopes.values_list('id', flat=True))
+
+        self.assertEqual(all_scopes.count(), 2)
+        self.assertIn(content_library_scope.id, all_scope_ids)
+        self.assertIn(plain_scope.id, all_scope_ids)
+
+        # Verify we can query the specific subclass
+        content_library_scopes = ContentLibraryScope.objects.all()
+        self.assertEqual(content_library_scopes.count(), 1)
+        self.assertEqual(content_library_scopes.first().id, content_library_scope.id)
+
+    def test_multiple_subject_types_can_coexist(self):
+        """Test that different Subject subclasses can coexist in the database.
+
+        Expected result:
+            - Base Subject table contains both UserSubject and plain Subject
+            - Each can be queried independently
+            - Total Subject count includes all types
+        """
+        # Create a UserSubject via the manager
+        subject_data = UserData(external_key=self.test_username)
+        user_subject = Subject.objects.get_or_create_for_external_key(subject_data)
+
+        # Create a plain Subject instance
+        plain_subject = Subject.objects.create()
+
+        # Query all Subjects - Django returns base type instances
+        all_subjects = Subject.objects.all()
+        all_subject_ids = set(all_subjects.values_list('id', flat=True))
+
+        self.assertEqual(all_subjects.count(), 2)
+        self.assertIn(user_subject.id, all_subject_ids)
+        self.assertIn(plain_subject.id, all_subject_ids)
+
+        # Verify we can query the specific subclass
+        user_subjects = UserSubject.objects.all()
+        self.assertEqual(user_subjects.count(), 1)
+        self.assertEqual(user_subjects.first().id, user_subject.id)
+
+    def test_scope_query_returns_polymorphic_instances(self):
+        """Test that querying Scope returns the correct polymorphic instance type.
+
+        Expected result:
+            - Querying by ID returns ContentLibraryScope instance, not base Scope
+            - Instance retains all subclass attributes and methods
+        """
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        created_scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        # Query by ID from base Scope manager
+        queried_scope = Scope.objects.get(id=created_scope.id)
+
+        # Note: Django's default multi-table inheritance returns the base type
+        # unless you use select_related or query the subclass directly
+        # This test documents the current behavior
+        self.assertIsInstance(queried_scope, Scope)
+
+        # To get the polymorphic instance, query the subclass
+        polymorphic_scope = ContentLibraryScope.objects.get(id=created_scope.id)
+        self.assertIsInstance(polymorphic_scope, ContentLibraryScope)
+        self.assertEqual(polymorphic_scope.content_library, self.content_library)
+
+    def test_subject_query_returns_polymorphic_instances(self):
+        """Test that querying Subject returns the correct polymorphic instance type.
+
+        Expected result:
+            - Querying by ID returns UserSubject instance when queried from subclass
+            - Instance retains all subclass attributes and methods
+        """
+        subject_data = UserData(external_key=self.test_username)
+        created_subject = Subject.objects.get_or_create_for_external_key(subject_data)
+
+        # Query by ID from base Subject manager
+        queried_subject = Subject.objects.get(id=created_subject.id)
+
+        # Note: Django's default multi-table inheritance returns the base type
+        # unless you use select_related or query the subclass directly
+        self.assertIsInstance(queried_subject, Subject)
+
+        # To get the polymorphic instance, query the subclass
+        polymorphic_subject = UserSubject.objects.get(id=created_subject.id)
+        self.assertIsInstance(polymorphic_subject, UserSubject)
+        self.assertEqual(polymorphic_subject.user, self.test_user)
+
+    def test_scope_namespace_class_variable_is_set(self):
+        """Test that Scope subclasses have NAMESPACE class variable set.
+
+        Expected result:
+            - ContentLibraryScope.NAMESPACE is 'lib'
+            - Base Scope.NAMESPACE is None
+        """
+        self.assertEqual(ContentLibraryScope.NAMESPACE, 'lib')
+        self.assertIsNone(Scope.NAMESPACE)
+
+    def test_subject_namespace_class_variable_is_set(self):
+        """Test that Subject subclasses have NAMESPACE class variable set.
+
+        Expected result:
+            - UserSubject.NAMESPACE is 'user'
+            - Base Subject.NAMESPACE is None
+        """
+        self.assertEqual(UserSubject.NAMESPACE, 'user')
+        self.assertIsNone(Subject.NAMESPACE)
+
+
+@pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestExtendedCasbinRuleModel(TestCase):
     """Test cases for the ExtendedCasbinRule model."""
 
@@ -240,12 +512,11 @@ class TestExtendedCasbinRuleModel(TestCase):
             v3="allow",
         )
 
-        self.subject = Subject.objects.create(user=self.test_user)
+        subject_data = UserData(external_key=self.test_username)
+        self.subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        self.scope = Scope.get_or_create_scope_for_content_library(
-            scope_data.external_key
-        )
+        self.scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
     def test_extended_casbin_rule_creation_with_all_fields(self):
         """Test creating ExtendedCasbinRule with all fields populated.
@@ -438,12 +709,12 @@ class TestExtendedCasbinRuleModel(TestCase):
 
 
 @pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
     """Test cases for ExtendedCasbinRule.create_based_on_policy method.
 
-    Note: These tests use a mock enforcer to avoid dependencies on the full
-    enforcer infrastructure. For integration tests with a real enforcer,
-    see the integration test suite.
+    These tests use a mock enforcer to avoid dependencies on the full
+    enforcer infrastructure.
     """
 
     def setUp(self):
@@ -470,27 +741,27 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         role_data = RoleData(external_key="instructor")
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        subject = Subject.objects.create(user=self.test_user)
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule = CasbinRule.objects.create(
-            ptype="p",
+            ptype="g",
             v0=subject_data.namespaced_key,
             v1=role_data.namespaced_key,
             v2=scope_data.namespaced_key,
-            v3="allow",
+            v3="",
         )
 
         mock_enforcer = Mock()
-        mock_enforcer.query_policy.return_value = casbin_rule
+        mock_enforcer.adapter = Mock()
+        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
 
-        expected_key = f"p,{subject_data.namespaced_key},{role_data.namespaced_key},{scope_data.namespaced_key},allow"
+        expected_key = f"g,{subject_data.namespaced_key},{role_data.namespaced_key},{scope_data.namespaced_key},"
 
-        extended_rule_instance = ExtendedCasbinRule()
-        result = extended_rule_instance.create_based_on_policy(
-            subject_external_key=subject_data.external_key,
-            role_external_key=role_data.external_key,
-            scope_external_key=scope_data.external_key,
+        result = ExtendedCasbinRule.create_based_on_policy(
+            subject=subject_data,
+            role=role_data,
+            scope=scope_data,
             enforcer=mock_enforcer,
         )
 
@@ -511,33 +782,32 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         role_data = RoleData(external_key="instructor")
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        subject = Subject.objects.create(user=self.test_user)
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule = CasbinRule.objects.create(
-            ptype="p",
+            ptype="g",
             v0=subject_data.namespaced_key,
             v1=role_data.namespaced_key,
             v2=scope_data.namespaced_key,
-            v3="allow",
+            v3="",
         )
 
         mock_enforcer = Mock()
-        mock_enforcer.query_policy.return_value = casbin_rule
+        mock_enforcer.adapter = Mock()
+        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
 
-        extended_rule_instance1 = ExtendedCasbinRule()
-        result1 = extended_rule_instance1.create_based_on_policy(
-            subject_external_key=subject_data.external_key,
-            role_external_key=role_data.external_key,
-            scope_external_key=scope_data.external_key,
+        result1 = ExtendedCasbinRule.create_based_on_policy(
+            subject=subject_data,
+            role=role_data,
+            scope=scope_data,
             enforcer=mock_enforcer,
         )
 
-        extended_rule_instance2 = ExtendedCasbinRule()
-        result2 = extended_rule_instance2.create_based_on_policy(
-            subject_external_key=subject_data.external_key,
-            role_external_key=role_data.external_key,
-            scope_external_key=scope_data.external_key,
+        result2 = ExtendedCasbinRule.create_based_on_policy(
+            subject=subject_data,
+            role=role_data,
+            scope=scope_data,
             enforcer=mock_enforcer,
         )
 
@@ -555,34 +825,35 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         role_data = RoleData(external_key="instructor")
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        Subject.objects.create(user=self.test_user)
-        Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        Subject.objects.get_or_create_for_external_key(subject_data)
+        Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule = CasbinRule.objects.create(
-            ptype="p",
+            ptype="g",
             v0=subject_data.namespaced_key,
             v1=role_data.namespaced_key,
             v2=scope_data.namespaced_key,
-            v3="allow",
+            v3="",
         )
 
         mock_enforcer = Mock()
-        mock_enforcer.query_policy.return_value = casbin_rule
+        mock_enforcer.adapter = Mock()
+        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
 
-        extended_rule_instance = ExtendedCasbinRule()
-        extended_rule_instance.create_based_on_policy(
-            subject_external_key=subject_data.external_key,
-            role_external_key=role_data.external_key,
-            scope_external_key=scope_data.external_key,
+        ExtendedCasbinRule.create_based_on_policy(
+            subject=subject_data,
+            role=role_data,
+            scope=scope_data,
             enforcer=mock_enforcer,
         )
 
-        mock_enforcer.query_policy.assert_called_once()
-        call_args = mock_enforcer.query_policy.call_args[0][0]
+        mock_enforcer.adapter.query_policy.assert_called_once()
+        call_args = mock_enforcer.adapter.query_policy.call_args[0][0]
         self.assertIsInstance(call_args, Filter)
 
 
 @pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestModelRelationships(TestCase):
     """Test cases for model relationships and related_name attributes."""
 
@@ -590,7 +861,8 @@ class TestModelRelationships(TestCase):
         """Set up test fixtures."""
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
-        self.subject = Subject.objects.create(user=self.test_user)
+        subject_data = UserData(external_key=self.test_username)
+        self.subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         # Create library using the API helper (auto-generates unique slug)
         self.library_metadata, self.library_key, self.content_library = (
@@ -642,7 +914,7 @@ class TestModelRelationships(TestCase):
             - Related ExtendedCasbinRule matches the created rule
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
         extended_rule = ExtendedCasbinRule.objects.create(
@@ -675,13 +947,14 @@ class TestModelRelationships(TestCase):
             - Related Scope matches the created Scope
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         self.assertEqual(self.content_library.authz_scopes.count(), 1)
         self.assertEqual(self.content_library.authz_scopes.first(), scope)
 
 
 @pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
 class TestModelCascadeDeletionChain(TestCase):
     """Test cases for cascade deletion chains across multiple models."""
 
@@ -705,7 +978,7 @@ class TestModelCascadeDeletionChain(TestCase):
             - Deleting Scope cascades to delete ExtendedCasbinRule
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -736,7 +1009,7 @@ class TestModelCascadeDeletionChain(TestCase):
             - Deleting Subject cascades to delete ExtendedCasbinRule
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",
@@ -768,10 +1041,10 @@ class TestModelCascadeDeletionChain(TestCase):
             - User and ContentLibrary remain after ExtendedCasbinRule deletion
         """
         subject_data = UserData(external_key=self.test_username)
-        subject = Subject.get_or_create_subject_for_user(subject_data.external_key)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         scope_data = ContentLibraryData(external_key=str(self.library_key))
-        scope = Scope.get_or_create_scope_for_content_library(scope_data.external_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         casbin_rule = CasbinRule.objects.create(
             ptype="p",

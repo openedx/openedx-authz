@@ -37,6 +37,7 @@ INSTALLED_APPS = (
     "django.contrib.sessions",
     "openedx_authz.engine.apps.CasbinAdapterConfig",
     "openedx_authz.apps.OpenedxAuthzConfig",
+    "openedx_authz.tests.stubs.apps.StubsConfig",
 )
 
 MIDDLEWARE = [

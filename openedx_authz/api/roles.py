@@ -210,7 +210,10 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
         if not role_assignment:
             return False
         extended_rule = ExtendedCasbinRule.create_based_on_policy(
-            subject, role, scope, enforcer
+            subject,
+            role,
+            scope,
+            enforcer
         )
         if not extended_rule:
             raise Exception("Failed to create ExtendedCasbinRule for the assignment")

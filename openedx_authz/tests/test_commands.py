@@ -103,7 +103,10 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Policy file not found: {non_existent_policy}", str(ctx.exception))
 
-    def test_model_file_not_found_raises(self):
+    @patch.object(
+        EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf"
+    )
+    def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
         """Test that command errors when the provided model file does not exist."""
         non_existent_model = "invalid/path/model.conf"
 
@@ -116,10 +119,26 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Model file not found: {non_existent_model}", str(ctx.exception))
 
-    @patch.object(AuthzEnforcer, "get_enforcer")
-    def test_display_loaded_policies(self, mock_get_enforcer: Mock):
-        """Test that policy statistics are displayed correctly."""
-        mock_get_enforcer.return_value = self.enforcer
+    @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
+    @patch.object(EnforcementCommand, "_run_interactive_mode")
+    def test_successful_run_prints_summary(
+        self, mock_run_interactive: Mock, mock_enforcer_cls: Mock
+    ):
+        """
+        Test successful command execution with policy file and interactive mode.
+        When files exist, command should create enforcer, print counts, and call interactive loop.
+        """
+        mock_enforcer = Mock()
+        policies = [["p", "role:platform_admin", "act:manage", "*", "allow"]]
+        roles = [["g", "user:user-1", "role:platform_admin", "*"]]
+        action_grouping = [
+            ["g2", "act:edit", "act:read"],
+            ["g2", "act:edit", "act:write"],
+        ]
+        mock_enforcer.get_policy.return_value = policies
+        mock_enforcer.get_grouping_policy.return_value = roles
+        mock_enforcer.get_named_grouping_policy.return_value = action_grouping
+        mock_enforcer_cls.return_value = mock_enforcer
 
         with patch("builtins.input", side_effect=["quit"]):
             call_command(self.command_name, stdout=self.buffer)
@@ -175,10 +194,17 @@ class EnforcementCommandTests(TestCase):
         self.enforcer.enforce.assert_called_once_with("user^alice", "act^view_library", "lib^lib:Org1:LIB1")
 
     @data(
-        "alice",
-        "alice view_library",
-        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1",
-        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1 lib:Org1:LIB1",
+        [
+            f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ],
+        [
+            f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ]
+        * 5,
+        [
+            f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ]
+        * 10,
     )
     @patch.object(AuthzEnforcer, "get_enforcer")
     def test_interactive_mode_invalid_format(self, user_input: str, mock_get_enforcer: Mock):
@@ -266,9 +292,23 @@ class EnforcementCommandTests(TestCase):
         with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
             call_command(self.command_name, stdout=self.buffer)
 
-        output = self.buffer.getvalue()
-        self.assertIn("✗ Error processing request:", output)
-        self.assertIn(str(exception), output)
+        invalid_output = self.buffer.getvalue()
+        self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
+        self.assertIn("Format: subject action scope", invalid_output)
+        self.assertIn(
+            f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output
+        )
+
+    @data(ValueError(), IndexError(), TypeError())
+    def test_interactive_request_error(self, exception: Exception):
+        """Test that `_test_interactive_request` handles processing errors."""
+        self.enforcer.enforce.side_effect = exception
+        user_input = f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+
+        self.command._test_interactive_request(self.enforcer, user_input)
+
+        error_output = self.buffer.getvalue()
+        self.assertIn(f"✗ Error processing request: {str(exception)}", error_output)
 
 
 # pylint: disable=protected-access

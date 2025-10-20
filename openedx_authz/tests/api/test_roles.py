@@ -5,6 +5,8 @@ including role creation, assignment, permission management, and querying
 roles and permissions within specific scopes.
 """
 
+from unittest.mock import patch
+
 import casbin
 import pkg_resources
 from ddt import data as ddt_data
@@ -43,6 +45,40 @@ from openedx_authz.constants.roles import (
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.tests.constants import (
+    LIST_LIBRARY_ADMIN_PERMISSIONS,
+    LIST_LIBRARY_AUTHOR_PERMISSIONS,
+    LIST_LIBRARY_CONTRIBUTOR_PERMISSIONS,
+    LIST_LIBRARY_USER_PERMISSIONS,
+)
+from openedx_authz.models import Scope, Subject, ExtendedCasbinRule
+
+
+def _mock_get_or_create_scope(scope_data):
+    """Mock implementation that creates actual Scope instances."""
+    scope, _ = Scope.objects.get_or_create(id=hash(scope_data.external_key) % 10000)
+    return scope
+
+
+def _mock_get_or_create_subject(subject_data):
+    """Mock implementation that creates actual Subject instances."""
+    subject, _ = Subject.objects.get_or_create(
+        id=hash(subject_data.external_key) % 10000
+    )
+    return subject
+
+
+# Apply patches at module level using the new manager method
+_scope_patcher = patch(
+    "openedx_authz.models.ScopeManager.get_or_create_for_external_key",
+    side_effect=_mock_get_or_create_scope,
+)
+_subject_patcher = patch(
+    "openedx_authz.models.SubjectManager.get_or_create_for_external_key",
+    side_effect=_mock_get_or_create_subject,
+)
+_scope_patcher.start()
+_subject_patcher.start()
 
 
 class BaseRolesTestCase(TestCase):
@@ -277,6 +313,33 @@ class TestRolesAPI(RolesTestSetupMixin):
     environments.
     """
 
+    def test_assign_role_creates_extended_rule(self):
+        """Assign a role to a subject and verify an ExtendedCasbinRule is created.
+
+        Expected result:
+            - The assignment function returns True
+            - An ExtendedCasbinRule record exists linking the subject and scope
+        """
+
+        subject = SubjectData(external_key="unit_test_user_assign_1")
+        role = RoleData(external_key="library_user")
+        scope = ScopeData(external_key="lib:UnitTest:assign_lib_1")
+
+        subj_before = Subject.objects.get_or_create_for_external_key(subject)
+        scope_before = Scope.objects.get_or_create_for_external_key(scope)
+        self.assertFalse(
+            ExtendedCasbinRule.objects.filter(subject=subj_before, scope=scope_before).exists()
+        )
+
+        result = assign_role_to_subject_in_scope(subject, role, scope)
+        self.assertTrue(result)
+
+        subj_obj = Subject.objects.get_or_create_for_external_key(subject)
+        scope_obj = Scope.objects.get_or_create_for_external_key(scope)
+        self.assertTrue(
+            ExtendedCasbinRule.objects.filter(subject=subj_obj, scope=scope_obj).exists()
+        )
+
     @ddt_data(
         # Library Admin role with actual permissions from authz.policy
         (
@@ -421,7 +484,9 @@ class TestRolesAPI(RolesTestSetupMixin):
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
         )
 
-        role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
+        role_names = {
+            r.external_key for assignment in role_assignments for r in assignment.roles
+        }
         self.assertEqual(role_names, expected_roles)
 
     @ddt_data(
@@ -731,7 +796,11 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject_name),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertIn(role, role_names)
         else:
             assign_role_to_subject_in_scope(
@@ -743,7 +812,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertIn(role, role_names)
 
     @ddt_data(
@@ -786,7 +857,11 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_subject_in_scope(
@@ -798,7 +873,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertNotIn(role, role_names)
 
     @ddt_data(

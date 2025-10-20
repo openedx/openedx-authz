@@ -465,7 +465,9 @@ class TestDataRepresentation(TestCase):
         action2 = ActionData(external_key="write")
         permission1 = PermissionData(action=action1, effect="allow")
         permission2 = PermissionData(action=action2, effect="deny")
-        role = RoleData(external_key="instructor", permissions=[permission1, permission2])
+        role = RoleData(
+            external_key="instructor", permissions=[permission1, permission2]
+        )
 
         actual_str = str(role)
 

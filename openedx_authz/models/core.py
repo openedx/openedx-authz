@@ -1,0 +1,210 @@
+"""Core models for the authorization framework.
+
+These models will be used to store additional data about roles and permissions
+that are not natively supported by Casbin, so as to avoid modifying the Casbin
+schema that focuses on the core authorization logic.
+"""
+
+from typing import ClassVar
+from django.db import models, transaction
+
+from openedx_authz.engine.filter import Filter
+
+
+class ScopeManager(models.Manager):
+    """Custom manager for Scope model that handles polymorphic behavior."""
+
+    def get_or_create_for_external_key(self, scope_data):
+        """Get or create a Scope instance for the given scope data.
+
+        This method determines the appropriate subclass based on the namespace
+        in the scope_data and delegates to that subclass's get_or_create_for_external_key.
+
+        Args:
+            scope_data: The scope (ScopeData) object with NAMESPACE class attribute
+
+        Returns:
+            Scope: The Scope instance
+
+        Raises:
+            ValueError: If the namespace is not registered
+        """
+        namespace = scope_data.NAMESPACE
+        if namespace not in Scope._registry:
+            raise ValueError(
+                f"No Scope subclass registered for namespace '{namespace}'"
+            )
+
+        scope_class = Scope._registry[namespace]
+        return scope_class.get_or_create_for_external_key(scope_data)
+
+
+class SubjectManager(models.Manager):
+    """Custom manager for Subject model that handles polymorphic behavior."""
+
+    def get_or_create_for_external_key(self, subject_data):
+        """Get or create a Subject instance for the given subject data.
+
+        This method determines the appropriate subclass based on the namespace
+        in the subject_data and delegates to that subclass's get_or_create_for_external_key.
+
+        Args:
+            subject_data: The subject (SubjectData) object with NAMESPACE class attribute
+
+        Returns:
+            Subject: The Subject instance
+
+        Raises:
+            ValueError: If the namespace is not registered
+        """
+        namespace = subject_data.NAMESPACE
+        if namespace not in Subject._registry:
+            raise ValueError(
+                f"No Subject subclass registered for namespace '{namespace}'"
+            )
+
+        subject_class = Subject._registry[namespace]
+        return subject_class.get_or_create_for_external_key(subject_data)
+
+
+class Scope(models.Model):
+    """Model representing a scope in the authorization system.
+
+    This model can be extended to represent different types of scopes,
+    such as courses or content libraries.
+
+    Subclasses should define a NAMESPACE class attribute (e.g., 'lib' for content libraries)
+    and implement get_or_create_for_external_key() classmethod.
+    """
+
+    _registry: ClassVar[dict[str, type["Scope"]]] = {}
+    NAMESPACE: ClassVar[str] = None
+
+    objects = ScopeManager()
+
+    class Meta:
+        abstract = False
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """Automatically register subclasses when they're defined."""
+        super().__init_subclass__(**kwargs)
+        if cls.NAMESPACE:
+            Scope._registry[cls.NAMESPACE] = cls
+
+
+class Subject(models.Model):
+    """Model representing a subject in the authorization system.
+
+    This model can be extended to represent different types of subjects,
+    such as users or groups.
+
+    Subclasses should define a NAMESPACE class attribute (e.g., 'user' for users)
+    and implement get_or_create_for_external_key() classmethod.
+    """
+
+    _registry: ClassVar[dict[str, type["Subject"]]] = {}
+    NAMESPACE: ClassVar[str] = None
+
+    objects = SubjectManager()
+
+    class Meta:
+        abstract = False
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """Automatically register subclasses when they're defined."""
+        super().__init_subclass__(**kwargs)
+        if cls.NAMESPACE:
+            Subject._registry[cls.NAMESPACE] = cls
+
+
+class ExtendedCasbinRule(models.Model):
+    """Extended model for Casbin rules to store additional metadata.
+
+    This model extends the CasbinRule model provided by the casbin_adapter
+    package to include additional fields for storing metadata about each rule.
+    """
+
+    # Instead of making it 1:1 only with the CasbinRule primary key which we usually don't know, let's
+    # make an unique key based on the casbin_rule field which is a concatenation of all the fields
+    # in the CasbinRule model. This way, we can easily look up the ExtendedCasbinRule
+    # based on a policy line which SHOULD be unique.
+    casbin_rule_key = models.CharField(max_length=255, unique=True)
+    casbin_rule = models.ForeignKey(
+        "casbin_adapter.CasbinRule",
+        on_delete=models.CASCADE,
+        related_name="extended_rule",
+    )
+
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    metadata = models.JSONField(blank=True, null=True)
+
+    # Scope of the rule. This could be a course, content library, or any other scope type. See Scope model above.
+    scope = models.ForeignKey(
+        Scope,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="casbin_rules",
+    )
+
+    # Subject of the rule. This could be a user, group, or any other subject type. See Subject model above.
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="casbin_rules",
+    )
+
+    class Meta:
+        verbose_name = "Extended Casbin Rule"
+        verbose_name_plural = "Extended Casbin Rules"
+
+    @classmethod
+    def create_based_on_policy(
+        cls,
+        subject,
+        role,
+        scope,
+        enforcer,
+    ):
+        """Helper method to create an ExtendedCasbinRule based on policy components.
+
+        Args:
+            subject: SubjectData object with namespaced_key and external_key
+            role: RoleData object with namespaced_key and external_key
+            scope: ScopeData object with namespaced_key and external_key
+            enforcer: The Casbin enforcer instance.
+
+        Returns:
+            ExtendedCasbinRule: The created ExtendedCasbinRule instance.
+        """
+        casbin_rule = enforcer.adapter.query_policy(
+            Filter(
+                ptype=["g"],
+                v0=[subject.namespaced_key],
+                v1=[role.namespaced_key],
+                v2=[scope.namespaced_key],
+            )
+        ).first()
+
+        if not casbin_rule:
+            return None
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+
+        with transaction.atomic():
+            extended_rule, created = cls.objects.get_or_create(
+                casbin_rule_key=casbin_rule_key,
+                defaults={
+                    "casbin_rule": casbin_rule,
+                    "scope": Scope.objects.get_or_create_for_external_key(scope),
+                    "subject": Subject.objects.get_or_create_for_external_key(subject),
+                },
+            )
+
+        return extended_rule

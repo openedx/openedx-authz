@@ -144,7 +144,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         user_roles = get_user_role_assignments_in_scope(user_external_key=username, scope_external_key=scope_name)
 
-        role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+        role_names = {
+            r.external_key for assignment in user_roles for r in assignment.roles
+        }
         self.assertEqual(role_names, expected_roles)
 
     @data(

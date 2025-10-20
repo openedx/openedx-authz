@@ -493,7 +493,9 @@ class TestRolesAPI(RolesTestSetupMixin):
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
         )
 
-        role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
+        role_names = {
+            r.external_key for assignment in role_assignments for r in assignment.roles
+        }
         self.assertEqual(role_names, expected_roles)
 
     @ddt_data(
@@ -803,7 +805,11 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject_name),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertIn(role, role_names)
         else:
             assign_role_to_subject_in_scope(
@@ -815,7 +821,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertIn(role, role_names)
 
     @ddt_data(
@@ -858,7 +866,11 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_subject_in_scope(
@@ -870,7 +882,9 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertNotIn(role, role_names)
 
     @ddt_data(

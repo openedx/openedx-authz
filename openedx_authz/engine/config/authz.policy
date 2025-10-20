@@ -32,15 +32,15 @@ p, role^library_author, act^create_library_collection, lib^*, allow
 p, role^library_author, act^edit_library_collection, lib^*, allow
 p, role^library_author, act^delete_library_collection, lib^*, allow
 
-# Library Collaborator Role Policies
-p, role^library_collaborator, act^view_library, lib^*, allow
-p, role^library_collaborator, act^manage_library_tags, lib^*, allow
-p, role^library_collaborator, act^edit_library_content, lib^*, allow
-p, role^library_collaborator, act^reuse_library_content, lib^*, allow
-p, role^library_collaborator, act^view_library_team, lib^*, allow
-p, role^library_collaborator, act^create_library_collection, lib^*, allow
-p, role^library_collaborator, act^edit_library_collection, lib^*, allow
-p, role^library_collaborator, act^delete_library_collection, lib^*, allow
+# Library Contributor Role Policies
+p, role^library_contributor, act^view_library, lib^*, allow
+p, role^library_contributor, act^manage_library_tags, lib^*, allow
+p, role^library_contributor, act^edit_library_content, lib^*, allow
+p, role^library_contributor, act^reuse_library_content, lib^*, allow
+p, role^library_contributor, act^view_library_team, lib^*, allow
+p, role^library_contributor, act^create_library_collection, lib^*, allow
+p, role^library_contributor, act^edit_library_collection, lib^*, allow
+p, role^library_contributor, act^delete_library_collection, lib^*, allow
 
 # Library User Role Policies
 p, role^library_user, act^view_library, lib^*, allow

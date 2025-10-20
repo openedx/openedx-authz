@@ -90,7 +90,7 @@ LIST_LIBRARY_AUTHOR_PERMISSIONS = [
     ),
 ]
 
-LIST_LIBRARY_COLLABORATOR_PERMISSIONS = [
+LIST_LIBRARY_CONTRIBUTOR_PERMISSIONS = [
     PermissionData(
         action=ActionData(external_key="view_library"),
         effect="allow",

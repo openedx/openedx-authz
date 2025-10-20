@@ -165,7 +165,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         "role^library_user",
         "role^library_admin",
         "role^library_author",
-        "role^library_collaborator",
+        "role^library_contributor",
     ]
 
     def setUp(self):

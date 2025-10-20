@@ -53,7 +53,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
     @data(
         ("john", "library_admin", "lib:Org1:math_101", False),
         ("jane", "library_user", "lib:Org1:english_101", False),
-        (["mary", "charlie"], "library_collaborator", "lib:Org1:science_301", True),
+        (["mary", "charlie"], "library_contributor", "lib:Org1:science_301", True),
         (["david", "sarah"], "library_author", "lib:Org1:history_201", True),
     )
     @unpack
@@ -86,7 +86,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             self.assertIn(role, role_names)
 
     @data(
-        (["grace"], "library_collaborator", "lib:Org1:math_advanced", True),
+        (["grace"], "library_contributor", "lib:Org1:math_advanced", True),
         (["liam", "maya"], "library_author", "lib:Org4:art_101", True),
         ("alice", "library_admin", "lib:Org1:math_101", False),
         ("bob", "library_author", "lib:Org1:history_201", False),
@@ -145,7 +145,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         ("alice", "lib:Org1:math_101", {"library_admin"}),
         ("bob", "lib:Org1:history_201", {"library_author"}),
         ("eve", "lib:Org2:physics_401", {"library_admin"}),
-        ("grace", "lib:Org1:math_advanced", {"library_collaborator"}),
+        ("grace", "lib:Org1:math_advanced", {"library_contributor"}),
     )
     @unpack
     def test_get_user_role_assignments_in_scope(
@@ -167,7 +167,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
     @data(
         ("library_admin", "lib:Org1:math_101", {"alice"}),
         ("library_author", "lib:Org1:history_201", {"bob"}),
-        ("library_collaborator", "lib:Org1:math_advanced", {"grace", "heidi"}),
+        ("library_contributor", "lib:Org1:math_advanced", {"grace", "heidi"}),
     )
     @unpack
     def test_get_user_role_assignments_for_role_in_scope(

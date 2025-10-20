@@ -107,6 +107,21 @@ class ViewTestMixin(BaseRolesTestCase):
                 "role_name": "library_admin",
                 "scope_name": "lib:Org3:LIB3",
             },
+            {
+                "subject_name": "regular_6",
+                "role_name": "library_author",
+                "scope_name": "lib:Org3:LIB3",
+            },
+            {
+                "subject_name": "regular_7",
+                "role_name": "library_collaborator",
+                "scope_name": "lib:Org3:LIB3",
+            },
+            {
+                "subject_name": "regular_8",
+                "role_name": "library_user",
+                "scope_name": "lib:Org3:LIB3",
+            },
         ]
         cls._assign_roles_to_users(assignments=assignments)
 
@@ -127,7 +142,7 @@ class ViewTestMixin(BaseRolesTestCase):
         """Set up test fixtures once for the entire test class."""
         super().setUpTestData()
         cls.create_admin_users(quantity=3)
-        cls.create_regular_users(quantity=7)
+        cls.create_regular_users(quantity=10)
 
     def setUp(self):
         """Set up test fixtures."""
@@ -692,3 +707,40 @@ class TestRoleListView(ViewTestMixin):
             self.assertIsNotNone(response.data["next"])
         else:
             self.assertIsNone(response.data["next"])
+
+    @data(
+        # Unauthenticated
+        (None, status.HTTP_401_UNAUTHORIZED),
+        # Admin user
+        ("admin_1", status.HTTP_200_OK),
+        # Library Admin user
+        ("regular_5", status.HTTP_200_OK),
+        # Library Author user
+        # ("regular_6", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        # Library Collaborator user
+        # ("regular_7", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        # Library User user
+        ("regular_8", status.HTTP_200_OK),
+        # Regular user without permission
+        ("regular_9", status.HTTP_403_FORBIDDEN),
+        # Non existent user
+        ("non_existent_user", status.HTTP_401_UNAUTHORIZED),
+    )
+    @unpack
+    def test_get_roles_permissions(self, username: str, status_code: int):
+        """Test retrieving roles with permissions.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED status if user is not authenticated
+            - Returns 403 FORBIDDEN status if user does not have permission
+            - Returns 200 OK status if user has permission with correct roles with permissions and user counts
+        """
+        user = User.objects.filter(username=username).first()
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url, {"scope": "lib:Org3:LIB3"})
+
+        self.assertEqual(response.status_code, status_code)
+        if status_code == status.HTTP_200_OK:
+            self.assertIn("results", response.data)
+            self.assertIn("count", response.data)

@@ -442,7 +442,7 @@ class RoleListView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions(["manage_library_team"])
+    @authz_permissions(["view_library_team"])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all roles and their permissions for a specific scope."""
         serializer = ListRolesWithScopeSerializer(data=request.query_params)

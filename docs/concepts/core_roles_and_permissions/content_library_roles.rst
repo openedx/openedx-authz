@@ -3,14 +3,9 @@ Core Roles and Permissions: Content Library
 
 This document outlines the built-in roles and permissions associated with the Content Library feature in the Open edX platform.
 
-- `Roles`_
-- `Permissions`_
-    - `Library Permissions`_
-    - `Library Content Permissions`_
-    - `Library Team Permissions`_
-    - `Library Collections Permissions`_
-    - `Permissions Inheritance`_
-- `Roles and Permissions Summary Table`_
+.. contents::
+    :depth: 2
+    :local:
 
 Roles
 -----

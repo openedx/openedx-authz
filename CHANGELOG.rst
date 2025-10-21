@@ -16,6 +16,20 @@ Unreleased
 
 *
 
+0.5.0 - 2025-10-21
+******************
+
+Added
+=====
+
+* Default policy for Content Library roles and permissions.
+
+Fixed
+=====
+
+* Add plugin_settings in test settings.
+* Update permissions for RoleListView.
+
 0.4.1 - 2025-10-16
 ******************
 

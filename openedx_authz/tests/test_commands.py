@@ -3,7 +3,7 @@ Tests for the `enforcement` Django management command.
 """
 
 import io
-from tempfile import TemporaryFile
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -12,12 +12,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.management.commands.enforcement import Command as EnforcementCommand
+from openedx_authz import api as authz_api
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand
-from openedx_authz.tests.test_utils import make_action_key, make_scope_key, make_user_key
+from openedx_authz.tests.test_utils import make_scope_key
 
 
-# pylint: disable=protected-access
 @ddt
 class EnforcementCommandTests(TestCase):
     """
@@ -34,184 +34,234 @@ class EnforcementCommandTests(TestCase):
     def setUp(self):
         super().setUp()
         self.buffer = io.StringIO()
-        self.policy_file_path = TemporaryFile()
-        self.command = EnforcementCommand()
-        self.command.stdout = self.buffer
+        self.command_name = "enforcement"
+
+        self.policy_file_path = NamedTemporaryFile(suffix=".policy")
+        self.model_file_path = NamedTemporaryFile(suffix=".conf")
+
+        self.policies = [["alice", "read", "resource1"]]
+        self.roles = [["alice", "admin"]]
+        self.action_grouping = [["read", "view"]]
+
         self.enforcer = Mock()
+        self.enforcer.get_policy.return_value = self.policies
+        self.enforcer.get_grouping_policy.return_value = self.roles
+        self.enforcer.get_named_grouping_policy.return_value = self.action_grouping
 
-    def test_requires_policy_file_argument(self):
-        """Test that calling the command without --policy-file-path should error from argparse."""
-        with self.assertRaises(CommandError) as ctx:
-            call_command("enforcement")
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    @patch("openedx_authz.management.commands.enforcement.disabled_logging")
+    def test_handle_database_mode_default(self, mock_logging: Mock, mock_get_enforcer: Mock):
+        """Test database mode is used when no file paths are provided."""
+        mock_get_enforcer.return_value = self.enforcer
 
-        self.assertEqual(
-            "Error: the following arguments are required: --policy-file-path",
-            str(ctx.exception),
-        )
+        with patch("builtins.input", side_effect=["quit"]):
+            call_command(self.command_name, stdout=self.buffer)
+
+        output = self.buffer.getvalue()
+        self.assertIn("Database Mode", output)
+        self.assertIn("AuthzEnforcer", output)
+        self.enforcer.load_policy.assert_called_once()
+        mock_logging.assert_called_once()
+
+    @patch("openedx_authz.management.commands.enforcement.Enforcer")
+    def test_handle_file_mode(self, mock_enforcer_class: Mock):
+        """Test file mode is used when both file paths are provided."""
+        mock_enforcer_class.return_value = self.enforcer
+
+        with patch("builtins.input", side_effect=["quit"]):
+            call_command(
+                self.command_name,
+                policy_file_path=self.policy_file_path.name,
+                model_file_path=self.model_file_path.name,
+                stdout=self.buffer,
+            )
+
+        output = self.buffer.getvalue()
+        self.assertIn("File Mode", output)
+        self.assertIn(self.policy_file_path.name, output)
+        self.assertIn(self.model_file_path.name, output)
+        mock_enforcer_class.assert_called_once_with(self.model_file_path.name, self.policy_file_path.name)
 
     def test_policy_file_not_found_raises(self):
         """Test that command errors when the provided policy file does not exist."""
-        non_existent = "invalid/path/does-not-exist.policy"
+        non_existent_policy = "invalid/path/authz.policy"
 
         with self.assertRaises(CommandError) as ctx:
-            call_command("enforcement", policy_file_path=non_existent)
+            call_command(
+                self.command_name,
+                policy_file_path=non_existent_policy,
+                model_file_path=self.model_file_path.name,
+            )
 
-        self.assertEqual(f"Policy file not found: {non_existent}", str(ctx.exception))
+        self.assertEqual(f"Policy file not found: {non_existent_policy}", str(ctx.exception))
 
-    @patch.object(EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf")
-    def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
+    def test_model_file_not_found_raises(self):
         """Test that command errors when the provided model file does not exist."""
-        with self.assertRaises(CommandError) as ctx:
-            call_command("enforcement", policy_file_path=self.policy_file_path.name)
-
-        self.assertEqual(
-            f"Model file not found: {mock_get_file_path.return_value}",
-            str(ctx.exception),
-        )
-
-    @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
-    def test_error_creating_enforcer_raises(self, mock_enforcer_cls: Mock):
-        """Test that command errors when the enforcer creation fails."""
-        mock_enforcer_cls.side_effect = Exception("Enforcer creation error")
+        non_existent_model = "invalid/path/model.conf"
 
         with self.assertRaises(CommandError) as ctx:
-            call_command("enforcement", policy_file_path=self.policy_file_path.name)
+            call_command(
+                self.command_name,
+                policy_file_path=self.policy_file_path.name,
+                model_file_path=non_existent_model,
+            )
 
-        self.assertEqual(
-            "Error creating Casbin enforcer: Enforcer creation error",
-            str(ctx.exception),
-        )
+        self.assertEqual(f"Model file not found: {non_existent_model}", str(ctx.exception))
 
-    @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
-    @patch.object(EnforcementCommand, "_run_interactive_mode")
-    def test_successful_run_prints_summary(self, mock_run_interactive: Mock, mock_enforcer_cls: Mock):
-        """
-        Test successful command execution with policy file and interactive mode.
-        When files exist, command should create enforcer, print counts, and call interactive loop.
-        """
-        mock_enforcer = Mock()
-        policies = [["p", "role:platform_admin", "act:manage", "*", "allow"]]
-        roles = [["g", "user:user-1", "role:platform_admin", "*"]]
-        action_grouping = [
-            ["g2", "act:edit", "act:read"],
-            ["g2", "act:edit", "act:write"],
-        ]
-        mock_enforcer.get_policy.return_value = policies
-        mock_enforcer.get_grouping_policy.return_value = roles
-        mock_enforcer.get_named_grouping_policy.return_value = action_grouping
-        mock_enforcer_cls.return_value = mock_enforcer
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_display_loaded_policies(self, mock_get_enforcer: Mock):
+        """Test that policy statistics are displayed correctly."""
+        mock_get_enforcer.return_value = self.enforcer
 
-        call_command(
-            "enforcement",
-            policy_file_path=self.policy_file_path.name,
-            stdout=self.buffer,
-        )
+        with patch("builtins.input", side_effect=["quit"]):
+            call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
-        self.assertIn("Casbin Interactive Enforcement", output)
-        self.assertIn("Casbin enforcer created successfully", output)
-        self.assertIn(f"✓ Loaded {len(policies)} policies", output)
-        self.assertIn(f"✓ Loaded {len(roles)} role assignments", output)
-        self.assertIn(f"✓ Loaded {len(action_grouping)} action grouping rules", output)
-        mock_run_interactive.assert_called_once_with(mock_enforcer)
+        self.assertIn(f"✓ Loaded {len(self.policies)} policies", output)
+        self.assertIn(f"✓ Loaded {len(self.roles)} role assignments", output)
+        self.assertIn(f"✓ Loaded {len(self.action_grouping)} action grouping rules", output)
 
-    def test_run_interactive_mode_displays_help(self):
-        """Test that the interactive mode runs."""
-        with patch("builtins.input", side_effect=["quit"]):
-            self.command._run_interactive_mode()
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    @patch.object(authz_api, "is_user_allowed")
+    def test_interactive_mode_allowed_request(self, mock_is_allowed: Mock, mock_get_enforcer: Mock):
+        """Test interactive mode with an allowed enforcement request."""
+        mock_get_enforcer.return_value = self.enforcer
+        mock_is_allowed.return_value = True
 
-        example_text = f"Example: {make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
-        self.assertIn("Interactive Mode", self.buffer.getvalue())
-        self.assertIn("Test custom enforcement requests interactively.", self.buffer.getvalue())
-        self.assertIn(
-            "Enter 'quit', 'exit', or 'q' to exit the interactive mode.",
-            self.buffer.getvalue(),
-        )
-        self.assertIn("Format: subject action scope", self.buffer.getvalue())
-        self.assertIn(example_text, self.buffer.getvalue())
+        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+            call_command(self.command_name, stdout=self.buffer)
 
-    def test_run_interactive_mode_maintains_interactive_loop(self):
-        """Test that the interactive mode maintains the interactive loop."""
-        input_values = ["", "", "", "quit"]
+        output = self.buffer.getvalue()
+        self.assertIn("✓ ALLOWED: alice read lib:Org1:LIB1", output)
+        mock_is_allowed.assert_called_once_with("alice", "read", "lib:Org1:LIB1")
 
-        with patch("builtins.input", side_effect=input_values) as mock_input:
-            self.command._run_interactive_mode()
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    @patch.object(authz_api, "is_user_allowed")
+    def test_interactive_mode_denied_request(self, mock_is_allowed: Mock, mock_get_enforcer: Mock):
+        """Test interactive mode with a denied enforcement request."""
+        mock_get_enforcer.return_value = self.enforcer
+        mock_is_allowed.return_value = False
 
-        self.assertEqual(mock_input.call_count, len(input_values))
+        with patch("builtins.input", side_effect=["bob delete lib:Org2:LIB2", "quit"]):
+            call_command(self.command_name, stdout=self.buffer)
+
+        output = self.buffer.getvalue()
+        self.assertIn("✗ DENIED: bob delete lib:Org2:LIB2", output)
+        mock_is_allowed.assert_called_once_with("bob", "delete", "lib:Org2:LIB2")
+
+    @patch("openedx_authz.management.commands.enforcement.Enforcer")
+    def test_interactive_mode_file_mode_enforcement(self, mock_enforcer_class: Mock):
+        """Test that file mode uses custom enforcer for enforcement checks."""
+        mock_enforcer_class.return_value = self.enforcer
+
+        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+            call_command(
+                self.command_name,
+                policy_file_path=self.policy_file_path.name,
+                model_file_path=self.model_file_path.name,
+                stdout=self.buffer,
+            )
+
+        output = self.buffer.getvalue()
+        self.assertIn("✓ ALLOWED: alice read lib:Org1:LIB1", output)
+        self.enforcer.enforce.assert_called_once_with("alice", "read", "lib:Org1:LIB1")
 
     @data(
-        [f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"],
-        [f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 5,
-        [f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 10,
+        "alice",
+        "alice read",
+        "alice read lib:Org1:LIB1 lib:Org1:LIB1",
+        "alice read lib:Org1:LIB1 lib:Org1:LIB1 lib:Org1:LIB1",
     )
-    def test_run_interactive_mode_processes_request(self, user_input: list[str]):
-        """Test that the interactive mode processes the request."""
-        with patch("builtins.input", side_effect=user_input + ["quit"]) as mock_input:
-            with patch.object(self.command, "_test_interactive_request") as mock_method:
-                self.command._run_interactive_mode()
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_interactive_mode_invalid_format(self, user_input: str, mock_get_enforcer: Mock):
+        """Test interactive mode handles invalid input format."""
+        mock_get_enforcer.return_value = self.enforcer
 
-        self.assertEqual(mock_input.call_count, len(user_input) + 1)
-        self.assertEqual(mock_method.call_count, len(user_input))
-        for value in user_input:
-            mock_method.assert_any_call(self.enforcer, value)
+        with patch("builtins.input", side_effect=[user_input, "quit"]):
+            call_command(self.command_name, stdout=self.buffer)
+
+        output = self.buffer.getvalue()
+        self.assertIn("✗ Invalid format", output)
+        self.assertIn(f"Expected 3 parts, got {len(user_input.split())}", output)
+
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_interactive_mode_empty_input(self, mock_get_enforcer: Mock):
+        """Test interactive mode handles empty input gracefully."""
+        mock_get_enforcer.return_value = self.enforcer
+
+        with patch("builtins.input", side_effect=["", "   ", "quit"]):
+            call_command(self.command_name, stdout=self.buffer)
+
+        output = self.buffer.getvalue()
+        self.assertIn("Interactive Mode", output)
 
     @data("quit", "exit", "q", "QUIT", "EXIT", "Q")
-    def test_quit_commands_case_insensitive(self, quit_command: str):
-        """Test that all quit commands work regardless of case."""
-        with patch("builtins.input", side_effect=[quit_command]) as mock_input:
-            self.command._run_interactive_mode()
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_interactive_mode_exit_commands(self, exit_cmd: str, mock_get_enforcer: Mock):
+        """Test that various exit commands work correctly."""
+        mock_get_enforcer.return_value = self.enforcer
 
-        self.assertEqual(mock_input.call_count, 1)
+        with patch("builtins.input", side_effect=[exit_cmd]):
+            call_command(self.command_name, stdout=self.buffer)
+
+        output = self.buffer.getvalue()
+        self.assertIn("Interactive Mode", output)
 
     @data(KeyboardInterrupt(), EOFError())
-    def test_handles_exceptions(self, exception: Exception):
-        """Test that interactive mode handles exceptions gracefully."""
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_interactive_mode_keyboard_interrupt(self, exception: Exception, mock_get_enforcer: Mock):
+        """Test interactive mode handles KeyboardInterrupt gracefully."""
+        mock_get_enforcer.return_value = self.enforcer
+
         with patch("builtins.input", side_effect=exception):
-            self.command._run_interactive_mode()
+            call_command(self.command_name, stdout=self.buffer)
 
-        self.assertIn("Exiting interactive mode...", self.buffer.getvalue())
+        output = self.buffer.getvalue()
+        self.assertIn("Exiting interactive mode...", output)
 
-    def test_interactive_request_allowed(self):
-        """Test that `_test_interactive_request` prints allowed output format."""
-        self.enforcer.enforce.return_value = True
-        user_input = f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    def test_database_mode_enforcer_creation_error(self, mock_get_enforcer: Mock):
+        """Test CommandError is raised when enforcer creation fails in database mode."""
+        error_message = "Database connection failed"
+        mock_get_enforcer.side_effect = Exception(error_message)
 
-        self.command._test_interactive_request(user_input)
+        with self.assertRaises(CommandError) as ctx:
+            call_command(self.command_name)
 
-        allowed_output = self.buffer.getvalue()
-        self.assertIn(f"✓ ALLOWED: {user_input}", allowed_output)
+        self.assertEqual(f"Error creating Casbin enforcer: {error_message}", str(ctx.exception))
+        mock_get_enforcer.assert_called_once()
 
-    def test_interactive_request_denied(self):
-        """Test that `_test_interactive_request` prints denied output format."""
-        self.enforcer.enforce.return_value = False
-        user_input = f"{make_user_key('alice')} {make_action_key('delete')} {make_scope_key('org', 'OpenedX')}"
+    @patch("openedx_authz.management.commands.enforcement.Enforcer")
+    def test_error_creating_enforcer_raises(self, mock_enforcer_cls: Mock):
+        """Test CommandError is raised when the enforcer creation fails in file mode."""
+        error_message = "Enforcer creation error"
+        mock_enforcer_cls.side_effect = Exception(error_message)
 
-        self.command._test_interactive_request(user_input)
+        with self.assertRaises(CommandError) as ctx:
+            call_command(
+                self.command_name,
+                policy_file_path=self.policy_file_path.name,
+                model_file_path=self.model_file_path.name,
+            )
 
-        denied_output = self.buffer.getvalue()
-        self.assertIn(f"✗ DENIED: {user_input}", denied_output)
+        self.assertEqual(f"Error creating Casbin enforcer: {error_message}", str(ctx.exception))
+        mock_enforcer_cls.assert_called_once_with(self.model_file_path.name, self.policy_file_path.name)
 
-    def test_interactive_request_invalid_format(self):
-        """Test that `_test_interactive_request` reports invalid input format."""
-        user_input = f"{make_user_key('alice')} {make_action_key('read')}"
+    @data(ValueError("Value error"), TypeError("Type error"), IndexError("Index error"))
+    @patch.object(AuthzEnforcer, "get_enforcer")
+    @patch.object(authz_api, "is_user_allowed")
+    def test_interactive_request_error(self, exception: Exception, mock_is_allowed: Mock, mock_get_enforcer: Mock):
+        """Test interactive mode handles enforcement errors gracefully."""
+        mock_get_enforcer.return_value = self.enforcer
+        mock_is_allowed.side_effect = exception
 
-        self.command._test_interactive_request(user_input)
+        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+            call_command(self.command_name, stdout=self.buffer)
 
         invalid_output = self.buffer.getvalue()
         self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
         self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output)
-
-    @data(ValueError(), IndexError(), TypeError())
-    def test_interactive_request_error(self, exception: Exception):
-        """Test that `_test_interactive_request` handles processing errors."""
-        self.enforcer.enforce.side_effect = exception
-        user_input = f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
-
-        self.command._test_interactive_request(user_input)
-
-        error_output = self.buffer.getvalue()
-        self.assertIn(f"✗ Error processing request: {str(exception)}", error_output)
+        self.assertIn(f"Example: alice read lib:Org1:LIB1 {make_scope_key('org', 'OpenedX')}", invalid_output)
 
 
 class LoadPoliciesCommandTests(TestCase):

@@ -36,8 +36,7 @@ from casbin import Enforcer
 from casbin.util.log import disabled_logging
 from django.core.management.base import BaseCommand, CommandError
 
-from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.api.users import is_user_allowed
+from openedx_authz import api
 from openedx_authz.engine.enforcer import AuthzEnforcer
 
 
@@ -97,33 +96,6 @@ class Command(BaseCommand):
                 "uses the default model.conf."
             ),
         )
-
-    @staticmethod
-    def _get_file_path(file_name: str) -> str:
-        """Construct the full file path for a configuration file.
-
-        Args:
-            file_name (str): The name of the configuration file (e.g., 'model.conf').
-
-        Returns:
-            str: The absolute path to the configuration file in the engine/config directory.
-        """
-        return os.path.join(ROOT_DIRECTORY, "engine", "config", file_name)
-
-    def _display_loaded_policies(self, enforcer: Enforcer) -> None:
-        """Display statistics about loaded policies, roles, and action grouping.
-
-        Args:
-            enforcer (Enforcer): The Casbin enforcer instance with loaded policies.
-        """
-        policies = enforcer.get_policy()
-        roles = enforcer.get_grouping_policy()
-        action_grouping = enforcer.get_named_grouping_policy("g2")
-
-        self.stdout.write(f"✓ Loaded {len(policies)} policies")
-        self.stdout.write(f"✓ Loaded {len(roles)} role assignments")
-        self.stdout.write(f"✓ Loaded {len(action_grouping)} action grouping rules")
-        self.stdout.write("")
 
     def handle(self, *args, **options):
         """Execute the enforcement testing command.
@@ -204,6 +176,21 @@ class Command(BaseCommand):
         except Exception as e:
             raise CommandError(f"Error creating Casbin enforcer: {str(e)}") from e
 
+    def _display_loaded_policies(self, enforcer: Enforcer) -> None:
+        """Display statistics about loaded policies, roles, and action grouping.
+
+        Args:
+            enforcer (Enforcer): The Casbin enforcer instance with loaded policies.
+        """
+        policies = enforcer.get_policy()
+        roles = enforcer.get_grouping_policy()
+        action_grouping = enforcer.get_named_grouping_policy("g2")
+
+        self.stdout.write(f"✓ Loaded {len(policies)} policies")
+        self.stdout.write(f"✓ Loaded {len(roles)} role assignments")
+        self.stdout.write(f"✓ Loaded {len(action_grouping)} action grouping rules")
+        self.stdout.write("")
+
     def _run_interactive_mode(self) -> None:
         """Start the interactive enforcement testing shell.
 
@@ -264,7 +251,7 @@ class Command(BaseCommand):
             if self._custom_enforcer is not None:
                 result = self._custom_enforcer.enforce(subject, action, scope)
             else:
-                result = is_user_allowed(subject, action, scope)
+                result = api.is_user_allowed(subject, action, scope)
 
             if result:
                 self.stdout.write(self.style.SUCCESS(f"✓ ALLOWED: {subject} {action} {scope}"))

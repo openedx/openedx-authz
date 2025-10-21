@@ -9,7 +9,7 @@ The command supports:
 import os
 
 import casbin
-from casbin_adapter.models import CasbinRule
+import click
 from django.core.management.base import BaseCommand
 
 from openedx_authz import ROOT_DIRECTORY
@@ -79,11 +79,21 @@ class Command(BaseCommand):
                 ROOT_DIRECTORY, "engine", "config", "model.conf"
             )
 
+        target_enforcer = AuthzEnforcer.get_enforcer()
+
         if options.get("clear_existing"):
-            CasbinRule.objects.all().delete()
+            target_enforcer.load_policy()
+            if click.confirm(click.style('Do you want to delete existing roles? '
+                                         '(This will also delete the assignments related to those roles)',
+                                         fg='yellow', bold=True), default=False):
+                self._delete_existing_roles(target_enforcer)
+
+            if click.confirm(click.style('Do you want to delete existing permissions inheritance?',
+                                         fg='yellow', bold=True), default=False):
+                self._delete_permissions_inheritance(target_enforcer)
 
         source_enforcer = casbin.Enforcer(model_file_path, policy_file_path)
-        self.migrate_policies(source_enforcer, AuthzEnforcer.get_enforcer())
+        self.migrate_policies(source_enforcer, target_enforcer)
 
     def migrate_policies(self, source_enforcer, target_enforcer):
         """Migrate policies from the source enforcer to the target enforcer.
@@ -97,3 +107,27 @@ class Command(BaseCommand):
             target_enforcer: The Casbin enforcer instance to migrate policies to.
         """
         migrate_policy_between_enforcers(source_enforcer, target_enforcer)
+
+    def _delete_existing_roles(self, target_enforcer):
+        """Delete existing roles from the target enforcer.
+
+        Args:
+            target_enforcer: The Casbin enforcer instance to delete roles from.
+        """
+        list_of_roles = target_enforcer.get_all_subjects()
+        for role in list_of_roles:
+            result = target_enforcer.delete_role(role)
+            if result:
+                click.echo(f"Deleted role: {role}")
+
+    def _delete_permissions_inheritance(self, target_enforcer):
+        """Delete existing permissions inheritance from the target enforcer.
+
+        Args:
+            target_enforcer: The Casbin enforcer instance to delete permissions inheritance from.
+        """
+        list_of_permissions = target_enforcer.get_named_grouping_policy("g2")
+        for permission in list(list_of_permissions):
+            result = target_enforcer.remove_named_grouping_policy("g2", *permission)
+            if result:
+                click.echo(f"Deleted permission inheritance: {permission}")

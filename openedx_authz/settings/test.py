@@ -6,11 +6,18 @@ import os
 
 from openedx_authz import ROOT_DIRECTORY
 
-# Add Casbin configuration
-CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
-# Redis host and port are temporarily loaded here for the MVP
-REDIS_HOST = "redis"
-REDIS_PORT = 6379
+
+def plugin_settings(settings):  # pylint: disable=unused-argument
+    """
+    Configure plugin settings for Open edX.
+    This function is called by the Open edX plugin system to configure
+    the Django settings for this plugin.
+
+    Args:
+        settings: The Django settings object
+    """
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -55,6 +62,13 @@ TEMPLATES = [
 ]
 
 SECRET_KEY = "test-secret-key"
-CASBIN_WATCHER_ENABLED = False
+
 USE_TZ = True
+
 ROOT_URLCONF = "openedx_authz.urls"
+
+# Casbin configuration
+CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
+CASBIN_WATCHER_ENABLED = False
+REDIS_HOST = "redis"
+REDIS_PORT = 6379

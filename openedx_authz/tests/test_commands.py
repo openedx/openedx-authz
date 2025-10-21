@@ -39,9 +39,17 @@ class EnforcementCommandTests(TestCase):
         self.policy_file_path = NamedTemporaryFile(suffix=".policy")
         self.model_file_path = NamedTemporaryFile(suffix=".conf")
 
-        self.policies = [["alice", "read", "resource1"]]
-        self.roles = [["alice", "admin"]]
-        self.action_grouping = [["read", "view"]]
+        self.policies = [
+            ["role^library_admin", "act^delete_library", "lib^*", "allow"],
+            ["role^library_admin", "act^publish_library", "lib^*", "allow"],
+            ["role^library_admin", "act^manage_library_team", "lib^*", "allow"],
+        ]
+        self.roles = [
+            ["user^alice", "role^library_admin", "lib^*"],
+        ]
+        self.action_grouping = [
+            ["act^delete_library", "act^view_library"],
+        ]
 
         self.enforcer = Mock()
         self.enforcer.get_policy.return_value = self.policies
@@ -128,12 +136,12 @@ class EnforcementCommandTests(TestCase):
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.return_value = True
 
-        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
             call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
-        self.assertIn("✓ ALLOWED: alice read lib:Org1:LIB1", output)
-        mock_is_allowed.assert_called_once_with("alice", "read", "lib:Org1:LIB1")
+        self.assertIn("✓ ALLOWED: alice view_library lib:Org1:LIB1", output)
+        mock_is_allowed.assert_called_once_with("alice", "view_library", "lib:Org1:LIB1")
 
     @patch.object(AuthzEnforcer, "get_enforcer")
     @patch.object(authz_api, "is_user_allowed")
@@ -142,19 +150,19 @@ class EnforcementCommandTests(TestCase):
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.return_value = False
 
-        with patch("builtins.input", side_effect=["bob delete lib:Org2:LIB2", "quit"]):
+        with patch("builtins.input", side_effect=["bob delete_library lib:Org2:LIB2", "quit"]):
             call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
-        self.assertIn("✗ DENIED: bob delete lib:Org2:LIB2", output)
-        mock_is_allowed.assert_called_once_with("bob", "delete", "lib:Org2:LIB2")
+        self.assertIn("✗ DENIED: bob delete_library lib:Org2:LIB2", output)
+        mock_is_allowed.assert_called_once_with("bob", "delete_library", "lib:Org2:LIB2")
 
     @patch("openedx_authz.management.commands.enforcement.Enforcer")
     def test_interactive_mode_file_mode_enforcement(self, mock_enforcer_class: Mock):
         """Test that file mode uses custom enforcer for enforcement checks."""
         mock_enforcer_class.return_value = self.enforcer
 
-        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
             call_command(
                 self.command_name,
                 policy_file_path=self.policy_file_path.name,
@@ -163,14 +171,14 @@ class EnforcementCommandTests(TestCase):
             )
 
         output = self.buffer.getvalue()
-        self.assertIn("✓ ALLOWED: alice read lib:Org1:LIB1", output)
-        self.enforcer.enforce.assert_called_once_with("alice", "read", "lib:Org1:LIB1")
+        self.assertIn("✓ ALLOWED: alice view_library lib:Org1:LIB1", output)
+        self.enforcer.enforce.assert_called_once_with("user^alice", "act^view_library", "lib^lib:Org1:LIB1")
 
     @data(
         "alice",
-        "alice read",
-        "alice read lib:Org1:LIB1 lib:Org1:LIB1",
-        "alice read lib:Org1:LIB1 lib:Org1:LIB1 lib:Org1:LIB1",
+        "alice view_library",
+        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1",
+        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1 lib:Org1:LIB1",
     )
     @patch.object(AuthzEnforcer, "get_enforcer")
     def test_interactive_mode_invalid_format(self, user_input: str, mock_get_enforcer: Mock):
@@ -255,7 +263,7 @@ class EnforcementCommandTests(TestCase):
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.side_effect = exception
 
-        with patch("builtins.input", side_effect=["alice read lib:Org1:LIB1", "quit"]):
+        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
             call_command(self.command_name, stdout=self.buffer)
 
         invalid_output = self.buffer.getvalue()

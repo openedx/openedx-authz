@@ -250,11 +250,13 @@ class Command(BaseCommand):
             subject, action, scope = parts
 
             if self._custom_enforcer is not None:
-                subject = UserData(external_key=subject)
-                action = ActionData(external_key=action)
-                scope = ScopeData(external_key=scope)
+                user_data = UserData(external_key=subject)
+                action_data = ActionData(external_key=action)
+                scope_data = ScopeData(external_key=scope)
                 result = self._custom_enforcer.enforce(
-                    subject.namespaced_key, action.namespaced_key, scope.namespaced_key
+                    user_data.namespaced_key,
+                    action_data.namespaced_key,
+                    scope_data.namespaced_key,
                 )
             else:
                 result = api.is_user_allowed(subject, action, scope)

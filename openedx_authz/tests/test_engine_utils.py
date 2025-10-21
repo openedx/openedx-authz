@@ -75,10 +75,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         Expected Result:
             - All policies from the file are loaded into the database
-            - The file contains 25 regular policies (p rules)
+            - The file contains 31 regular policies (p rules)
             - Policy content matches expected file content
         """
-        expected_policy_count = 25
+        expected_policy_count = 31
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -133,10 +133,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         Expected Result:
             - All g2 rules from the file are migrated to database
-            - The file contains 13 g2 rules defining action hierarchies
+            - The file contains 10 g2 rules defining action hierarchies
             - Action inheritance relationships are preserved
         """
-        expected_g2_count = 13
+        expected_g2_count = 10
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -150,7 +150,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         # Verify a sample of expected g2 rules from the file
         self.assertIn(
-            [make_action_key("delete_library"), make_action_key("view_library")],
+            [make_action_key("delete_library"), make_action_key("edit_library_content")],
             target_g2,
         )
         self.assertIn(
@@ -208,16 +208,16 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """Test that all policy types from the file are migrated correctly.
 
         Expected Result:
-            - All regular policies (p) are migrated (25 rules)
+            - All regular policies (p) are migrated (31 rules)
             - No role assignments (g) - these come from database
-            - All action inheritance rules (g2) are migrated (13 rules)
+            - All action inheritance rules (g2) are migrated (10 rules)
         """
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         self.assertEqual(
             len(self.target_enforcer.get_policy()),
-            25,
-            "Should have 25 regular policies from file",
+            31,
+            "Should have 31 regular policies from file",
         )
         self.assertEqual(
             len(self.target_enforcer.get_grouping_policy()),
@@ -226,8 +226,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
         self.assertEqual(
             len(self.target_enforcer.get_named_grouping_policy("g2")),
-            13,
-            "Should have 13 g2 rules from file",
+            10,
+            "Should have 10 g2 rules from file",
         )
 
     def test_migrate_partial_duplicates(self):
@@ -250,8 +250,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
             len(target_policies),
-            25,
-            "Should have 25 policies total, with no duplicates",
+            31,
+            "Should have 31 policies total, with no duplicates",
         )
 
         duplicates = (
@@ -279,7 +279,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         ),
         (
             make_role_key("library_author"),
-            make_action_key("edit_library"),
+            make_action_key("edit_library_content"),
             make_scope_key("lib", "*"),
         ),
     )
@@ -301,8 +301,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
     @data(
-        (make_action_key("delete_library"), make_action_key("view_library")),
-        (make_action_key("edit_library"), make_action_key("view_library")),
+        (make_action_key("delete_library"), make_action_key("edit_library_content")),
+        (make_action_key("edit_library_content"), make_action_key("view_library")),
         (make_action_key("manage_library_team"), make_action_key("view_library_team")),
     )
     @unpack
@@ -342,7 +342,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
-            len(target_policies), 26, "Should have 25 file policies + 1 custom policy"
+            len(target_policies), 32, "Should have 31 file policies + 1 custom policy"
         )
         self.assertIn(
             custom_policy, target_policies, "Custom database policy should be preserved"
@@ -384,5 +384,5 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
-            len(target_policies), 25, "All 25 policies from file should be loaded"
+            len(target_policies), 31, "All 31 policies from file should be loaded"
         )

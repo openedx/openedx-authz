@@ -37,6 +37,7 @@ from casbin.util.log import disabled_logging
 from django.core.management.base import BaseCommand, CommandError
 
 from openedx_authz import api
+from openedx_authz.api.data import ActionData, ScopeData, UserData
 from openedx_authz.engine.enforcer import AuthzEnforcer
 
 
@@ -249,7 +250,12 @@ class Command(BaseCommand):
             subject, action, scope = parts
 
             if self._custom_enforcer is not None:
-                result = self._custom_enforcer.enforce(subject, action, scope)
+                subject = UserData(external_key=subject)
+                action = ActionData(external_key=action)
+                scope = ScopeData(external_key=scope)
+                result = self._custom_enforcer.enforce(
+                    subject.namespaced_key, action.namespaced_key, scope.namespaced_key
+                )
             else:
                 result = api.is_user_allowed(subject, action, scope)
 

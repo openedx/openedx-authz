@@ -9,8 +9,8 @@ from openedx_authz import ROOT_DIRECTORY
 # Add Casbin configuration
 CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 # Redis host and port are temporarily loaded here for the MVP
-REDIS_HOST = "redis"
-REDIS_PORT = 6379
+CASBIN_WATCHER_REDIS_HOST = "redis"
+CASBIN_WATCHER_REDIS_PORT = 6379
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

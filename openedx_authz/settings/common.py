@@ -21,11 +21,16 @@ def plugin_settings(settings):
     if casbin_adapter_app not in settings.INSTALLED_APPS:
         settings.INSTALLED_APPS.append(casbin_adapter_app)
     # Add Casbin configuration
-    settings.CASBIN_MODEL = os.path.join(
-        ROOT_DIRECTORY, "engine", "config", "model.conf"
-    )
-    settings.CASBIN_WATCHER_ENABLED = False
+    if not getattr(settings, "CASBIN_MODEL", None):
+        settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
+    if not getattr(settings, "CASBIN_POLICY_DEFAULTS", None):
+        settings.CASBIN_POLICY_DEFAULTS = os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
+    if not getattr(settings, "CASBIN_WATCHER_ENABLED", None):
+        settings.CASBIN_WATCHER_ENABLED = False
+
     # TODO: Replace with a more dynamic configuration
     # Redis host and port are temporarily loaded here for the MVP
-    settings.REDIS_HOST = "redis"
-    settings.REDIS_PORT = 6379
+    if not getattr(settings, "CASBIN_WATCHER_REDIS_HOST", None):
+        settings.CASBIN_WATCHER_REDIS_HOST = "redis"
+    if not getattr(settings, "CASBIN_WATCHER_REDIS_PORT", None):
+        settings.CASBIN_WATCHER_REDIS_PORT = 6379

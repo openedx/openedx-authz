@@ -126,12 +126,14 @@ class ExtendedCasbinRule(models.Model):
     package to include additional fields for storing metadata about each rule.
     """
 
-    # Instead of making it 1:1 only with the CasbinRule primary key which we usually don't know, let's
-    # make an unique key based on the casbin_rule field which is a concatenation of all the fields
-    # in the CasbinRule model. This way, we can easily look up the ExtendedCasbinRule
-    # based on a policy line which SHOULD be unique.
+    # OneToOne relationship ensures each CasbinRule has at most one ExtendedCasbinRule.
+    # We also maintain a unique key based on the casbin_rule field components for easy lookup
+    # based on a policy line (ptype,v0,v1,v2,v3) which should be unique.
+    #
+    # Note: We use CASCADE here. When CasbinRule is deleted, ExtendedCasbinRule is also deleted.
+    # The signal handler in handlers.py ensures the reverse (ExtendedCasbinRule deletion → CasbinRule deletion).
     casbin_rule_key = models.CharField(max_length=255, unique=True)
-    casbin_rule = models.ForeignKey(
+    casbin_rule = models.OneToOneField(
         "casbin_adapter.CasbinRule",
         on_delete=models.CASCADE,
         related_name="extended_rule",

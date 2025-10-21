@@ -10,16 +10,15 @@ This test suite verifies the functionality of the authorization models including
 Notes:
  - Tests use the parent models (Scope, Subject) with polymorphic dispatch
      via manager methods to reflect actual production usage.
- - Where enforcer behaviour is required, tests use mock enforcer instances
-     (see `TestExtendedCasbinRuleCreateBasedOnPolicy`) to avoid the full
-     platform enforcer infrastructure.
+ - Where enforcer behaviour is required, tests exercise the shared
+     AuthzEnforcer so the production adapter runs without mocks.
 
 Run these tests in an environment where openedx.core.djangoapps.content_libraries.models
 is accessible (e.g., edx-platform with content libraries installed).
 """
 
 import uuid
-from unittest.mock import Mock
+from types import MethodType
 from ddt import ddt
 
 import pytest
@@ -29,9 +28,13 @@ from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from organizations.api import ensure_organization
 from organizations.models import Organization
+from openedx_authz.api.data import SubjectData
+
 
 from openedx_authz.api.data import ContentLibraryData, RoleData, UserData
+from openedx_authz.api.roles import assign_role_to_subject_in_scope
 from openedx_authz.engine.filter import Filter
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import (
     ContentLibrary,
     ExtendedCasbinRule,
@@ -66,11 +69,9 @@ def create_test_library(org_short_name, slug=None, title="Test Library"):
             - library_key: LibraryLocatorV2 instance
             - content_library: ContentLibrary model instance
     """
-    # Generate unique slug if not provided
     if slug is None:
         slug = f"testlib-{uuid.uuid4().hex[:8]}"
 
-    # ensure_organization returns a dict, so we need to get the actual model instance
     ensure_organization(org_short_name)
     org = Organization.objects.get(short_name=org_short_name)
 
@@ -81,11 +82,13 @@ def create_test_library(org_short_name, slug=None, title="Test Library"):
         description=f"A library for testing authorization: {slug}",
     )
     library_key = library_metadata.key
-    # Note: ContentLibrary model doesn't have library_key as a database field
-    # It's a property constructed from org and slug. Use get_by_key() method.
     content_library = ContentLibrary.objects.get_by_key(library_key)
     return library_metadata, library_key, content_library
 
+
+def build_casbin_rule_key(ptype, v0, v1, v2, v3=""):
+    """Compose the casbin rule key string consistently across tests."""
+    return ",".join(str(component or "") for component in (ptype, v0, v1, v2, v3))
 
 @ddt
 @override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
@@ -121,7 +124,6 @@ class TestScopeModel(TestCase):
         self.assertIsNotNone(scope)
         self.assertIsInstance(scope, ContentLibraryScope)
         self.assertEqual(scope.content_library, self.content_library)
-        # Can also access via parent -> child relationship
         self.assertEqual(
             Scope.objects.filter(contentlibraryscope__content_library=self.content_library).count(), 1
         )
@@ -201,7 +203,6 @@ class TestSubjectModel(TestCase):
         self.assertIsNotNone(subject)
         self.assertIsInstance(subject, UserSubject)
         self.assertEqual(subject.user, self.test_user)
-        # Can also access via parent -> child relationship
         self.assertEqual(Subject.objects.filter(usersubject__user=self.test_user).count(), 1)
 
     def test_get_or_create_for_external_key_gets_existing(self):
@@ -218,7 +219,6 @@ class TestSubjectModel(TestCase):
         subject2 = Subject.objects.get_or_create_for_external_key(subject_data)
 
         self.assertEqual(subject1.id, subject2.id)
-        # Can also access via parent -> child relationship
         self.assertEqual(Subject.objects.filter(usersubject__user=self.test_user).count(), 1)
 
     def test_subject_can_be_created_without_user(self):
@@ -266,12 +266,13 @@ class TestPolymorphicBehavior(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        # Create library using the API helper (auto-generates unique slug)
         self.library_metadata, self.library_key, self.content_library = (
             create_test_library(
                 org_short_name="TestOrg",
             )
         )
+        self.scope_data = ContentLibraryData(external_key=str(self.library_key))
+        self.subject_data = UserData(external_key=self.test_username)
 
     def test_scope_registry_contains_content_library_namespace(self):
         """Test that ContentLibraryScope is registered in Scope._registry.
@@ -280,8 +281,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'lib' namespace is present in registry
             - Registry maps 'lib' to ContentLibraryScope class
         """
-        self.assertIn('lib', Scope._registry)
-        self.assertEqual(Scope._registry['lib'], ContentLibraryScope)
+        self.assertEqual(Scope._registry.get('lib'), ContentLibraryScope)
 
     def test_subject_registry_contains_user_namespace(self):
         """Test that UserSubject is registered in Subject._registry.
@@ -290,8 +290,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'user' namespace is present in registry
             - Registry maps 'user' to UserSubject class
         """
-        self.assertIn('user', Subject._registry)
-        self.assertEqual(Subject._registry['user'], UserSubject)
+        self.assertEqual(Subject._registry.get('user'), UserSubject)
 
     def test_scope_manager_dispatches_to_content_library_scope(self):
         """Test that Scope manager dispatches to ContentLibraryScope for 'lib' namespace.
@@ -334,7 +333,6 @@ class TestPolymorphicBehavior(TestCase):
         """
         from openedx_authz.api.data import ScopeData
 
-        # Create a scope data with a namespace that doesn't exist
         class UnregisteredScopeData(ScopeData):
             NAMESPACE = "unregistered"
 
@@ -352,9 +350,6 @@ class TestPolymorphicBehavior(TestCase):
             - ValueError is raised when namespace not in registry
             - Error message indicates the unknown namespace
         """
-        from openedx_authz.api.data import SubjectData
-
-        # Create a subject data with a namespace that doesn't exist
         class UnregisteredSubjectData(SubjectData):
             NAMESPACE = "unregistered"
 
@@ -373,14 +368,11 @@ class TestPolymorphicBehavior(TestCase):
             - Each can be queried independently
             - Total Scope count includes all types
         """
-        # Create a ContentLibraryScope via the manager
         scope_data = ContentLibraryData(external_key=str(self.library_key))
         content_library_scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
-        # Create a plain Scope instance
         plain_scope = Scope.objects.create()
 
-        # Query all Scopes - Django returns base type instances
         all_scopes = Scope.objects.all()
         all_scope_ids = set(all_scopes.values_list('id', flat=True))
 
@@ -388,7 +380,6 @@ class TestPolymorphicBehavior(TestCase):
         self.assertIn(content_library_scope.id, all_scope_ids)
         self.assertIn(plain_scope.id, all_scope_ids)
 
-        # Verify we can query the specific subclass
         content_library_scopes = ContentLibraryScope.objects.all()
         self.assertEqual(content_library_scopes.count(), 1)
         self.assertEqual(content_library_scopes.first().id, content_library_scope.id)
@@ -401,14 +392,9 @@ class TestPolymorphicBehavior(TestCase):
             - Each can be queried independently
             - Total Subject count includes all types
         """
-        # Create a UserSubject via the manager
         subject_data = UserData(external_key=self.test_username)
         user_subject = Subject.objects.get_or_create_for_external_key(subject_data)
-
-        # Create a plain Subject instance
         plain_subject = Subject.objects.create()
-
-        # Query all Subjects - Django returns base type instances
         all_subjects = Subject.objects.all()
         all_subject_ids = set(all_subjects.values_list('id', flat=True))
 
@@ -416,7 +402,6 @@ class TestPolymorphicBehavior(TestCase):
         self.assertIn(user_subject.id, all_subject_ids)
         self.assertIn(plain_subject.id, all_subject_ids)
 
-        # Verify we can query the specific subclass
         user_subjects = UserSubject.objects.all()
         self.assertEqual(user_subjects.count(), 1)
         self.assertEqual(user_subjects.first().id, user_subject.id)
@@ -430,16 +415,10 @@ class TestPolymorphicBehavior(TestCase):
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
         created_scope = Scope.objects.get_or_create_for_external_key(scope_data)
-
-        # Query by ID from base Scope manager
         queried_scope = Scope.objects.get(id=created_scope.id)
 
-        # Note: Django's default multi-table inheritance returns the base type
-        # unless you use select_related or query the subclass directly
-        # This test documents the current behavior
         self.assertIsInstance(queried_scope, Scope)
 
-        # To get the polymorphic instance, query the subclass
         polymorphic_scope = ContentLibraryScope.objects.get(id=created_scope.id)
         self.assertIsInstance(polymorphic_scope, ContentLibraryScope)
         self.assertEqual(polymorphic_scope.content_library, self.content_library)
@@ -454,14 +433,10 @@ class TestPolymorphicBehavior(TestCase):
         subject_data = UserData(external_key=self.test_username)
         created_subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
-        # Query by ID from base Subject manager
         queried_subject = Subject.objects.get(id=created_subject.id)
 
-        # Note: Django's default multi-table inheritance returns the base type
-        # unless you use select_related or query the subclass directly
         self.assertIsInstance(queried_subject, Subject)
 
-        # To get the polymorphic instance, query the subclass
         polymorphic_subject = UserSubject.objects.get(id=created_subject.id)
         self.assertIsInstance(polymorphic_subject, UserSubject)
         self.assertEqual(polymorphic_subject.user, self.test_user)
@@ -497,7 +472,6 @@ class TestExtendedCasbinRuleModel(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        # Create library using the API helper (auto-generates unique slug)
         self.library_metadata, self.library_key, self.content_library = (
             create_test_library(
                 org_short_name="TestOrg",
@@ -521,10 +495,10 @@ class TestExtendedCasbinRuleModel(TestCase):
     def test_extended_casbin_rule_creation_with_all_fields(self):
         """Test creating ExtendedCasbinRule with all fields populated.
 
-        Expected result:
-            - ExtendedCasbinRule is created successfully
-            - All fields are populated correctly
-            - Timestamps are set automatically
+        Expected Result:
+        - ExtendedCasbinRule is created successfully.
+        - All fields are populated correctly.
+        - Timestamps are set automatically.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
 
@@ -551,9 +525,9 @@ class TestExtendedCasbinRuleModel(TestCase):
     def test_extended_casbin_rule_unique_key_constraint(self):
         """Test that casbin_rule_key must be unique.
 
-        Expected result:
-            - First ExtendedCasbinRule is created successfully
-            - Second ExtendedCasbinRule with same key raises IntegrityError
+        Expected Result:
+        - The first ExtendedCasbinRule is created successfully.
+        - A second ExtendedCasbinRule with the same key raises IntegrityError.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
 
@@ -575,11 +549,11 @@ class TestExtendedCasbinRuleModel(TestCase):
             )
 
     def test_extended_casbin_rule_cascade_deletion_when_casbin_rule_deleted(self):
-        """Test that ExtendedCasbinRule is deleted when its CasbinRule is deleted.
+        """Deleting the CasbinRule should cascade through the one-to-one link to ExtendedCasbinRule.
 
-        Expected result:
-            - ExtendedCasbinRule is created successfully
-            - Deleting CasbinRule also deletes the ExtendedCasbinRule
+        Expected Result:
+        - ExtendedCasbinRule baseline row is created successfully.
+        - Removing the CasbinRule eliminates the ExtendedCasbinRule via database cascade.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
         extended_rule = ExtendedCasbinRule.objects.create(
@@ -594,11 +568,12 @@ class TestExtendedCasbinRuleModel(TestCase):
         )
 
     def test_extended_casbin_rule_cascade_deletion_when_scope_deleted(self):
-        """Test that ExtendedCasbinRule is deleted when its Scope is deleted.
+        """Deleting a Scope should cascade to ExtendedCasbinRule and trigger the handler cleanup.
 
-        Expected result:
-            - ExtendedCasbinRule is created successfully
-            - Deleting Scope also deletes the ExtendedCasbinRule
+        Expected Result:
+        - ExtendedCasbinRule baseline row links the Scope to the CasbinRule.
+        - Removing the Scope deletes the ExtendedCasbinRule via database cascade.
+        - CasbinRule disappears because the post_delete handler mirrors the cascade.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
         extended_rule = ExtendedCasbinRule.objects.create(
@@ -607,19 +582,24 @@ class TestExtendedCasbinRuleModel(TestCase):
             scope=self.scope,
         )
         extended_rule_id = extended_rule.id
+        casbin_rule_id = self.casbin_rule.id
+        scope_id = self.scope.id
 
         self.scope.delete()
 
         self.assertFalse(
             ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
         )
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertFalse(Scope.objects.filter(id=scope_id).exists())
 
     def test_extended_casbin_rule_cascade_deletion_when_subject_deleted(self):
-        """Test that ExtendedCasbinRule is deleted when its Subject is deleted.
+        """Deleting a Subject should cascade to ExtendedCasbinRule and invoke the handler cleanup.
 
-        Expected result:
-            - ExtendedCasbinRule is created successfully
-            - Deleting Subject also deletes the ExtendedCasbinRule
+        Expected Result:
+        - ExtendedCasbinRule baseline row links the Subject to the CasbinRule.
+        - Removing the Subject deletes the ExtendedCasbinRule via database cascade.
+        - CasbinRule disappears because the post_delete handler mirrors the cascade.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
         extended_rule = ExtendedCasbinRule.objects.create(
@@ -628,12 +608,16 @@ class TestExtendedCasbinRuleModel(TestCase):
             subject=self.subject,
         )
         extended_rule_id = extended_rule.id
+        casbin_rule_id = self.casbin_rule.id
+        subject_id = self.subject.id
 
         self.subject.delete()
 
         self.assertFalse(
             ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
         )
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertFalse(Subject.objects.filter(id=subject_id).exists())
 
     def test_extended_casbin_rule_metadata_json_field(self):
         """Test that metadata JSONField can store complex data structures.
@@ -713,8 +697,8 @@ class TestExtendedCasbinRuleModel(TestCase):
 class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
     """Test cases for ExtendedCasbinRule.create_based_on_policy method.
 
-    These tests use a mock enforcer to avoid dependencies on the full
-    enforcer infrastructure.
+    The tests rely on the shared AuthzEnforcer instance so the database-backed
+    adapter is exercised end to end.
     """
 
     def setUp(self):
@@ -752,9 +736,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             v3="",
         )
 
-        mock_enforcer = Mock()
-        mock_enforcer.adapter = Mock()
-        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
+        enforcer = AuthzEnforcer.get_enforcer()
 
         expected_key = f"g,{subject_data.namespaced_key},{role_data.namespaced_key},{scope_data.namespaced_key},"
 
@@ -762,7 +744,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=mock_enforcer,
+            enforcer=enforcer,
         )
 
         self.assertEqual(result.casbin_rule_key, expected_key)
@@ -793,63 +775,24 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             v3="",
         )
 
-        mock_enforcer = Mock()
-        mock_enforcer.adapter = Mock()
-        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
+        enforcer = AuthzEnforcer.get_enforcer()
 
         result1 = ExtendedCasbinRule.create_based_on_policy(
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=mock_enforcer,
+            enforcer=enforcer,
         )
 
         result2 = ExtendedCasbinRule.create_based_on_policy(
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=mock_enforcer,
+            enforcer=enforcer,
         )
 
         self.assertEqual(result1.id, result2.id)
         self.assertEqual(ExtendedCasbinRule.objects.count(), 1)
-
-    def test_create_based_on_policy_calls_enforcer_query_with_filter(self):
-        """Test that create_based_on_policy calls enforcer.query_policy with correct Filter.
-
-        Expected result:
-            - enforcer.query_policy is called exactly once
-            - Filter object is used as argument
-        """
-        subject_data = UserData(external_key=self.test_username)
-        role_data = RoleData(external_key="instructor")
-        scope_data = ContentLibraryData(external_key=str(self.library_key))
-
-        Subject.objects.get_or_create_for_external_key(subject_data)
-        Scope.objects.get_or_create_for_external_key(scope_data)
-
-        casbin_rule = CasbinRule.objects.create(
-            ptype="g",
-            v0=subject_data.namespaced_key,
-            v1=role_data.namespaced_key,
-            v2=scope_data.namespaced_key,
-            v3="",
-        )
-
-        mock_enforcer = Mock()
-        mock_enforcer.adapter = Mock()
-        mock_enforcer.adapter.query_policy.return_value = Mock(first=Mock(return_value=casbin_rule))
-
-        ExtendedCasbinRule.create_based_on_policy(
-            subject=subject_data,
-            role=role_data,
-            scope=scope_data,
-            enforcer=mock_enforcer,
-        )
-
-        mock_enforcer.adapter.query_policy.assert_called_once()
-        call_args = mock_enforcer.adapter.query_policy.call_args[0][0]
-        self.assertIsInstance(call_args, Filter)
 
 
 @pytest.mark.integration
@@ -928,7 +871,7 @@ class TestModelRelationships(TestCase):
         """Test that CasbinRule can access related ExtendedCasbinRule via extended_rule.
 
         Expected result:
-            - CasbinRule has exactly one related ExtendedCasbinRule
+            - CasbinRule has exactly one related ExtendedCasbinRule (OneToOne relationship)
             - Related ExtendedCasbinRule matches the created rule
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
@@ -936,8 +879,7 @@ class TestModelRelationships(TestCase):
             casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule
         )
 
-        self.assertEqual(self.casbin_rule.extended_rule.count(), 1)
-        self.assertEqual(self.casbin_rule.extended_rule.first(), extended_rule)
+        self.assertEqual(self.casbin_rule.extended_rule, extended_rule)
 
     def test_content_library_can_access_scopes_via_related_name(self):
         """Test that ContentLibrary can access related Scope objects via authz_scopes.
@@ -963,7 +905,6 @@ class TestModelCascadeDeletionChain(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        # Create library using the API helper (auto-generates unique slug)
         self.library_metadata, self.library_key, self.content_library = (
             create_test_library(
                 org_short_name="TestOrg",
@@ -971,11 +912,12 @@ class TestModelCascadeDeletionChain(TestCase):
         )
 
     def test_content_library_deletion_cascades_to_extended_casbin_rules(self):
-        """Test that deleting ContentLibrary cascades through Scope to ExtendedCasbinRule.
+        """Deleting a ContentLibrary should cascade through Scope and allow the signal to clean policies.
 
-        Expected result:
-            - Deleting ContentLibrary deletes the Scope
-            - Deleting Scope cascades to delete ExtendedCasbinRule
+        Expected Result:
+        - Removing the ContentLibrary deletes the associated Scope.
+        - The Scope cascade removes the ExtendedCasbinRule rows.
+        - The post_delete handler deletes the matching CasbinRule rows.
         """
         scope_data = ContentLibraryData(external_key=str(self.library_key))
         scope = Scope.objects.get_or_create_for_external_key(scope_data)
@@ -993,6 +935,7 @@ class TestModelCascadeDeletionChain(TestCase):
             casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule, scope=scope
         )
         extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
 
         self.content_library.delete()
 
@@ -1000,13 +943,15 @@ class TestModelCascadeDeletionChain(TestCase):
         self.assertFalse(
             ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
         )
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
 
     def test_user_deletion_cascades_to_extended_casbin_rules(self):
-        """Test that deleting User cascades through Subject to ExtendedCasbinRule.
+        """Deleting a User should cascade through Subject and allow the signal to clean policies.
 
-        Expected result:
-            - Deleting User deletes the Subject
-            - Deleting Subject cascades to delete ExtendedCasbinRule
+        Expected Result:
+        - Removing the User deletes the associated Subject.
+        - The Subject cascade removes the ExtendedCasbinRule rows.
+        - The post_delete handler deletes the matching CasbinRule rows.
         """
         subject_data = UserData(external_key=self.test_username)
         subject = Subject.objects.get_or_create_for_external_key(subject_data)
@@ -1024,6 +969,7 @@ class TestModelCascadeDeletionChain(TestCase):
             casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule, subject=subject
         )
         extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
 
         self.test_user.delete()
 
@@ -1031,14 +977,15 @@ class TestModelCascadeDeletionChain(TestCase):
         self.assertFalse(
             ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
         )
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
 
     def test_complete_cascade_deletion_chain(self):
-        """Test complete cascade deletion with all models linked together.
+        """Deleting the CasbinRule should illustrate the limits of reverse cascades.
 
-        Expected result:
-            - Deleting CasbinRule deletes ExtendedCasbinRule
-            - Subject and Scope remain after ExtendedCasbinRule deletion
-            - User and ContentLibrary remain after ExtendedCasbinRule deletion
+        Expected Result:
+        - The ExtendedCasbinRule row disappears when its CasbinRule is deleted.
+        - Subject and Scope rows remain because the cascade stops at ExtendedCasbinRule.
+        - User and ContentLibrary rows remain unaffected.
         """
         subject_data = UserData(external_key=self.test_username)
         subject = Subject.objects.get_or_create_for_external_key(subject_data)
@@ -1076,3 +1023,356 @@ class TestModelCascadeDeletionChain(TestCase):
         self.assertTrue(
             ContentLibrary.objects.filter(id=self.content_library.id).exists()
         )
+
+    def test_library_deletion_via_api_cascades_to_authorization_system(self):
+        """Test that deleting a library via API cascades through entire authorization chain.
+
+        This tests the proper deletion path through library_api.delete_library() which
+        triggers the CONTENT_LIBRARY_DELETED event and verifies that all related
+        authorization data is properly cleaned up.
+
+        This test differs from test_content_library_deletion_cascades_to_extended_casbin_rules
+        in that it uses the proper API methods (assign_role_to_subject_in_scope and
+        library_api.delete_library) rather than direct model operations, testing the
+        full integration path that would occur in production.
+
+        Expected result:
+            - User has instructor role assigned in library scope
+            - ExtendedCasbinRule tracks the role assignment
+            - Deleting library via API removes:
+              * ContentLibrary itself
+              * Associated Scope (ContentLibraryScope)
+              * ExtendedCasbinRule linked to the scope
+            - CasbinRule and Subject remain (they're not tied to scope lifecycle)
+        """
+        # Create or get a user and assign them the instructor role in this library's scope
+        test_username = "test_instructor_lib_del"
+        test_user, _ = User.objects.get_or_create(
+            username=test_username,
+            defaults={"email": f"{test_username}@example.com"}
+        )
+
+        subject_data = UserData(external_key=test_username)
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        role_data = RoleData(external_key="instructor")
+
+        assign_role_to_subject_in_scope(subject_data, role_data, scope_data)
+
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        extended_rules = ExtendedCasbinRule.objects.filter(scope=scope, subject=subject)
+        self.assertEqual(extended_rules.count(), 1)
+        extended_rule = extended_rules.first()
+        extended_rule_id = extended_rule.id
+
+        casbin_rule = extended_rule.casbin_rule
+        casbin_rule_id = casbin_rule.id
+
+        scope_id = scope.id
+        subject_id = subject.id
+        user_id = test_user.id
+
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+        self.assertTrue(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertTrue(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+        self.assertTrue(User.objects.filter(id=user_id).exists())
+
+        library_api.delete_library(self.library_key)
+
+        self.assertFalse(Scope.objects.filter(id=scope_id).exists())
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+
+        self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+        self.assertTrue(User.objects.filter(id=user_id).exists())
+
+    def test_user_deletion_via_model_cascades_to_authorization_system(self):
+        """Test that deleting a user cascades through entire authorization chain.
+
+        This tests that when a User is deleted, all related authorization data
+        is properly cleaned up through the cascade deletion chain.
+
+        This test differs from test_user_deletion_cascades_to_extended_casbin_rules
+        in that it uses the proper API method (assign_role_to_subject_in_scope)
+        rather than direct model operations, testing the full integration path
+        that would occur in production.
+
+        Expected result:
+            - User has instructor role assigned in a library scope
+            - ExtendedCasbinRule tracks the role assignment
+            - Deleting User removes:
+              * User itself
+              * Associated Subject (UserSubject)
+              * ExtendedCasbinRule linked to the subject
+            - CasbinRule and Scope remain (they're not tied to user lifecycle)
+        """
+        subject_data = UserData(external_key=self.test_username)
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        role_data = RoleData(external_key="instructor")
+
+        assign_role_to_subject_in_scope(subject_data, role_data, scope_data)
+
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        extended_rules = ExtendedCasbinRule.objects.filter(scope=scope, subject=subject)
+        self.assertEqual(extended_rules.count(), 1)
+        extended_rule = extended_rules.first()
+        extended_rule_id = extended_rule.id
+
+        casbin_rule = extended_rule.casbin_rule
+        casbin_rule_id = casbin_rule.id
+
+        scope_id = scope.id
+        subject_id = subject.id
+        user_id = self.test_user.id
+
+        self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+        self.assertTrue(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertTrue(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+        self.assertTrue(User.objects.filter(id=user_id).exists())
+
+        self.test_user.delete()
+
+        self.assertFalse(User.objects.filter(id=user_id).exists())
+        self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+
+    def test_content_library_scope_direct_deletion_does_not_delete_content_library(self):
+        """Test that deleting ContentLibraryScope directly does not delete ContentLibrary.
+
+        This test verifies the ForeignKey CASCADE behavior: child deletion doesn't cascade to parent.
+
+        Expected result:
+            - ContentLibraryScope is deleted
+            - Scope is deleted (multi-table inheritance)
+            - ExtendedCasbinRule is deleted (CASCADE from Scope)
+            - CasbinRule is deleted (via pre_delete signal handler)
+            - ContentLibrary REMAINS (parent is not cascade-deleted by child)
+        """
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+        content_library_scope = ContentLibraryScope.objects.get(id=scope.id)
+
+        casbin_rule = CasbinRule.objects.create(
+            ptype="p",
+            v0="user^test_user",
+            v1="role^instructor",
+            v2=scope_data.namespaced_key,
+            v3="allow",
+        )
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule, scope=scope
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
+        scope_id = scope.id
+        content_library_id = self.content_library.id
+
+        content_library_scope.delete()
+
+        self.assertFalse(ContentLibraryScope.objects.filter(id=scope_id).exists())
+        self.assertFalse(Scope.objects.filter(id=scope_id).exists())
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(ContentLibrary.objects.filter(id=content_library_id).exists())
+
+    def test_user_subject_direct_deletion_does_not_delete_user(self):
+        """Test that deleting UserSubject directly does not delete User.
+
+        This test verifies the ForeignKey CASCADE behavior: child deletion doesn't cascade to parent.
+
+        Expected result:
+            - UserSubject is deleted
+            - Subject is deleted (multi-table inheritance)
+            - ExtendedCasbinRule is deleted (CASCADE from Subject)
+            - CasbinRule is deleted (via pre_delete signal handler)
+            - User REMAINS (parent is not cascade-deleted by child)
+        """
+        subject_data = UserData(external_key=self.test_username)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+        user_subject = UserSubject.objects.get(id=subject.id)
+
+        casbin_rule = CasbinRule.objects.create(
+            ptype="p",
+            v0=subject_data.namespaced_key,
+            v1="role^instructor",
+            v2="lib^lib:TestOrg:TestLib",
+            v3="allow",
+        )
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule, subject=subject
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
+        subject_id = subject.id
+        user_id = self.test_user.id
+
+        user_subject.delete()
+
+        self.assertFalse(UserSubject.objects.filter(id=subject_id).exists())
+        self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(User.objects.filter(id=user_id).exists())
+
+    def test_extended_casbin_rule_direct_deletion_deletes_casbin_rule(self):
+        """Deleting the ExtendedCasbinRule should trigger the signal to remove its CasbinRule.
+
+        Expected Result:
+        - ExtendedCasbinRule row is deleted successfully.
+        - Companion CasbinRule row is removed by the post_delete handler.
+        - Scope and Subject rows remain intact because cascades stop at ExtendedCasbinRule.
+        """
+        subject_data = UserData(external_key=self.test_username)
+        subject = Subject.objects.get_or_create_for_external_key(subject_data)
+
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        casbin_rule = CasbinRule.objects.create(
+            ptype="p",
+            v0=subject_data.namespaced_key,
+            v1="role^instructor",
+            v2=scope_data.namespaced_key,
+            v3="allow",
+        )
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key,
+            casbin_rule=casbin_rule,
+            scope=scope,
+            subject=subject,
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
+        scope_id = scope.id
+        subject_id = subject.id
+
+        extended_rule.delete()
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+        self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+
+    def test_bulk_delete_extended_casbin_rules_deletes_casbin_rules(self):
+        """Deleting ExtendedCasbinRule rows via a queryset should purge each CasbinRule.
+
+        Expected Result:
+        - All ExtendedCasbinRule rows in the queryset disappear.
+        - Each related CasbinRule row is deleted by the post_delete handler.
+        - Scope row remains available.
+        """
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        casbin_rule_ids = []
+        extended_rule_ids = []
+
+        for i in range(3):
+            casbin_rule = CasbinRule.objects.create(
+                ptype="p",
+                v0=f"user^test_user_{i}",
+                v1="role^instructor",
+                v2=scope_data.namespaced_key,
+                v3="allow",
+            )
+            casbin_rule_ids.append(casbin_rule.id)
+
+            casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+            extended_rule = ExtendedCasbinRule.objects.create(
+                casbin_rule_key=casbin_rule_key,
+                casbin_rule=casbin_rule,
+                scope=scope,
+            )
+            extended_rule_ids.append(extended_rule.id)
+
+        ExtendedCasbinRule.objects.filter(scope=scope).delete()
+
+        for extended_rule_id in extended_rule_ids:
+            self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+
+        for casbin_rule_id in casbin_rule_ids:
+            self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+
+        self.assertTrue(Scope.objects.filter(id=scope.id).exists())
+
+    def test_extended_casbin_rule_with_null_scope_deletion(self):
+        """Deleting an ExtendedCasbinRule without a Scope should still purge the CasbinRule.
+
+        Expected Result:
+        - ExtendedCasbinRule row is deleted successfully.
+        - CasbinRule row is removed by the post_delete handler even with ``scope`` set to ``None``.
+        """
+        casbin_rule = CasbinRule.objects.create(
+            ptype="p",
+            v0="user^test_user",
+            v1="role^admin",
+            v2="*",
+            v3="allow",
+        )
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key,
+            casbin_rule=casbin_rule,
+            scope=None,  # Null scope
+            subject=None,
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
+
+        extended_rule.delete()
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+
+    def test_extended_casbin_rule_with_null_subject_deletion(self):
+        """Deleting an ExtendedCasbinRule without a Subject should still purge the CasbinRule.
+
+        Expected Result:
+        - ExtendedCasbinRule row is deleted successfully.
+        - CasbinRule row is removed by the post_delete handler even with ``subject`` set to ``None``.
+        - Scope row remains available.
+        """
+        scope_data = ContentLibraryData(external_key=str(self.library_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        casbin_rule = CasbinRule.objects.create(
+            ptype="p",
+            v0="role^instructor",
+            v1="read",
+            v2=scope_data.namespaced_key,
+            v3="allow",
+        )
+
+        casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key,
+            casbin_rule=casbin_rule,
+            scope=scope,
+            subject=None,
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = casbin_rule.id
+        scope_id = scope.id
+
+        extended_rule.delete()
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())

@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('metadata', models.JSONField(blank=True, null=True)),
-                ('casbin_rule', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='extended_rule', to='casbin_adapter.casbinrule')),
+                ('casbin_rule', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='extended_rule', to='casbin_adapter.casbinrule')),
                 ('scope', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.scope')),
                 ('subject', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.subject')),
             ],
@@ -66,7 +66,6 @@ class Migration(migrations.Migration):
                     'content_library',
                     models.ForeignKey(
                         blank=True,
-                        db_constraint=False,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='authz_scopes',

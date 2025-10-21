@@ -46,11 +46,6 @@ class ContentLibraryScope(Scope):
     # Piggybacking on the existing ContentLibrary model to keep the ExtendedCasbinRule up to date
     # by deleting the Scope, and thus the ExtendedCasbinRule, when the ContentLibrary is deleted.
     #
-    # Using string reference with db_constraint=False allows this model to work even when
-    # the content_libraries app is not installed. The ForeignKey relationship is maintained
-    # at the application level, but Django won't enforce referential integrity in the database
-    # or validate that the app exists during model loading.
-    #
     # When content_libraries IS available, the on_delete=CASCADE will still work at the
     # application level through Django's signal handlers.
     # Use a string reference to the external app's model so Django won't try
@@ -66,7 +61,6 @@ class ContentLibraryScope(Scope):
         null=True,
         blank=True,
         related_name="authz_scopes",
-        db_constraint=False,  # Don't enforce FK constraint - allows working without content_libraries app
     )
 
     @classmethod

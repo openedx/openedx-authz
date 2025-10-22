@@ -78,7 +78,6 @@ pycasbin==2.2.0
     # via
     #   -r requirements/base.in
     #   casbin-django-orm-adapter
-    #   redis-watcher
 pycparser==2.23
     # via cffi
 pyjwt[crypto]==2.10.1
@@ -93,10 +92,6 @@ pytz==2025.2
     # via drf-yasg
 pyyaml==6.0.3
     # via drf-yasg
-redis==6.4.0
-    # via redis-watcher
-redis-watcher==1.8.0
-    # via -r requirements/base.in
 requests==2.32.5
     # via edx-drf-extensions
 semantic-version==2.10.0

@@ -223,7 +223,6 @@ pycasbin==2.2.0
     # via
     #   -r requirements/quality.txt
     #   casbin-django-orm-adapter
-    #   redis-watcher
 pycodestyle==2.14.0
     # via -r requirements/quality.txt
 pycparser==2.23
@@ -302,12 +301,6 @@ pyyaml==6.0.3
     #   code-annotations
     #   drf-yasg
     #   edx-i18n-tools
-redis==6.4.0
-    # via
-    #   -r requirements/quality.txt
-    #   redis-watcher
-redis-watcher==1.8.0
-    # via -r requirements/quality.txt
 requests==2.32.5
     # via
     #   -r requirements/quality.txt

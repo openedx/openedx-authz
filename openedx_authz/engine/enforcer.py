@@ -1,19 +1,18 @@
 """
 Core authorization enforcer for Open edX AuthZ system.
 
-Provides a Casbin FastEnforcer instance with extended adapter for database policy
-storage and Redis watcher for distributed policy synchronization.
+Provides a Casbin SyncedEnforcer instance with extended adapter for database policy
+storage and automatic policy synchronization.
 
 Components:
-    - Enforcer: Main FastEnforcer instance for policy evaluation
+    - Enforcer: Main SyncedEnforcer instance for policy evaluation
     - Adapter: ExtendedAdapter for filtered database policy loading
-    - Watcher: Redis-based watcher for real-time policy updates
 
 Usage:
     from openedx_authz.engine.enforcer import AuthzEnforcer
     allowed = enforcer.enforce(user, resource, action)
 
-Requires `CASBIN_MODEL` setting and Redis configuration for watcher functionality.
+Requires `CASBIN_MODEL` setting.
 """
 
 import logging
@@ -23,7 +22,6 @@ from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
-from openedx_authz.engine.watcher import Watcher
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +30,7 @@ class AuthzEnforcer:
     """Singleton class to manage the Casbin SyncedEnforcer instance.
 
     Ensures a single enforcer instance is created safely and configured with the
-    ExtendedAdapter and Redis watcher for policy management and synchronization.
+    ExtendedAdapter for policy management and automatic synchronization.
 
     There are two main use cases for this class:
 
@@ -75,13 +73,12 @@ class AuthzEnforcer:
         """
         Create and configure the Casbin SyncedEnforcer instance.
 
-        This method initializes the FastEnforcer with the ExtendedAdapter
-        for database policy storage and sets up the Redis watcher for real-time
-        policy synchronization if the Watcher is available. It also initializes
-        the enforcer with the specified database alias from settings.
+        This method initializes the SyncedEnforcer with the ExtendedAdapter
+        for database policy storage and automatic policy synchronization.
+        It also initializes the enforcer with the specified database alias from settings.
 
         Returns:
-            SyncedEnforcer: Configured Casbin enforcer with adapter and watcher
+            SyncedEnforcer: Configured Casbin enforcer with adapter and auto-sync
         """
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
 
@@ -98,15 +95,5 @@ class AuthzEnforcer:
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
         enforcer.start_auto_load_policy(settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL)
         enforcer.enable_auto_save(True)
-
-        if not Watcher:
-            logger.warning("Redis configuration not completed successfully. Watcher is disabled.")
-            return enforcer
-
-        try:
-            enforcer.set_watcher(Watcher)
-            logger.info("Watcher successfully set on Casbin enforcer")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Failed to set watcher on Casbin enforcer: {e}")
 
         return enforcer

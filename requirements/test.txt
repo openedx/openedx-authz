@@ -125,7 +125,6 @@ pycasbin==2.2.0
     # via
     #   -r requirements/base.txt
     #   casbin-django-orm-adapter
-    #   redis-watcher
 pycparser==2.23
     # via
     #   -r requirements/base.txt
@@ -164,12 +163,6 @@ pyyaml==6.0.3
     #   -r requirements/base.txt
     #   code-annotations
     #   drf-yasg
-redis==6.4.0
-    # via
-    #   -r requirements/base.txt
-    #   redis-watcher
-redis-watcher==1.8.0
-    # via -r requirements/base.txt
 requests==2.32.5
     # via
     #   -r requirements/base.txt

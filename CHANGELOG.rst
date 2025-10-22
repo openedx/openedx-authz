@@ -14,7 +14,8 @@ Change Log
 Unreleased
 **********
 
-*
+* Use a SyncedEnforcer with default auto load policy.
+
 
 0.5.0 - 2025-10-21
 ******************

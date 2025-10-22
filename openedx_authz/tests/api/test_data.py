@@ -321,7 +321,9 @@ class TestScopeMetaClass(TestCase):
         """
         scope = ScopeData(external_key="sc:generic_scope")
 
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
+        expected_namespaced = (
+            f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
+        )
 
         self.assertIsInstance(scope, ScopeData)
         self.assertEqual(scope.external_key, "sc:generic_scope")
@@ -446,7 +448,9 @@ class TestDataRepresentation(TestCase):
         action2 = ActionData(external_key="write")
         permission1 = PermissionData(action=action1, effect="allow")
         permission2 = PermissionData(action=action2, effect="deny")
-        role = RoleData(external_key="instructor", permissions=[permission1, permission2])
+        role = RoleData(
+            external_key="instructor", permissions=[permission1, permission2]
+        )
 
         actual_str = str(role)
 
@@ -456,7 +460,12 @@ class TestDataRepresentation(TestCase):
     @data(
         ("read", "allow", "Read - allow", "act^read => allow"),
         ("write", "deny", "Write - deny", "act^write => deny"),
-        ("delete_library", "allow", "Delete Library - allow", "act^delete_library => allow"),
+        (
+            "delete_library",
+            "allow",
+            "Delete Library - allow",
+            "act^delete_library => allow",
+        ),
     )
     @unpack
     def test_permission_data_str_and_repr(
@@ -508,7 +517,5 @@ class TestDataRepresentation(TestCase):
 
         actual_repr = repr(assignment)
 
-        expected_repr = (
-            "user^john_doe => [role^instructor, role^library_admin] @ lib^lib:DemoX:CSPROB"
-        )
+        expected_repr = "user^john_doe => [role^instructor, role^library_admin] @ lib^lib:DemoX:CSPROB"
         self.assertEqual(actual_repr, expected_repr)

@@ -8,7 +8,11 @@ class CommaSeparatedListField(serializers.CharField):
 
     def to_internal_value(self, data):
         """Convert string separated by commas to list of unique items preserving order"""
-        return list(dict.fromkeys(item.strip().lower() for item in data.split(",") if item.strip()))
+        return list(
+            dict.fromkeys(
+                item.strip().lower() for item in data.split(",") if item.strip()
+            )
+        )
 
     def to_representation(self, value):
         """Convert list to string separated by commas"""

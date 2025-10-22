@@ -150,7 +150,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         # Verify a sample of expected g2 rules from the file
         self.assertIn(
-            [make_action_key("delete_library"), make_action_key("edit_library_content")],
+            [
+                make_action_key("delete_library"),
+                make_action_key("edit_library_content"),
+            ],
             target_g2,
         )
         self.assertIn(

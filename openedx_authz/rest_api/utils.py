@@ -28,7 +28,9 @@ def get_generic_scope(scope: ScopeData) -> ScopeData:
         >>> get_generic_scope(scope)
         ScopeData(namespaced_key="lib^*")
     """
-    return ScopeData(namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}")
+    return ScopeData(
+        namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}"
+    )
 
 
 def get_user_map(usernames: list[str]) -> dict[str, User]:
@@ -72,7 +74,9 @@ def get_user_by_username_or_email(username_or_email: str) -> User:
 
 
 def sort_users(
-    users: list[dict], sort_by: SortField = SortField.USERNAME, order: SortOrder = SortOrder.ASC
+    users: list[dict],
+    sort_by: SortField = SortField.USERNAME,
+    order: SortOrder = SortOrder.ASC,
 ) -> list[dict]:
     """
     Sort users by a given field and order.
@@ -90,16 +94,26 @@ def sort_users(
         list[dict]: The sorted users.
     """
     if sort_by not in SortField.values():
-        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {SortField.values()}")
+        raise ValueError(
+            f"Invalid field: '{sort_by}'. Must be one of {SortField.values()}"
+        )
 
     if order not in SortOrder.values():
-        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
+        raise ValueError(
+            f"Invalid order: '{order}'. Must be one of {SortOrder.values()}"
+        )
 
-    sorted_users = sorted(users, key=lambda user: (user.get(sort_by) or "").lower(), reverse=order == SortOrder.DESC)
+    sorted_users = sorted(
+        users,
+        key=lambda user: (user.get(sort_by) or "").lower(),
+        reverse=order == SortOrder.DESC,
+    )
     return sorted_users
 
 
-def filter_users(users: list[dict], search: str | None, roles: list[str] | None) -> list[dict]:
+def filter_users(
+    users: list[dict], search: str | None, roles: list[str] | None
+) -> list[dict]:
     """
     Filter users by a case-insensitive search string and/or by roles.
 
@@ -117,7 +131,10 @@ def filter_users(users: list[dict], search: str | None, roles: list[str] | None)
     filtered_users = []
     for user in users:
         if search:
-            matches_search = any(search in (user.get(field) or "").lower() for field in SearchField.values())
+            matches_search = any(
+                search in (user.get(field) or "").lower()
+                for field in SearchField.values()
+            )
             if not matches_search:
                 continue
 

@@ -58,6 +58,10 @@ upgrade: ## update the requirements/*.txt files with the latest packages satisfy
 quality: ## check coding style with pycodestyle and pylint
 	tox -e quality
 
+format: ## format code with black and isort
+	black openedx_authz tests
+	isort openedx_authz tests
+
 pii_check: ## check for PII annotations on all Django models
 	tox -e pii_check
 

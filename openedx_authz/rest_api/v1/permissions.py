@@ -198,7 +198,9 @@ class DynamicScopePermission(BaseScopePermission):
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
-        return self._get_permission_instance(request).has_object_permission(request, view, obj)
+        return self._get_permission_instance(request).has_object_permission(
+            request, view, obj
+        )
 
 
 class MethodPermissionMixin:
@@ -239,7 +241,9 @@ class MethodPermissionMixin:
             return handler.required_permissions
         return []
 
-    def validate_permissions(self, request, permissions: list[str], scope_value: str) -> bool:
+    def validate_permissions(
+        self, request, permissions: list[str], scope_value: str
+    ) -> bool:
         """Validate that the user has all required permissions for the scope.
 
         Args:

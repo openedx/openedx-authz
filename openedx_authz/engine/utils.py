@@ -31,7 +31,9 @@ def migrate_policy_between_enforcers(
 
         # Load target enforcer policies to check for duplicates
         target_enforcer.load_policy()
-        logger.info(f"Target enforcer has {len(target_enforcer.get_policy())} existing policies before migration.")
+        logger.info(
+            f"Target enforcer has {len(target_enforcer.get_policy())} existing policies before migration."
+        )
 
         # TODO: this operations use the enforcer directly, which may not be ideal
         # since we have to load the policy after each addition to avoid duplicates.

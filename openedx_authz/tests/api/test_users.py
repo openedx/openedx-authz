@@ -71,7 +71,11 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 user_roles = get_user_role_assignments_in_scope(
                     user_external_key=user, scope_external_key=scope_name
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertIn(role, role_names)
         else:
             assign_role_to_user_in_scope(
@@ -82,7 +86,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             user_roles = get_user_role_assignments_in_scope(
                 user_external_key=username, scope_external_key=scope_name
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertIn(role, role_names)
 
     @data(
@@ -107,7 +113,11 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 user_roles = get_user_role_assignments_in_scope(
                     user_external_key=user, scope_external_key=scope_name
                 )
-                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+                role_names = {
+                    r.external_key
+                    for assignment in user_roles
+                    for r in assignment.roles
+                }
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_user(
@@ -118,7 +128,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             user_roles = get_user_role_assignments_in_scope(
                 user_external_key=username, scope_external_key=scope_name
             )
-            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+            role_names = {
+                r.external_key for assignment in user_roles for r in assignment.roles
+            }
             self.assertNotIn(role, role_names)
 
     @data(
@@ -161,7 +173,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             user_external_key=username, scope_external_key=scope_name
         )
 
-        role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
+        role_names = {
+            r.external_key for assignment in user_roles for r in assignment.roles
+        }
         self.assertEqual(role_names, expected_roles)
 
     @data(
@@ -195,10 +209,12 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="alice"),
-                    roles=[RoleData(
-                        external_key="library_admin",
-                        permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
-                    )],
+                    roles=[
+                        RoleData(
+                            external_key="library_admin",
+                            permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
+                        )
+                    ],
                     scope=ContentLibraryData(external_key="lib:Org1:math_101"),
                 ),
             ],
@@ -208,10 +224,12 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="bob"),
-                    roles=[RoleData(
-                        external_key="library_author",
-                        permissions=LIST_LIBRARY_AUTHOR_PERMISSIONS,
-                    )],
+                    roles=[
+                        RoleData(
+                            external_key="library_author",
+                            permissions=LIST_LIBRARY_AUTHOR_PERMISSIONS,
+                        )
+                    ],
                     scope=ContentLibraryData(external_key="lib:Org1:history_201"),
                 ),
             ],
@@ -221,10 +239,12 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="eve"),
-                    roles=[RoleData(
-                        external_key="library_admin",
-                        permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
-                    )],
+                    roles=[
+                        RoleData(
+                            external_key="library_admin",
+                            permissions=LIST_LIBRARY_ADMIN_PERMISSIONS,
+                        )
+                    ],
                     scope=ContentLibraryData(external_key="lib:Org2:physics_401"),
                 ),
             ],

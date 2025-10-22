@@ -44,7 +44,10 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement")
 
-        self.assertEqual("Error: the following arguments are required: --policy-file-path", str(ctx.exception))
+        self.assertEqual(
+            "Error: the following arguments are required: --policy-file-path",
+            str(ctx.exception),
+        )
 
     def test_policy_file_not_found_raises(self):
         """Test that command errors when the provided policy file does not exist."""
@@ -55,13 +58,18 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Policy file not found: {non_existent}", str(ctx.exception))
 
-    @patch.object(EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf")
+    @patch.object(
+        EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf"
+    )
     def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
         """Test that command errors when the provided model file does not exist."""
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual(f"Model file not found: {mock_get_file_path.return_value}", str(ctx.exception))
+        self.assertEqual(
+            f"Model file not found: {mock_get_file_path.return_value}",
+            str(ctx.exception),
+        )
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     def test_error_creating_enforcer_raises(self, mock_enforcer_cls: Mock):
@@ -71,11 +79,16 @@ class EnforcementCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("enforcement", policy_file_path=self.policy_file_path.name)
 
-        self.assertEqual("Error creating Casbin enforcer: Enforcer creation error", str(ctx.exception))
+        self.assertEqual(
+            "Error creating Casbin enforcer: Enforcer creation error",
+            str(ctx.exception),
+        )
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     @patch.object(EnforcementCommand, "_run_interactive_mode")
-    def test_successful_run_prints_summary(self, mock_run_interactive: Mock, mock_enforcer_cls: Mock):
+    def test_successful_run_prints_summary(
+        self, mock_run_interactive: Mock, mock_enforcer_cls: Mock
+    ):
         """
         Test successful command execution with policy file and interactive mode.
         When files exist, command should create enforcer, print counts, and call interactive loop.
@@ -92,7 +105,11 @@ class EnforcementCommandTests(TestCase):
         mock_enforcer.get_named_grouping_policy.return_value = action_grouping
         mock_enforcer_cls.return_value = mock_enforcer
 
-        call_command("enforcement", policy_file_path=self.policy_file_path.name, stdout=self.buffer)
+        call_command(
+            "enforcement",
+            policy_file_path=self.policy_file_path.name,
+            stdout=self.buffer,
+        )
 
         output = self.buffer.getvalue()
         self.assertIn("Casbin Interactive Enforcement", output)
@@ -109,8 +126,13 @@ class EnforcementCommandTests(TestCase):
 
         example_text = f"Example: {make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
         self.assertIn("Interactive Mode", self.buffer.getvalue())
-        self.assertIn("Test custom enforcement requests interactively.", self.buffer.getvalue())
-        self.assertIn("Enter 'quit', 'exit', or 'q' to exit the interactive mode.", self.buffer.getvalue())
+        self.assertIn(
+            "Test custom enforcement requests interactively.", self.buffer.getvalue()
+        )
+        self.assertIn(
+            "Enter 'quit', 'exit', or 'q' to exit the interactive mode.",
+            self.buffer.getvalue(),
+        )
         self.assertIn("Format: subject action scope", self.buffer.getvalue())
         self.assertIn(example_text, self.buffer.getvalue())
 
@@ -124,9 +146,17 @@ class EnforcementCommandTests(TestCase):
         self.assertEqual(mock_input.call_count, len(input_values))
 
     @data(
-        [f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"],
-        [f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 5,
-        [f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"] * 10,
+        [
+            f"{make_user_key('alice')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ],
+        [
+            f"{make_user_key('bob')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ]
+        * 5,
+        [
+            f"{make_user_key('john')} {make_action_key('read')} {make_scope_key('org', 'OpenedX')}"
+        ]
+        * 10,
     )
     def test_run_interactive_mode_processes_request(self, user_input: list[str]):
         """Test that the interactive mode processes the request."""
@@ -184,7 +214,9 @@ class EnforcementCommandTests(TestCase):
         invalid_output = self.buffer.getvalue()
         self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
         self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output)
+        self.assertIn(
+            f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output
+        )
 
     @data(ValueError(), IndexError(), TypeError())
     def test_interactive_request_error(self, exception: Exception):
@@ -211,11 +243,13 @@ class LoadPoliciesCommandTests(TestCase):
         super().setUp()
         self.buffer = io.StringIO()
 
-    @patch('openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer')
-    @patch('casbin.Enforcer')
-    @patch('os.path.join')
-    @patch('click.confirm')
-    def test_handle_with_default_paths(self, mock_confirm, mock_join, mock_casbin_enforcer, mock_get_enforcer):
+    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
+    @patch("casbin.Enforcer")
+    @patch("os.path.join")
+    @patch("click.confirm")
+    def test_handle_with_default_paths(
+        self, mock_confirm, mock_join, mock_casbin_enforcer, mock_get_enforcer
+    ):
         """Test handle method with default policy and model paths."""
         # Setup mocks
         mock_target_enforcer = Mock()
@@ -238,26 +272,28 @@ class LoadPoliciesCommandTests(TestCase):
         command.migrate_policies = Mock()
 
         # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=False)
+        command.handle(
+            policy_file_path=None, model_file_path=None, clear_existing=False
+        )
 
         # Assertions
         mock_casbin_enforcer.assert_called_once_with(
             model_path,
             policy_path,
         )
-        mock_join.assert_any_call(
-            ROOT_DIRECTORY, "engine", "config", "authz.policy"
-        )
-        mock_join.assert_any_call(
-            ROOT_DIRECTORY, "engine", "config", "model.conf"
-        )
+        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "authz.policy")
+        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "model.conf")
         mock_confirm.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        command.migrate_policies.assert_called_once_with(
+            mock_source_enforcer, mock_target_enforcer
+        )
 
-    @patch('openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer')
-    @patch('casbin.Enforcer')
-    @patch('click.confirm')
-    def test_handle_with_custom_paths(self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer):
+    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
+    @patch("casbin.Enforcer")
+    @patch("click.confirm")
+    def test_handle_with_custom_paths(
+        self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
+    ):
         """Test handle method with custom policy and model paths."""
         # Setup mocks
         mock_target_enforcer = Mock()
@@ -271,21 +307,27 @@ class LoadPoliciesCommandTests(TestCase):
         command.migrate_policies = Mock()
 
         # Custom paths
-        policy_path = '/custom/path/to/policy.csv'
-        model_path = '/custom/path/to/model.conf'
+        policy_path = "/custom/path/to/policy.csv"
+        model_path = "/custom/path/to/model.conf"
 
         # Call handle method
-        command.handle(policy_file_path=policy_path, model_file_path=model_path, clear_existing=False)
+        command.handle(
+            policy_file_path=policy_path,
+            model_file_path=model_path,
+            clear_existing=False,
+        )
 
         # Assertions
         mock_casbin_enforcer.assert_called_once_with(model_path, policy_path)
         mock_confirm.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        command.migrate_policies.assert_called_once_with(
+            mock_source_enforcer, mock_target_enforcer
+        )
 
-    @patch('openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer')
-    @patch('casbin.Enforcer')
-    @patch('click.confirm')
-    @patch('click.style')
+    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
+    @patch("casbin.Enforcer")
+    @patch("click.confirm")
+    @patch("click.style")
     def test_handle_clear_existing_roles_confirmed(
         self, mock_style, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
     ):
@@ -315,12 +357,14 @@ class LoadPoliciesCommandTests(TestCase):
         mock_confirm.assert_called_with(mock_style.return_value, default=False)
         command._delete_existing_roles.assert_called_once_with(mock_target_enforcer)
         command._delete_permissions_inheritance.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        command.migrate_policies.assert_called_once_with(
+            mock_source_enforcer, mock_target_enforcer
+        )
 
-    @patch('openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer')
-    @patch('casbin.Enforcer')
-    @patch('click.confirm')
-    @patch('click.style')
+    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
+    @patch("casbin.Enforcer")
+    @patch("click.confirm")
+    @patch("click.style")
     def test_handle_clear_existing_permissions_confirmed(
         self, mock_style, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
     ):
@@ -349,13 +393,19 @@ class LoadPoliciesCommandTests(TestCase):
         mock_target_enforcer.load_policy.assert_called_once()
         mock_confirm.assert_called_with(mock_style.return_value, default=False)
         command._delete_existing_roles.assert_not_called()
-        command._delete_permissions_inheritance.assert_called_once_with(mock_target_enforcer)
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        command._delete_permissions_inheritance.assert_called_once_with(
+            mock_target_enforcer
+        )
+        command.migrate_policies.assert_called_once_with(
+            mock_source_enforcer, mock_target_enforcer
+        )
 
-    @patch('openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer')
-    @patch('casbin.Enforcer')
-    @patch('click.confirm')
-    def test_handle_clear_existing_both_denied(self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer):
+    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
+    @patch("casbin.Enforcer")
+    @patch("click.confirm")
+    def test_handle_clear_existing_both_denied(
+        self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
+    ):
         """Test handle method with clear_existing but denied deletions."""
         expected_mock_confirm_calls = 2
         # Setup mocks
@@ -382,4 +432,6 @@ class LoadPoliciesCommandTests(TestCase):
         assert mock_confirm.call_count == expected_mock_confirm_calls
         command._delete_existing_roles.assert_not_called()
         command._delete_permissions_inheritance.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        command.migrate_policies.assert_called_once_with(
+            mock_source_enforcer, mock_target_enforcer
+        )

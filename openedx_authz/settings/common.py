@@ -25,7 +25,8 @@ def plugin_settings(settings):
         ROOT_DIRECTORY, "engine", "config", "model.conf"
     )
     settings.CASBIN_WATCHER_ENABLED = False
-    settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
+    if not hasattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL"):
+        settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
     # TODO: Replace with a more dynamic configuration
     # Redis host and port are temporarily loaded here for the MVP
     settings.REDIS_HOST = "redis"

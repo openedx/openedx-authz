@@ -31,9 +31,7 @@ def migrate_policy_between_enforcers(
 
         # Load target enforcer policies to check for duplicates
         target_enforcer.load_policy()
-        logger.info(
-            f"Target enforcer has {len(target_enforcer.get_policy())} existing policies before migration."
-        )
+        logger.info(f"Target enforcer has {len(target_enforcer.get_policy())} existing policies before migration.")
 
         # TODO: this operations use the enforcer directly, which may not be ideal
         # since we have to load the policy after each addition to avoid duplicates.
@@ -53,31 +51,21 @@ def migrate_policy_between_enforcers(
 
         for grouping_policy_ptype in GROUPING_POLICY_PTYPES:
             try:
-                grouping_policies = source_enforcer.get_named_grouping_policy(
-                    grouping_policy_ptype
-                )
+                grouping_policies = source_enforcer.get_named_grouping_policy(grouping_policy_ptype)
                 for grouping in grouping_policies:
-                    if target_enforcer.has_named_grouping_policy(
-                        grouping_policy_ptype, *grouping
-                    ):
+                    if target_enforcer.has_named_grouping_policy(grouping_policy_ptype, *grouping):
                         logger.info(
                             f"Grouping policy {grouping_policy_ptype}, {grouping} already exists in target, skipping."
                         )
                         continue
-                    target_enforcer.add_named_grouping_policy(
-                        grouping_policy_ptype, *grouping
-                    )
+                    target_enforcer.add_named_grouping_policy(grouping_policy_ptype, *grouping)
 
                     # Ensure latest policies are loaded in the target enforcer after each addition
                     # to avoid duplicates
                     target_enforcer.load_policy()
             except KeyError as e:
-                logger.info(
-                    f"Skipping {grouping_policy_ptype} policies: {e} not found in source enforcer."
-                )
-        logger.info(
-            f"Successfully loaded policies from {source_enforcer.get_model()} into the database."
-        )
+                logger.info(f"Skipping {grouping_policy_ptype} policies: {e} not found in source enforcer.")
+        logger.info(f"Successfully loaded policies from {source_enforcer.get_model()} into the database.")
     except Exception as e:
         logger.error(f"Error loading policies from file: {e}")
         raise

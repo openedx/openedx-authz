@@ -248,9 +248,7 @@ class ScopeMeta(type):
         scope_subclass = mcs.scope_registry.get(namespace)
 
         if not scope_subclass:
-            raise ValueError(
-                f"Unknown scope: {namespace} for external_key: {external_key}"
-            )
+            raise ValueError(f"Unknown scope: {namespace} for external_key: {external_key}")
 
         if not scope_subclass.validate_external_key(external_key):
             raise ValueError(f"Invalid external_key format: {external_key}")
@@ -281,9 +279,7 @@ class ScopeMeta(type):
         Returns:
             bool: True if valid, False otherwise.
         """
-        raise NotImplementedError(
-            "Subclasses must implement validate_external_key method."
-        )
+        raise NotImplementedError("Subclasses must implement validate_external_key method.")
 
 
 @define

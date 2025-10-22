@@ -29,23 +29,17 @@ class ActionMixin(serializers.Serializer):  # pylint: disable=abstract-method
     action = serializers.CharField(max_length=255)
 
 
-class PermissionValidationSerializer(
-    ActionMixin, ScopeMixin
-):  # pylint: disable=abstract-method
+class PermissionValidationSerializer(ActionMixin, ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for permission validation request."""
 
 
-class PermissionValidationResponseSerializer(
-    PermissionValidationSerializer
-):  # pylint: disable=abstract-method
+class PermissionValidationResponseSerializer(PermissionValidationSerializer):  # pylint: disable=abstract-method
     """Serializer for permission validation response."""
 
     allowed = serializers.BooleanField()
 
 
-class RoleScopeValidationMixin(
-    serializers.Serializer
-):  # pylint: disable=abstract-method
+class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstract-method
     """Mixin providing role and scope validation logic."""
 
     def validate(self, attrs) -> dict:
@@ -83,9 +77,7 @@ class RoleScopeValidationMixin(
         role_definitions = api.get_role_definitions_in_scope(generic_scope)
 
         if role not in role_definitions:
-            raise serializers.ValidationError(
-                f"Role '{role_value}' does not exist in scope '{scope_value}'"
-            )
+            raise serializers.ValidationError(f"Role '{role_value}' does not exist in scope '{scope_value}'")
 
         return validated_data
 
@@ -97,9 +89,7 @@ class AddUsersToRoleWithScopeSerializer(
 ):  # pylint: disable=abstract-method
     """Serializer for adding users to a role with a scope."""
 
-    users = serializers.ListField(
-        child=serializers.CharField(max_length=255), allow_empty=False
-    )
+    users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
     def validate_users(self, value) -> list[str]:
         """Eliminate duplicates preserving order"""
@@ -133,9 +123,7 @@ class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstrac
     search = LowercaseCharField(required=False, default=None)
 
 
-class ListRolesWithScopeSerializer(
-    serializers.Serializer
-):  # pylint: disable=abstract-method
+class ListRolesWithScopeSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for listing roles within a scope."""
 
     scope = serializers.CharField(max_length=255)
@@ -165,9 +153,7 @@ class ListRolesWithScopeSerializer(
             raise serializers.ValidationError(exc) from exc
 
 
-class ListUsersInRoleWithScopeResponseSerializer(
-    serializers.Serializer
-):  # pylint: disable=abstract-method
+class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for listing users in a role with a scope response."""
 
     username = serializers.CharField(max_length=255)
@@ -175,9 +161,7 @@ class ListUsersInRoleWithScopeResponseSerializer(
     email = serializers.EmailField()
 
 
-class ListRolesWithScopeResponseSerializer(
-    serializers.Serializer
-):  # pylint: disable=abstract-method
+class ListRolesWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for listing roles with a scope response."""
 
     role = serializers.CharField(max_length=255)
@@ -185,9 +169,7 @@ class ListRolesWithScopeResponseSerializer(
     user_count = serializers.IntegerField()
 
 
-class UserRoleAssignmentSerializer(
-    serializers.Serializer
-):  # pylint: disable=abstract-method
+class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for a user role assignment."""
 
     username = serializers.SerializerMethodField()
@@ -211,11 +193,7 @@ class UserRoleAssignmentSerializer(
     def get_full_name(self, obj) -> str:
         """Get the full name for the given role assignment."""
         user = self._get_user(obj)
-        return (
-            getattr(user.profile, "name", "")
-            if user and hasattr(user, "profile")
-            else ""
-        )
+        return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
     def get_email(self, obj) -> str:
         """Get the email for the given role assignment."""

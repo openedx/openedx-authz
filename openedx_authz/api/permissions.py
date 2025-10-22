@@ -43,9 +43,7 @@ def get_all_permissions_in_scope(scope: ScopeData) -> list[PermissionData]:
         list of PermissionData: A list of PermissionData objects associated with the given scope.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    actions = enforcer.get_filtered_policy(
-        PolicyIndex.SCOPE.value, scope.namespaced_key
-    )
+    actions = enforcer.get_filtered_policy(PolicyIndex.SCOPE.value, scope.namespaced_key)
     return [get_permission_from_policy(action) for action in actions]
 
 
@@ -65,6 +63,4 @@ def is_subject_allowed(
         bool: True if the subject has the specified permission in the scope, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    return enforcer.enforce(
-        subject.namespaced_key, action.namespaced_key, scope.namespaced_key
-    )
+    return enforcer.enforce(subject.namespaced_key, action.namespaced_key, scope.namespaced_key)

@@ -78,9 +78,7 @@ class Command(BaseCommand):
         Raises:
             CommandError: If model or policy files are not found or enforcer creation fails.
         """
-        model_file_path = (
-            self._get_file_path("model.conf") or options["model_file_path"]
-        )
+        model_file_path = self._get_file_path("model.conf") or options["model_file_path"]
         policy_file_path = options["policy_file_path"]
 
         if not os.path.isfile(model_file_path):
@@ -95,9 +93,7 @@ class Command(BaseCommand):
 
         try:
             enforcer = casbin.Enforcer(model_file_path, policy_file_path)
-            self.stdout.write(
-                self.style.SUCCESS("Casbin enforcer created successfully")
-            )
+            self.stdout.write(self.style.SUCCESS("Casbin enforcer created successfully"))
 
             policies = enforcer.get_policy()
             roles = enforcer.get_grouping_policy()
@@ -160,9 +156,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("Exiting interactive mode..."))
                 break
 
-    def _test_interactive_request(
-        self, enforcer: casbin.Enforcer, user_input: str
-    ) -> None:
+    def _test_interactive_request(self, enforcer: casbin.Enforcer, user_input: str) -> None:
         """Process and test a single enforcement request from user input.
 
         Parses the input string, validates the format, executes the enforcement
@@ -180,11 +174,7 @@ class Command(BaseCommand):
         try:
             parts = [part.strip() for part in user_input.split()]
             if len(parts) != 3:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"✗ Invalid format. Expected 3 parts, got {len(parts)}"
-                    )
-                )
+                self.stdout.write(self.style.ERROR(f"✗ Invalid format. Expected 3 parts, got {len(parts)}"))
                 self.stdout.write("Format: subject action scope")
                 self.stdout.write("Example: user^alice act^read org^OpenedX")
                 return
@@ -193,13 +183,9 @@ class Command(BaseCommand):
             result = enforcer.enforce(subject, action, scope)
 
             if result:
-                self.stdout.write(
-                    self.style.SUCCESS(f"✓ ALLOWED: {subject} {action} {scope}")
-                )
+                self.stdout.write(self.style.SUCCESS(f"✓ ALLOWED: {subject} {action} {scope}"))
             else:
-                self.stdout.write(
-                    self.style.ERROR(f"✗ DENIED: {subject} {action} {scope}")
-                )
+                self.stdout.write(self.style.ERROR(f"✗ DENIED: {subject} {action} {scope}"))
 
         except (ValueError, IndexError, TypeError) as e:
             self.stdout.write(self.style.ERROR(f"✗ Error processing request: {str(e)}"))

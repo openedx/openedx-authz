@@ -203,9 +203,7 @@ class TestPolymorphicData(TestCase):
         """
         library = ContentLibraryData(external_key=external_key)
 
-        expected_namespaced_key = (
-            f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
-        )
+        expected_namespaced_key = f"{library.NAMESPACE}{library.SEPARATOR}{external_key}"
 
         self.assertIsInstance(library, ContentLibraryData)
         self.assertEqual(library.external_key, external_key)
@@ -233,9 +231,7 @@ class TestScopeMetaClass(TestCase):
         ("sc^generic_scope", ScopeData),
     )
     @unpack
-    def test_dynamic_instantiation_via_namespaced_key(
-        self, namespaced_key, expected_class
-    ):
+    def test_dynamic_instantiation_via_namespaced_key(self, namespaced_key, expected_class):
         """Test that ScopeData dynamically instantiates the correct subclass.
 
         Expected Result:
@@ -321,9 +317,7 @@ class TestScopeMetaClass(TestCase):
         """
         scope = ScopeData(external_key="sc:generic_scope")
 
-        expected_namespaced = (
-            f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
-        )
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
 
         self.assertIsInstance(scope, ScopeData)
         self.assertEqual(scope.external_key, "sc:generic_scope")
@@ -420,9 +414,7 @@ class TestDataRepresentation(TestCase):
         ("course_staff", "Course Staff", "role^course_staff"),
     )
     @unpack
-    def test_role_data_str_without_permissions(
-        self, external_key, expected_name, expected_repr
-    ):
+    def test_role_data_str_without_permissions(self, external_key, expected_name, expected_repr):
         """Test RoleData __str__ and __repr__ methods without permissions.
 
         Expected Result:
@@ -448,9 +440,7 @@ class TestDataRepresentation(TestCase):
         action2 = ActionData(external_key="write")
         permission1 = PermissionData(action=action1, effect="allow")
         permission2 = PermissionData(action=action2, effect="deny")
-        role = RoleData(
-            external_key="instructor", permissions=[permission1, permission2]
-        )
+        role = RoleData(external_key="instructor", permissions=[permission1, permission2])
 
         actual_str = str(role)
 
@@ -468,9 +458,7 @@ class TestDataRepresentation(TestCase):
         ),
     )
     @unpack
-    def test_permission_data_str_and_repr(
-        self, action_key, effect, expected_str, expected_repr
-    ):
+    def test_permission_data_str_and_repr(self, action_key, effect, expected_str, expected_repr):
         """Test PermissionData __str__ and __repr__ methods.
 
         Expected Result:

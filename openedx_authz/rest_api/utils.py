@@ -28,9 +28,7 @@ def get_generic_scope(scope: ScopeData) -> ScopeData:
         >>> get_generic_scope(scope)
         ScopeData(namespaced_key="lib^*")
     """
-    return ScopeData(
-        namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}"
-    )
+    return ScopeData(namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}")
 
 
 def get_user_map(usernames: list[str]) -> dict[str, User]:
@@ -94,14 +92,10 @@ def sort_users(
         list[dict]: The sorted users.
     """
     if sort_by not in SortField.values():
-        raise ValueError(
-            f"Invalid field: '{sort_by}'. Must be one of {SortField.values()}"
-        )
+        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {SortField.values()}")
 
     if order not in SortOrder.values():
-        raise ValueError(
-            f"Invalid order: '{order}'. Must be one of {SortOrder.values()}"
-        )
+        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
 
     sorted_users = sorted(
         users,
@@ -111,9 +105,7 @@ def sort_users(
     return sorted_users
 
 
-def filter_users(
-    users: list[dict], search: str | None, roles: list[str] | None
-) -> list[dict]:
+def filter_users(users: list[dict], search: str | None, roles: list[str] | None) -> list[dict]:
     """
     Filter users by a case-insensitive search string and/or by roles.
 
@@ -131,10 +123,7 @@ def filter_users(
     filtered_users = []
     for user in users:
         if search:
-            matches_search = any(
-                search in (user.get(field) or "").lower()
-                for field in SearchField.values()
-            )
+            matches_search = any(search in (user.get(field) or "").lower() for field in SearchField.values())
             if not matches_search:
                 continue
 

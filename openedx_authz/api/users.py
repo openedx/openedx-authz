@@ -37,9 +37,7 @@ __all__ = [
 ]
 
 
-def assign_role_to_user_in_scope(
-    user_external_key: str, role_external_key: str, scope_external_key: str
-) -> bool:
+def assign_role_to_user_in_scope(user_external_key: str, role_external_key: str, scope_external_key: str) -> bool:
     """Assign a role to a user in a specific scope.
 
     Args:
@@ -57,9 +55,7 @@ def assign_role_to_user_in_scope(
     )
 
 
-def batch_assign_role_to_users_in_scope(
-    users: list[str], role_external_key: str, scope_external_key: str
-):
+def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str, scope_external_key: str):
     """Assign a role to multiple users in a specific scope.
 
     Args:
@@ -75,9 +71,7 @@ def batch_assign_role_to_users_in_scope(
     )
 
 
-def unassign_role_from_user(
-    user_external_key: str, role_external_key: str, scope_external_key: str
-):
+def unassign_role_from_user(user_external_key: str, role_external_key: str, scope_external_key: str):
     """Unassign a role from a user in a specific scope.
 
     Args:
@@ -95,9 +89,7 @@ def unassign_role_from_user(
     )
 
 
-def batch_unassign_role_from_users(
-    users: list[str], role_external_key: str, scope_external_key: str
-):
+def batch_unassign_role_from_users(users: list[str], role_external_key: str, scope_external_key: str):
     """Unassign a role from multiple users in a specific scope.
 
     Args:
@@ -125,9 +117,7 @@ def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData
     return get_subject_role_assignments(UserData(external_key=user_external_key))
 
 
-def get_user_role_assignments_in_scope(
-    user_external_key: str, scope_external_key: str
-) -> list[RoleAssignmentData]:
+def get_user_role_assignments_in_scope(user_external_key: str, scope_external_key: str) -> list[RoleAssignmentData]:
     """Get the roles assigned to a user in a specific scope.
 
     Args:
@@ -172,9 +162,7 @@ def get_all_user_role_assignments_in_scope(
     Returns:
         list[RoleAssignmentData]: A list of user role assignments and all their metadata in the specified scope.
     """
-    return get_all_subject_role_assignments_in_scope(
-        ScopeData(external_key=scope_external_key)
-    )
+    return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
 def is_user_allowed(

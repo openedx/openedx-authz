@@ -64,18 +64,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The role is successfully assigned to the user in the specified scope.
         """
         if batch:
-            batch_assign_role_to_users_in_scope(
-                users=username, role_external_key=role, scope_external_key=scope_name
-            )
+            batch_assign_role_to_users_in_scope(users=username, role_external_key=role, scope_external_key=scope_name)
             for user in username:
-                user_roles = get_user_role_assignments_in_scope(
-                    user_external_key=user, scope_external_key=scope_name
-                )
-                role_names = {
-                    r.external_key
-                    for assignment in user_roles
-                    for r in assignment.roles
-                }
+                user_roles = get_user_role_assignments_in_scope(user_external_key=user, scope_external_key=scope_name)
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertIn(role, role_names)
         else:
             assign_role_to_user_in_scope(
@@ -83,12 +75,8 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 role_external_key=role,
                 scope_external_key=scope_name,
             )
-            user_roles = get_user_role_assignments_in_scope(
-                user_external_key=username, scope_external_key=scope_name
-            )
-            role_names = {
-                r.external_key for assignment in user_roles for r in assignment.roles
-            }
+            user_roles = get_user_role_assignments_in_scope(user_external_key=username, scope_external_key=scope_name)
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertIn(role, role_names)
 
     @data(
@@ -106,18 +94,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             - The user no longer has the role in the specified scope.
         """
         if batch:
-            batch_unassign_role_from_users(
-                users=username, role_external_key=role, scope_external_key=scope_name
-            )
+            batch_unassign_role_from_users(users=username, role_external_key=role, scope_external_key=scope_name)
             for user in username:
-                user_roles = get_user_role_assignments_in_scope(
-                    user_external_key=user, scope_external_key=scope_name
-                )
-                role_names = {
-                    r.external_key
-                    for assignment in user_roles
-                    for r in assignment.roles
-                }
+                user_roles = get_user_role_assignments_in_scope(user_external_key=user, scope_external_key=scope_name)
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_user(
@@ -125,12 +105,8 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 role_external_key=role,
                 scope_external_key=scope_name,
             )
-            user_roles = get_user_role_assignments_in_scope(
-                user_external_key=username, scope_external_key=scope_name
-            )
-            role_names = {
-                r.external_key for assignment in user_roles for r in assignment.roles
-            }
+            user_roles = get_user_role_assignments_in_scope(user_external_key=username, scope_external_key=scope_name)
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertNotIn(role, role_names)
 
     @data(
@@ -148,9 +124,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         role_assignments = get_user_role_assignments(user_external_key=username)
 
-        assigned_role_names = {
-            r.external_key for assignment in role_assignments for r in assignment.roles
-        }
+        assigned_role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
         self.assertEqual(assigned_role_names, expected_roles)
 
     @data(
@@ -160,22 +134,16 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         ("grace", "lib:Org1:math_advanced", {"library_contributor"}),
     )
     @unpack
-    def test_get_user_role_assignments_in_scope(
-        self, username, scope_name, expected_roles
-    ):
+    def test_get_user_role_assignments_in_scope(self, username, scope_name, expected_roles):
         """Test retrieving role assignments for a user within a specific scope.
 
         Expected result:
             - The role assigned to the user in the specified scope is correctly retrieved.
             - The returned role assignments contain the assigned role.
         """
-        user_roles = get_user_role_assignments_in_scope(
-            user_external_key=username, scope_external_key=scope_name
-        )
+        user_roles = get_user_role_assignments_in_scope(user_external_key=username, scope_external_key=scope_name)
 
-        role_names = {
-            r.external_key for assignment in user_roles for r in assignment.roles
-        }
+        role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
         self.assertEqual(role_names, expected_roles)
 
     @data(
@@ -184,9 +152,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         ("library_contributor", "lib:Org1:math_advanced", {"grace", "heidi"}),
     )
     @unpack
-    def test_get_user_role_assignments_for_role_in_scope(
-        self, role_name, scope_name, expected_users
-    ):
+    def test_get_user_role_assignments_for_role_in_scope(self, role_name, scope_name, expected_users):
         """Test retrieving all users assigned to a specific role within a specific scope.
 
         Expected result:
@@ -197,9 +163,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             role_external_key=role_name, scope_external_key=scope_name
         )
 
-        assigned_usernames = {
-            assignment.subject.username for assignment in user_assignments
-        }
+        assigned_usernames = {assignment.subject.username for assignment in user_assignments}
 
         self.assertEqual(assigned_usernames, expected_users)
 
@@ -251,18 +215,14 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         ),
     )
     @unpack
-    def test_get_all_user_role_assignments_in_scope(
-        self, scope_name, expected_assignments
-    ):
+    def test_get_all_user_role_assignments_in_scope(self, scope_name, expected_assignments):
         """Test retrieving all user role assignments within a specific scope.
 
         Expected result:
             - All user role assignments in the specified scope are correctly retrieved.
             - Each assignment includes the subject, role, and scope information.
         """
-        role_assignments = get_all_user_role_assignments_in_scope(
-            scope_external_key=scope_name
-        )
+        role_assignments = get_all_user_role_assignments_in_scope(scope_external_key=scope_name)
 
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:

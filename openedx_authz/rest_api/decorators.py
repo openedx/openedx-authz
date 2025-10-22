@@ -39,9 +39,7 @@ def view_auth_classes(is_authenticated=True):
             SessionAuthenticationAllowInactiveUser,
         ]
         if is_authenticated:
-            func_or_class.permission_classes = [IsAuthenticated] + getattr(
-                func_or_class, "permission_classes", []
-            )
+            func_or_class.permission_classes = [IsAuthenticated] + getattr(func_or_class, "permission_classes", [])
         return func_or_class
 
     return _decorator

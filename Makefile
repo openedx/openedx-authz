@@ -59,8 +59,8 @@ quality: ## check coding style with pycodestyle and pylint
 	tox -e quality
 
 format: ## format code with black and isort
-	black openedx_authz tests
-	isort openedx_authz tests
+	ruff format openedx_authz tests --line-length 120
+	ruff check --select I --fix --line-length 120
 
 pii_check: ## check for PII annotations on all Django models
 	tox -e pii_check

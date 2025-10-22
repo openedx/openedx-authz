@@ -88,9 +88,7 @@ class AuthzEnforcer:
             # issues when the app is not fully loaded (e.g., while pulling translations, etc.).
             initialize_enforcer(db_alias)
         except Exception as e:
-            logger.error(
-                f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}"
-            )
+            logger.error(f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}")
             raise
 
         adapter = ExtendedAdapter()

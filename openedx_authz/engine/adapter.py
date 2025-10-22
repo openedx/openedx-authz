@@ -77,7 +77,9 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
         return True
 
     def load_filtered_policy(
-        self, model: Model, filter: Filter  # pylint: disable=redefined-builtin
+        self,
+        model: Model,
+        filter: Filter,  # pylint: disable=redefined-builtin
     ) -> None:
         """
         Load policy rules from storage with filtering applied.
@@ -102,7 +104,9 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
             persist.load_policy_line(str(line), model)
 
     def filter_query(
-        self, queryset: QuerySet, filter: Filter  # pylint: disable=redefined-builtin
+        self,
+        queryset: QuerySet,
+        filter: Filter,  # pylint: disable=redefined-builtin
     ) -> QuerySet:
         """
         Apply filter criteria to the policy queryset.

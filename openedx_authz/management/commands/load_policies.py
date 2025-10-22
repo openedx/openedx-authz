@@ -74,13 +74,9 @@ class Command(BaseCommand):
             options["model_file_path"],
         )
         if policy_file_path is None:
-            policy_file_path = os.path.join(
-                ROOT_DIRECTORY, "engine", "config", "authz.policy"
-            )
+            policy_file_path = os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
         if model_file_path is None:
-            model_file_path = os.path.join(
-                ROOT_DIRECTORY, "engine", "config", "model.conf"
-            )
+            model_file_path = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 
         target_enforcer = AuthzEnforcer.get_enforcer()
 

@@ -92,9 +92,7 @@ class PermissionValidationMeView(APIView):
     """
 
     @apidocs.schema(
-        body=PermissionValidationSerializer(
-            help_text="The permissions to validate", many=True
-        ),
+        body=PermissionValidationSerializer(help_text="The permissions to validate", many=True),
         responses={
             status.HTTP_200_OK: PermissionValidationResponseSerializer,
             status.HTTP_400_BAD_REQUEST: "The request data is invalid",
@@ -238,21 +236,11 @@ class RoleUserAPIView(APIView):
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter(
-                "scope", str, description="The authorization scope for the role"
-            ),
-            apidocs.query_parameter(
-                "search", str, description="The search query to filter users by"
-            ),
-            apidocs.query_parameter(
-                "roles", str, description="The names of the roles to query"
-            ),
-            apidocs.query_parameter(
-                "page", int, description="Page number for pagination"
-            ),
-            apidocs.query_parameter(
-                "page_size", int, description="Number of items per page"
-            ),
+            apidocs.query_parameter("scope", str, description="The authorization scope for the role"),
+            apidocs.query_parameter("search", str, description="The search query to filter users by"),
+            apidocs.query_parameter("roles", str, description="The names of the roles to query"),
+            apidocs.query_parameter("page", int, description="Page number for pagination"),
+            apidocs.query_parameter("page_size", int, description="Number of items per page"),
             apidocs.query_parameter("sort_by", str, description="The field to sort by"),
             apidocs.query_parameter("order", str, description="The order to sort by"),
         ],
@@ -269,28 +257,16 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        user_role_assignments = api.get_all_user_role_assignments_in_scope(
-            query_params["scope"]
-        )
-        usernames = {
-            assignment.subject.username for assignment in user_role_assignments
-        }
+        user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
+        usernames = {assignment.subject.username for assignment in user_role_assignments}
         context = {"user_map": get_user_map(usernames)}
-        serialized_data = UserRoleAssignmentSerializer(
-            user_role_assignments, many=True, context=context
-        )
+        serialized_data = UserRoleAssignmentSerializer(user_role_assignments, many=True, context=context)
 
-        filtered_users = filter_users(
-            serialized_data.data, query_params["search"], query_params["roles"]
-        )
-        user_role_assignments = sort_users(
-            filtered_users, query_params["sort_by"], query_params["order"]
-        )
+        filtered_users = filter_users(serialized_data.data, query_params["search"], query_params["roles"])
+        user_role_assignments = sort_users(filtered_users, query_params["sort_by"], query_params["order"])
 
         paginator = self.pagination_class()
-        paginated_response_data = paginator.paginate_queryset(
-            user_role_assignments, request
-        )
+        paginated_response_data = paginator.paginate_queryset(user_role_assignments, request)
         return paginator.get_paginated_response(paginated_response_data)
 
     @apidocs.schema(
@@ -339,12 +315,8 @@ class RoleUserAPIView(APIView):
                 str,
                 description="List of user identifiers (username or email) separated by a comma",
             ),
-            apidocs.query_parameter(
-                "role", str, description="The role to remove the users from"
-            ),
-            apidocs.query_parameter(
-                "scope", str, description="The scope to remove the users from"
-            ),
+            apidocs.query_parameter("role", str, description="The role to remove the users from"),
+            apidocs.query_parameter("scope", str, description="The scope to remove the users from"),
         ],
         responses={
             status.HTTP_207_MULTI_STATUS: "The users were removed from the role",
@@ -445,15 +417,9 @@ class RoleListView(APIView):
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter(
-                "scope", str, description="The scope to query roles for"
-            ),
-            apidocs.query_parameter(
-                "page", int, description="Page number for pagination"
-            ),
-            apidocs.query_parameter(
-                "page_size", int, description="Number of items per page"
-            ),
+            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
+            apidocs.query_parameter("page", int, description="Page number for pagination"),
+            apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
         responses={
             status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
@@ -482,7 +448,5 @@ class RoleListView(APIView):
 
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(response_data, request)
-        serialized_data = ListRolesWithScopeResponseSerializer(
-            paginated_response_data, many=True
-        )
+        serialized_data = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
         return paginator.get_paginated_response(serialized_data.data)

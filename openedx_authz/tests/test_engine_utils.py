@@ -195,11 +195,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             "Running migration twice should not duplicate g2 rules",
         )
 
-        duplicates = (
-            CasbinRule.objects.values("v0", "v1", "v2")
-            .annotate(total=Count("*"))
-            .filter(total__gt=1)
-        )
+        duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
         duplicate_list = list(duplicates)
         self.assertEqual(
             len(duplicate_list),
@@ -257,11 +253,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             "Should have 31 policies total, with no duplicates",
         )
 
-        duplicates = (
-            CasbinRule.objects.values("v0", "v1", "v2")
-            .annotate(total=Count("*"))
-            .filter(total__gt=1)
-        )
+        duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
         duplicate_list = list(duplicates)
         self.assertEqual(
             len(duplicate_list),
@@ -344,12 +336,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(
-            len(target_policies), 32, "Should have 31 file policies + 1 custom policy"
-        )
-        self.assertIn(
-            custom_policy, target_policies, "Custom database policy should be preserved"
-        )
+        self.assertEqual(len(target_policies), 32, "Should have 31 file policies + 1 custom policy")
+        self.assertIn(custom_policy, target_policies, "Custom database policy should be preserved")
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
         """Test that migration preserves user role assignments (g rules) in the database.
@@ -373,9 +361,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_grouping = self.target_enforcer.get_grouping_policy()
-        self.assertEqual(
-            len(target_grouping), 2, "User role assignments should be preserved"
-        )
+        self.assertEqual(len(target_grouping), 2, "User role assignments should be preserved")
         self.assertIn(
             [
                 make_user_key("user-1"),
@@ -386,6 +372,4 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(
-            len(target_policies), 31, "All 31 policies from file should be loaded"
-        )
+        self.assertEqual(len(target_policies), 31, "All 31 policies from file should be loaded")

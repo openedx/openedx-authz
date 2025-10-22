@@ -297,9 +297,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             - Permissions are correctly retrieved for the given roles and scope.
             - The permissions match the expected permissions.
         """
-        assigned_permissions = get_permissions_for_single_role(
-            RoleData(external_key=role_name)
-        )
+        assigned_permissions = get_permissions_for_single_role(RoleData(external_key=role_name))
 
         self.assertEqual(assigned_permissions, expected_permissions)
 
@@ -324,9 +322,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         ),
     )
     @unpack
-    def test_get_permissions_for_active_role_in_specific_scope(
-        self, role_name, scope_name, expected_permissions
-    ):
+    def test_get_permissions_for_active_role_in_specific_scope(self, role_name, scope_name, expected_permissions):
         """Test retrieving permissions for a specific role after role assignments.
 
         Expected result:
@@ -400,9 +396,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         ("non_existent_user", "lib:Org999:non_existent_scope", set()),
     )
     @unpack
-    def test_get_subject_role_assignments_in_scope(
-        self, subject_name, scope_name, expected_roles
-    ):
+    def test_get_subject_role_assignments_in_scope(self, subject_name, scope_name, expected_roles):
         """Test retrieving roles assigned to a subject in a specific scope.
 
         Expected result:
@@ -412,9 +406,7 @@ class TestRolesAPI(RolesTestSetupMixin):
             SubjectData(external_key=subject_name), ScopeData(external_key=scope_name)
         )
 
-        role_names = {
-            r.external_key for assignment in role_assignments for r in assignment.roles
-        }
+        role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
         self.assertEqual(role_names, expected_roles)
 
     @ddt_data(
@@ -463,19 +455,13 @@ class TestRolesAPI(RolesTestSetupMixin):
             - All roles assigned to the subject across all scopes are correctly retrieved.
             - Each role includes its associated permissions.
         """
-        role_assignments = get_subject_role_assignments(
-            SubjectData(external_key=subject_name)
-        )
+        role_assignments = get_subject_role_assignments(SubjectData(external_key=subject_name))
 
         self.assertEqual(len(role_assignments), len(expected_roles))
         for expected_role in expected_roles:
             # Compare the role part of the assignment
-            found = any(
-                expected_role in assignment.roles for assignment in role_assignments
-            )
-            self.assertTrue(
-                found, f"Expected role {expected_role} not found in assignments"
-            )
+            found = any(expected_role in assignment.roles for assignment in role_assignments)
+            self.assertTrue(found, f"Expected role {expected_role} not found in assignments")
 
     @ddt_data(
         ("library_admin", "lib:Org1:math_101", 1),
@@ -550,9 +536,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         ("oliver", "library_admin", "lib:Org1:math_101", False),
     )
     @unpack
-    def test_batch_assign_role_to_subjects_in_scope(
-        self, subject_names, role, scope_name, batch
-    ):
+    def test_batch_assign_role_to_subjects_in_scope(self, subject_names, role, scope_name, batch):
         """Test assigning a role to a single or multiple subjects in a specific scope.
 
         Expected result:
@@ -574,11 +558,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject_name),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {
-                    r.external_key
-                    for assignment in user_roles
-                    for r in assignment.roles
-                }
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertIn(role, role_names)
         else:
             assign_role_to_subject_in_scope(
@@ -590,9 +570,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {
-                r.external_key for assignment in user_roles for r in assignment.roles
-            }
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertIn(role, role_names)
 
     @ddt_data(
@@ -616,9 +594,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         ("oliver", "library_admin", "lib:Org1:math_101", False),
     )
     @unpack
-    def test_unassign_role_from_subject_in_scope(
-        self, subject_names, role, scope_name, batch
-    ):
+    def test_unassign_role_from_subject_in_scope(self, subject_names, role, scope_name, batch):
         """Test unassigning a role from a subject or multiple subjects in a specific scope.
 
         Expected result:
@@ -637,11 +613,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                     SubjectData(external_key=subject),
                     ScopeData(external_key=scope_name),
                 )
-                role_names = {
-                    r.external_key
-                    for assignment in user_roles
-                    for r in assignment.roles
-                }
+                role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
                 self.assertNotIn(role, role_names)
         else:
             unassign_role_from_subject_in_scope(
@@ -653,9 +625,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 SubjectData(external_key=subject_names),
                 ScopeData(external_key=scope_name),
             )
-            role_names = {
-                r.external_key for assignment in user_roles for r in assignment.roles
-            }
+            role_names = {r.external_key for assignment in user_roles for r in assignment.roles}
             self.assertNotIn(role, role_names)
 
     @ddt_data(
@@ -729,9 +699,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             - All role assignments in the specified scope are correctly retrieved.
             - Each assignment includes the subject, role, and scope information with permissions.
         """
-        role_assignments = get_all_subject_role_assignments_in_scope(
-            ScopeData(external_key=scope_name)
-        )
+        role_assignments = get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_name))
 
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:

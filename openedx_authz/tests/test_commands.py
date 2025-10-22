@@ -15,7 +15,6 @@ from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand
-from openedx_authz.tests.test_utils import make_scope_key
 
 
 @ddt
@@ -271,6 +270,7 @@ class EnforcementCommandTests(TestCase):
         self.assertIn(str(exception), output)
 
 
+# pylint: disable=protected-access
 class LoadPoliciesCommandTests(TestCase):
     """
     Tests for the `load_policies` Django management command.

@@ -5,14 +5,18 @@ including filtered loading, scope-based loading, and lifecycle management
 that would be used in production environments.
 """
 
+import time
+
 import casbin
 from ddt import data as ddt_data
 from ddt import ddt
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
 
 class PolicyLoadingTestSetupMixin(TestCase):
@@ -420,3 +424,99 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         total_count = len(global_enforcer.get_policy())
 
         self.assertEqual(total_count, lib_count + course_count + org_count)
+
+
+class TestAutoLoadPolicy(TransactionTestCase):
+    """Test cases for auto-load policy functionality.
+
+    Uses TransactionTestCase to avoid database locking issues with SQLite
+    when testing concurrent access patterns.
+    """
+
+    def setUp(self):
+        """Set up test environment."""
+        super().setUp()
+        AuthzEnforcer._enforcer = None  # pylint: disable=protected-access
+
+    def _seed_database_with_policies(self):
+        """Seed the database with policies from the policy file."""
+        global_enforcer = AuthzEnforcer.get_enforcer()
+        global_enforcer.clear_policy()
+
+        migrate_policy_between_enforcers(
+            source_enforcer=casbin.Enforcer(
+                "openedx_authz/engine/config/model.conf",
+                "openedx_authz/engine/config/authz.policy",
+            ),
+            target_enforcer=global_enforcer,
+        )
+        global_enforcer.clear_policy()
+
+    def _wait_for_auto_load(self) -> None:
+        """Wait for one auto-load cycle plus a small buffer.
+
+        This uses the configured interval plus a buffer to ensure
+        the auto-load has completed.
+        """
+        interval = settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL
+        # Add 50% buffer to ensure auto-load completes
+        time.sleep(interval * 1.5)
+
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0.5)
+    def test_auto_load_policy_detects_changes(self):
+        """Test that policy changes are automatically detected without manual reload.
+
+        This test verifies that the SyncedEnforcer's auto-load functionality
+        works correctly by:
+        1. Setting a short auto-load interval (0.5 seconds)
+        2. Seeding the database with policies
+        3. Waiting for auto-load to populate the enforcer
+        4. Adding a new policy via add_policy() (auto-saved to DB)
+        5. Waiting for auto-load to detect and load the change
+        6. Adding a role assignment via add_role_for_user_in_domain()
+        7. Verifying both changes appear without manual reload
+
+        Expected result:
+            - Seeded policies are automatically loaded from database
+            - New policies added via add_policy() appear after auto-load interval
+            - Role assignments added via add_role_for_user_in_domain() appear after auto-load interval
+            - No explicit load_policy() calls are needed
+        """
+        global_enforcer = AuthzEnforcer.get_enforcer()
+        self._seed_database_with_policies()
+
+        # Initial policy count should be 0
+        initial_policy_count = len(global_enforcer.get_policy())
+        self.assertEqual(initial_policy_count, 0)
+        self._wait_for_auto_load()
+
+        # After auto-load, the default policies should be loaded
+        policies_after_auto_load = global_enforcer.get_policy()
+        self.assertGreater(len(policies_after_auto_load), initial_policy_count)
+
+        # Add a new policy
+        new_policy = [
+            make_role_key("fake_role"),
+            make_action_key("fake_action"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ]
+        global_enforcer.add_policy(*new_policy)
+        self._wait_for_auto_load()
+
+        # After auto-load, the new policy should be loaded
+        policies_after_auto_load = global_enforcer.get_policy()
+        self.assertIn(new_policy, policies_after_auto_load)
+
+        # Add a new role assignment
+        new_assignment = [
+            make_user_key("fake_user"),
+            make_role_key("fake_role"),
+            make_scope_key("lib", "lib:FakeOrg:FAKELIB"),
+        ]
+        global_enforcer.add_role_for_user_in_domain(*new_assignment)
+        self._wait_for_auto_load()
+
+        # After auto-load, the new role assignment should be loaded
+        policies_after_auto_load = global_enforcer.get_grouping_policy()
+        self.assertIn(new_assignment, policies_after_auto_load)

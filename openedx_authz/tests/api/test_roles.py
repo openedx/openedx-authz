@@ -93,19 +93,8 @@ class BaseRolesTestCase(TestCase):
         to add their specific role assignments by calling _assign_roles_to_users.
         """
         super().setUpClass()
+        AuthzEnforcer.get_enforcer().stop_auto_load_policy()
         cls._seed_database_with_policies()
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up after all tests in the class.
-
-        Stops the auto-load policy thread to prevent database locking issues
-        with SQLite during concurrent access.
-        """
-        super().tearDownClass()
-        enforcer = AuthzEnforcer.get_enforcer()
-        if hasattr(enforcer, 'stop_auto_load_policy'):
-            enforcer.stop_auto_load_policy()
 
     def setUp(self):
         """Set up test environment."""

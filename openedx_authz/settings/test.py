@@ -69,7 +69,7 @@ ROOT_URLCONF = "openedx_authz.urls"
 
 # Casbin configuration
 CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
-CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
+CASBIN_AUTO_LOAD_POLICY_INTERVAL = 1
 CASBIN_WATCHER_ENABLED = False
 REDIS_HOST = "redis"
 REDIS_PORT = 6379

@@ -266,10 +266,9 @@ class EnforcementCommandTests(TestCase):
         with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
             call_command(self.command_name, stdout=self.buffer)
 
-        invalid_output = self.buffer.getvalue()
-        self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
-        self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(f"Example: alice read lib:Org1:LIB1 {make_scope_key('org', 'OpenedX')}", invalid_output)
+        output = self.buffer.getvalue()
+        self.assertIn("✗ Error processing request:", output)
+        self.assertIn(str(exception), output)
 
 
 class LoadPoliciesCommandTests(TestCase):

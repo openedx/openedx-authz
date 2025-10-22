@@ -95,6 +95,18 @@ class BaseRolesTestCase(TestCase):
         super().setUpClass()
         cls._seed_database_with_policies()
 
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up after all tests in the class.
+
+        Stops the auto-load policy thread to prevent database locking issues
+        with SQLite during concurrent access.
+        """
+        super().tearDownClass()
+        enforcer = AuthzEnforcer.get_enforcer()
+        if hasattr(enforcer, 'stop_auto_load_policy'):
+            enforcer.stop_auto_load_policy()
+
     def setUp(self):
         """Set up test environment."""
         super().setUp()

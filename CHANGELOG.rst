@@ -14,8 +14,20 @@ Change Log
 Unreleased
 **********
 
+*
+
+0.6.0 - 2025-10-22
+******************
+
+Changed
+=======
+
 * Use a SyncedEnforcer with default auto load policy.
 
+Removed
+=======
+
+* Remove Casbin Redis watcher from engine configuration.
 
 0.5.0 - 2025-10-21
 ******************

@@ -41,6 +41,7 @@ __all__ = [
     "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
     "get_scopes_for_subject_and_permission",
+    "unassign_subjects_from_all_roles",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -418,3 +419,18 @@ def get_scopes_for_subject_and_permission(
             if permission in role.permissions and role_assignment.scope not in scopes:
                 scopes.append(role_assignment.scope)
     return scopes
+    return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
+
+
+def unassign_subjects_from_all_roles(subject: SubjectData) -> bool:
+    """Unassign a subject from all roles across all scopes.
+
+    Args:
+        subject: The SubjectData object representing the subject to unassign.
+
+    Returns:
+        bool: True if any roles were removed, False otherwise.
+    """
+    enforcer = AuthzEnforcer.get_enforcer()
+    enforcer.load_policy()
+    return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)

@@ -22,6 +22,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
+    unassign_subjects_from_all_roles,
 )
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "is_user_allowed",
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
+    "unassign_all_roles_from_user",
 ]
 
 
@@ -223,3 +225,15 @@ def get_scopes_for_user_and_permission(
         UserData(external_key=user_external_key),
         PermissionData(action=ActionData(external_key=action_external_key)),
     )
+
+
+def unassign_all_roles_from_user(user_external_key: str) -> bool:
+    """Unassign all roles from a user across all scopes.
+
+    Args:
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+
+    Returns:
+        bool: True if any roles were removed, False otherwise.
+    """
+    return unassign_subjects_from_all_roles(UserData(external_key=user_external_key))

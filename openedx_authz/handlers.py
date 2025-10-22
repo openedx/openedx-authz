@@ -10,7 +10,13 @@ from casbin_adapter.models import CasbinRule
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
+from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.models.core import ExtendedCasbinRule
+
+try:
+    from openedx.core.djangoapps.user_api.accounts.signals import USER_RETIRE_LMS_CRITICAL
+except ImportError:
+    USER_RETIRE_LMS_CRITICAL = None
 
 logger = logging.getLogger(__name__)
 
@@ -48,3 +54,30 @@ def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):  #
             instance.casbin_rule_id,
             exc_info=exc,
         )
+
+
+def unassign_roles_on_user_retirement(sender, user, **kwargs):
+    """Unassign roles from a user when they are retired.
+
+    This handler is triggered when a user is retired in the LMS. It ensures that
+    any roles assigned to the user are removed, maintaining the integrity of the
+    authorization system.
+
+    Args:
+        sender: The model class (User).
+        user: The user instance being retired.
+        **kwargs: Additional keyword arguments from the signal.
+    """
+    try:
+        unassign_all_roles_from_user(user.username)
+    except Exception as exc:
+        logger.exception(
+            "Error unassigning roles from user %s during retirement",
+            user.id,
+            exc_info=exc,
+        )
+
+
+# Only register the handler if the signal is available (i.e., running in Open edX)
+if USER_RETIRE_LMS_CRITICAL is not None:
+    USER_RETIRE_LMS_CRITICAL.connect(unassign_roles_on_user_retirement)

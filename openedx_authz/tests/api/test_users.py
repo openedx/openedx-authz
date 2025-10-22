@@ -12,6 +12,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
     is_user_allowed,
+    unassign_all_roles_from_user,
     unassign_role_from_user,
 )
 from openedx_authz.constants import permissions, roles
@@ -228,6 +229,208 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:
             self.assertIn(assignment, expected_assignments)
+
+    @data(
+        # Test user with single role in single scope
+        ("alice", ["lib:Org1:math_101"], {"library_admin"}),
+        # Test user with multiple roles in different scopes
+        ("eve", ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
+         {"library_admin", "library_author", "library_user"}),
+        # Test user with same role in multiple scopes
+        ("liam", ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"], {"library_author"}),
+        # Test user with multiple different roles in multiple scopes
+        ("peter", ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
+         {"library_admin", "library_author", "library_contributor", "library_user"}),
+    )
+    @unpack
+    def test_unassign_all_roles_from_user_removes_all_assignments(
+        self, username, scopes, expected_roles_before
+    ):
+        """Test that unassign_all_roles_from_user removes all role assignments.
+
+        Expected result:
+            - Before unassignment: User has roles in specified scopes
+            - Function returns True indicating roles were removed
+            - After unassignment: User has no role assignments in any scope
+            - Querying role assignments returns empty list
+        """
+        # Verify the user has roles before unassignment
+        assignments_before = get_user_role_assignments(user_external_key=username)
+        self.assertGreater(len(assignments_before), 0)
+
+        # Verify roles are what we expect before removal
+        roles_before = {
+            r.external_key for assignment in assignments_before for r in assignment.roles
+        }
+        self.assertEqual(roles_before, expected_roles_before)
+
+        # Verify assignments exist in each expected scope
+        for scope_name in scopes:
+            scope_assignments = get_user_role_assignments_in_scope(
+                user_external_key=username, scope_external_key=scope_name
+            )
+            self.assertGreater(len(scope_assignments), 0)
+
+        # Unassign all roles from the user
+        result = unassign_all_roles_from_user(user_external_key=username)
+
+        # Verify the function returns True (indicating roles were removed)
+        self.assertTrue(result)
+
+        # Verify the user has no role assignments after unassignment
+        assignments_after = get_user_role_assignments(user_external_key=username)
+        self.assertEqual(len(assignments_after), 0)
+
+        # Verify no assignments in any of the previous scopes
+        for scope_name in scopes:
+            scope_assignments = get_user_role_assignments_in_scope(
+                user_external_key=username, scope_external_key=scope_name
+            )
+            self.assertEqual(len(scope_assignments), 0)
+
+    def test_unassign_all_roles_from_user_with_no_roles_returns_false(self):
+        """Test that unassigning a user with no roles returns False.
+
+        Expected result:
+            - Function returns False when user has no role assignments
+            - No errors occur when trying to unassign from non-existent user
+        """
+        non_existent_user = "user_with_no_roles"
+
+        # Verify the user has no roles
+        assignments_before = get_user_role_assignments(user_external_key=non_existent_user)
+        self.assertEqual(len(assignments_before), 0)
+
+        # Unassign all roles (should return False since there are none)
+        result = unassign_all_roles_from_user(user_external_key=non_existent_user)
+
+        # Verify the function returns False (no roles to remove)
+        self.assertFalse(result)
+
+        # Verify still no assignments after the operation
+        assignments_after = get_user_role_assignments(user_external_key=non_existent_user)
+        self.assertEqual(len(assignments_after), 0)
+
+    def test_unassign_all_roles_does_not_affect_other_users(self):
+        """Test that unassigning one user does not affect other users.
+
+        Expected result:
+            - When unassigning roles from one user, other users retain their roles
+            - Other users with the same roles in the same scopes are unaffected
+        """
+        # Use users that share the same scope
+        user_to_unassign = "grace"
+        other_user = "heidi"
+        shared_scope = "lib:Org1:math_advanced"
+
+        # Verify both users have roles in the shared scope before
+        grace_assignments_before = get_user_role_assignments_in_scope(
+            user_external_key=user_to_unassign, scope_external_key=shared_scope
+        )
+        heidi_assignments_before = get_user_role_assignments_in_scope(
+            user_external_key=other_user, scope_external_key=shared_scope
+        )
+
+        self.assertGreater(len(grace_assignments_before), 0)
+        self.assertGreater(len(heidi_assignments_before), 0)
+
+        # Unassign all roles from grace
+        result = unassign_all_roles_from_user(user_external_key=user_to_unassign)
+        self.assertTrue(result)
+
+        # Verify grace has no assignments after unassignment
+        grace_assignments_after = get_user_role_assignments(user_external_key=user_to_unassign)
+        self.assertEqual(len(grace_assignments_after), 0)
+
+        # Verify heidi still has her assignments
+        heidi_assignments_after = get_user_role_assignments_in_scope(
+            user_external_key=other_user, scope_external_key=shared_scope
+        )
+        self.assertEqual(len(heidi_assignments_after), len(heidi_assignments_before))
+
+        # Verify heidi still has the library_contributor role
+        heidi_roles = {
+            r.external_key
+            for assignment in heidi_assignments_after
+            for r in assignment.roles
+        }
+        self.assertIn("library_contributor", heidi_roles)
+
+    def test_unassign_and_reassign_user(self):
+        """Test that a user can be reassigned roles after being unassigned.
+
+        Expected result:
+            - User has roles initially
+            - After unassignment, user has no roles
+            - User can be assigned new roles
+            - Newly assigned roles work correctly
+        """
+        username = "bob"
+        new_scope = "lib:Org1:new_library"
+        new_role = "library_admin"
+
+        # Verify bob has roles initially
+        assignments_before = get_user_role_assignments(user_external_key=username)
+        self.assertGreater(len(assignments_before), 0)
+
+        # Unassign all roles
+        result = unassign_all_roles_from_user(user_external_key=username)
+        self.assertTrue(result)
+
+        # Verify no roles after unassignment
+        assignments_after_unassign = get_user_role_assignments(user_external_key=username)
+        self.assertEqual(len(assignments_after_unassign), 0)
+
+        # Assign a new role in a new scope
+        assign_result = assign_role_to_user_in_scope(
+            user_external_key=username,
+            role_external_key=new_role,
+            scope_external_key=new_scope
+        )
+        self.assertTrue(assign_result)
+
+        # Verify the new assignment works
+        new_assignments = get_user_role_assignments_in_scope(
+            user_external_key=username, scope_external_key=new_scope
+        )
+        self.assertEqual(len(new_assignments), 1)
+
+        new_roles = {
+            r.external_key for assignment in new_assignments for r in assignment.roles
+        }
+        self.assertIn(new_role, new_roles)
+
+    def test_unassign_all_roles_impacts_permissions(self):
+        """Test that unassigning all roles removes the user's permissions.
+
+        Expected result:
+            - User has permissions before unassignment
+            - After unassignment, user no longer has those permissions
+            - Permission checks return False after unassignment
+        """
+        username = "alice"
+        scope = "lib:Org1:math_101"
+        action = "delete_library"  # library_admin permission
+
+        # Verify alice has the permission before unassignment
+        has_permission_before = is_user_allowed(
+            user_external_key=username,
+            action_external_key=action,
+            scope_external_key=scope,
+        )
+        self.assertTrue(has_permission_before)
+
+        # Unassign all roles
+        result = unassign_all_roles_from_user(user_external_key=username)
+        self.assertTrue(result)
+
+        # Verify alice no longer has the permission
+        has_permission_after = is_user_allowed(
+            user_external_key=username,
+            action_external_key=action,
+            scope_external_key=scope,
+        )
+        self.assertFalse(has_permission_after)
 
 
 @ddt

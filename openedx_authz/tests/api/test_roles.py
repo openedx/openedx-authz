@@ -35,6 +35,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
+    unassign_subjects_from_all_roles,
 )
 from openedx_authz.constants import permissions, roles
 from openedx_authz.constants.roles import (
@@ -976,3 +977,171 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertIn(role_data.namespaced_key, extended_rule.casbin_rule_key)
         self.assertIn(subject_data.namespaced_key, extended_rule.casbin_rule_key)
         self.assertIn(scope_data.namespaced_key, extended_rule.casbin_rule_key)
+
+
+    @ddt_data(
+        # Test user with single role in single scope
+        ("alice", ["lib:Org1:math_101"], {"library_admin"}),
+        # Test user with multiple roles in different scopes
+        ("eve", ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
+         {"library_admin", "library_author", "library_user"}),
+        # Test user with same role in multiple scopes
+        ("liam", ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"], {"library_author"}),
+        # Test user with multiple different roles in multiple scopes
+        ("peter", ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
+         {"library_admin", "library_author", "library_contributor", "library_user"}),
+    )
+    @unpack
+    def test_unassign_subject_from_all_roles_removes_all_assignments(
+        self, subject_name, scopes, expected_roles_before
+    ):
+        """Test that unassign_subjects_from_all_roles removes all role assignments.
+
+        Expected result:
+            - Before unassignment: Subject has roles in specified scopes
+            - Function returns True indicating roles were removed
+            - After unassignment: Subject has no role assignments in any scope
+            - Querying role assignments returns empty list
+        """
+        subject = SubjectData(external_key=subject_name)
+
+        # Verify the subject has roles before unassignment
+        assignments_before = get_subject_role_assignments(subject)
+        self.assertGreater(len(assignments_before), 0)
+
+        # Verify roles are what we expect before removal
+        roles_before = {
+            r.external_key for assignment in assignments_before for r in assignment.roles
+        }
+        self.assertEqual(roles_before, expected_roles_before)
+
+        # Verify assignments exist in each expected scope
+        for scope_name in scopes:
+            scope_assignments = get_subject_role_assignments_in_scope(
+                subject, ScopeData(external_key=scope_name)
+            )
+            self.assertGreater(len(scope_assignments), 0)
+
+        # Unassign all roles from the subject
+        result = unassign_subjects_from_all_roles(subject)
+
+        # Verify the function returns True (indicating roles were removed)
+        self.assertTrue(result)
+
+        # Verify the subject has no role assignments after unassignment
+        assignments_after = get_subject_role_assignments(subject)
+        self.assertEqual(len(assignments_after), 0)
+
+        # Verify no assignments in any of the previous scopes
+        for scope_name in scopes:
+            scope_assignments = get_subject_role_assignments_in_scope(
+                subject, ScopeData(external_key=scope_name)
+            )
+            self.assertEqual(len(scope_assignments), 0)
+
+    def test_unassign_subject_with_no_roles_returns_false(self):
+        """Test that unassigning a subject with no roles returns False.
+
+        Expected result:
+            - Function returns False when subject has no role assignments
+            - No errors occur when trying to unassign from non-existent subject
+        """
+        non_existent_subject = SubjectData(external_key="user_with_no_roles")
+
+        # Verify the subject has no roles
+        assignments_before = get_subject_role_assignments(non_existent_subject)
+        self.assertEqual(len(assignments_before), 0)
+
+        # Unassign all roles (should return False since there are none)
+        result = unassign_subjects_from_all_roles(non_existent_subject)
+
+        # Verify the function returns False (no roles to remove)
+        self.assertFalse(result)
+
+        # Verify still no assignments after the operation
+        assignments_after = get_subject_role_assignments(non_existent_subject)
+        self.assertEqual(len(assignments_after), 0)
+
+    def test_unassign_subject_does_not_affect_other_subjects(self):
+        """Test that unassigning one subject does not affect other subjects.
+
+        Expected result:
+            - When unassigning roles from one subject, other subjects retain their roles
+            - Other subjects with the same roles in the same scopes are unaffected
+        """
+        # Use subjects that share the same scope
+        subject_to_unassign = SubjectData(external_key="grace")
+        other_subject = SubjectData(external_key="heidi")
+        shared_scope = ScopeData(external_key="lib:Org1:math_advanced")
+
+        # Verify both subjects have roles in the shared scope before
+        grace_assignments_before = get_subject_role_assignments_in_scope(
+            subject_to_unassign, shared_scope
+        )
+        heidi_assignments_before = get_subject_role_assignments_in_scope(
+            other_subject, shared_scope
+        )
+
+        self.assertGreater(len(grace_assignments_before), 0)
+        self.assertGreater(len(heidi_assignments_before), 0)
+
+        # Unassign all roles from grace
+        result = unassign_subjects_from_all_roles(subject_to_unassign)
+        self.assertTrue(result)
+
+        # Verify grace has no assignments after unassignment
+        grace_assignments_after = get_subject_role_assignments(subject_to_unassign)
+        self.assertEqual(len(grace_assignments_after), 0)
+
+        # Verify heidi still has her assignments
+        heidi_assignments_after = get_subject_role_assignments_in_scope(
+            other_subject, shared_scope
+        )
+        self.assertEqual(len(heidi_assignments_after), len(heidi_assignments_before))
+
+        # Verify heidi still has the library_contributor role
+        heidi_roles = {
+            r.external_key
+            for assignment in heidi_assignments_after
+            for r in assignment.roles
+        }
+        self.assertIn("library_contributor", heidi_roles)
+
+    def test_unassign_and_reassign_subject(self):
+        """Test that a subject can be reassigned roles after being unassigned.
+
+        Expected result:
+            - Subject has roles initially
+            - After unassignment, subject has no roles
+            - Subject can be assigned new roles
+            - Newly assigned roles work correctly
+        """
+        subject = SubjectData(external_key="bob")
+        original_scope = ScopeData(external_key="lib:Org1:history_201")
+        new_scope = ScopeData(external_key="lib:Org1:new_library")
+        new_role = RoleData(external_key="library_admin")
+
+        # Verify bob has roles initially
+        assignments_before = get_subject_role_assignments(subject)
+        self.assertGreater(len(assignments_before), 0)
+
+        # Unassign all roles
+        result = unassign_subjects_from_all_roles(subject)
+        self.assertTrue(result)
+
+        # Verify no roles after unassignment
+        assignments_after_unassign = get_subject_role_assignments(subject)
+        self.assertEqual(len(assignments_after_unassign), 0)
+
+        # Assign a new role in a new scope
+        assign_result = assign_role_to_subject_in_scope(subject, new_role, new_scope)
+        self.assertTrue(assign_result)
+
+        # Verify the new assignment works
+        new_assignments = get_subject_role_assignments_in_scope(subject, new_scope)
+        self.assertEqual(len(new_assignments), 1)
+
+        new_roles = {
+            r.external_key for assignment in new_assignments for r in assignment.roles
+        }
+        self.assertIn("library_admin", new_roles)

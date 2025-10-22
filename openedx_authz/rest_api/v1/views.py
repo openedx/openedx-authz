@@ -111,13 +111,7 @@ class PermissionValidationMeView(APIView):
                 action = perm["action"]
                 scope = perm["scope"]
                 allowed = api.is_user_allowed(username, action, scope)
-                response_data.append(
-                    {
-                        "action": action,
-                        "scope": scope,
-                        "allowed": allowed,
-                    }
-                )
+                response_data.append({"action": action, "scope": scope, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)

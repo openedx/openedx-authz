@@ -31,9 +31,7 @@ class ScopeManager(models.Manager):
         """
         namespace = scope_data.NAMESPACE
         if namespace not in Scope._registry:
-            raise ValueError(
-                f"No Scope subclass registered for namespace '{namespace}'"
-            )
+            raise ValueError(f"No Scope subclass registered for namespace '{namespace}'")
 
         scope_class = Scope._registry[namespace]
         return scope_class.get_or_create_for_external_key(scope_data)
@@ -59,9 +57,7 @@ class SubjectManager(models.Manager):
         """
         namespace = subject_data.NAMESPACE
         if namespace not in Subject._registry:
-            raise ValueError(
-                f"No Subject subclass registered for namespace '{namespace}'"
-            )
+            raise ValueError(f"No Subject subclass registered for namespace '{namespace}'")
 
         subject_class = Subject._registry[namespace]
         return subject_class.get_or_create_for_external_key(subject_data)

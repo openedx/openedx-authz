@@ -13,8 +13,9 @@ from django.test import TestCase
 from openedx_authz.models.core import ExtendedCasbinRule, Scope, Subject
 
 
-def create_casbin_rule_with_extended(ptype="p", v0="user^test_user", v1="role^instructor",
-                                      v2="lib^test:library", v3="allow", scope=None, subject=None):
+def create_casbin_rule_with_extended(
+    ptype="p", v0="user^test_user", v1="role^instructor", v2="lib^test:library", v3="allow", scope=None, subject=None
+):
     """
     Helper function to create a CasbinRule with an associated ExtendedCasbinRule.
 
@@ -105,9 +106,10 @@ class TestExtendedCasbinRuleDeletionSignalHandlers(TestCase):
             v2="lib^resilient",
         )
 
-        with patch('openedx_authz.handlers.logger') as mock_logger, patch(
-            'openedx_authz.handlers.CasbinRule.objects.filter'
-        ) as mock_filter:
+        with (
+            patch("openedx_authz.handlers.logger") as mock_logger,
+            patch("openedx_authz.handlers.CasbinRule.objects.filter") as mock_filter,
+        ):
             mock_filter.return_value.delete.side_effect = RuntimeError("delete failed")
 
             self.extended_rule.delete()

@@ -127,9 +127,7 @@ class ViewTestMixin(BaseRolesTestCase):
     def create_regular_users(cls, quantity: int):
         """Create regular users."""
         for i in range(1, quantity + 1):
-            User.objects.get_or_create(
-                username=f"regular_{i}", defaults={"email": f"regular_{i}@example.com"}
-            )
+            User.objects.get_or_create(username=f"regular_{i}", defaults={"email": f"regular_{i}@example.com"})
 
     @classmethod
     def create_admin_users(cls, quantity: int):
@@ -186,9 +184,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         ),
     )
     @unpack
-    def test_permission_validation_success(
-        self, request_data: list[dict], permission_map: list[bool]
-    ):
+    def test_permission_validation_success(self, request_data: list[dict], permission_map: list[bool]):
         """Test successful permission validation requests.
 
         Expected result:
@@ -284,9 +280,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         scope = "lib:Org1:LIB1"
         self.client.force_authenticate(user=None)
 
-        response = self.client.post(
-            self.url, data=[{"action": action, "scope": scope}], format="json"
-        )
+        response = self.client.post(self.url, data=[{"action": action, "scope": scope}], format="json")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -299,9 +293,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         (ValueError(), status.HTTP_400_BAD_REQUEST, "Invalid scope format"),
     )
     @unpack
-    def test_permission_validation_exception_handling(
-        self, exception: Exception, status_code: int, message: str
-    ):
+    def test_permission_validation_exception_handling(self, exception: Exception, status_code: int, message: str):
         """Test permission validation exception handling for different error types.
 
         Expected result:
@@ -469,9 +461,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         ),
     )
     @unpack
-    def test_add_users_to_role_success(
-        self, users: list[str], expected_completed: int, expected_errors: int
-    ):
+    def test_add_users_to_role_success(self, users: list[str], expected_completed: int, expected_errors: int):
         """Test adding users to a role within a scope.
 
         Expected result:
@@ -499,9 +489,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         (["admin_2", "regular_3", "regular_4"], 0, 3),
     )
     @unpack
-    def test_add_users_to_role_already_has_role(
-        self, users: list[str], expected_completed: int, expected_errors: int
-    ):
+    def test_add_users_to_role_already_has_role(self, users: list[str], expected_completed: int, expected_errors: int):
         """Test adding users to a role that already has the role."""
         role = roles.LIBRARY_USER.external_key
         scope = "lib:Org2:LIB2"
@@ -515,9 +503,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             self.assertEqual(len(response.data["errors"]), expected_errors)
 
     @patch.object(api, "assign_role_to_user_in_scope")
-    def test_add_users_to_role_exception_handling(
-        self, mock_assign_role_to_user_in_scope
-    ):
+    def test_add_users_to_role_exception_handling(self, mock_assign_role_to_user_in_scope):
         """Test adding users to a role with exception handling."""
         request_data = {
             "role": roles.LIBRARY_ADMIN.external_key,
@@ -626,9 +612,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         ),
     )
     @unpack
-    def test_remove_users_from_role_success(
-        self, users: list[str], expected_completed: int, expected_errors: int
-    ):
+    def test_remove_users_from_role_success(self, users: list[str], expected_completed: int, expected_errors: int):
         """Test removing users from a role within a scope.
 
         Expected result:
@@ -649,9 +633,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             self.assertEqual(len(response.data["errors"]), expected_errors)
 
     @patch.object(api, "unassign_role_from_user")
-    def test_remove_users_from_role_exception_handling(
-        self, mock_unassign_role_from_user
-    ):
+    def test_remove_users_from_role_exception_handling(self, mock_unassign_role_from_user):
         """Test removing users from a role with exception handling."""
         query_params = {
             "role": roles.LIBRARY_ADMIN.external_key,
@@ -817,9 +799,7 @@ class TestRoleListView(ViewTestMixin):
         ({"page": 1, "page_size": 4}, 4, False),
     )
     @unpack
-    def test_get_roles_pagination(
-        self, query_params: dict, expected_count: int, has_next: bool
-    ):
+    def test_get_roles_pagination(self, query_params: dict, expected_count: int, has_next: bool):
         """Test retrieving roles with pagination.
 
         Expected result:

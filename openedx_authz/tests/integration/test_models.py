@@ -90,8 +90,9 @@ def build_casbin_rule_key(ptype, v0, v1, v2, v3=""):
     """Compose the casbin rule key string consistently across tests."""
     return ",".join(str(component or "") for component in (ptype, v0, v1, v2, v3))
 
+
 @ddt
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestScopeModel(TestCase):
     """Test cases for the Scope model.
 
@@ -103,10 +104,8 @@ class TestScopeModel(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create library using the API helper (auto-generates unique slug)
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_get_or_create_for_external_key_creates_new(self):
@@ -124,9 +123,7 @@ class TestScopeModel(TestCase):
         self.assertIsNotNone(scope)
         self.assertIsInstance(scope, ContentLibraryScope)
         self.assertEqual(scope.content_library, self.content_library)
-        self.assertEqual(
-            Scope.objects.filter(contentlibraryscope__content_library=self.content_library).count(), 1
-        )
+        self.assertEqual(Scope.objects.filter(contentlibraryscope__content_library=self.content_library).count(), 1)
 
     def test_get_or_create_for_external_key_gets_existing(self):
         """Test that get_or_create_for_external_key retrieves existing Scope.
@@ -142,9 +139,7 @@ class TestScopeModel(TestCase):
         scope2 = Scope.objects.get_or_create_for_external_key(scope_data)
 
         self.assertEqual(scope1.id, scope2.id)
-        self.assertEqual(
-            ContentLibraryScope.objects.filter(content_library=self.content_library).count(), 1
-        )
+        self.assertEqual(ContentLibraryScope.objects.filter(content_library=self.content_library).count(), 1)
 
     def test_scope_can_be_created_without_content_library(self):
         """Test that Scope can be created without a content_library.
@@ -156,7 +151,7 @@ class TestScopeModel(TestCase):
         scope = Scope.objects.create()
 
         self.assertIsNotNone(scope)
-        self.assertIsNone(getattr(scope, 'content_library', None))
+        self.assertIsNone(getattr(scope, "content_library", None))
 
     def test_scope_cascade_deletion_when_content_library_deleted(self):
         """Test that Scope is deleted when its ContentLibrary is deleted.
@@ -175,7 +170,7 @@ class TestScopeModel(TestCase):
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestSubjectModel(TestCase):
     """Test cases for the Subject model.
 
@@ -231,7 +226,7 @@ class TestSubjectModel(TestCase):
         subject = Subject.objects.create()
 
         self.assertIsNotNone(subject)
-        self.assertIsNone(getattr(subject, 'user', None))
+        self.assertIsNone(getattr(subject, "user", None))
 
     def test_subject_cascade_deletion_when_user_deleted(self):
         """Test that Subject is deleted when its User is deleted.
@@ -250,7 +245,7 @@ class TestSubjectModel(TestCase):
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestPolymorphicBehavior(TestCase):
     """Test cases for polymorphic behavior of Scope and Subject models.
 
@@ -266,10 +261,8 @@ class TestPolymorphicBehavior(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
         self.scope_data = ContentLibraryData(external_key=str(self.library_key))
         self.subject_data = UserData(external_key=self.test_username)
@@ -281,7 +274,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'lib' namespace is present in registry
             - Registry maps 'lib' to ContentLibraryScope class
         """
-        self.assertEqual(Scope._registry.get('lib'), ContentLibraryScope)
+        self.assertEqual(Scope._registry.get("lib"), ContentLibraryScope)
 
     def test_subject_registry_contains_user_namespace(self):
         """Test that UserSubject is registered in Subject._registry.
@@ -290,7 +283,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'user' namespace is present in registry
             - Registry maps 'user' to UserSubject class
         """
-        self.assertEqual(Subject._registry.get('user'), UserSubject)
+        self.assertEqual(Subject._registry.get("user"), UserSubject)
 
     def test_scope_manager_dispatches_to_content_library_scope(self):
         """Test that Scope manager dispatches to ContentLibraryScope for 'lib' namespace.
@@ -305,7 +298,7 @@ class TestPolymorphicBehavior(TestCase):
         scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
         self.assertIsInstance(scope, ContentLibraryScope)
-        self.assertTrue(hasattr(scope, 'content_library'))
+        self.assertTrue(hasattr(scope, "content_library"))
         self.assertEqual(scope.content_library, self.content_library)
 
     def test_subject_manager_dispatches_to_user_subject(self):
@@ -321,7 +314,7 @@ class TestPolymorphicBehavior(TestCase):
         subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         self.assertIsInstance(subject, UserSubject)
-        self.assertTrue(hasattr(subject, 'user'))
+        self.assertTrue(hasattr(subject, "user"))
         self.assertEqual(subject.user, self.test_user)
 
     def test_scope_manager_raises_error_for_unregistered_namespace(self):
@@ -350,6 +343,7 @@ class TestPolymorphicBehavior(TestCase):
             - ValueError is raised when namespace not in registry
             - Error message indicates the unknown namespace
         """
+
         class UnregisteredSubjectData(SubjectData):
             NAMESPACE = "unregistered"
 
@@ -374,7 +368,7 @@ class TestPolymorphicBehavior(TestCase):
         plain_scope = Scope.objects.create()
 
         all_scopes = Scope.objects.all()
-        all_scope_ids = set(all_scopes.values_list('id', flat=True))
+        all_scope_ids = set(all_scopes.values_list("id", flat=True))
 
         self.assertEqual(all_scopes.count(), 2)
         self.assertIn(content_library_scope.id, all_scope_ids)
@@ -396,7 +390,7 @@ class TestPolymorphicBehavior(TestCase):
         user_subject = Subject.objects.get_or_create_for_external_key(subject_data)
         plain_subject = Subject.objects.create()
         all_subjects = Subject.objects.all()
-        all_subject_ids = set(all_subjects.values_list('id', flat=True))
+        all_subject_ids = set(all_subjects.values_list("id", flat=True))
 
         self.assertEqual(all_subjects.count(), 2)
         self.assertIn(user_subject.id, all_subject_ids)
@@ -448,7 +442,7 @@ class TestPolymorphicBehavior(TestCase):
             - ContentLibraryScope.NAMESPACE is 'lib'
             - Base Scope.NAMESPACE is None
         """
-        self.assertEqual(ContentLibraryScope.NAMESPACE, 'lib')
+        self.assertEqual(ContentLibraryScope.NAMESPACE, "lib")
         self.assertIsNone(Scope.NAMESPACE)
 
     def test_subject_namespace_class_variable_is_set(self):
@@ -458,12 +452,12 @@ class TestPolymorphicBehavior(TestCase):
             - UserSubject.NAMESPACE is 'user'
             - Base Subject.NAMESPACE is None
         """
-        self.assertEqual(UserSubject.NAMESPACE, 'user')
+        self.assertEqual(UserSubject.NAMESPACE, "user")
         self.assertIsNone(Subject.NAMESPACE)
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestExtendedCasbinRuleModel(TestCase):
     """Test cases for the ExtendedCasbinRule model."""
 
@@ -472,10 +466,8 @@ class TestExtendedCasbinRuleModel(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
         self.casbin_rule = CasbinRule.objects.create(
@@ -531,9 +523,7 @@ class TestExtendedCasbinRuleModel(TestCase):
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
 
-        ExtendedCasbinRule.objects.create(
-            casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule
-        )
+        ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
 
         casbin_rule2 = CasbinRule.objects.create(
             ptype="p",
@@ -544,9 +534,7 @@ class TestExtendedCasbinRuleModel(TestCase):
         )
 
         with self.assertRaises(IntegrityError):
-            ExtendedCasbinRule.objects.create(
-                casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule2
-            )
+            ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule2)
 
     def test_extended_casbin_rule_cascade_deletion_when_casbin_rule_deleted(self):
         """Deleting the CasbinRule should cascade through the one-to-one link to ExtendedCasbinRule.
@@ -556,16 +544,12 @@ class TestExtendedCasbinRuleModel(TestCase):
         - Removing the CasbinRule eliminates the ExtendedCasbinRule via database cascade.
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
-        extended_rule = ExtendedCasbinRule.objects.create(
-            casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule
-        )
+        extended_rule = ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
         extended_rule_id = extended_rule.id
 
         self.casbin_rule.delete()
 
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
 
     def test_extended_casbin_rule_cascade_deletion_when_scope_deleted(self):
         """Deleting a Scope should cascade to ExtendedCasbinRule and trigger the handler cleanup.
@@ -587,9 +571,7 @@ class TestExtendedCasbinRuleModel(TestCase):
 
         self.scope.delete()
 
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Scope.objects.filter(id=scope_id).exists())
 
@@ -613,9 +595,7 @@ class TestExtendedCasbinRuleModel(TestCase):
 
         self.subject.delete()
 
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Subject.objects.filter(id=subject_id).exists())
 
@@ -646,9 +626,7 @@ class TestExtendedCasbinRuleModel(TestCase):
 
         retrieved_rule = ExtendedCasbinRule.objects.get(id=extended_rule.id)
 
-        self.assertEqual(
-            retrieved_rule.metadata["tags"], ["test", "instructor", "library"]
-        )
+        self.assertEqual(retrieved_rule.metadata["tags"], ["test", "instructor", "library"])
         self.assertEqual(retrieved_rule.metadata["config"]["enabled"], True)
         self.assertEqual(retrieved_rule.metadata["config"]["priority"], 10)
         self.assertEqual(retrieved_rule.metadata["audit"]["created_by"], "system")
@@ -661,9 +639,7 @@ class TestExtendedCasbinRuleModel(TestCase):
             - Plural verbose name is correct
         """
         self.assertEqual(ExtendedCasbinRule._meta.verbose_name, "Extended Casbin Rule")
-        self.assertEqual(
-            ExtendedCasbinRule._meta.verbose_name_plural, "Extended Casbin Rules"
-        )
+        self.assertEqual(ExtendedCasbinRule._meta.verbose_name_plural, "Extended Casbin Rules")
 
     def test_extended_casbin_rule_can_be_created_without_optional_fields(self):
         """Test that ExtendedCasbinRule can be created with only required fields.
@@ -681,9 +657,7 @@ class TestExtendedCasbinRuleModel(TestCase):
             v3="allow",
         )
 
-        extended_rule = ExtendedCasbinRule.objects.create(
-            casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule2
-        )
+        extended_rule = ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=casbin_rule2)
 
         self.assertIsNotNone(extended_rule)
         self.assertIsNone(extended_rule.description)
@@ -693,7 +667,7 @@ class TestExtendedCasbinRuleModel(TestCase):
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
     """Test cases for ExtendedCasbinRule.create_based_on_policy method.
 
@@ -707,10 +681,8 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         self.test_user = User.objects.create_user(username=self.test_username)
 
         # Create library using the API helper (auto-generates unique slug)
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_create_based_on_policy_generates_correct_casbin_rule_key(self):
@@ -796,7 +768,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestModelRelationships(TestCase):
     """Test cases for model relationships and related_name attributes."""
 
@@ -808,10 +780,8 @@ class TestModelRelationships(TestCase):
         self.subject = Subject.objects.get_or_create_for_external_key(subject_data)
 
         # Create library using the API helper (auto-generates unique slug)
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
         self.casbin_rule = CasbinRule.objects.create(
@@ -875,9 +845,7 @@ class TestModelRelationships(TestCase):
             - Related ExtendedCasbinRule matches the created rule
         """
         casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
-        extended_rule = ExtendedCasbinRule.objects.create(
-            casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule
-        )
+        extended_rule = ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
 
         self.assertEqual(self.casbin_rule.extended_rule, extended_rule)
 
@@ -896,7 +864,7 @@ class TestModelRelationships(TestCase):
 
 
 @pytest.mark.integration
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL='content_libraries.ContentLibrary')
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestModelCascadeDeletionChain(TestCase):
     """Test cases for cascade deletion chains across multiple models."""
 
@@ -905,10 +873,8 @@ class TestModelCascadeDeletionChain(TestCase):
         self.test_username = "test_user"
         self.test_user = User.objects.create_user(username=self.test_username)
 
-        self.library_metadata, self.library_key, self.content_library = (
-            create_test_library(
-                org_short_name="TestOrg",
-            )
+        self.library_metadata, self.library_key, self.content_library = create_test_library(
+            org_short_name="TestOrg",
         )
 
     def test_content_library_deletion_cascades_to_extended_casbin_rules(self):
@@ -940,9 +906,7 @@ class TestModelCascadeDeletionChain(TestCase):
         self.content_library.delete()
 
         self.assertFalse(Scope.objects.filter(id=scope.id).exists())
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
 
     def test_user_deletion_cascades_to_extended_casbin_rules(self):
@@ -974,9 +938,7 @@ class TestModelCascadeDeletionChain(TestCase):
         self.test_user.delete()
 
         self.assertFalse(Subject.objects.filter(id=subject.id).exists())
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
 
     def test_complete_cascade_deletion_chain(self):
@@ -1014,15 +976,11 @@ class TestModelCascadeDeletionChain(TestCase):
 
         casbin_rule.delete()
 
-        self.assertFalse(
-            ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists()
-        )
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertTrue(Subject.objects.filter(id=subject.id).exists())
         self.assertTrue(Scope.objects.filter(id=scope.id).exists())
         self.assertTrue(User.objects.filter(id=self.test_user.id).exists())
-        self.assertTrue(
-            ContentLibrary.objects.filter(id=self.content_library.id).exists()
-        )
+        self.assertTrue(ContentLibrary.objects.filter(id=self.content_library.id).exists())
 
     def test_library_deletion_via_api_cascades_to_authorization_system(self):
         """Test that deleting a library via API cascades through entire authorization chain.
@@ -1048,8 +1006,7 @@ class TestModelCascadeDeletionChain(TestCase):
         # Create or get a user and assign them the instructor role in this library's scope
         test_username = "test_instructor_lib_del"
         test_user, _ = User.objects.get_or_create(
-            username=test_username,
-            defaults={"email": f"{test_username}@example.com"}
+            username=test_username, defaults={"email": f"{test_username}@example.com"}
         )
 
         subject_data = UserData(external_key=test_username)

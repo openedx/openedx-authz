@@ -4,6 +4,7 @@ These models extend the base Scope model to represent content library scopes,
 which are used to define permissions and roles related to content libraries
 within the Open edX platform.
 """
+
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model

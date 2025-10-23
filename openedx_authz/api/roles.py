@@ -198,7 +198,7 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
         bool: True if the role was assigned successfully, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    enforcer.load_policy()
+    adapter = AuthzEnforcer.get_adapter()
 
     with transaction.atomic():
         role_assignment = enforcer.add_role_for_user_in_domain(
@@ -212,7 +212,7 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
             subject,
             role,
             scope,
-            enforcer
+            adapter,
         )
         if not extended_rule:
             raise Exception("Failed to create ExtendedCasbinRule for the assignment")

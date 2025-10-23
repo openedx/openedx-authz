@@ -71,3 +71,6 @@ ROOT_URLCONF = "openedx_authz.urls"
 # Casbin configuration
 CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 CASBIN_AUTO_LOAD_POLICY_INTERVAL = 0
+
+# Use stub model for testing instead of the real content_libraries app
+OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "stubs.ContentLibrary"

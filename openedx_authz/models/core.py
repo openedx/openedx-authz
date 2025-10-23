@@ -172,7 +172,7 @@ class ExtendedCasbinRule(models.Model):
         subject,
         role,
         scope,
-        enforcer,
+        adapter,
     ):
         """Helper method to create an ExtendedCasbinRule based on policy components.
 
@@ -180,12 +180,12 @@ class ExtendedCasbinRule(models.Model):
             subject: SubjectData object with namespaced_key and external_key
             role: RoleData object with namespaced_key and external_key
             scope: ScopeData object with namespaced_key and external_key
-            enforcer: The Casbin enforcer instance.
+            adapter: The Casbin adapter instance.
 
         Returns:
             ExtendedCasbinRule: The created ExtendedCasbinRule instance.
         """
-        casbin_rule = enforcer.adapter.query_policy(
+        casbin_rule = adapter.query_policy(
             Filter(
                 ptype=["g"],
                 v0=[subject.namespaced_key],

@@ -9,6 +9,7 @@ internally to manage the underlying policies and role assignments.
 """
 
 from collections import defaultdict
+
 from django.db import transaction
 
 from openedx_authz.api.data import (

@@ -59,8 +59,8 @@ quality: ## check coding style with pycodestyle and pylint
 	tox -e quality
 
 format: ## format code with black and isort. Enable ruff to fix E (pycodestyle) and I (isort) issues
-	ruff format openedx_authz tests test_utils manage.py setup.py
-	ruff check --fix openedx_authz tests test_utils manage.py setup.py
+	ruff format openedx_authz tests manage.py setup.py
+	ruff check --fix openedx_authz tests manage.py setup.py
 
 pii_check: ## check for PII annotations on all Django models
 	tox -e pii_check

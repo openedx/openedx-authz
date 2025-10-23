@@ -520,3 +520,61 @@ class TestAutoLoadPolicy(TransactionTestCase):
         # After auto-load, the new role assignment should be loaded
         policies_after_auto_load = global_enforcer.get_grouping_policy()
         self.assertIn(new_assignment, policies_after_auto_load)
+
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=-1)
+    def test_auto_load_disabled(self):
+        """Test that auto-load can be disabled by setting interval to -1.
+
+        This test verifies that when CASBIN_AUTO_LOAD_POLICY_INTERVAL is set to -1,
+        the enforcer does NOT automatically load policies from the database.
+
+        Expected result:
+            - Policies remain empty after seeding database
+            - Manual load_policy() is required to load policies
+            - New policies don't appear without manual reload
+        """
+        global_enforcer = AuthzEnforcer.get_enforcer()
+        self._seed_database_with_policies()
+
+        # Initial policy count should be 0
+        initial_policy_count = len(global_enforcer.get_policy())
+        self.assertEqual(initial_policy_count, 0)
+
+        # Wait a bit to ensure auto-load would have occurred if enabled
+        time.sleep(1.0)
+
+        # Policies should still be empty since auto-load is disabled
+        policies_after_wait = global_enforcer.get_policy()
+        self.assertEqual(len(policies_after_wait), 0)
+
+        # Manually load policies
+        global_enforcer.load_policy()
+        policies_after_manual_load = global_enforcer.get_policy()
+        self.assertGreater(len(policies_after_manual_load), 0)
+
+        # Add a new policy (which gets auto-saved to DB)
+        new_policy = [
+            make_role_key("fake_role"),
+            make_action_key("fake_action"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ]
+        global_enforcer.add_policy(*new_policy)
+
+        # Wait to ensure auto-load would have occurred if enabled
+        time.sleep(1.0)
+
+        # Clear the in-memory policies to simulate a fresh state
+        policy_count_before_clear = len(global_enforcer.get_policy())
+        global_enforcer.clear_policy()
+
+        # Wait again - auto-load should NOT reload policies
+        time.sleep(1.0)
+        policies_after_clear = global_enforcer.get_policy()
+        self.assertEqual(len(policies_after_clear), 0)
+
+        # Manually reload to verify the new policy was saved to DB
+        global_enforcer.load_policy()
+        policies_after_reload = global_enforcer.get_policy()
+        self.assertEqual(len(policies_after_reload), policy_count_before_clear)
+        self.assertIn(new_policy, policies_after_reload)

@@ -549,6 +549,7 @@ class SubjectData(AuthZData, metaclass=SubjectMeta):
 
     subject_id: int = None  # Optional field to link to actual subject instance
 
+
 @define
 class UserData(SubjectData):
     """A user subject for authorization in the Open edX platform.

@@ -147,9 +147,7 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key(
-                "course", "course-v1:any-org+any-course+any-course-run"
-            ),
+            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
             "expected_result": True,
         },
         {
@@ -373,9 +371,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-5"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key(
-                "course", "course-v1:any-org+any-course+any-course-run"
-            ),
+            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
             "expected_result": True,
         },
         {

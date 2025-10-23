@@ -146,9 +146,7 @@ class EnforcementCommandTests(TestCase):
 
         self.assertEqual(f"Policy file not found: {non_existent_policy}", str(ctx.exception))
 
-    @patch.object(
-        EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf"
-    )
+    @patch.object(EnforcementCommand, "_get_file_path", return_value="invalid/path/model.conf")
     def test_model_file_not_found_raises(self, mock_get_file_path: Mock):
         """Test that command errors when the provided model file does not exist."""
         non_existent_model = "invalid/path/model.conf"
@@ -164,9 +162,7 @@ class EnforcementCommandTests(TestCase):
 
     @patch("openedx_authz.management.commands.enforcement.casbin.Enforcer")
     @patch.object(EnforcementCommand, "_run_interactive_mode")
-    def test_successful_run_prints_summary(
-        self, mock_run_interactive: Mock, mock_enforcer_cls: Mock
-    ):
+    def test_successful_run_prints_summary(self, mock_run_interactive: Mock, mock_enforcer_cls: Mock):
         """
         Test successful command execution with policy file and interactive mode.
         When files exist, command should create enforcer, print counts, and call interactive loop.
@@ -340,9 +336,7 @@ class EnforcementCommandTests(TestCase):
         invalid_output = self.buffer.getvalue()
         self.assertIn("✗ Invalid format. Expected 3 parts, got 2", invalid_output)
         self.assertIn("Format: subject action scope", invalid_output)
-        self.assertIn(
-            f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output
-        )
+        self.assertIn(f"Example: {user_input} {make_scope_key('org', 'OpenedX')}", invalid_output)
 
     @data(ValueError(), IndexError(), TypeError())
     def test_interactive_request_error(self, exception: Exception):

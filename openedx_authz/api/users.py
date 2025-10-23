@@ -21,7 +21,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_in_scope,
     get_subjects_for_role,
     unassign_role_from_subject_in_scope,
-    unassign_subjects_from_all_roles,
+    unassign_subject_from_all_roles,
 )
 
 __all__ = [
@@ -211,4 +211,4 @@ def unassign_all_roles_from_user(user_external_key: str) -> bool:
     Returns:
         bool: True if any roles were removed, False otherwise.
     """
-    return unassign_subjects_from_all_roles(UserData(external_key=user_external_key))
+    return unassign_subject_from_all_roles(UserData(external_key=user_external_key))

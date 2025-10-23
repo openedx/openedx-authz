@@ -40,7 +40,7 @@ __all__ = [
     "get_subject_role_assignments_for_role_in_scope",
     "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
-    "unassign_subjects_from_all_roles",
+    "unassign_subject_from_all_roles",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -393,7 +393,7 @@ def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
     return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
 
 
-def unassign_subjects_from_all_roles(subject: SubjectData) -> bool:
+def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
     """Unassign a subject from all roles across all scopes.
 
     Args:

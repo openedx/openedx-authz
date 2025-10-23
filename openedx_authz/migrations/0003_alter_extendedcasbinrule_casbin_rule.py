@@ -5,16 +5,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('casbin_adapter', '0001_initial'),
-        ('openedx_authz', '0002_alter_contentlibraryscope_scope_ptr'),
+        ("casbin_adapter", "0001_initial"),
+        ("openedx_authz", "0002_alter_contentlibraryscope_scope_ptr"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='extendedcasbinrule',
-            name='casbin_rule',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='extended_rule', to='casbin_adapter.casbinrule'),
+            model_name="extendedcasbinrule",
+            name="casbin_rule",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="extended_rule",
+                to="casbin_adapter.casbinrule",
+            ),
         ),
     ]

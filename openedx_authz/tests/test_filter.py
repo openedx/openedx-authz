@@ -170,9 +170,7 @@ class TestFilter(unittest.TestCase):
 
     def test_filter_wildcard_resources(self):
         """Test filter for wildcard resource patterns."""
-        f = Filter(
-            ptype=["p"], v2=[make_scope_key("lib", "*"), make_scope_key("course", "*")]
-        )
+        f = Filter(ptype=["p"], v2=[make_scope_key("lib", "*"), make_scope_key("course", "*")])
         self.assertEqual(f.ptype, ["p"])
         self.assertIn(make_scope_key("lib", "*"), f.v2)
         self.assertIn(make_scope_key("course", "*"), f.v2)

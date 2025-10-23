@@ -317,9 +317,7 @@ class TestScopeMetaClass(TestCase):
         """
         scope = ScopeData(external_key="sc:generic_scope")
 
-        expected_namespaced = (
-            f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
-        )
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
 
         self.assertIsInstance(scope, ScopeData)
         self.assertEqual(scope.external_key, "sc:generic_scope")
@@ -442,9 +440,7 @@ class TestDataRepresentation(TestCase):
         action2 = ActionData(external_key="write")
         permission1 = PermissionData(action=action1, effect="allow")
         permission2 = PermissionData(action=action2, effect="deny")
-        role = RoleData(
-            external_key="instructor", permissions=[permission1, permission2]
-        )
+        role = RoleData(external_key="instructor", permissions=[permission1, permission2])
 
         actual_str = str(role)
 

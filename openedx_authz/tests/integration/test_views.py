@@ -1,6 +1,5 @@
 """Integration tests for openedx_authz views."""
 
-
 import os
 import uuid
 from urllib.parse import urlencode
@@ -56,21 +55,15 @@ class TestRoleAssignmentView(TestCase):
 
         # Create random users to avoid conflicts in persistent database
         unique_id = uuid.uuid4().hex[:8]
-        self.user = User.objects.create_user(
-            username=f"test_user_{unique_id}",
-            email=f"test_{unique_id}@example.com"
-        )
+        self.user = User.objects.create_user(username=f"test_user_{unique_id}", email=f"test_{unique_id}@example.com")
         self.admin_user = User.objects.create_user(
-            username=f"admin_user_{unique_id}",
-            email=f"admin_{unique_id}@example.com",
-            is_staff=True,
-            is_superuser=True
+            username=f"admin_user_{unique_id}", email=f"admin_{unique_id}@example.com", is_staff=True, is_superuser=True
         )
 
         assign_role_to_user_in_scope(
             user_external_key=self.admin_user.username,
             role_external_key=self.role_key,
-            scope_external_key=str(self.library_key)
+            scope_external_key=str(self.library_key),
         )
         self.client.force_authenticate(user=self.admin_user)
 
@@ -87,7 +80,7 @@ class TestRoleAssignmentView(TestCase):
             "scope": str(self.library_key),
         }
 
-        response = self.client.put(self.url, payload, format='json')
+        response = self.client.put(self.url, payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
         self.assertEqual(len(response.data["completed"]), 1)
@@ -112,7 +105,7 @@ class TestRoleAssignmentView(TestCase):
             "role": self.role_key,
             "scope": str(self.library_key),
         }
-        create_response = self.client.put(self.url, payload, format='json')
+        create_response = self.client.put(self.url, payload, format="json")
         self.assertEqual(create_response.status_code, status.HTTP_207_MULTI_STATUS)
         self.assertEqual(len(create_response.data["completed"]), 1)
 

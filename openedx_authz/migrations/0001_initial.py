@@ -6,85 +6,139 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-            ('casbin_adapter', '0001_initial'),
-            migrations.swappable_dependency(
-                getattr(
-                    settings,
-                    "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL",
-                    "content_libraries.ContentLibrary",
-                )
-            ),
-            migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ]
+        ("casbin_adapter", "0001_initial"),
+        migrations.swappable_dependency(
+            getattr(
+                settings,
+                "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL",
+                "content_libraries.ContentLibrary",
+            )
+        ),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
 
     operations = [
         migrations.CreateModel(
-            name='Scope',
+            name="Scope",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Subject',
+            name="Subject",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ExtendedCasbinRule',
+            name="ExtendedCasbinRule",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('casbin_rule_key', models.CharField(max_length=255, unique=True)),
-                ('description', models.TextField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('metadata', models.JSONField(blank=True, null=True)),
-                ('casbin_rule', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='extended_rule', to='casbin_adapter.casbinrule')),
-                ('scope', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.scope')),
-                ('subject', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='casbin_rules', to='openedx_authz.subject')),
-            ],
-            options={
-                'verbose_name': 'Extended Casbin Rule',
-                'verbose_name_plural': 'Extended Casbin Rules',
-            },
-        ),
-        migrations.CreateModel(
-            name='ContentLibraryScope',
-            fields=[
-                ('scope_ptr', models.OneToOneField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID', to='openedx_authz.scope', parent_link=True, on_delete=django.db.models.deletion.CASCADE)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("casbin_rule_key", models.CharField(max_length=255, unique=True)),
+                ("description", models.TextField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("metadata", models.JSONField(blank=True, null=True)),
                 (
-                    'content_library',
+                    "casbin_rule",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="extended_rule",
+                        to="casbin_adapter.casbinrule",
+                    ),
+                ),
+                (
+                    "scope",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='authz_scopes',
+                        related_name="casbin_rules",
+                        to="openedx_authz.scope",
+                    ),
+                ),
+                (
+                    "subject",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="casbin_rules",
+                        to="openedx_authz.subject",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "Extended Casbin Rule",
+                "verbose_name_plural": "Extended Casbin Rules",
+            },
+        ),
+        migrations.CreateModel(
+            name="ContentLibraryScope",
+            fields=[
+                (
+                    "scope_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                        to="openedx_authz.scope",
+                        parent_link=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                    ),
+                ),
+                (
+                    "content_library",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="authz_scopes",
                         to=getattr(
                             settings,
-                            'OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL',
-                            'content_libraries.ContentLibrary',
+                            "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL",
+                            "content_libraries.ContentLibrary",
                         ),
                     ),
                 ),
             ],
-            bases=('openedx_authz.scope',),
+            bases=("openedx_authz.scope",),
         ),
         migrations.CreateModel(
-            name='UserSubject',
+            name="UserSubject",
             fields=[
-                ('subject_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='openedx_authz.subject')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='authz_subjects', to=settings.AUTH_USER_MODEL)),
+                (
+                    "subject_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="openedx_authz.subject",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="authz_subjects",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
-            bases=('openedx_authz.subject',),
+            bases=("openedx_authz.subject",),
         ),
     ]

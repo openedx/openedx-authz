@@ -35,7 +35,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
-    unassign_subjects_from_all_roles,
+    unassign_subject_from_all_roles,
 )
 from openedx_authz.constants import permissions, roles
 from openedx_authz.constants.roles import (
@@ -995,7 +995,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     def test_unassign_subject_from_all_roles_removes_all_assignments(
         self, subject_name, scopes, expected_roles_before
     ):
-        """Test that unassign_subjects_from_all_roles removes all role assignments.
+        """Test that unassign_subject_from_all_roles removes all role assignments.
 
         Expected result:
             - Before unassignment: Subject has roles in specified scopes
@@ -1023,7 +1023,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             self.assertGreater(len(scope_assignments), 0)
 
         # Unassign all roles from the subject
-        result = unassign_subjects_from_all_roles(subject)
+        result = unassign_subject_from_all_roles(subject)
 
         # Verify the function returns True (indicating roles were removed)
         self.assertTrue(result)
@@ -1053,7 +1053,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertEqual(len(assignments_before), 0)
 
         # Unassign all roles (should return False since there are none)
-        result = unassign_subjects_from_all_roles(non_existent_subject)
+        result = unassign_subject_from_all_roles(non_existent_subject)
 
         # Verify the function returns False (no roles to remove)
         self.assertFalse(result)
@@ -1086,7 +1086,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertGreater(len(heidi_assignments_before), 0)
 
         # Unassign all roles from grace
-        result = unassign_subjects_from_all_roles(subject_to_unassign)
+        result = unassign_subject_from_all_roles(subject_to_unassign)
         self.assertTrue(result)
 
         # Verify grace has no assignments after unassignment
@@ -1126,7 +1126,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertGreater(len(assignments_before), 0)
 
         # Unassign all roles
-        result = unassign_subjects_from_all_roles(subject)
+        result = unassign_subject_from_all_roles(subject)
         self.assertTrue(result)
 
         # Verify no roles after unassignment

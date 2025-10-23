@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.7.0 - 2025-10-23
+******************
+
+Added
+=====
+
+* Initial migration to establish dependency on casbin_adapter for automatic CasbinRule table creation.
+
 0.6.0 - 2025-10-22
 ******************
 

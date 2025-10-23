@@ -15,6 +15,7 @@ Unreleased
 **********
 
 * Migrate from using pycodestyle and isort to ruff for code quality checks and formatting.
+* Enhance enforcement command with dual operational modes (database and file mode).
 
 0.7.0 - 2025-10-23
 ******************

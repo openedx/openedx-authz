@@ -14,7 +14,7 @@ Change Log
 Unreleased
 **********
 
-*
+* Migrate from using pycodestyle and isort to ruff for code quality checks and formatting.
 
 0.6.0 - 2025-10-22
 ******************

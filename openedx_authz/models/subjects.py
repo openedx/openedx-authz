@@ -20,7 +20,10 @@ User = get_user_model()
 
 
 class UserSubject(Subject):
-    """Subject representing a user in the authorization system."""
+    """Subject representing a user in the authorization system.
+
+    .. no_pii:
+    """
 
     NAMESPACE = "user"
 

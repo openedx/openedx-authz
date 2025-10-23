@@ -23,7 +23,10 @@ class ContentLibraryManager(models.Manager):
 
 
 class ContentLibrary(models.Model):
-    """Stub model representing a content library for testing purposes."""
+    """Stub model representing a content library for testing purposes.
+
+    .. no_pii:
+    """
 
     locator = models.CharField(max_length=255, unique=True, db_index=True)
     title = models.CharField(max_length=255, blank=True, null=True)

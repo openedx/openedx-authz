@@ -67,6 +67,8 @@ class SubjectManager(models.Manager):
 class Scope(models.Model):
     """Model representing a scope in the authorization system.
 
+    .. no_pii:
+
     This model can be extended to represent different types of scopes,
     such as courses or content libraries.
 
@@ -93,6 +95,8 @@ class Scope(models.Model):
 class Subject(models.Model):
     """Model representing a subject in the authorization system.
 
+    .. no_pii:
+
     This model can be extended to represent different types of subjects,
     such as users or groups.
 
@@ -118,6 +122,8 @@ class Subject(models.Model):
 
 class ExtendedCasbinRule(models.Model):
     """Extended model for Casbin rules to store additional metadata.
+
+    .. no_pii:
 
     This model extends the CasbinRule model provided by the casbin_adapter
     package to include additional fields for storing metadata about each rule.

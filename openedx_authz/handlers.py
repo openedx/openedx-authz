@@ -19,6 +19,7 @@ def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):
     """Delete the companion CasbinRule after its ExtendedCasbinRule disappears.
 
     The handler keeps authorization data symmetric with three common flows:
+
     - Direct ExtendedCasbinRule deletes (API/UI) trigger removal of the linked CasbinRule.
     - Cascades from `Scope` or `Subject` deletions clear their ExtendedCasbinRule rows and,
       via this handler, the matching CasbinRule entries.

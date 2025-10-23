@@ -39,7 +39,10 @@ ContentLibrary = get_content_library_model()
 
 
 class ContentLibraryScope(Scope):
-    """Scope representing a content library in the authorization system."""
+    """Scope representing a content library in the authorization system.
+
+    .. no_pii:
+    """
 
     NAMESPACE = "lib"
 

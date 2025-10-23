@@ -45,13 +45,13 @@ from openedx_authz.constants.roles import (
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.constants import (
     LIST_LIBRARY_ADMIN_PERMISSIONS,
     LIST_LIBRARY_AUTHOR_PERMISSIONS,
     LIST_LIBRARY_CONTRIBUTOR_PERMISSIONS,
     LIST_LIBRARY_USER_PERMISSIONS,
 )
-from openedx_authz.models import Scope, Subject, ExtendedCasbinRule
 
 
 def _mock_get_or_create_scope(scope_data):

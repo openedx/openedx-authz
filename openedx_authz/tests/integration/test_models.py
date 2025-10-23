@@ -19,31 +19,29 @@ is accessible (e.g., edx-platform with content libraries installed).
 
 import uuid
 from types import MethodType
-from ddt import ddt
 
+import openedx.core.djangoapps.content_libraries.api as library_api
 import pytest
 from casbin_adapter.models import CasbinRule
+from ddt import ddt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from organizations.api import ensure_organization
 from organizations.models import Organization
-from openedx_authz.api.data import SubjectData
 
-
-from openedx_authz.api.data import ContentLibraryData, RoleData, UserData
+from openedx_authz.api.data import ContentLibraryData, RoleData, SubjectData, UserData
 from openedx_authz.api.roles import assign_role_to_subject_in_scope
-from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.filter import Filter
 from openedx_authz.models import (
     ContentLibrary,
+    ContentLibraryScope,
     ExtendedCasbinRule,
     Scope,
     Subject,
-    ContentLibraryScope,
     UserSubject,
 )
-import openedx.core.djangoapps.content_libraries.api as library_api
 
 User = get_user_model()
 
@@ -492,7 +490,10 @@ class TestExtendedCasbinRuleModel(TestCase):
         - All fields are populated correctly.
         - Timestamps are set automatically.
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
 
         extended_rule = ExtendedCasbinRule.objects.create(
             casbin_rule_key=casbin_rule_key,
@@ -521,7 +522,10 @@ class TestExtendedCasbinRuleModel(TestCase):
         - The first ExtendedCasbinRule is created successfully.
         - A second ExtendedCasbinRule with the same key raises IntegrityError.
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
 
         ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
 
@@ -543,7 +547,10 @@ class TestExtendedCasbinRuleModel(TestCase):
         - ExtendedCasbinRule baseline row is created successfully.
         - Removing the CasbinRule eliminates the ExtendedCasbinRule via database cascade.
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
         extended_rule_id = extended_rule.id
 
@@ -559,7 +566,10 @@ class TestExtendedCasbinRuleModel(TestCase):
         - Removing the Scope deletes the ExtendedCasbinRule via database cascade.
         - CasbinRule disappears because the post_delete handler mirrors the cascade.
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(
             casbin_rule_key=casbin_rule_key,
             casbin_rule=self.casbin_rule,
@@ -583,7 +593,10 @@ class TestExtendedCasbinRuleModel(TestCase):
         - Removing the Subject deletes the ExtendedCasbinRule via database cascade.
         - CasbinRule disappears because the post_delete handler mirrors the cascade.
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(
             casbin_rule_key=casbin_rule_key,
             casbin_rule=self.casbin_rule,
@@ -607,7 +620,10 @@ class TestExtendedCasbinRuleModel(TestCase):
             - Metadata is retrieved correctly from database
             - Nested structures are preserved
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         complex_metadata = {
             "tags": ["test", "instructor", "library"],
             "config": {
@@ -809,7 +825,10 @@ class TestModelRelationships(TestCase):
             - Subject has exactly one related ExtendedCasbinRule
             - Related ExtendedCasbinRule matches the created rule
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(
             casbin_rule_key=casbin_rule_key,
             casbin_rule=self.casbin_rule,
@@ -829,7 +848,10 @@ class TestModelRelationships(TestCase):
         scope_data = ContentLibraryData(external_key=str(self.library_key))
         scope = Scope.objects.get_or_create_for_external_key(scope_data)
 
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(
             casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule, scope=scope
         )
@@ -844,7 +866,10 @@ class TestModelRelationships(TestCase):
             - CasbinRule has exactly one related ExtendedCasbinRule (OneToOne relationship)
             - Related ExtendedCasbinRule matches the created rule
         """
-        casbin_rule_key = f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
         extended_rule = ExtendedCasbinRule.objects.create(casbin_rule_key=casbin_rule_key, casbin_rule=self.casbin_rule)
 
         self.assertEqual(self.casbin_rule.extended_rule, extended_rule)

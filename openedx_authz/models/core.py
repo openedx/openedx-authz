@@ -6,6 +6,7 @@ schema that focuses on the core authorization logic.
 """
 
 from typing import ClassVar
+
 from django.db import models, transaction
 
 from openedx_authz.engine.filter import Filter

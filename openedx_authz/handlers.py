@@ -3,13 +3,13 @@
 These handlers ensure proper cleanup and consistency when models are deleted.
 """
 
+import logging
+
 from casbin_adapter.models import CasbinRule
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
 from openedx_authz.models.core import ExtendedCasbinRule
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,10 @@ def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):
 
     The handler keeps authorization data symmetric with three common flows:
     - Direct ExtendedCasbinRule deletes (API/UI) trigger removal of the linked CasbinRule.
-    - Cascades from `Scope` or `Subject` deletions clear their ExtendedCasbinRule rows and, via this handler, the matching CasbinRule entries.
-    - Cascades initiated from the CasbinRule side (enforcer cleanups) leave the query as a no-op because the row is already gone.
+    - Cascades from `Scope` or `Subject` deletions clear their ExtendedCasbinRule rows and,
+      via this handler, the matching CasbinRule entries.
+    - Cascades initiated from the CasbinRule side (enforcer cleanups) leave the query as a
+      no-op because the row is already gone.
 
     Running on ``post_delete`` ensures database cascades complete before the cleanup runs, so
     enforcer-driven deletions no longer raise false errors.

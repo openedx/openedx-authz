@@ -1,0 +1,17 @@
+# Ruff configuration for openedx-authz
+# See https://docs.astral.sh/ruff/configuration/
+
+line-length = 120
+
+[lint]
+# E: pycodestyle errors
+# I: isort import sorting
+select = ["E", "I"]
+
+exclude = [
+    ".git",
+    ".tox",
+    "migrations",
+    "__pycache__",
+    "*.pyc",
+]

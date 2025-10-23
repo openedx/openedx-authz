@@ -223,8 +223,6 @@ pycasbin==2.2.0
     # via
     #   -r requirements/quality.txt
     #   casbin-django-orm-adapter
-pycodestyle==2.14.0
-    # via -r requirements/quality.txt
 pycparser==2.23
     # via
     #   -r requirements/quality.txt

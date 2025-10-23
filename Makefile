@@ -58,9 +58,9 @@ upgrade: ## update the requirements/*.txt files with the latest packages satisfy
 quality: ## check coding style with pycodestyle and pylint
 	tox -e quality
 
-format: ## format code with black and isort
+format: ## format code with black and isort. Enable ruff to fix E (pycodestyle) and I (isort) issues
 	ruff format openedx_authz tests --line-length 120
-	ruff check --select I --fix --line-length 120
+	ruff check --select E,I --fix --line-length 120
 
 pii_check: ## check for PII annotations on all Django models
 	tox -e pii_check

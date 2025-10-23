@@ -114,9 +114,7 @@ def get_permissions_for_active_roles_in_scope(
         permissions and scopes.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    filtered_policy = enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
-    )
+    filtered_policy = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.SCOPE.value, scope.namespaced_key)
 
     if role:
         filtered_policy = [
@@ -141,9 +139,7 @@ def get_role_definitions_in_scope(scope: ScopeData) -> list[RoleData]:
         list[Role]: A list of roles.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    policy_filtered = enforcer.get_filtered_policy(
-        PolicyIndex.SCOPE.value, scope.namespaced_key
-    )
+    policy_filtered = enforcer.get_filtered_policy(PolicyIndex.SCOPE.value, scope.namespaced_key)
 
     permissions_per_role = defaultdict(
         lambda: {
@@ -185,9 +181,7 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
         list[list[str]]: A list of policies in the specified scope.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    return enforcer.get_filtered_grouping_policy(
-        GroupingPolicyIndex.SCOPE.value, scope.namespaced_key
-    )
+    return enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.SCOPE.value, scope.namespaced_key)
 
 
 def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope: ScopeData) -> bool:
@@ -232,9 +226,7 @@ def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, sc
         bool: True if the role was unassigned successfully, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    return enforcer.delete_roles_for_user_in_domain(
-        subject.namespaced_key, role.namespaced_key, scope.namespaced_key
-    )
+    return enforcer.delete_roles_for_user_in_domain(subject.namespaced_key, role.namespaced_key, scope.namespaced_key)
 
 
 def batch_unassign_role_from_subjects_in_scope(subjects: list[SubjectData], role: RoleData, scope: ScopeData) -> None:

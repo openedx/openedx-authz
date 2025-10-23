@@ -736,7 +736,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             v3="",
         )
 
-        enforcer = AuthzEnforcer.get_enforcer()
+        adapter = AuthzEnforcer.get_adapter()
 
         expected_key = f"g,{subject_data.namespaced_key},{role_data.namespaced_key},{scope_data.namespaced_key},"
 
@@ -744,7 +744,7 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=enforcer,
+            adapter=adapter,
         )
 
         self.assertEqual(result.casbin_rule_key, expected_key)
@@ -775,20 +775,20 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
             v3="",
         )
 
-        enforcer = AuthzEnforcer.get_enforcer()
+        adapter = AuthzEnforcer.get_adapter()
 
         result1 = ExtendedCasbinRule.create_based_on_policy(
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=enforcer,
+            adapter=adapter,
         )
 
         result2 = ExtendedCasbinRule.create_based_on_policy(
             subject=subject_data,
             role=role_data,
             scope=scope_data,
-            enforcer=enforcer,
+            adapter=adapter,
         )
 
         self.assertEqual(result1.id, result2.id)

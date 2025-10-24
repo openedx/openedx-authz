@@ -234,18 +234,22 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         # Test user with single role in single scope
         ("alice", ["lib:Org1:math_101"], {"library_admin"}),
         # Test user with multiple roles in different scopes
-        ("eve", ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
-         {"library_admin", "library_author", "library_user"}),
+        (
+            "eve",
+            ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
+            {"library_admin", "library_author", "library_user"},
+        ),
         # Test user with same role in multiple scopes
         ("liam", ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"], {"library_author"}),
         # Test user with multiple different roles in multiple scopes
-        ("peter", ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
-         {"library_admin", "library_author", "library_contributor", "library_user"}),
+        (
+            "peter",
+            ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
+            {"library_admin", "library_author", "library_contributor", "library_user"},
+        ),
     )
     @unpack
-    def test_unassign_all_roles_from_user_removes_all_assignments(
-        self, username, scopes, expected_roles_before
-    ):
+    def test_unassign_all_roles_from_user_removes_all_assignments(self, username, scopes, expected_roles_before):
         """Test that unassign_all_roles_from_user removes all role assignments.
 
         Expected result:
@@ -259,9 +263,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         self.assertGreater(len(assignments_before), 0)
 
         # Verify roles are what we expect before removal
-        roles_before = {
-            r.external_key for assignment in assignments_before for r in assignment.roles
-        }
+        roles_before = {r.external_key for assignment in assignments_before for r in assignment.roles}
         self.assertEqual(roles_before, expected_roles_before)
 
         # Verify assignments exist in each expected scope
@@ -349,11 +351,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         self.assertEqual(len(heidi_assignments_after), len(heidi_assignments_before))
 
         # Verify heidi still has the library_contributor role
-        heidi_roles = {
-            r.external_key
-            for assignment in heidi_assignments_after
-            for r in assignment.roles
-        }
+        heidi_roles = {r.external_key for assignment in heidi_assignments_after for r in assignment.roles}
         self.assertIn("library_contributor", heidi_roles)
 
     def test_unassign_and_reassign_user(self):
@@ -383,21 +381,15 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
 
         # Assign a new role in a new scope
         assign_result = assign_role_to_user_in_scope(
-            user_external_key=username,
-            role_external_key=new_role,
-            scope_external_key=new_scope
+            user_external_key=username, role_external_key=new_role, scope_external_key=new_scope
         )
         self.assertTrue(assign_result)
 
         # Verify the new assignment works
-        new_assignments = get_user_role_assignments_in_scope(
-            user_external_key=username, scope_external_key=new_scope
-        )
+        new_assignments = get_user_role_assignments_in_scope(user_external_key=username, scope_external_key=new_scope)
         self.assertEqual(len(new_assignments), 1)
 
-        new_roles = {
-            r.external_key for assignment in new_assignments for r in assignment.roles
-        }
+        new_roles = {r.external_key for assignment in new_assignments for r in assignment.roles}
         self.assertIn(new_role, new_roles)
 
     def test_unassign_all_roles_impacts_permissions(self):

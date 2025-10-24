@@ -983,18 +983,22 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         # Test user with single role in single scope
         ("alice", ["lib:Org1:math_101"], {"library_admin"}),
         # Test user with multiple roles in different scopes
-        ("eve", ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
-         {"library_admin", "library_author", "library_user"}),
+        (
+            "eve",
+            ["lib:Org2:physics_401", "lib:Org2:chemistry_501", "lib:Org2:biology_601"],
+            {"library_admin", "library_author", "library_user"},
+        ),
         # Test user with same role in multiple scopes
         ("liam", ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"], {"library_author"}),
         # Test user with multiple different roles in multiple scopes
-        ("peter", ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
-         {"library_admin", "library_author", "library_contributor", "library_user"}),
+        (
+            "peter",
+            ["lib:Org6:project_alpha", "lib:Org6:project_beta", "lib:Org6:project_gamma", "lib:Org6:project_delta"],
+            {"library_admin", "library_author", "library_contributor", "library_user"},
+        ),
     )
     @unpack
-    def test_unassign_subject_from_all_roles_removes_all_assignments(
-        self, subject_name, scopes, expected_roles_before
-    ):
+    def test_unassign_subject_from_all_roles_removes_all_assignments(self, subject_name, scopes, expected_roles_before):
         """Test that unassign_subject_from_all_roles removes all role assignments.
 
         Expected result:
@@ -1010,16 +1014,12 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertGreater(len(assignments_before), 0)
 
         # Verify roles are what we expect before removal
-        roles_before = {
-            r.external_key for assignment in assignments_before for r in assignment.roles
-        }
+        roles_before = {r.external_key for assignment in assignments_before for r in assignment.roles}
         self.assertEqual(roles_before, expected_roles_before)
 
         # Verify assignments exist in each expected scope
         for scope_name in scopes:
-            scope_assignments = get_subject_role_assignments_in_scope(
-                subject, ScopeData(external_key=scope_name)
-            )
+            scope_assignments = get_subject_role_assignments_in_scope(subject, ScopeData(external_key=scope_name))
             self.assertGreater(len(scope_assignments), 0)
 
         # Unassign all roles from the subject
@@ -1034,9 +1034,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
 
         # Verify no assignments in any of the previous scopes
         for scope_name in scopes:
-            scope_assignments = get_subject_role_assignments_in_scope(
-                subject, ScopeData(external_key=scope_name)
-            )
+            scope_assignments = get_subject_role_assignments_in_scope(subject, ScopeData(external_key=scope_name))
             self.assertEqual(len(scope_assignments), 0)
 
     def test_unassign_subject_with_no_roles_returns_false(self):
@@ -1075,12 +1073,8 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         shared_scope = ScopeData(external_key="lib:Org1:math_advanced")
 
         # Verify both subjects have roles in the shared scope before
-        grace_assignments_before = get_subject_role_assignments_in_scope(
-            subject_to_unassign, shared_scope
-        )
-        heidi_assignments_before = get_subject_role_assignments_in_scope(
-            other_subject, shared_scope
-        )
+        grace_assignments_before = get_subject_role_assignments_in_scope(subject_to_unassign, shared_scope)
+        heidi_assignments_before = get_subject_role_assignments_in_scope(other_subject, shared_scope)
 
         self.assertGreater(len(grace_assignments_before), 0)
         self.assertGreater(len(heidi_assignments_before), 0)
@@ -1094,17 +1088,11 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertEqual(len(grace_assignments_after), 0)
 
         # Verify heidi still has her assignments
-        heidi_assignments_after = get_subject_role_assignments_in_scope(
-            other_subject, shared_scope
-        )
+        heidi_assignments_after = get_subject_role_assignments_in_scope(other_subject, shared_scope)
         self.assertEqual(len(heidi_assignments_after), len(heidi_assignments_before))
 
         # Verify heidi still has the library_contributor role
-        heidi_roles = {
-            r.external_key
-            for assignment in heidi_assignments_after
-            for r in assignment.roles
-        }
+        heidi_roles = {r.external_key for assignment in heidi_assignments_after for r in assignment.roles}
         self.assertIn("library_contributor", heidi_roles)
 
     def test_unassign_and_reassign_subject(self):
@@ -1141,7 +1129,5 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         new_assignments = get_subject_role_assignments_in_scope(subject, new_scope)
         self.assertEqual(len(new_assignments), 1)
 
-        new_roles = {
-            r.external_key for assignment in new_assignments for r in assignment.roles
-        }
+        new_roles = {r.external_key for assignment in new_assignments for r in assignment.roles}
         self.assertIn("library_admin", new_roles)

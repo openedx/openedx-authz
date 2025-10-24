@@ -10,12 +10,7 @@ and various filtering scenarios.
 import unittest
 
 from openedx_authz.engine.filter import Filter
-from openedx_authz.tests.test_utils import (
-    make_action_key,
-    make_role_key,
-    make_scope_key,
-    make_user_key,
-)
+from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
 
 class TestFilter(unittest.TestCase):

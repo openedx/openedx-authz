@@ -184,7 +184,7 @@ class AuthzEnforcer:
             ExtendedAdapter: The singleton adapter instance.
         """
         if cls._adapter is None:
-            cls._adapter = cls._enforcer._e.adapter
+            cls._adapter = cls._enforcer._e.adapter  # pylint: disable=protected-access
         return cls._adapter
 
     @staticmethod

@@ -7,14 +7,10 @@ within the Open edX platform.
 
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.db import models
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-from openedx_authz.engine.filter import Filter
 from openedx_authz.models.core import Scope
-
-User = get_user_model()
 
 
 def get_content_library_model():
@@ -80,5 +76,5 @@ class ContentLibraryScope(Scope):
         """
         library_key = LibraryLocatorV2.from_string(scope.external_key)
         content_library = ContentLibrary.objects.get_by_key(library_key)
-        scope, created = cls.objects.get_or_create(content_library=content_library)
+        scope, _ = cls.objects.get_or_create(content_library=content_library)
         return scope

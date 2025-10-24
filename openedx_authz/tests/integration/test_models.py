@@ -18,22 +18,20 @@ is accessible (e.g., edx-platform with content libraries installed).
 """
 
 import uuid
-from types import MethodType
 
-import openedx.core.djangoapps.content_libraries.api as library_api
+import openedx.core.djangoapps.content_libraries.api as library_api  # pylint: disable=import-error
 import pytest
 from casbin_adapter.models import CasbinRule
 from ddt import ddt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
-from organizations.api import ensure_organization
-from organizations.models import Organization
+from organizations.api import ensure_organization  # pylint: disable=import-error
+from organizations.models import Organization  # pylint: disable=import-error
 
 from openedx_authz.api.data import ContentLibraryData, RoleData, SubjectData, UserData
 from openedx_authz.api.roles import assign_role_to_subject_in_scope
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.filter import Filter
 from openedx_authz.models import (
     ContentLibrary,
     ContentLibraryScope,
@@ -272,7 +270,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'lib' namespace is present in registry
             - Registry maps 'lib' to ContentLibraryScope class
         """
-        self.assertEqual(Scope._registry.get("lib"), ContentLibraryScope)
+        self.assertEqual(Scope._registry.get("lib"), ContentLibraryScope)  # pylint: disable=protected-access
 
     def test_subject_registry_contains_user_namespace(self):
         """Test that UserSubject is registered in Subject._registry.
@@ -281,7 +279,7 @@ class TestPolymorphicBehavior(TestCase):
             - 'user' namespace is present in registry
             - Registry maps 'user' to UserSubject class
         """
-        self.assertEqual(Subject._registry.get("user"), UserSubject)
+        self.assertEqual(Subject._registry.get("user"), UserSubject)  # pylint: disable=protected-access
 
     def test_scope_manager_dispatches_to_content_library_scope(self):
         """Test that Scope manager dispatches to ContentLibraryScope for 'lib' namespace.
@@ -322,9 +320,9 @@ class TestPolymorphicBehavior(TestCase):
             - ValueError is raised when namespace not in registry
             - Error message indicates the unknown namespace
         """
-        from openedx_authz.api.data import ScopeData
+        from openedx_authz.api.data import ScopeData  # pylint: disable=import-outside-toplevel
 
-        class UnregisteredScopeData(ScopeData):
+        class UnregisteredScopeData(ScopeData):  # pylint: disable=abstract-method
             NAMESPACE = "unregistered"
 
         unregistered_data = UnregisteredScopeData(external_key="some_key")
@@ -752,10 +750,10 @@ class TestExtendedCasbinRuleCreateBasedOnPolicy(TestCase):
         role_data = RoleData(external_key="instructor")
         scope_data = ContentLibraryData(external_key=str(self.library_key))
 
-        subject = Subject.objects.get_or_create_for_external_key(subject_data)
-        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+        Subject.objects.get_or_create_for_external_key(subject_data)
+        Scope.objects.get_or_create_for_external_key(scope_data)
 
-        casbin_rule = CasbinRule.objects.create(
+        CasbinRule.objects.create(
             ptype="g",
             v0=subject_data.namespaced_key,
             v1=role_data.namespaced_key,

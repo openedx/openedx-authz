@@ -43,4 +43,4 @@ class OpenedxAuthzConfig(AppConfig):
 
     def ready(self):
         """Import signal handlers when Django starts."""
-        import openedx_authz.handlers
+        import openedx_authz.handlers  # pylint: disable=import-outside-toplevel,unused-import

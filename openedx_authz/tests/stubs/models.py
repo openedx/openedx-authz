@@ -12,13 +12,21 @@ class ContentLibraryManager(models.Manager):
     """Manager for ContentLibrary model with helper methods."""
 
     def get_by_key(self, library_key):
+        """Get or create a ContentLibrary by its library key.
+
+        Args:
+            library_key: The library key to look up.
+
+        Returns:
+            ContentLibrary: The library instance.
+        """
         if library_key is None:
             raise ValueError("library_key must not be None")
         try:
             key = str(LibraryLocatorV2.from_string(str(library_key)))
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             key = str(library_key)
-        obj, created = self.get_or_create(locator=key)
+        obj, _ = self.get_or_create(locator=key)
         return obj
 
 

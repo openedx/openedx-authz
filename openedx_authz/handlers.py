@@ -1,4 +1,5 @@
-"""Signal handlers for the authorization framework.
+"""
+Signal handlers for the authorization framework.
 
 These handlers ensure proper cleanup and consistency when models are deleted.
 """
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(post_delete, sender=ExtendedCasbinRule)
-def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):
-    """Delete the companion CasbinRule after its ExtendedCasbinRule disappears.
+def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):  # pylint: disable=unused-argument
+    """
+    Delete the companion CasbinRule after its ExtendedCasbinRule disappears.
 
     The handler keeps authorization data symmetric with three common flows:
 
@@ -38,7 +40,7 @@ def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):
         # Rely on delete() being idempotent; returns 0 rows if the CasbinRule was
         # already removed (for example, because it triggered this signal).
         CasbinRule.objects.filter(id=instance.casbin_rule_id).delete()
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         # Log but don't raise - we don't want to break the deletion of
         # ExtendedCasbinRule if something goes wrong while deleting the CasbinRule.
         logger.exception(

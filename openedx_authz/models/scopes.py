@@ -19,13 +19,13 @@ def get_content_library_model():
     The setting `OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL` should be an
     app_label.ModelName string (e.g. 'content_libraries.ContentLibrary').
     """
-    content_library_app_label = getattr(
+    CONTENT_LIBRARY_MODEL = getattr(
         settings,
         "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL",
         "content_libraries.ContentLibrary",
     )
     try:
-        app_label, model_name = content_library_app_label.split(".")
+        app_label, model_name = CONTENT_LIBRARY_MODEL.split(".")
         return apps.get_model(app_label, model_name, require_ready=False)
     except LookupError:
         return None
@@ -52,15 +52,12 @@ class ContentLibraryScope(Scope):
     # to import it at model import time. The migration already records the
     # dependency on `content_libraries` when the app is present.
     content_library = models.ForeignKey(
-        getattr(
-            settings,
-            "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL",
-            "content_libraries.ContentLibrary",
-        ),
+        settings.OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="authz_scopes",
+        swappable=True,
     )
 
     @classmethod

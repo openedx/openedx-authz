@@ -39,3 +39,7 @@ def plugin_settings(settings):
     # save policy changes back to the database.
     if not hasattr(settings, "CASBIN_AUTO_SAVE_POLICY"):
         settings.CASBIN_AUTO_SAVE_POLICY = True
+
+    # Set default ContentLibrary model for swappable dependency
+    if not hasattr(settings, "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL"):
+        settings.OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "content_libraries.ContentLibrary"

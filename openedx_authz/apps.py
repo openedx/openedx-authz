@@ -13,6 +13,7 @@ class OpenedxAuthzConfig(AppConfig):
     name = "openedx_authz"
     verbose_name = "Open edX AuthZ"
     default_auto_field = "django.db.models.BigAutoField"
+
     plugin_app = {
         "url_config": {
             "lms.djangoapp": {
@@ -39,3 +40,7 @@ class OpenedxAuthzConfig(AppConfig):
             },
         },
     }
+
+    def ready(self):
+        """Import signal handlers when Django starts."""
+        import openedx_authz.handlers  # pylint: disable=import-outside-toplevel,unused-import

@@ -129,13 +129,19 @@ class ViewTestMixin(BaseRolesTestCase):
     def create_regular_users(cls, quantity: int):
         """Create regular users."""
         for i in range(1, quantity + 1):
-            User.objects.create_user(username=f"regular_{i}", email=f"regular_{i}@example.com")
+            User.objects.get_or_create(username=f"regular_{i}", defaults={"email": f"regular_{i}@example.com"})
 
     @classmethod
     def create_admin_users(cls, quantity: int):
         """Create admin users."""
         for i in range(1, quantity + 1):
-            User.objects.create_superuser(username=f"admin_{i}", email=f"admin_{i}@example.com")
+            user, created = User.objects.get_or_create(
+                username=f"admin_{i}", defaults={"email": f"admin_{i}@example.com"}
+            )
+            if created:
+                user.is_superuser = True
+                user.is_staff = True
+                user.save()
 
     @classmethod
     def setUpTestData(cls):

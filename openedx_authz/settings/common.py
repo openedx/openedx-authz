@@ -24,3 +24,6 @@ def plugin_settings(settings):
     settings.CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
     if not hasattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL"):
         settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
+    # Set default ContentLibrary model for swappable dependency
+    if not hasattr(settings, "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL"):
+        settings.OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "content_libraries.ContentLibrary"

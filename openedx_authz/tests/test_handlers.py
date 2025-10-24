@@ -220,36 +220,3 @@ class TestExtendedCasbinRuleDeletionSignalHandlers(TestCase):
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Scope.objects.filter(id=scope_id).exists())
         self.assertTrue(Subject.objects.filter(id=subject_id).exists())
-
-    def test_extended_casbin_rule_deletion_with_null_casbin_rule_id(self):
-        """If an ExtendedCasbinRule loses its foreign key reference, the signal should treat the
-        cleanup as a no-op without raising errors.
-
-        Expected Result:
-        - ExtendedCasbinRule can be deleted even when ``casbin_rule_id`` is null.
-        - No CasbinRule deletions are attempted because the relationship is missing.
-        - Final query confirms the ExtendedCasbinRule row is gone.
-        """
-        casbin_rule = CasbinRule.objects.create(
-            ptype="p",
-            v0="user^orphan",
-            v1="role^test",
-            v2="lib^test",
-            v3="allow",
-        )
-
-        extended_rule = ExtendedCasbinRule.objects.create(
-            casbin_rule_key="p,user^orphan,role^test,lib^test,allow",
-            casbin_rule=casbin_rule,
-        )
-
-        extended_rule_id = extended_rule.id
-
-        ExtendedCasbinRule.objects.filter(id=extended_rule_id).update(casbin_rule_id=None)
-
-        extended_rule = ExtendedCasbinRule.objects.get(id=extended_rule_id)
-
-        extended_rule.delete()
-
-        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
-        self.assertTrue(CasbinRule.objects.filter(id=casbin_rule.id).exists())

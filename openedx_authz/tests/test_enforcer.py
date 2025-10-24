@@ -520,3 +520,40 @@ class TestAutoLoadPolicy(TransactionTestCase):
         # After auto-load, the new role assignment should be loaded
         policies_after_auto_load = global_enforcer.get_grouping_policy()
         self.assertIn(new_assignment, policies_after_auto_load)
+
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=-1)
+    def test_auto_load_disabled(self):
+        """Test that auto-load can be disabled by setting interval to -1.
+
+        This test verifies that when CASBIN_AUTO_LOAD_POLICY_INTERVAL is set to -1,
+        the enforcer does NOT automatically load policies from the database.
+
+        Expected result:
+            - Policies remain empty after seeding database
+            - Manual load_policy() is required to load policies
+            - New policies don't appear without manual reload
+        """
+        global_enforcer = AuthzEnforcer.get_enforcer()
+
+        # Initial policy count should be 0
+        initial_policy_count = len(global_enforcer.get_policy())
+        self.assertEqual(initial_policy_count, 0)
+
+        # Policies should still be empty since auto-load is disabled
+        # and no database queries should have been made
+        with self.assertNumQueries(0):
+            time.sleep(1.0)
+            policies_after_wait = global_enforcer.get_policy()
+            self.assertEqual(len(policies_after_wait), 0)
+
+        # Seed the database with policies
+        self._seed_database_with_policies()
+
+        # Manually load policies
+        with self.assertNumQueries(1):
+            time.sleep(1.0)
+            global_enforcer.load_policy()
+            # Since auto-save is also disabled, the policies should still
+            # be empty after manual load
+            policies_after_manual_load = global_enforcer.get_policy()
+            self.assertEqual(len(policies_after_manual_load), 0)

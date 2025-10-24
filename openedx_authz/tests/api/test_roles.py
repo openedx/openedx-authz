@@ -94,6 +94,9 @@ class BaseRolesTestCase(TestCase):
         """
         super().setUpClass()
         AuthzEnforcer.get_enforcer().stop_auto_load_policy()
+        # Enable auto-save to ensure policies are saved to the database
+        # This is necessary because the tests are not using auto-load policy
+        AuthzEnforcer.get_enforcer().enable_auto_save(True)
         cls._seed_database_with_policies()
 
     def setUp(self):

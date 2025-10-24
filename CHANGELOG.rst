@@ -14,9 +14,21 @@ Change Log
 Unreleased
 **********
 
+*
+
+0.8.0 - 2025-10-24
+******************
+
+Added
+=====
+
+* Allow disabling auto-load and auto-save of policies by setting CASBIN_AUTO_LOAD_POLICY_INTERVAL to -1.
+
+Changed
+=======
+
 * Migrate from using pycodestyle and isort to ruff for code quality checks and formatting.
 * Enhance enforcement command with dual operational modes (database and file mode).
-* Allow disabling auto load policy interval.
 
 0.7.0 - 2025-10-23
 ******************

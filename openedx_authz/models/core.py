@@ -31,10 +31,10 @@ class ScopeManager(models.Manager):
             ValueError: If the namespace is not registered
         """
         namespace = scope_data.NAMESPACE
-        if namespace not in Scope._registry:
+        if namespace not in Scope._registry:  # pylint: disable=protected-access
             raise ValueError(f"No Scope subclass registered for namespace '{namespace}'")
 
-        scope_class = Scope._registry[namespace]
+        scope_class = Scope._registry[namespace]  # pylint: disable=protected-access
         return scope_class.get_or_create_for_external_key(scope_data)
 
 
@@ -57,10 +57,10 @@ class SubjectManager(models.Manager):
             ValueError: If the namespace is not registered
         """
         namespace = subject_data.NAMESPACE
-        if namespace not in Subject._registry:
+        if namespace not in Subject._registry:  # pylint: disable=protected-access
             raise ValueError(f"No Subject subclass registered for namespace '{namespace}'")
 
-        subject_class = Subject._registry[namespace]
+        subject_class = Subject._registry[namespace]  # pylint: disable=protected-access
         return subject_class.get_or_create_for_external_key(subject_data)
 
 
@@ -203,7 +203,7 @@ class ExtendedCasbinRule(models.Model):
         casbin_rule_key = f"{casbin_rule.ptype},{casbin_rule.v0},{casbin_rule.v1},{casbin_rule.v2},{casbin_rule.v3}"
 
         with transaction.atomic():
-            extended_rule, created = cls.objects.get_or_create(
+            extended_rule, _ = cls.objects.get_or_create(
                 casbin_rule_key=casbin_rule_key,
                 defaults={
                     "casbin_rule": casbin_rule,

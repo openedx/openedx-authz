@@ -15,10 +15,8 @@ def django_db_setup():
     and use the existing database directly.
     """
     # Do nothing - use the existing database
-    pass
 
 
 @pytest.fixture(scope="session")
 def django_db_modify_db_settings():
     """Configure database settings to use existing database for tests."""
-    pass

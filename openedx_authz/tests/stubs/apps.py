@@ -1,3 +1,5 @@
+"""Django app configuration for test stubs."""
+
 from django.apps import AppConfig
 
 

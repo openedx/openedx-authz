@@ -1,5 +1,6 @@
 """Custom condition checker. Note only used for data_library scope"""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from openedx_authz.api.data import ActionData, ContentLibraryData, ScopeData, UserData
@@ -18,6 +19,13 @@ def is_course_creator(user) -> bool:
         get_course_creator_status = None
 
     return get_course_creator_status(user) == "granted"
+
+
+def is_studio_request() -> bool:
+    """
+    Checks if the request is a studio request.
+    """
+    return settings.SERVICE_VARIANT == "cms"
 
 
 def check_custom_conditions(request_user: str, request_action: str, request_scope: str) -> bool:
@@ -55,10 +63,10 @@ def check_custom_conditions(request_user: str, request_action: str, request_scop
     action = ActionData(namespaced_key=request_action)
 
     if isinstance(scope, ContentLibraryData):
-        if action.external_key == "create_library":
-            return is_course_creator(user)
-
-        if action.external_key == "view_library":
-            return scope_obj.allow_public_read and is_course_creator(user)
+        if is_studio_request():
+            if action.external_key == "create_library":
+                return is_course_creator(user)
+            if action.external_key == "view_library":
+                return scope_obj.allow_public_read and is_course_creator(user)
 
     return False

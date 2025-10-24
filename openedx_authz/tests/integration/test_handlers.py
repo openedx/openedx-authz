@@ -9,14 +9,14 @@ signal is available.
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-
 from openedx.core.djangoapps.user_api.accounts.signals import USER_RETIRE_LMS_CRITICAL
+
+from openedx_authz.api.data import UserData
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     get_user_role_assignments,
     get_user_role_assignments_in_scope,
 )
-from openedx_authz.api.data import UserData
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import ExtendedCasbinRule, Subject
 
@@ -34,14 +34,10 @@ class TestUserRetirementSignalIntegration(TestCase):
         """Set up test data with real users and role assignments."""
         # Create real Django users for testing
         self.retiring_user = User.objects.create_user(
-            username='retiring_user',
-            email='retiring@example.com',
-            password='testpass123'
+            username="retiring_user", email="retiring@example.com", password="testpass123"
         )
         self.other_user = User.objects.create_user(
-            username='other_user',
-            email='other@example.com',
-            password='testpass123'
+            username="other_user", email="other@example.com", password="testpass123"
         )
 
         # Load enforcer policy
@@ -51,7 +47,7 @@ class TestUserRetirementSignalIntegration(TestCase):
     def tearDown(self):
         """Clean up test data."""
         # Clean up users
-        User.objects.filter(username__in=['retiring_user', 'other_user']).delete()
+        User.objects.filter(username__in=["retiring_user", "other_user"]).delete()
 
         # Clear enforcer policy
         enforcer = AuthzEnforcer.get_enforcer()
@@ -66,28 +62,12 @@ class TestUserRetirementSignalIntegration(TestCase):
             - Other users' role assignments are unaffected
         """
         # Assign roles to retiring user in multiple scopes
-        assign_role_to_user_in_scope(
-            self.retiring_user.username,
-            "library_admin",
-            "lib:TestOrg:lib1"
-        )
-        assign_role_to_user_in_scope(
-            self.retiring_user.username,
-            "library_author",
-            "lib:TestOrg:lib2"
-        )
-        assign_role_to_user_in_scope(
-            self.retiring_user.username,
-            "library_user",
-            "lib:TestOrg:lib3"
-        )
+        assign_role_to_user_in_scope(self.retiring_user.username, "library_admin", "lib:TestOrg:lib1")
+        assign_role_to_user_in_scope(self.retiring_user.username, "library_author", "lib:TestOrg:lib2")
+        assign_role_to_user_in_scope(self.retiring_user.username, "library_user", "lib:TestOrg:lib3")
 
         # Assign role to other user
-        assign_role_to_user_in_scope(
-            self.other_user.username,
-            "library_admin",
-            "lib:TestOrg:lib4"
-        )
+        assign_role_to_user_in_scope(self.other_user.username, "library_admin", "lib:TestOrg:lib4")
 
         # Verify users have roles before retirement
         retiring_user_roles_before = get_user_role_assignments(self.retiring_user.username)
@@ -97,10 +77,7 @@ class TestUserRetirementSignalIntegration(TestCase):
         self.assertEqual(len(other_user_roles_before), 1)
 
         # Send the retirement signal
-        USER_RETIRE_LMS_CRITICAL.send(
-            sender=User,
-            user=self.retiring_user
-        )
+        USER_RETIRE_LMS_CRITICAL.send(sender=User, user=self.retiring_user)
 
         # Verify roles are removed for retiring user but not other user
         retiring_user_roles_after = get_user_role_assignments(self.retiring_user.username)
@@ -119,9 +96,7 @@ class TestUserRetirementSignalIntegration(TestCase):
         """
         # Create user with no role assignments
         user_no_roles = User.objects.create_user(
-            username='user_no_roles',
-            email='noroles@example.com',
-            password='testpass123'
+            username="user_no_roles", email="noroles@example.com", password="testpass123"
         )
 
         # Verify user has no roles
@@ -129,10 +104,7 @@ class TestUserRetirementSignalIntegration(TestCase):
         self.assertEqual(len(user_roles_before), 0)
 
         # Send retirement signal - should not raise error
-        USER_RETIRE_LMS_CRITICAL.send(
-            sender=User,
-            user=user_no_roles
-        )
+        USER_RETIRE_LMS_CRITICAL.send(sender=User, user=user_no_roles)
 
         # Verify still no roles
         user_roles_after = get_user_role_assignments(user_no_roles.username)
@@ -150,16 +122,8 @@ class TestUserRetirementSignalIntegration(TestCase):
             - This ensures complete cleanup including database integrity
         """
         # Assign roles which should create ExtendedCasbinRule records
-        assign_role_to_user_in_scope(
-            self.retiring_user.username,
-            "library_admin",
-            "lib:TestOrg:cleanup1"
-        )
-        assign_role_to_user_in_scope(
-            self.retiring_user.username,
-            "library_author",
-            "lib:TestOrg:cleanup2"
-        )
+        assign_role_to_user_in_scope(self.retiring_user.username, "library_admin", "lib:TestOrg:cleanup1")
+        assign_role_to_user_in_scope(self.retiring_user.username, "library_author", "lib:TestOrg:cleanup2")
 
         # Get the subject to check ExtendedCasbinRule records
         user_data = UserData(external_key=self.retiring_user.username)
@@ -170,10 +134,7 @@ class TestUserRetirementSignalIntegration(TestCase):
         self.assertGreater(extended_rules_before.count(), 0)
 
         # Send retirement signal
-        USER_RETIRE_LMS_CRITICAL.send(
-            sender=User,
-            user=self.retiring_user
-        )
+        USER_RETIRE_LMS_CRITICAL.send(sender=User, user=self.retiring_user)
 
         # Verify ExtendedCasbinRule records are cleaned up
         extended_rules_after = ExtendedCasbinRule.objects.filter(subject=subject)
@@ -187,43 +148,26 @@ class TestUserRetirementSignalIntegration(TestCase):
             - After retirement, all assignments across all scopes are removed
             - Role assignments are completely cleared
         """
-        scopes = [
-            "lib:Org1:scope1",
-            "lib:Org2:scope2",
-            "lib:Org3:scope3"
-        ]
+        scopes = ["lib:Org1:scope1", "lib:Org2:scope2", "lib:Org3:scope3"]
 
         # Assign same role in multiple scopes
         for scope in scopes:
-            assign_role_to_user_in_scope(
-                self.retiring_user.username,
-                "library_admin",
-                scope
-            )
+            assign_role_to_user_in_scope(self.retiring_user.username, "library_admin", scope)
 
         # Verify assignments in each scope before retirement
         for scope in scopes:
-            assignments = get_user_role_assignments_in_scope(
-                self.retiring_user.username,
-                scope
-            )
+            assignments = get_user_role_assignments_in_scope(self.retiring_user.username, scope)
             self.assertEqual(len(assignments), 1)
 
         total_assignments_before = get_user_role_assignments(self.retiring_user.username)
         self.assertEqual(len(total_assignments_before), 3)
 
         # Send retirement signal
-        USER_RETIRE_LMS_CRITICAL.send(
-            sender=User,
-            user=self.retiring_user
-        )
+        USER_RETIRE_LMS_CRITICAL.send(sender=User, user=self.retiring_user)
 
         # Verify all assignments removed from all scopes
         for scope in scopes:
-            assignments = get_user_role_assignments_in_scope(
-                self.retiring_user.username,
-                scope
-            )
+            assignments = get_user_role_assignments_in_scope(self.retiring_user.username, scope)
             self.assertEqual(len(assignments), 0)
 
         total_assignments_after = get_user_role_assignments(self.retiring_user.username)
@@ -246,32 +190,18 @@ class TestUserRetirementSignalIntegration(TestCase):
 
         # Assign different roles in different scopes
         for role, scope in role_scope_pairs:
-            assign_role_to_user_in_scope(
-                self.retiring_user.username,
-                role,
-                scope
-            )
+            assign_role_to_user_in_scope(self.retiring_user.username, role, scope)
 
         # Verify all assignments exist
         total_assignments_before = get_user_role_assignments(self.retiring_user.username)
         self.assertEqual(len(total_assignments_before), 4)
 
         # Extract role types to verify diversity
-        roles_before = {
-            r.external_key
-            for assignment in total_assignments_before
-            for r in assignment.roles
-        }
-        self.assertEqual(
-            roles_before,
-            {"library_admin", "library_author", "library_contributor", "library_user"}
-        )
+        roles_before = {r.external_key for assignment in total_assignments_before for r in assignment.roles}
+        self.assertEqual(roles_before, {"library_admin", "library_author", "library_contributor", "library_user"})
 
         # Send retirement signal
-        USER_RETIRE_LMS_CRITICAL.send(
-            sender=User,
-            user=self.retiring_user
-        )
+        USER_RETIRE_LMS_CRITICAL.send(sender=User, user=self.retiring_user)
 
         # Verify all roles removed
         total_assignments_after = get_user_role_assignments(self.retiring_user.username)
@@ -287,29 +217,13 @@ class TestUserRetirementSignalIntegration(TestCase):
             - No cross-contamination between user retirements
         """
         # Create additional users
-        user1 = User.objects.create_user(
-            username='retire_test_1',
-            email='retire1@example.com',
-            password='testpass123'
-        )
-        user2 = User.objects.create_user(
-            username='retire_test_2',
-            email='retire2@example.com',
-            password='testpass123'
-        )
-        user3 = User.objects.create_user(
-            username='retire_test_3',
-            email='retire3@example.com',
-            password='testpass123'
-        )
+        user1 = User.objects.create_user(username="retire_test_1", email="retire1@example.com", password="testpass123")
+        user2 = User.objects.create_user(username="retire_test_2", email="retire2@example.com", password="testpass123")
+        user3 = User.objects.create_user(username="retire_test_3", email="retire3@example.com", password="testpass123")
 
         # Assign roles to each user
         for user in [user1, user2, user3]:
-            assign_role_to_user_in_scope(
-                user.username,
-                "library_admin",
-                f"lib:TestOrg:{user.username}_scope"
-            )
+            assign_role_to_user_in_scope(user.username, "library_admin", f"lib:TestOrg:{user.username}_scope")
 
         # Verify all users have assignments
         for user in [user1, user2, user3]:

@@ -40,6 +40,7 @@ __all__ = [
     "get_subject_role_assignments_for_role_in_scope",
     "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
+    "unassign_subject_from_all_roles",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -390,3 +391,17 @@ def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
     enforcer = AuthzEnforcer.get_enforcer()
     policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)
     return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
+
+
+def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
+    """Unassign a subject from all roles across all scopes.
+
+    Args:
+        subject: The SubjectData object representing the subject to unassign.
+
+    Returns:
+        bool: True if any roles were removed, False otherwise.
+    """
+    enforcer = AuthzEnforcer.get_enforcer()
+    enforcer.load_policy()
+    return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)

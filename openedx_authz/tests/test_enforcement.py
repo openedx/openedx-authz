@@ -14,6 +14,7 @@ import pytest
 from ddt import data, ddt, unpack
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.engine.matcher import check_custom_conditions
 from openedx_authz.tests.test_utils import (
     make_action_key,
     make_library_key,
@@ -58,9 +59,6 @@ class CasbinEnforcementTestCase(TestCase):
     def setUpClass(cls) -> None:
         """Set up the Casbin enforcer."""
         super().setUpClass()
-
-        # pylint: disable=import-outside-toplevel
-        from openedx_authz.engine.matcher import check_custom_conditions
 
         engine_config_dir = os.path.join(ROOT_DIRECTORY, "engine", "config")
         model_file = os.path.join(engine_config_dir, "model.conf")

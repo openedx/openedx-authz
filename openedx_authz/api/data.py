@@ -426,9 +426,16 @@ class ContentLibraryData(ScopeData):
         try:
             library_key = LibraryLocatorV2.from_string(self.library_id)
             library_obj = ContentLibrary.objects.get_by_key(library_key=library_key)
+
+            # Validate canonical key: get_by_key is case-insensitive, but we require exact match
+            # This ensures authorization uses canonical library IDs consistently
+            if library_obj.library_key != library_key:
+                raise ContentLibrary.DoesNotExist
+
             cache.set(cache_key, library_obj, self.CACHE_TIMEOUT)
             return library_obj
-        except ContentLibrary.DoesNotExist:
+
+        except (InvalidKeyError, ContentLibrary.DoesNotExist):
             cache.set(cache_key, None, self.CACHE_TIMEOUT)
             return None
 

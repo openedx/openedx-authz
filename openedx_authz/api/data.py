@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
+from django.core.cache import cache
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
@@ -361,6 +362,8 @@ class ContentLibraryData(ScopeData):
     """
 
     NAMESPACE: ClassVar[str] = "lib"
+    CACHE_TIMEOUT: ClassVar[int] = 5
+    CACHE_KEY_PREFIX: ClassVar[str] = "authz:content_library"
 
     @property
     def library_id(self) -> str:
@@ -393,7 +396,8 @@ class ContentLibraryData(ScopeData):
         """Retrieve the ContentLibrary instance associated with this scope.
 
         This method converts the library_id to a LibraryLocatorV2 key and queries the
-        database to fetch the corresponding ContentLibrary object.
+        database to fetch the corresponding ContentLibrary object. Results are cached
+        using Django's cache framework with a configurable timeout.
 
         Returns:
             ContentLibrary | None: The ContentLibrary instance if found in the database,
@@ -401,13 +405,57 @@ class ContentLibraryData(ScopeData):
 
         Examples:
             >>> library_scope = ContentLibraryData(external_key='lib:DemoX:CSPROB')
-            >>> library_obj = library_scope.get_object()  # Returns a ContentLibrary instance
+            >>> library_obj = library_scope.get_object()  # First call: queries DB
+            >>> library_obj = library_scope.get_object()  # Cached for 5 seconds
+            >>> # Even with a new instance:
+            >>> library_scope2 = ContentLibraryData(external_key='lib:DemoX:CSPROB')
+            >>> library_obj2 = library_scope2.get_object()  # Uses cache
+
+        Note:
+            - Uses Django cache with timeout (default: 5 seconds)
+            - Cache key format: 'authz:content_library:<library_id>'
+            - To clear cache: ContentLibraryData.clear_cache(library_id)
+            - Cache timeout can be configured via CACHE_TIMEOUT class variable
         """
+        cache_key = f"{self.CACHE_KEY_PREFIX}:{self.library_id}"
+
+        cached_library = cache.get(cache_key)
+        if cached_library is not None:
+            return cached_library
+
         try:
             library_key = LibraryLocatorV2.from_string(self.library_id)
-            return ContentLibrary.objects.get_by_key(library_key=library_key)
+            library_obj = ContentLibrary.objects.get_by_key(library_key=library_key)
+            cache.set(cache_key, library_obj, self.CACHE_TIMEOUT)
+            return library_obj
         except ContentLibrary.DoesNotExist:
+            cache.set(cache_key, None, self.CACHE_TIMEOUT)
             return None
+
+    @classmethod
+    def clear_cache(cls, library_id: str | None = None) -> None:
+        """Clear the ContentLibrary object cache.
+
+        Args:
+            library_id: Specific library ID to clear from cache. If None, clears all
+                library caches (requires cache backend that supports pattern deletion).
+
+        Examples:
+            >>> # Clear specific library
+            >>> ContentLibraryData.clear_cache('lib:DemoX:CSPROB')
+            >>> # Clear all libraries (if supported by cache backend)
+            >>> ContentLibraryData.clear_cache()
+        """
+        if library_id:
+            cache_key = f"{cls.CACHE_KEY_PREFIX}:{library_id}"
+            cache.delete(cache_key)
+        else:
+            # Clear all libraries
+            try:
+                cache.delete_pattern(f"{cls.CACHE_KEY_PREFIX}:*")
+            except AttributeError:
+                # Fallback: cache backend doesn't support pattern deletion
+                pass
 
     def __str__(self):
         """Human readable string representation of the content library."""

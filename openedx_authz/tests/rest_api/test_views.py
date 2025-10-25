@@ -5,7 +5,7 @@ This test suite validates the functionality of the authorization REST API endpoi
 including permission validation, user-role management, and role listing capabilities.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.parse import urlencode
 
 from ddt import data, ddt, unpack
@@ -161,15 +161,19 @@ class TestPermissionValidationMeView(ViewTestMixin):
         """Set up test fixtures."""
         super().setUp()
         self.url = reverse("openedx_authz:permission-validation-me")
+        self.is_course_creator_patcher = patch(
+            "openedx_authz.engine.matcher.is_course_creator", side_effect=lambda user: False
+        )
+        self.is_course_creator_patcher.start()
 
     @data(
         # Single permission - allowed
         ([{"action": "view_library", "scope": "lib:Org1:LIB1"}], [True]),
         # Single permission - denied (scope not assigned to user)
         ([{"action": "view_library", "scope": "lib:Org2:LIB2"}], [False]),
-        # # Single permission - denied (action not assigned to user)
+        # Single permission - allowed (action assigned to user)
         ([{"action": "edit_library", "scope": "lib:Org1:LIB1"}], [False]),
-        # # Multiple permissions - mixed results
+        # Multiple permissions - mixed results
         (
             [
                 {"action": "view_library", "scope": "lib:Org1:LIB1"},
@@ -192,7 +196,8 @@ class TestPermissionValidationMeView(ViewTestMixin):
         for idx, perm in enumerate(permission_map):
             expected_response[idx]["allowed"] = perm
 
-        response = self.client.post(self.url, data=request_data, format="json")
+        with patch.object(api.ContentLibraryData, "get_object", return_value=Mock(allow_public_read=True)):
+            response = self.client.post(self.url, data=request_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, expected_response)
@@ -287,10 +292,18 @@ class TestRoleUserAPIView(ViewTestMixin):
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-user-list")
         self.get_user_map_patcher = patch(
-            "openedx_authz.rest_api.v1.views.get_user_map",
-            side_effect=get_user_map_without_profile,
+            "openedx_authz.rest_api.v1.views.get_user_map", side_effect=get_user_map_without_profile
+        )
+        self.is_course_creator_patcher = patch(
+            "openedx_authz.engine.matcher.is_course_creator", side_effect=lambda user: False
+        )
+        self.content_library_data_patcher = patch(
+            "openedx_authz.api.data.ContentLibraryData.get_object",
+            return_value=Mock(allow_public_read=True),
         )
         self.get_user_map_patcher.start()
+        self.is_course_creator_patcher.start()
+        self.content_library_data_patcher.start()
 
     @data(
         # All users
@@ -371,7 +384,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     @data(
         # Unauthenticated
         (None, status.HTTP_401_UNAUTHORIZED),
-        # Admin user
+        # # Admin user
         ("admin_1", status.HTTP_200_OK),
         # Regular user with permission
         ("regular_1", status.HTTP_200_OK),
@@ -437,12 +450,11 @@ class TestRoleUserAPIView(ViewTestMixin):
         role = "library_admin"
         request_data = {"role": role, "scope": "lib:Org1:LIB3", "users": users}
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.put(self.url, data=request_data, format="json")
+        response = self.client.put(self.url, data=request_data, format="json")
 
-            self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
-            self.assertEqual(len(response.data["completed"]), expected_completed)
-            self.assertEqual(len(response.data["errors"]), expected_errors)
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), expected_completed)
+        self.assertEqual(len(response.data["errors"]), expected_errors)
 
     @data(
         # Single user - success (admin user)
@@ -461,12 +473,11 @@ class TestRoleUserAPIView(ViewTestMixin):
         scope = "lib:Org2:LIB2"
         request_data = {"role": role, "scope": scope, "users": users}
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.put(self.url, data=request_data, format="json")
+        response = self.client.put(self.url, data=request_data, format="json")
 
-            self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
-            self.assertEqual(len(response.data["completed"]), expected_completed)
-            self.assertEqual(len(response.data["errors"]), expected_errors)
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), expected_completed)
+        self.assertEqual(len(response.data["errors"]), expected_errors)
 
     @patch.object(api, "assign_role_to_user_in_scope")
     def test_add_users_to_role_exception_handling(self, mock_assign_role_to_user_in_scope):
@@ -478,17 +489,13 @@ class TestRoleUserAPIView(ViewTestMixin):
         }
         mock_assign_role_to_user_in_scope.side_effect = Exception()
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.put(self.url, data=request_data, format="json")
+        response = self.client.put(self.url, data=request_data, format="json")
 
-            self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
-            self.assertEqual(len(response.data["completed"]), 0)
-            self.assertEqual(len(response.data["errors"]), 1)
-            self.assertEqual(response.data["errors"][0]["user_identifier"], "regular_1")
-            self.assertEqual(
-                response.data["errors"][0]["error"],
-                RoleOperationError.ROLE_ASSIGNMENT_ERROR,
-            )
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 0)
+        self.assertEqual(len(response.data["errors"]), 1)
+        self.assertEqual(response.data["errors"][0]["user_identifier"], "regular_1")
+        self.assertEqual(response.data["errors"][0]["error"], RoleOperationError.ROLE_ASSIGNMENT_ERROR)
 
     @data(
         {},
@@ -538,10 +545,9 @@ class TestRoleUserAPIView(ViewTestMixin):
         user = User.objects.filter(username=username).first()
         self.client.force_authenticate(user=user)
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.put(self.url, data=request_data, format="json")
+        response = self.client.put(self.url, data=request_data, format="json")
 
-            self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.status_code, status_code)
 
     @data(
         # With username -----------------------------
@@ -591,12 +597,11 @@ class TestRoleUserAPIView(ViewTestMixin):
             "users": ",".join(users),
         }
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
-            self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
-            self.assertEqual(len(response.data["completed"]), expected_completed)
-            self.assertEqual(len(response.data["errors"]), expected_errors)
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), expected_completed)
+        self.assertEqual(len(response.data["errors"]), expected_errors)
 
     @patch.object(api, "unassign_role_from_user")
     def test_remove_users_from_role_exception_handling(self, mock_unassign_role_from_user):
@@ -608,26 +613,16 @@ class TestRoleUserAPIView(ViewTestMixin):
         }
         mock_unassign_role_from_user.side_effect = [True, False, Exception()]
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
-            self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
-            self.assertEqual(len(response.data["completed"]), 1)
-            self.assertEqual(len(response.data["errors"]), 2)
-            self.assertEqual(response.data["completed"][0]["user_identifier"], "regular_1")
-            self.assertEqual(
-                response.data["completed"][0]["status"],
-                RoleOperationStatus.ROLE_REMOVED,
-            )
-            self.assertEqual(response.data["errors"][0]["user_identifier"], "regular_2")
-            self.assertEqual(
-                response.data["errors"][0]["error"],
-                RoleOperationError.USER_DOES_NOT_HAVE_ROLE,
-            )
-            self.assertEqual(response.data["errors"][1]["user_identifier"], "regular_3")
-            self.assertEqual(
-                response.data["errors"][1]["error"],
-                RoleOperationError.ROLE_REMOVAL_ERROR,
-            )
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 1)
+        self.assertEqual(len(response.data["errors"]), 2)
+        self.assertEqual(response.data["completed"][0]["user_identifier"], "regular_1")
+        self.assertEqual(response.data["completed"][0]["status"], RoleOperationStatus.ROLE_REMOVED)
+        self.assertEqual(response.data["errors"][0]["user_identifier"], "regular_2")
+        self.assertEqual(response.data["errors"][0]["error"], RoleOperationError.USER_DOES_NOT_HAVE_ROLE)
+        self.assertEqual(response.data["errors"][1]["user_identifier"], "regular_3")
+        self.assertEqual(response.data["errors"][1]["error"], RoleOperationError.ROLE_REMOVAL_ERROR)
 
     @data(
         {},
@@ -676,10 +671,9 @@ class TestRoleUserAPIView(ViewTestMixin):
         user = User.objects.filter(username=username).first()
         self.client.force_authenticate(user=user)
 
-        with patch.object(api.ContentLibraryData, "exists", return_value=True):
-            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
-            self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.status_code, status_code)
 
 
 @ddt
@@ -691,6 +685,10 @@ class TestRoleListView(ViewTestMixin):
         super().setUp()
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-list")
+        self.is_course_creator_patcher = patch(
+            "openedx_authz.engine.matcher.is_course_creator", side_effect=lambda user: False
+        )
+        self.is_course_creator_patcher.start()
 
     def test_get_roles_success(self):
         """Test retrieving role definitions and their permissions.

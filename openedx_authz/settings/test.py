@@ -67,6 +67,8 @@ USE_TZ = True
 
 ROOT_URLCONF = "openedx_authz.urls"
 
+SERVICE_VARIANT = "lms"
+
 # Casbin configuration
 CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 CASBIN_AUTO_LOAD_POLICY_INTERVAL = 0

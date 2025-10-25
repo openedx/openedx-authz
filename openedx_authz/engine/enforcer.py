@@ -22,6 +22,7 @@ from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
+from openedx_authz.engine.matcher import check_custom_conditions
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,9 @@ class AuthzEnforcer:
 
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
+        enforcer.load_policy()
         enforcer.start_auto_load_policy(settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL)
+        enforcer.add_function("custom_check", check_custom_conditions)
         enforcer.enable_auto_save(True)
 
         return enforcer

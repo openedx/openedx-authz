@@ -69,7 +69,7 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
         except ValueError as exc:
             raise serializers.ValidationError(exc) from exc
 
-        if not scope.exists():
+        if scope.get_object() is None:
             raise serializers.ValidationError(f"Scope '{scope_value}' does not exist")
 
         role = api.RoleData(external_key=role_value)

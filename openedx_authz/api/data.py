@@ -1,11 +1,14 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
+from __future__ import annotations
+
 import re
 from abc import abstractmethod
 from enum import Enum
-from typing import ClassVar, Literal, Type
+from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
+from django.core.cache import cache
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
@@ -320,13 +323,18 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         return True
 
     @abstractmethod
-    def exists(self) -> bool:
-        """Check if the scope exists.
+    def get_object(self) -> Any | None:
+        """Retrieve the underlying domain object that this scope represents.
+
+        This method fetches the actual Open edX object (e.g., ContentLibrary, Organization)
+        associated with this scope's external_key. Subclasses should implement this to return
+        their specific object types.
 
         Returns:
-            bool: True if the scope exists, False otherwise.
+            Any | None: The domain object associated with this scope, or None if the object
+                does not exist or cannot be retrieved.
         """
-        raise NotImplementedError("Subclasses must implement exists method.")
+        raise NotImplementedError("Subclasses must implement get_object method.")
 
 
 @define
@@ -354,6 +362,8 @@ class ContentLibraryData(ScopeData):
     """
 
     NAMESPACE: ClassVar[str] = "lib"
+    CACHE_TIMEOUT: ClassVar[int] = 5
+    CACHE_KEY_PREFIX: ClassVar[str] = "authz:content_library"
 
     @property
     def library_id(self) -> str:
@@ -382,18 +392,77 @@ class ContentLibraryData(ScopeData):
         except InvalidKeyError:
             return False
 
-    def exists(self) -> bool:
-        """Check if the content library exists.
+    def get_object(self) -> ContentLibrary | None:
+        """Retrieve the ContentLibrary instance associated with this scope.
+
+        This method converts the library_id to a LibraryLocatorV2 key and queries the
+        database to fetch the corresponding ContentLibrary object. Results are cached
+        using Django's cache framework with a configurable timeout.
 
         Returns:
-            bool: True if the content library exists, False otherwise.
+            ContentLibrary | None: The ContentLibrary instance if found in the database,
+                or None if the library does not exist.
+
+        Examples:
+            >>> library_scope = ContentLibraryData(external_key='lib:DemoX:CSPROB')
+            >>> library_obj = library_scope.get_object()  # First call: queries DB
+            >>> library_obj = library_scope.get_object()  # Cached for 5 seconds
+            >>> # Even with a new instance:
+            >>> library_scope2 = ContentLibraryData(external_key='lib:DemoX:CSPROB')
+            >>> library_obj2 = library_scope2.get_object()  # Uses cache
+
+        Note:
+            - Uses Django cache with timeout (default: 5 seconds)
+            - Cache key format: 'authz:content_library:<library_id>'
+            - To clear cache: ContentLibraryData.clear_cache(library_id)
+            - Cache timeout can be configured via CACHE_TIMEOUT class variable
         """
+        cache_key = f"{self.CACHE_KEY_PREFIX}:{self.library_id}"
+
+        cached_library = cache.get(cache_key)
+        if cached_library is not None:
+            return cached_library
+
         try:
             library_key = LibraryLocatorV2.from_string(self.library_id)
-            ContentLibrary.objects.get_by_key(library_key=library_key)
-            return True
-        except ContentLibrary.DoesNotExist:
-            return False
+            library_obj = ContentLibrary.objects.get_by_key(library_key=library_key)
+
+            # Validate canonical key: get_by_key is case-insensitive, but we require exact match
+            # This ensures authorization uses canonical library IDs consistently
+            if library_obj.library_key != library_key:
+                raise ContentLibrary.DoesNotExist
+
+            cache.set(cache_key, library_obj, self.CACHE_TIMEOUT)
+            return library_obj
+
+        except (InvalidKeyError, ContentLibrary.DoesNotExist):
+            cache.set(cache_key, None, self.CACHE_TIMEOUT)
+            return None
+
+    @classmethod
+    def clear_cache(cls, library_id: str | None = None) -> None:
+        """Clear the ContentLibrary object cache.
+
+        Args:
+            library_id: Specific library ID to clear from cache. If None, clears all
+                library caches (requires cache backend that supports pattern deletion).
+
+        Examples:
+            >>> # Clear specific library
+            >>> ContentLibraryData.clear_cache('lib:DemoX:CSPROB')
+            >>> # Clear all libraries (if supported by cache backend)
+            >>> ContentLibraryData.clear_cache()
+        """
+        if library_id:
+            cache_key = f"{cls.CACHE_KEY_PREFIX}:{library_id}"
+            cache.delete(cache_key)
+        else:
+            # Clear all libraries
+            try:
+                cache.delete_pattern(f"{cls.CACHE_KEY_PREFIX}:*")
+            except AttributeError:
+                # Fallback: cache backend doesn't support pattern deletion
+                pass
 
     def __str__(self):
         """Human readable string representation of the content library."""

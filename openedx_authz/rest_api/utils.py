@@ -1,5 +1,7 @@
 """Utility functions for the Open edX AuthZ REST API."""
 
+import threading
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
@@ -7,6 +9,9 @@ from openedx_authz.api.data import GENERIC_SCOPE_WILDCARD, ScopeData
 from openedx_authz.rest_api.data import SearchField, SortField, SortOrder
 
 User = get_user_model()
+
+
+_user_cache_local = threading.local()
 
 
 def get_generic_scope(scope: ScopeData) -> ScopeData:
@@ -53,20 +58,46 @@ def get_user_map(usernames: list[str]) -> dict[str, User]:
 
 def get_user_by_username_or_email(username_or_email: str) -> User:
     """
-    Retrieve a user by their username or email address.
+    Retrieve a user by their username or email address with thread-local caching.
+
+    This function performs a flexible user lookup that accepts either a username or email
+    address and returns the corresponding User object. Results are cached per-thread to
+    avoid redundant database queries when the same user is looked up multiple times within
+    the same request or thread context.
 
     Args:
-        username_or_email (str): The username or email address to search for.
+        username_or_email (str): The username or email address to search for. The function
+            will query both fields and return the first matching user.
 
     Returns:
-        User: The User object if found and not retired.
+        User: The User object matching the provided username or email address.
 
     Raises:
-        User.DoesNotExist: If no user matches the provided username or email,
-            or if the user has an associated retirement request.
+        User.DoesNotExist: If no user is found with the given username or email, or if
+            the user has been retired (has an associated userretirementrequest).
+
+    Note:
+        - Uses thread-local storage for caching, so cache is isolated per thread/request
+        - Negative lookups (non-existent users) are also cached to prevent repeated queries
+        - Cache persists for the lifetime of the thread and is automatically cleaned up
+        - Retired users (with userretirementrequest) are treated as non-existent
     """
-    user = User.objects.get(Q(email=username_or_email) | Q(username=username_or_email))
-    if hasattr(user, "userretirementrequest"):
+    cache = getattr(_user_cache_local, "data", None)
+    if cache is None:
+        cache = {}
+        _user_cache_local.data = cache
+
+    if username_or_email not in cache:
+        try:
+            user = User.objects.get(Q(email=username_or_email) | Q(username=username_or_email))
+            if hasattr(user, "userretirementrequest"):
+                raise User.DoesNotExist
+            cache[username_or_email] = user
+        except User.DoesNotExist:
+            cache[username_or_email] = None
+
+    user = cache[username_or_email]
+    if user is None:
         raise User.DoesNotExist
     return user
 

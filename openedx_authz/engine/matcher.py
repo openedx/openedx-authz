@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from openedx_authz.api.data import ActionData, ContentLibraryData, ScopeData, UserData
+from openedx_authz.rest_api.utils import get_user_by_username_or_email
 
 User = get_user_model()
 
@@ -47,7 +48,7 @@ def check_custom_conditions(request_user: str, request_action: str, request_scop
     """
     try:
         username = UserData(namespaced_key=request_user).external_key
-        user = User.objects.get(username=username)
+        user = get_user_by_username_or_email(username)
     except User.DoesNotExist:
         return False
 

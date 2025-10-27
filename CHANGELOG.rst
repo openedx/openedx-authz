@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.9.0 - 2025-10-27
+******************
+
+Added
+=====
+
+* Function API to retrieve scopes for a given role and subject.
+
 0.8.0 - 2025-10-24
 ******************
 

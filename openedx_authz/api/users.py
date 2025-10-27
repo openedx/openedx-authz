@@ -16,6 +16,7 @@ from openedx_authz.api.roles import (
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
+    get_scopes_for_role_and_subject,
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
@@ -198,3 +199,19 @@ def get_users_for_role(role_external_key: str) -> list[UserData]:
     """
     users = get_subjects_for_role(RoleData(external_key=role_external_key))
     return [UserData(namespaced_key=user.namespaced_key) for user in users]
+
+
+def get_scopes_for_role_and_user(role_external_key: str, user_external_key: str) -> list[ScopeData]:
+    """Get all scopes where a specific user has been assigned a specific role.
+
+    Args:
+        role_external_key (str): The role to filter scopes (e.g., 'instructor').
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+
+    Returns:
+        list[ScopeData]: A list of scopes where the user has the specified role.
+    """
+    return get_scopes_for_role_and_subject(
+        RoleData(external_key=role_external_key),
+        UserData(external_key=user_external_key),
+    )

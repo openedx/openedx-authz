@@ -18,6 +18,7 @@ from openedx_authz.api.roles import (
     get_permissions_for_active_roles_in_scope,
     get_permissions_for_single_role,
     get_role_definitions_in_scope,
+    get_scopes_for_role_and_subject,
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
@@ -504,6 +505,24 @@ class TestRolesAPI(RolesTestSetupMixin):
         )
 
         self.assertEqual(len(role_assignments), expected_count)
+
+    def test_get_scopes_for_role_and_subject(self):
+        """Test retrieving scopes for a given role and subject.
+
+        Expected result:
+            - The scopes associated with the specified role and subject are correctly retrieved.
+        """
+        role_name = "library_author"
+        subject_name = "liam"
+        expected_scopes = {"lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"}
+
+        scopes = get_scopes_for_role_and_subject(
+            RoleData(external_key=role_name),
+            SubjectData(external_key=subject_name),
+        )
+
+        scope_names = {scope.external_key for scope in scopes}
+        self.assertEqual(scope_names, expected_scopes)
 
 
 @ddt

@@ -37,6 +37,7 @@ __all__ = [
     "get_subject_role_assignments_for_role_in_scope",
     "get_all_subject_role_assignments_in_scope",
     "get_subject_role_assignments",
+    "get_scopes_for_role_and_subject",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -373,3 +374,22 @@ def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
     enforcer = AuthzEnforcer.get_enforcer()
     policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)
     return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
+
+
+def get_scopes_for_role_and_subject(role: RoleData, subject: SubjectData) -> list[ScopeData]:
+    """Get all the scopes where a specific subject is assigned a specific role.
+
+    Args:
+        role (RoleData): The role to filter scopes.
+        subject (SubjectData): The subject to filter scopes.
+
+    Returns:
+        list[ScopeData]: A list of scopes where the subject is assigned the specified role.
+    """
+    enforcer = AuthzEnforcer.get_enforcer()
+    policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)
+    return [
+        ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value])
+        for policy in policies
+        if policy[GroupingPolicyIndex.ROLE.value] == role.namespaced_key
+    ]

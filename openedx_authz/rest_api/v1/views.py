@@ -15,7 +15,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
+from openedx_authz.api.data import ScopeData
 from openedx_authz.constants import permissions
+from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.filter import Filter
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -104,13 +107,16 @@ class PermissionValidationMeView(APIView):
         """Validate one or more permissions for the authenticated user."""
         serializer = PermissionValidationSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        AuthzEnforcer.get_enforcer().load_policy()
 
         username = request.user.username
         response_data = []
-        for perm in serializer.validated_data:
+        for permission in data:
             try:
-                action = perm["action"]
-                scope = perm["scope"]
+                action = permission["action"]
+                scope = permission["scope"]
                 allowed = api.is_user_allowed(username, action, scope)
                 response_data.append({"action": action, "scope": scope, "allowed": allowed})
             except ValueError as e:
@@ -258,6 +264,9 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
+        flt = Filter(v2=[ScopeData(external_key=query_params["scope"]).namespaced_key])
+        AuthzEnforcer.get_enforcer().load_filtered_policy(flt)
+
         user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
         usernames = {assignment.subject.username for assignment in user_role_assignments}
         context = {"user_map": get_user_map(usernames)}
@@ -283,15 +292,16 @@ class RoleUserAPIView(APIView):
         """Assign multiple users to a specific role within a scope."""
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        role = serializer.validated_data["role"]
-        scope = serializer.validated_data["scope"]
+        AuthzEnforcer.get_enforcer().load_policy()
+
         completed, errors = [], []
-        for user_identifier in serializer.validated_data["users"]:
+        for user_identifier in data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                result = api.assign_role_to_user_in_scope(user.username, role, scope)
+                result = api.assign_role_to_user_in_scope(user.username, data["role"], data["scope"])
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_ADDED
                     completed.append(response_dict)
@@ -328,17 +338,18 @@ class RoleUserAPIView(APIView):
     @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
+        AuthzEnforcer.get_enforcer().load_policy()
+
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        role = serializer.validated_data["role"]
-        scope = serializer.validated_data["scope"]
         completed, errors = [], []
-        for user_identifier in serializer.validated_data["users"]:
+        for user_identifier in data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
-                result = api.unassign_role_from_user(user.username, role, scope)
+                result = api.unassign_role_from_user(user.username, data["role"], data["scope"])
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_REMOVED
                     completed.append(response_dict)
@@ -434,6 +445,8 @@ class RoleListView(APIView):
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
+
+        AuthzEnforcer.get_enforcer().load_policy()
 
         generic_scope = get_generic_scope(query_params["scope"])
         roles = api.get_role_definitions_in_scope(generic_scope)

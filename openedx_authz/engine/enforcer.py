@@ -23,6 +23,16 @@ from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 
+try:
+    from cms.djangoapps.contentstore.toggles import libraries_v2_enabled
+except ImportError:
+    # If the CMS is not available, define a dummy toggle that is always enabled
+    class DummyToggle:
+        @staticmethod
+        def is_enabled():
+            return True
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +68,44 @@ class AuthzEnforcer:
         return cls._enforcer
 
     @classmethod
+    def deactivate_enforcer(cls):
+        """Deactivate the current enforcer instance, if any.
+
+        This method stops the auto-load policy thread. It can be used in testing
+        or when re-initialization of the enforcer is needed. IT DOES NOT
+        clear the singleton instance to avoid initializing it again unintentionally.
+
+        Returns:
+            None
+        """
+        if cls._enforcer is not None:
+            try:
+                cls._enforcer.stop_auto_load_policy()
+                cls._enforcer.enable_auto_save(False)
+            except Exception as e:
+                logger.error(f"Error stopping auto-load policy thread: {e}")
+
+    @classmethod
+    def enable_enforcer_auto_save_and_load(cls):
+        """Enable auto-load policy and auto-save on the enforcer.
+
+        This method ensures that the singleton enforcer instance is created
+        and ready for use.
+
+        Returns:
+            None
+        """
+        auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
+
+        if auto_load_policy_interval > 0:
+            cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
+            cls._enforcer.enable_auto_save(True)
+        else:
+            # Disable auto-save to prevent unnecessary database writes
+            cls._enforcer.enable_auto_save(False)
+            logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
+
+    @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:
         """Get the enforcer instance, creating it if needed.
 
@@ -66,10 +114,17 @@ class AuthzEnforcer:
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
+
+        # HACK: This code block will only be useful when in Ulmo to deactivate
+        # the enforcer when the new library experience is disabled. It should be
+        # removed for the next release cycle.
+        if not libraries_v2_enabled.is_enabled():
+            cls.deactivate_enforcer()
+
         return cls._enforcer
 
-    @staticmethod
-    def _initialize_enforcer() -> SyncedEnforcer:
+    @classmethod
+    def _initialize_enforcer(cls) -> SyncedEnforcer:
         """
         Create and configure the Casbin SyncedEnforcer instance.
 
@@ -93,12 +148,7 @@ class AuthzEnforcer:
 
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
-        auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
-        if auto_load_policy_interval > 0:
-            enforcer.start_auto_load_policy(auto_load_policy_interval)
-            enforcer.enable_auto_save(True)
-        else:
-            # Disable auto-save to prevent unnecessary database writes
-            enforcer.enable_auto_save(False)
+
+        cls.enable_enforcer_auto_save_and_load()
 
         return enforcer

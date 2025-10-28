@@ -66,7 +66,6 @@ class AuthzEnforcer:
         """Singleton pattern to ensure a single enforcer instance."""
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
-            cls.enable_enforcer_auto_save_and_load()
         return cls._enforcer
 
     @classmethod
@@ -99,13 +98,14 @@ class AuthzEnforcer:
         """
         auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
 
+        # Only start auto-load if it's not already running
         if auto_load_policy_interval > 0:
-            cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
-            cls._enforcer.enable_auto_save(True)
+            if not cls._enforcer.is_auto_loading_running():
+                cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
         else:
-            # Disable auto-save to prevent unnecessary database writes
-            cls._enforcer.enable_auto_save(False)
             logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
+
+        cls._enforcer.enable_auto_save(True)
 
     @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:
@@ -116,12 +116,13 @@ class AuthzEnforcer:
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
-            cls.enable_enforcer_auto_save_and_load()
 
         # HACK: This code block will only be useful when in Ulmo to deactivate
         # the enforcer when the new library experience is disabled. It should be
         # removed for the next release cycle.
-        if not libraries_v2_enabled.is_enabled():
+        if libraries_v2_enabled.is_enabled():
+            cls.enable_enforcer_auto_save_and_load()
+        else:
             cls.deactivate_enforcer()
 
         return cls._enforcer

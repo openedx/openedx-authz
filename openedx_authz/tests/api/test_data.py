@@ -4,7 +4,6 @@ from unittest.mock import Mock, patch
 
 from ddt import data, ddt, unpack
 from django.test import TestCase
-from opaque_keys import InvalidKeyError
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import (

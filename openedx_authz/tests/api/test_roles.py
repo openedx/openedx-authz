@@ -22,6 +22,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
+    get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
@@ -523,6 +524,26 @@ class TestRolesAPI(RolesTestSetupMixin):
 
         scope_names = {scope.external_key for scope in scopes}
         self.assertEqual(scope_names, expected_scopes)
+
+    @ddt_data(
+        ("library_author", "lib:Org4:art_101", {"liam"}),
+        ("library_author", "lib:Org4:art_201", {"liam"}),
+        ("library_author", "lib:Org4:art_301", {"liam"}),
+        ("non_existent_role", "lib:Org4:art_101", set()),
+        ("library_author", "sc:non_existent_scope", set()),
+        ("non_existent_role", "sc:non_existent_scope", set()),
+    )
+    @unpack
+    def test_get_subjects_for_role_in_scope(self, role_name: str, scope_name: str, expected_subjects: set[str]):
+        """Test retrieving subjects for a given role in a specific scope.
+
+        Expected result:
+            - The subjects associated with the specified role in the given scope are correctly retrieved.
+        """
+        subjects = get_subjects_for_role_in_scope(RoleData(external_key=role_name), ScopeData(external_key=scope_name))
+
+        subject_names = {subject.external_key for subject in subjects}
+        self.assertEqual(subject_names, expected_subjects)
 
 
 @ddt

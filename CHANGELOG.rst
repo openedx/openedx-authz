@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.9.1 - 2025-10-28
+******************
+
+Fixed
+=====
+
+* Fix role user count to accurately filter users assigned to roles within specific scopes instead of across all scopes.
+
 0.9.0 - 2025-10-27
 ******************
 

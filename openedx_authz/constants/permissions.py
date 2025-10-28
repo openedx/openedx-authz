@@ -1,16 +1,51 @@
 """
 Default permission constants.
 """
+from openedx_authz.api.data import ActionData, PermissionData
 
 # Content Library Permissions
-VIEW_LIBRARY = "view_library"
-MANAGE_LIBRARY_TAGS = "manage_library_tags"
-DELETE_LIBRARY = "delete_library"
-EDIT_LIBRARY_CONTENT = "edit_library_content"
-PUBLISH_LIBRARY_CONTENT = "publish_library_content"
-REUSE_LIBRARY_CONTENT = "reuse_library_content"
-VIEW_LIBRARY_TEAM = "view_library_team"
-MANAGE_LIBRARY_TEAM = "manage_library_team"
-CREATE_LIBRARY_COLLECTION = "create_library_collection"
-EDIT_LIBRARY_COLLECTION = "edit_library_collection"
-DELETE_LIBRARY_COLLECTION = "delete_library_collection"
+VIEW_LIBRARY = PermissionData(
+    action=ActionData(external_key="view_library"),
+    effect="allow",
+)
+MANAGE_LIBRARY_TAGS = PermissionData(
+    action=ActionData(external_key="manage_library_tags"),
+    effect="allow",
+)
+DELETE_LIBRARY = PermissionData(
+    action=ActionData(external_key="delete_library"),
+    effect="allow",
+)
+EDIT_LIBRARY_CONTENT = PermissionData(
+    action=ActionData(external_key="edit_library_content"),
+    effect="allow",
+)
+PUBLISH_LIBRARY_CONTENT = PermissionData(
+    action=ActionData(external_key="publish_library_content"),
+    effect="allow",
+)
+REUSE_LIBRARY_CONTENT = PermissionData(
+    action=ActionData(external_key="reuse_library_content"),
+    effect="allow",
+)
+VIEW_LIBRARY_TEAM = PermissionData(
+    action=ActionData(external_key="view_library_team"),
+    effect="allow",
+)
+MANAGE_LIBRARY_TEAM = PermissionData(
+    action=ActionData(external_key="manage_library_team"),
+    effect="allow",
+)
+
+CREATE_LIBRARY_COLLECTION = PermissionData(
+    action=ActionData(external_key="create_library_collection"),
+    effect="allow",
+)
+EDIT_LIBRARY_COLLECTION = PermissionData(
+    action=ActionData(external_key="edit_library_collection"),
+    effect="allow",
+)
+DELETE_LIBRARY_COLLECTION = PermissionData(
+    action=ActionData(external_key="delete_library_collection"),
+    effect="allow",
+)

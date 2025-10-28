@@ -251,7 +251,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.VIEW_LIBRARY_TEAM])
+    @authz_permissions([permissions.VIEW_LIBRARY.identifier])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all users with role assignments within a specific scope."""
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
@@ -278,7 +278,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM])
+    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier])
     def put(self, request: HttpRequest) -> Response:
         """Assign multiple users to a specific role within a scope."""
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
@@ -325,7 +325,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM])
+    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
@@ -428,7 +428,7 @@ class RoleListView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.VIEW_LIBRARY_TEAM])
+    @authz_permissions([permissions.VIEW_LIBRARY.identifier])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all roles and their permissions for a specific scope."""
         serializer = ListRolesWithScopeSerializer(data=request.query_params)

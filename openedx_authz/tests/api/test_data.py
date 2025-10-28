@@ -373,7 +373,7 @@ class TestDataRepresentation(TestCase):
     @data(
         ("read", "Read", "act^read"),
         ("write", "Write", "act^write"),
-        (permissions.DELETE_LIBRARY, "Delete Library", "act^delete_library"),
+        (permissions.DELETE_LIBRARY.identifier, "Delete Library", "act^delete_library"),
         ("edit_content", "Edit Content", "act^edit_content"),
     )
     @unpack
@@ -414,7 +414,7 @@ class TestDataRepresentation(TestCase):
 
     @data(
         ("instructor", "Instructor", "role^instructor"),
-        (roles.LIBRARY_ADMIN, "Library Admin", "role^library_admin"),
+        (roles.LIBRARY_ADMIN.external_key, "Library Admin", "role^library_admin"),
         ("course_staff", "Course Staff", "role^course_staff"),
     )
     @unpack
@@ -455,7 +455,7 @@ class TestDataRepresentation(TestCase):
         ("read", "allow", "Read - allow", "act^read => allow"),
         ("write", "deny", "Write - deny", "act^write => deny"),
         (
-            permissions.DELETE_LIBRARY,
+            permissions.DELETE_LIBRARY.identifier,
             "allow",
             "Delete Library - allow",
             "act^delete_library => allow",
@@ -486,7 +486,7 @@ class TestDataRepresentation(TestCase):
         """
         user = UserData(external_key="john_doe")
         role1 = RoleData(external_key="instructor")
-        role2 = RoleData(external_key=roles.LIBRARY_ADMIN)
+        role2 = RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
         scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
         assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
 
@@ -503,7 +503,7 @@ class TestDataRepresentation(TestCase):
         """
         user = UserData(external_key="john_doe")
         role1 = RoleData(external_key="instructor")
-        role2 = RoleData(external_key=roles.LIBRARY_ADMIN)
+        role2 = RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
         scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
         assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
 

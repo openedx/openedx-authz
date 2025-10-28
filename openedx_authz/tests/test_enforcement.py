@@ -258,7 +258,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_ADMIN),
+            make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
             make_scope_key("lib", "*"),
             "allow",
@@ -279,7 +279,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_AUTHOR),
+            make_role_key(roles.LIBRARY_AUTHOR.external_key),
             make_action_key("write"),
             make_scope_key("lib", "*"),
             "allow",
@@ -313,7 +313,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-6"),
-            make_role_key(roles.LIBRARY_ADMIN),
+            make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_library_key("lib:DemoX:CSPROB"),
         ],
         [
@@ -331,7 +331,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-9"),
-            make_role_key(roles.LIBRARY_AUTHOR),
+            make_role_key(roles.LIBRARY_AUTHOR.external_key),
             make_library_key("lib:DemoX:CSPROB"),
         ],
     ] + COMMON_ACTION_GROUPING
@@ -494,7 +494,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_ADMIN),
+            make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
             make_scope_key("lib", "*"),
             "allow",
@@ -503,7 +503,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
         ["g", make_user_key("user-2"), make_role_key("org_admin"), "*"],
         ["g", make_user_key("user-3"), make_role_key("course_admin"), "*"],
-        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN), "*"],
+        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN.external_key), "*"],
     ] + COMMON_ACTION_GROUPING
 
     @data(

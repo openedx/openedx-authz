@@ -129,3 +129,21 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
                 filter_kwargs = {f"{attr.value}__in": filter_values}
                 queryset = queryset.filter(**filter_kwargs)
         return queryset.order_by("id")
+
+    def query_policy(self, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
+        """
+        Retrieve policy rules from the database based on filter criteria.
+
+        This method constructs a Django queryset to fetch CasbinRule objects
+        that match the specified filter attributes. It supports filtering by
+        policy type (ptype) and policy values (v0-v5).
+
+        Args:
+            filter (Filter): Filter object with attributes (ptype, v0, v1, v2, v3, v4, v5)
+                   containing lists of values to filter by. Empty lists are ignored.
+
+        Returns:
+            QuerySet: Queryset of CasbinRule objects matching the filter criteria.
+        """
+        queryset = CasbinRule.objects.using(self.db_alias)
+        return self.filter_query(queryset, filter)

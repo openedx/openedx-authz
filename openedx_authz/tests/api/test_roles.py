@@ -5,6 +5,8 @@ including role creation, assignment, permission management, and querying
 roles and permissions within specific scopes.
 """
 
+from unittest.mock import patch
+
 import casbin
 from ddt import data as ddt_data
 from ddt import ddt, unpack
@@ -27,12 +29,38 @@ from openedx_authz.api.roles import (
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.constants import (
     LIST_LIBRARY_ADMIN_PERMISSIONS,
     LIST_LIBRARY_AUTHOR_PERMISSIONS,
     LIST_LIBRARY_CONTRIBUTOR_PERMISSIONS,
     LIST_LIBRARY_USER_PERMISSIONS,
 )
+
+
+def _mock_get_or_create_scope(scope_data):
+    """Mock implementation that creates actual Scope instances."""
+    scope, _ = Scope.objects.get_or_create(id=hash(scope_data.external_key) % 10000)
+    return scope
+
+
+def _mock_get_or_create_subject(subject_data):
+    """Mock implementation that creates actual Subject instances."""
+    subject, _ = Subject.objects.get_or_create(id=hash(subject_data.external_key) % 10000)
+    return subject
+
+
+# Apply patches at module level using the new manager method
+_scope_patcher = patch(
+    "openedx_authz.models.ScopeManager.get_or_create_for_external_key",
+    side_effect=_mock_get_or_create_scope,
+)
+_subject_patcher = patch(
+    "openedx_authz.models.SubjectManager.get_or_create_for_external_key",
+    side_effect=_mock_get_or_create_subject,
+)
+_scope_patcher.start()
+_subject_patcher.start()
 
 
 class BaseRolesTestCase(TestCase):
@@ -266,6 +294,29 @@ class TestRolesAPI(RolesTestSetupMixin):
     - The global enforcer instance is used to ensure consistency with production
     environments.
     """
+
+    def test_assign_role_creates_extended_rule(self):
+        """Assign a role to a subject and verify an ExtendedCasbinRule is created.
+
+        Expected result:
+            - The assignment function returns True
+            - An ExtendedCasbinRule record exists linking the subject and scope
+        """
+
+        subject = SubjectData(external_key="unit_test_user_assign_1")
+        role = RoleData(external_key="library_user")
+        scope = ScopeData(external_key="lib:UnitTest:assign_lib_1")
+
+        subj_before = Subject.objects.get_or_create_for_external_key(subject)
+        scope_before = Scope.objects.get_or_create_for_external_key(scope)
+        self.assertFalse(ExtendedCasbinRule.objects.filter(subject=subj_before, scope=scope_before).exists())
+
+        result = assign_role_to_subject_in_scope(subject, role, scope)
+        self.assertTrue(result)
+
+        subj_obj = Subject.objects.get_or_create_for_external_key(subject)
+        scope_obj = Scope.objects.get_or_create_for_external_key(scope)
+        self.assertTrue(ExtendedCasbinRule.objects.filter(subject=subj_obj, scope=scope_obj).exists())
 
     @ddt_data(
         # Library Admin role with actual permissions from authz.policy

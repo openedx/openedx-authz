@@ -47,9 +47,14 @@ class AuthzEnforcer:
         allowed = enforcer.get_enforcer().enforce(user, resource, action)
 
     Any of the two approaches will yield the same singleton enforcer instance.
+
+    Attributes:
+        _enforcer (SyncedEnforcer): The singleton enforcer instance.
+        _adapter (ExtendedAdapter): The singleton adapter instance.
     """
 
     _enforcer = None
+    _adapter = None
 
     def __new__(cls):
         """Singleton pattern to ensure a single enforcer instance."""
@@ -67,6 +72,17 @@ class AuthzEnforcer:
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
         return cls._enforcer
+
+    @classmethod
+    def get_adapter(cls) -> ExtendedAdapter:
+        """Get the adapter instance, getting it from the enforcer if needed.
+
+        Returns:
+            ExtendedAdapter: The singleton adapter instance.
+        """
+        if cls._adapter is None:
+            cls._adapter = cls._enforcer._e.adapter  # pylint: disable=protected-access
+        return cls._adapter
 
     @staticmethod
     def _initialize_enforcer() -> SyncedEnforcer:

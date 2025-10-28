@@ -362,18 +362,23 @@ def get_all_subject_role_assignments_in_scope(
     return list(role_assignments_per_subject.values())
 
 
-def get_subjects_for_role(role: RoleData) -> list[SubjectData]:
-    """Get all the subjects assigned to a specific role.
+def get_subjects_for_role_in_scope(role: RoleData, scope: ScopeData) -> list[SubjectData]:
+    """Get all the subjects assigned to a specific role in a specific scope.
 
     Args:
         role (RoleData): The role to filter subjects.
+        scope (ScopeData): The scope to filter subjects.
 
     Returns:
-        list[SubjectData]: A list of subjects assigned to the specified role.
+        list[SubjectData]: A list of subjects assigned to the specified role in the specified scope.
     """
     enforcer = AuthzEnforcer.get_enforcer()
     policies = enforcer.get_filtered_grouping_policy(GroupingPolicyIndex.ROLE.value, role.namespaced_key)
-    return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
+    return [
+        SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value])
+        for policy in policies
+        if policy[GroupingPolicyIndex.SCOPE.value] == scope.namespaced_key
+    ]
 
 
 def get_scopes_for_role_and_subject(role: RoleData, subject: SubjectData) -> list[ScopeData]:

@@ -20,7 +20,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
-    get_subjects_for_role,
+    get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
 
@@ -34,7 +34,7 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
-    "get_users_for_role",
+    "get_users_for_role_in_scope",
 ]
 
 
@@ -188,16 +188,20 @@ def is_user_allowed(
     )
 
 
-def get_users_for_role(role_external_key: str) -> list[UserData]:
-    """Get all the users assigned to a specific role.
+def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str) -> list[UserData]:
+    """Get all the users assigned to a specific role in a specific scope.
 
     Args:
         role_external_key (str): The role to filter users (e.g., 'library_admin').
+        scope_external_key (str): The scope to filter users (e.g., 'lib:DemoX:CSPROB').
 
     Returns:
-        list[UserData]: A list of users assigned to the specified role.
+        list[UserData]: A list of users assigned to the specified role in the specified scope.
     """
-    users = get_subjects_for_role(RoleData(external_key=role_external_key))
+    users = get_subjects_for_role_in_scope(
+        RoleData(external_key=role_external_key),
+        ScopeData(external_key=scope_external_key),
+    )
     return [UserData(namespaced_key=user.namespaced_key) for user in users]
 
 

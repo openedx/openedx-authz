@@ -432,12 +432,13 @@ class RoleListView(APIView):
         """Retrieve all roles and their permissions for a specific scope."""
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
+        query_params = serializer.validated_data
 
-        generic_scope = get_generic_scope(serializer.validated_data["scope"])
+        generic_scope = get_generic_scope(query_params["scope"])
         roles = api.get_role_definitions_in_scope(generic_scope)
         response_data = []
         for role in roles:
-            users = api.get_users_for_role(role.external_key)
+            users = api.get_users_for_role_in_scope(role.external_key, query_params["scope"].external_key)
             response_data.append(
                 {
                     "role": role.external_key,

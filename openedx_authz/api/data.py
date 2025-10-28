@@ -382,6 +382,15 @@ class ContentLibraryData(ScopeData):
         """
         return self.external_key
 
+    @property
+    def library_key(self) -> LibraryLocatorV2:
+        """The LibraryLocatorV2 object for the content library.
+
+        Returns:
+            LibraryLocatorV2: The library locator object.
+        """
+        return LibraryLocatorV2.from_string(self.library_id)
+
     @classmethod
     def validate_external_key(cls, external_key: str) -> bool:
         """Validate the external_key format for ContentLibraryData.
@@ -413,11 +422,10 @@ class ContentLibraryData(ScopeData):
             >>> library_obj = library_scope.get_object() # ContentLibrary object
         """
         try:
-            library_key = LibraryLocatorV2.from_string(self.library_id)
-            library_obj = ContentLibrary.objects.get_by_key(library_key=library_key)
+            library_obj = ContentLibrary.objects.get_by_key(self.library_key)
             # Validate canonical key: get_by_key is case-insensitive, but we require exact match
             # This ensures authorization uses canonical library IDs consistently
-            if library_obj.library_key != library_key:
+            if library_obj.library_key != self.library_key:
                 raise ContentLibrary.DoesNotExist
         except (InvalidKeyError, ContentLibrary.DoesNotExist):
             return None

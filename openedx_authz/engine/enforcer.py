@@ -82,7 +82,7 @@ class AuthzEnforcer:
             try:
                 cls._enforcer.stop_auto_load_policy()
                 cls._enforcer.enable_auto_save(False)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error stopping auto-load policy thread: {e}")
 
     @classmethod

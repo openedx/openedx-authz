@@ -31,6 +31,7 @@ except ImportError:
         @staticmethod
         def is_enabled():
             return True
+    libraries_v2_enabled = DummyToggle()
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class AuthzEnforcer:
         """Singleton pattern to ensure a single enforcer instance."""
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
+            cls.enable_enforcer_auto_save_and_load()
         return cls._enforcer
 
     @classmethod
@@ -114,6 +116,7 @@ class AuthzEnforcer:
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
+            cls.enable_enforcer_auto_save_and_load()
 
         # HACK: This code block will only be useful when in Ulmo to deactivate
         # the enforcer when the new library experience is disabled. It should be
@@ -148,7 +151,5 @@ class AuthzEnforcer:
 
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
-
-        cls.enable_enforcer_auto_save_and_load()
 
         return enforcer

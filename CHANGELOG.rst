@@ -16,6 +16,20 @@ Unreleased
 
 *
 
+0.10.0 - 2025-10-28
+*******************
+
+Added
+=====
+
+* New ``get_object()`` method in ScopeData to retrieve underlying domain objects
+* Implementation of ``get_object()`` for ContentLibraryData with canonical key validation
+
+Changed
+=======
+
+* Refactor ``ContentLibraryData.exists()`` to use ``get_object()`` internally
+
 0.9.1 - 2025-10-28
 ******************
 

@@ -525,16 +525,15 @@ class TestContentLibraryData(TestCase):
             - Library key matches exactly (canonical validation passes)
         """
         library_id = "lib:DemoX:CSPROB"
-        library_key = LibraryLocatorV2.from_string(library_id)
         library_scope = ContentLibraryData(external_key=library_id)
         mock_library_obj = Mock()
-        mock_library_obj.library_key = library_key
+        mock_library_obj.library_key = library_scope.library_key
         mock_content_library_model.objects.get_by_key.return_value = mock_library_obj
 
         result = library_scope.get_object()
 
         self.assertEqual(result, mock_library_obj)
-        mock_content_library_model.objects.get_by_key.assert_called_once_with(library_key=library_key)
+        mock_content_library_model.objects.get_by_key.assert_called_once_with(library_scope.library_key)
 
     @patch("openedx_authz.api.data.ContentLibrary")
     def test_get_object_does_not_exist(self, mock_content_library_model):
@@ -598,8 +597,7 @@ class TestContentLibraryData(TestCase):
         """
         library_id = "lib:DemoX:CSPROB"
         library_scope = ContentLibraryData(external_key=library_id)
-        library_key = LibraryLocatorV2.from_string(library_id)
-        mock_content_library_model.objects.get_by_key.return_value = Mock(library_key=library_key)
+        mock_content_library_model.objects.get_by_key.return_value = Mock(library_key=library_scope.library_key)
 
         result = library_scope.exists()
 

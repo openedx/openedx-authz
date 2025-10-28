@@ -1,7 +1,11 @@
 """Test data for the authorization API."""
 
+from unittest.mock import Mock, patch
+
 from ddt import data, ddt, unpack
 from django.test import TestCase
+from opaque_keys import InvalidKeyError
+from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import (
     ActionData,
@@ -507,3 +511,113 @@ class TestDataRepresentation(TestCase):
 
         expected_repr = "user^john_doe => [role^instructor, role^library_admin] @ lib^lib:DemoX:CSPROB"
         self.assertEqual(actual_repr, expected_repr)
+
+
+@ddt
+class TestContentLibraryData(TestCase):
+    """Test the ContentLibraryData class."""
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_get_object_success(self, mock_content_library_model):
+        """Test get_object returns ContentLibrary when it exists with valid key.
+
+        Expected Result:
+            - Returns the ContentLibrary object when library exists
+            - Library key matches exactly (canonical validation passes)
+        """
+        library_id = "lib:DemoX:CSPROB"
+        library_key = LibraryLocatorV2.from_string(library_id)
+        library_scope = ContentLibraryData(external_key=library_id)
+        mock_library_obj = Mock()
+        mock_library_obj.library_key = library_key
+        mock_content_library_model.objects.get_by_key.return_value = mock_library_obj
+
+        result = library_scope.get_object()
+
+        self.assertEqual(result, mock_library_obj)
+        mock_content_library_model.objects.get_by_key.assert_called_once_with(library_key=library_key)
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_get_object_does_not_exist(self, mock_content_library_model):
+        """Test get_object returns None when library does not exist.
+
+        Expected Result:
+            - Returns None when ContentLibrary.DoesNotExist is raised
+        """
+        library_id = "lib:DemoX:NonExistent"
+        library_scope = ContentLibraryData(external_key=library_id)
+        mock_content_library_model.DoesNotExist = Exception
+        mock_content_library_model.objects.get_by_key.side_effect = mock_content_library_model.DoesNotExist
+
+        result = library_scope.get_object()
+
+        self.assertIsNone(result)
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_get_object_invalid_key_format(self, mock_content_library_model):
+        """Test get_object returns None when library_id has invalid format.
+
+        Expected Result:
+            - Returns None when InvalidKeyError is raised during key parsing
+        """
+        mock_content_library_model.DoesNotExist = Exception
+        library_scope = ContentLibraryData(external_key="invalid-library-format")
+
+        result = library_scope.get_object()
+
+        self.assertIsNone(result)
+        mock_content_library_model.objects.get_by_key.assert_not_called()
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_get_object_non_canonical_key(self, mock_content_library_model):
+        """Test get_object returns None when library key is not canonical.
+
+        This test verifies the canonical key validation: get_by_key is case-insensitive,
+        but we require exact match to ensure authorization uses canonical library IDs.
+
+        Expected Result:
+            - Returns None when retrieved library's key doesn't match exactly
+            - Simulates case where user provides 'lib:demox:csprob' but canonical is 'lib:DemoX:CSPROB'
+        """
+        library_id = "lib:DemoX:CSPROB"
+        library_key = LibraryLocatorV2.from_string(library_id)
+        # Convert to lowercase to simulate case-insensitive comparison
+        library_scope = ContentLibraryData(external_key=library_id.lower())
+        mock_content_library_model.objects.get_by_key.return_value = Mock(library_key=library_key)
+        mock_content_library_model.DoesNotExist = Exception
+
+        result = library_scope.get_object()
+
+        self.assertIsNone(result)
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_exists_returns_true_when_library_exists(self, mock_content_library_model):
+        """Test exists() returns True when get_object() returns a library.
+
+        Expected Result:
+            - exists() returns True when library object is found
+        """
+        library_id = "lib:DemoX:CSPROB"
+        library_scope = ContentLibraryData(external_key=library_id)
+        library_key = LibraryLocatorV2.from_string(library_id)
+        mock_content_library_model.objects.get_by_key.return_value = Mock(library_key=library_key)
+
+        result = library_scope.exists()
+
+        self.assertTrue(result)
+
+    @patch("openedx_authz.api.data.ContentLibrary")
+    def test_exists_returns_false_when_library_does_not_exist(self, mock_content_library_model):
+        """Test exists() returns False when get_object() returns None.
+
+        Expected Result:
+            - exists() returns False when library is not found
+        """
+        library_id = "lib:DemoX:NonExistent"
+        library_scope = ContentLibraryData(external_key=library_id)
+        mock_content_library_model.DoesNotExist = Exception
+        mock_content_library_model.objects.get_by_key.side_effect = mock_content_library_model.DoesNotExist
+
+        result = library_scope.exists()
+
+        self.assertFalse(result)

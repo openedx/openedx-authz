@@ -1,9 +1,11 @@
 """Data classes and enums for representing roles, permissions, and policies."""
 
+from __future__ import annotations
+
 import re
 from abc import abstractmethod
 from enum import Enum
-from typing import ClassVar, Literal, Type
+from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
 from opaque_keys import InvalidKeyError
@@ -320,6 +322,20 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         return True
 
     @abstractmethod
+    def get_object(self) -> Any | None:
+        """Retrieve the underlying domain object that this scope represents.
+
+        This method fetches the actual Open edX object (e.g., ContentLibrary, Organization)
+        associated with this scope's external_key. Subclasses should implement this to return
+        their specific object types.
+
+        Returns:
+            Any | None: The domain object associated with this scope, or None if the object
+                does not exist or cannot be retrieved.
+        """
+        raise NotImplementedError("Subclasses must implement get_object method.")
+
+    @abstractmethod
     def exists(self) -> bool:
         """Check if the scope exists.
 
@@ -382,18 +398,39 @@ class ContentLibraryData(ScopeData):
         except InvalidKeyError:
             return False
 
+    def get_object(self) -> ContentLibrary | None:
+        """Retrieve the ContentLibrary instance associated with this scope.
+
+        This method converts the library_id to a LibraryLocatorV2 key and queries the
+        database to fetch the corresponding ContentLibrary object.
+
+        Returns:
+            ContentLibrary | None: The ContentLibrary instance if found in the database,
+                or None if the library does not exist or has an invalid key format.
+
+        Examples:
+            >>> library_scope = ContentLibraryData(external_key='lib:DemoX:CSPROB')
+            >>> library_obj = library_scope.get_object() # ContentLibrary object
+        """
+        try:
+            library_key = LibraryLocatorV2.from_string(self.library_id)
+            library_obj = ContentLibrary.objects.get_by_key(library_key=library_key)
+            # Validate canonical key: get_by_key is case-insensitive, but we require exact match
+            # This ensures authorization uses canonical library IDs consistently
+            if library_obj.library_key != library_key:
+                raise ContentLibrary.DoesNotExist
+        except (InvalidKeyError, ContentLibrary.DoesNotExist):
+            return None
+
+        return library_obj
+
     def exists(self) -> bool:
         """Check if the content library exists.
 
         Returns:
             bool: True if the content library exists, False otherwise.
         """
-        try:
-            library_key = LibraryLocatorV2.from_string(self.library_id)
-            ContentLibrary.objects.get_by_key(library_key=library_key)
-            return True
-        except ContentLibrary.DoesNotExist:
-            return False
+        return self.get_object() is not None
 
     def __str__(self):
         """Human readable string representation of the content library."""

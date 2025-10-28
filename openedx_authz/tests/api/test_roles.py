@@ -11,7 +11,15 @@ from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
 
-from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, ScopeData, SubjectData
+from openedx_authz.api.data import (
+    ActionData,
+    ContentLibraryData,
+    PermissionData,
+    RoleAssignmentData,
+    RoleData,
+    ScopeData,
+    SubjectData,
+)
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
@@ -19,7 +27,7 @@ from openedx_authz.api.roles import (
     get_permissions_for_active_roles_in_scope,
     get_permissions_for_single_role,
     get_role_definitions_in_scope,
-    get_scopes_for_role_and_subject,
+    get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
@@ -509,23 +517,108 @@ class TestRolesAPI(RolesTestSetupMixin):
 
         self.assertEqual(len(role_assignments), expected_count)
 
-    def test_get_scopes_for_role_and_subject(self):
-        """Test retrieving scopes for a given role and subject.
+    @ddt_data(
+        # Test case: alice with 'view_library' permission (has library_admin in math_101)
+        (
+            "alice",
+            "view_library",
+            ["lib:Org1:math_101"],
+        ),
+        # Test case: alice with 'publish_library_content' permission (admin grants publish)
+        (
+            "alice",
+            "publish_library_content",
+            ["lib:Org1:math_101"],
+        ),
+        # Test case: alice with 'delete_library' permission (admin grants delete)
+        (
+            "alice",
+            "delete_library",
+            ["lib:Org1:math_101"],
+        ),
+        # Test case: bob with 'view_library' permission (has library_author in history_201)
+        (
+            "bob",
+            "view_library",
+            ["lib:Org1:history_201"],
+        ),
+        # Test case: bob with 'publish_library_content' permission (author grants publish)
+        (
+            "bob",
+            "publish_library_content",
+            ["lib:Org1:history_201"],
+        ),
+        # Test case: bob with 'delete_library' permission (author does NOT grant delete)
+        (
+            "bob",
+            "delete_library",
+            [],
+        ),
+        # Test case: carol with 'view_library' permission (has library_contributor in science_301)
+        (
+            "carol",
+            "view_library",
+            ["lib:Org1:science_301"],
+        ),
+        # Test case: carol with 'publish_library_content' permission (contributor does NOT grant publish)
+        (
+            "carol",
+            "publish_library_content",
+            [],
+        ),
+        # Test case: dave with 'view_library' permission (has library_user in english_101)
+        (
+            "dave",
+            "view_library",
+            ["lib:Org1:english_101"],
+        ),
+        # Test case: dave with 'publish_library_content' permission (user does NOT grant publish)
+        (
+            "dave",
+            "publish_library_content",
+            [],
+        ),
+        # Test case: liam with 'view_library' permission (has library_author in 3 art libraries)
+        (
+            "liam",
+            "view_library",
+            ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"],
+        ),
+        # Test case: non-existent user
+        (
+            "nonexistent",
+            "view_library",
+            [],
+        ),
+    )
+    @unpack
+    def test_get_scopes_for_subject_and_permission(self, subject_name, action_name, expected_scope_names):
+        """Test retrieving scopes where a subject has a specific permission.
+
+        This tests the get_scopes_for_subject_and_permission function which
+        returns all scopes where a subject has been granted a specific permission
+        through their role assignments.
+
+        Args:
+            subject_name: The external key of the subject (e.g., 'alice')
+            action_name: The action to check (e.g., 'view', 'edit', 'delete')
+            expected_scope_names: List of expected scope external keys
 
         Expected result:
-            - The scopes associated with the specified role and subject are correctly retrieved.
+            - Returns all scopes where the subject has roles that grant the permission
+            - Returns empty list if subject has no roles with that permission
         """
-        role_name = roles.LIBRARY_AUTHOR.external_key
-        subject_name = "liam"
-        expected_scopes = {"lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"}
+        subject = SubjectData(external_key=subject_name)
+        permission = PermissionData(action=ActionData(external_key=action_name))
 
-        scopes = get_scopes_for_role_and_subject(
-            RoleData(external_key=role_name),
-            SubjectData(external_key=subject_name),
-        )
+        scopes = get_scopes_for_subject_and_permission(subject, permission)
 
-        scope_names = {scope.external_key for scope in scopes}
-        self.assertEqual(scope_names, expected_scopes)
+        # Extract scope external keys for comparison
+        actual_scope_names = [scope.external_key for scope in scopes]
+
+        self.assertEqual(len(actual_scope_names), len(expected_scope_names))
+        for expected_scope in expected_scope_names:
+            self.assertIn(expected_scope, actual_scope_names)
 
     @ddt_data(
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_101", {"liam"}),

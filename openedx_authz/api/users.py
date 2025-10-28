@@ -9,14 +9,14 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user^john_doe').
 """
 
-from openedx_authz.api.data import ActionData, RoleAssignmentData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import ActionData, PermissionData, RoleAssignmentData, RoleData, ScopeData, UserData
 from openedx_authz.api.permissions import is_subject_allowed
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
-    get_scopes_for_role_and_subject,
+    get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
@@ -34,7 +34,8 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
-    "get_users_for_role_in_scope",
+    "get_users_for_role",
+    "get_scopes_for_user_and_permission",
 ]
 
 
@@ -205,17 +206,20 @@ def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str)
     return [UserData(namespaced_key=user.namespaced_key) for user in users]
 
 
-def get_scopes_for_role_and_user(role_external_key: str, user_external_key: str) -> list[ScopeData]:
-    """Get all scopes where a specific user has been assigned a specific role.
+def get_scopes_for_user_and_permission(
+    user_external_key: str,
+    action_external_key: str,
+) -> list[ScopeData]:
+    """Get all scopes where a specific user is assigned a specific permission.
 
     Args:
-        role_external_key (str): The role to filter scopes (e.g., 'instructor').
         user_external_key (str): ID of the user (e.g., 'john_doe').
+        action_external_key (str): The action to filter scopes (e.g., 'view', 'edit').
 
     Returns:
-        list[ScopeData]: A list of scopes where the user has the specified role.
+        list[ScopeData]: A list of scopes where the user is assigned the specified permission.
     """
-    return get_scopes_for_role_and_subject(
-        RoleData(external_key=role_external_key),
+    return get_scopes_for_subject_and_permission(
         UserData(external_key=user_external_key),
+        PermissionData(action=ActionData(external_key=action_external_key)),
     )

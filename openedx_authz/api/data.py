@@ -656,6 +656,33 @@ class PermissionData:
         """
         return self.action.external_key
 
+    def __eq__(self, other):
+        """Compare permissions based on their action identifier.
+
+        Two permissions are considered equal if they have the same action,
+        regardless of the effect. This allows checking if a role grants a
+        specific action using the 'in' operator.
+
+        Args:
+            other: Another PermissionData instance or any object.
+
+        Returns:
+            bool: True if the actions match, False otherwise.
+
+        Example:
+            >>> perm1 = PermissionData(action=ActionData(external_key='view'), effect='allow')
+            >>> perm2 = PermissionData(action=ActionData(external_key='view'), effect='deny')
+            >>> perm1 == perm2  # True - same action TODO: should we also consider the effect?
+            True
+            >>> perm1 in [perm2]  # Uses __eq__
+            True
+        """
+        if not isinstance(other, PermissionData):
+            return False
+        if self.action is None or other.action is None:
+            return False
+        return self.action.external_key == other.action.external_key
+
     def __str__(self):
         """Human readable string representation of the permission and its effect."""
         return f"{self.action} - {self.effect}"

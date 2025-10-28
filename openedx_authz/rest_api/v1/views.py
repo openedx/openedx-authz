@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
+from openedx_authz.constants import permissions
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -250,7 +251,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions(["view_library_team"])
+    @authz_permissions([permissions.VIEW_LIBRARY_TEAM])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all users with role assignments within a specific scope."""
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
@@ -277,7 +278,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions(["manage_library_team"])
+    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM])
     def put(self, request: HttpRequest) -> Response:
         """Assign multiple users to a specific role within a scope."""
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
@@ -324,7 +325,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions(["manage_library_team"])
+    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
@@ -427,7 +428,7 @@ class RoleListView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions(["view_library_team"])
+    @authz_permissions([permissions.VIEW_LIBRARY_TEAM])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all roles and their permissions for a specific scope."""
         serializer = ListRolesWithScopeSerializer(data=request.query_params)

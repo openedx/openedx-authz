@@ -16,6 +16,7 @@ from rest_framework.test import APIClient
 
 from openedx_authz import api
 from openedx_authz.api.users import assign_role_to_user_in_scope
+from openedx_authz.constants import permissions, roles
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
@@ -68,48 +69,48 @@ class ViewTestMixin(BaseRolesTestCase):
             # Assign roles to admin users
             {
                 "subject_name": "admin_1",
-                "role_name": "library_admin",
+                "role_name": roles.LIBRARY_ADMIN,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "admin_2",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "admin_3",
-                "role_name": "library_admin",
+                "role_name": roles.LIBRARY_ADMIN,
                 "scope_name": "lib:Org3:LIB3",
             },
             # Assign roles to regular users
             {
                 "subject_name": "regular_1",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "regular_2",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "regular_3",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "regular_4",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "regular_5",
-                "role_name": "library_admin",
+                "role_name": roles.LIBRARY_ADMIN,
                 "scope_name": "lib:Org3:LIB3",
             },
             {
                 "subject_name": "regular_6",
-                "role_name": "library_author",
+                "role_name": roles.LIBRARY_AUTHOR,
                 "scope_name": "lib:Org3:LIB3",
             },
             {
@@ -119,7 +120,7 @@ class ViewTestMixin(BaseRolesTestCase):
             },
             {
                 "subject_name": "regular_8",
-                "role_name": "library_user",
+                "role_name": roles.LIBRARY_USER,
                 "scope_name": "lib:Org3:LIB3",
             },
         ]
@@ -164,16 +165,16 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
     @data(
         # Single permission - allowed
-        ([{"action": "view_library", "scope": "lib:Org1:LIB1"}], [True]),
+        ([{"action": permissions.VIEW_LIBRARY, "scope": "lib:Org1:LIB1"}], [True]),
         # Single permission - denied (scope not assigned to user)
-        ([{"action": "view_library", "scope": "lib:Org2:LIB2"}], [False]),
+        ([{"action": permissions.VIEW_LIBRARY, "scope": "lib:Org2:LIB2"}], [False]),
         # # Single permission - denied (action not assigned to user)
         ([{"action": "edit_library", "scope": "lib:Org1:LIB1"}], [False]),
         # # Multiple permissions - mixed results
         (
             [
-                {"action": "view_library", "scope": "lib:Org1:LIB1"},
-                {"action": "view_library", "scope": "lib:Org2:LIB2"},
+                {"action": permissions.VIEW_LIBRARY, "scope": "lib:Org1:LIB1"},
+                {"action": permissions.VIEW_LIBRARY, "scope": "lib:Org2:LIB2"},
                 {"action": "edit_library", "scope": "lib:Org1:LIB1"},
             ],
             [True, False, False],
@@ -304,23 +305,23 @@ class TestRoleUserAPIView(ViewTestMixin):
         ({"search": "@example.com"}, 3),
         ({"search": "nonexistent@example.com"}, 0),
         # Search by single role
-        ({"roles": "library_admin"}, 1),
-        ({"roles": "library_author"}, 0),
-        ({"roles": "library_user"}, 2),
+        ({"roles": roles.LIBRARY_ADMIN}, 1),
+        ({"roles": roles.LIBRARY_AUTHOR}, 0),
+        ({"roles": roles.LIBRARY_USER}, 2),
         # Search by multiple roles
         ({"roles": "library_admin,library_author"}, 1),
         ({"roles": "library_author,library_user"}, 2),
         ({"roles": "library_user,library_admin"}, 3),
         ({"roles": "library_admin,library_author,library_user"}, 3),
         # Search by role and username
-        ({"search": "admin_1", "roles": "library_admin"}, 1),
-        ({"search": "regular_1", "roles": "library_user"}, 1),
-        ({"search": "regular_1", "roles": "library_admin"}, 0),
+        ({"search": "admin_1", "roles": roles.LIBRARY_ADMIN}, 1),
+        ({"search": "regular_1", "roles": roles.LIBRARY_USER}, 1),
+        ({"search": "regular_1", "roles": roles.LIBRARY_ADMIN}, 0),
         # Search by role and email
-        ({"search": "admin_1@example.com", "roles": "library_admin"}, 1),
-        ({"search": "@example.com", "roles": "library_admin"}, 1),
-        ({"search": "@example.com", "roles": "library_user"}, 2),
-        ({"search": "regular_1@example.com", "roles": "library_admin"}, 0),
+        ({"search": "admin_1@example.com", "roles": roles.LIBRARY_ADMIN}, 1),
+        ({"search": "@example.com", "roles": roles.LIBRARY_ADMIN}, 1),
+        ({"search": "@example.com", "roles": roles.LIBRARY_USER}, 2),
+        ({"search": "regular_1@example.com", "roles": roles.LIBRARY_ADMIN}, 0),
     )
     @unpack
     def test_get_users_by_scope_success(self, query_params: dict, expected_count: int):
@@ -434,7 +435,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns 207 MULTI-STATUS status
             - Returns appropriate completed and error counts
         """
-        role = "library_admin"
+        role = roles.LIBRARY_ADMIN
         request_data = {"role": role, "scope": "lib:Org1:LIB3", "users": users}
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
@@ -457,7 +458,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     @unpack
     def test_add_users_to_role_already_has_role(self, users: list[str], expected_completed: int, expected_errors: int):
         """Test adding users to a role that already has the role."""
-        role = "library_user"
+        role = roles.LIBRARY_USER
         scope = "lib:Org2:LIB2"
         request_data = {"role": role, "scope": scope, "users": users}
 
@@ -472,7 +473,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     def test_add_users_to_role_exception_handling(self, mock_assign_role_to_user_in_scope):
         """Test adding users to a role with exception handling."""
         request_data = {
-            "role": "library_admin",
+            "role": roles.LIBRARY_ADMIN,
             "scope": "lib:Org1:LIB1",
             "users": ["regular_1"],
         }
@@ -492,15 +493,15 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @data(
         {},
-        {"role": "library_admin"},
+        {"role": roles.LIBRARY_ADMIN},
         {"scope": "lib:Org1:LIB1"},
         {"users": ["admin_1"]},
-        {"role": "library_admin", "scope": "lib:Org1:LIB1"},
+        {"role": roles.LIBRARY_ADMIN, "scope": "lib:Org1:LIB1"},
         {"scope": "lib:Org1:LIB1", "users": ["admin_1"]},
-        {"users": ["admin_1", "regular_1"], "role": "library_admin"},
-        {"role": "library_admin", "scope": "lib:Org1:LIB1", "users": []},
+        {"users": ["admin_1", "regular_1"], "role": roles.LIBRARY_ADMIN},
+        {"role": roles.LIBRARY_ADMIN, "scope": "lib:Org1:LIB1", "users": []},
         {"role": "", "scope": "lib:Org1:LIB1", "users": ["admin_1"]},
-        {"role": "library_admin", "scope": "", "users": ["admin_1"]},
+        {"role": roles.LIBRARY_ADMIN, "scope": "", "users": ["admin_1"]},
     )
     def test_add_users_to_role_invalid_data(self, request_data: dict):
         """Test adding users with invalid request data.
@@ -531,7 +532,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on permissions
         """
         request_data = {
-            "role": "library_admin",
+            "role": roles.LIBRARY_ADMIN,
             "scope": "lib:Org3:LIB3",
             "users": ["regular_2"],
         }
@@ -586,7 +587,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate completed and error counts
         """
         query_params = {
-            "role": "library_user",
+            "role": roles.LIBRARY_USER,
             "scope": "lib:Org2:LIB2",
             "users": ",".join(users),
         }
@@ -602,7 +603,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     def test_remove_users_from_role_exception_handling(self, mock_unassign_role_from_user):
         """Test removing users from a role with exception handling."""
         query_params = {
-            "role": "library_admin",
+            "role": roles.LIBRARY_ADMIN,
             "scope": "lib:Org1:LIB1",
             "users": "regular_1,regular_2,regular_3",
         }
@@ -631,15 +632,15 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @data(
         {},
-        {"role": "library_admin"},
+        {"role": roles.LIBRARY_ADMIN},
         {"scope": "lib:Org1:LIB1"},
         {"users": "admin_1"},
-        {"role": "library_admin", "scope": "lib:Org1:LIB1"},
+        {"role": roles.LIBRARY_ADMIN, "scope": "lib:Org1:LIB1"},
         {"scope": "lib:Org1:LIB1", "users": "admin_1"},
-        {"users": "admin_1,regular_1", "role": "library_admin"},
-        {"role": "library_admin", "scope": "lib:Org1:LIB1", "users": ""},
+        {"users": "admin_1,regular_1", "role": roles.LIBRARY_ADMIN},
+        {"role": roles.LIBRARY_ADMIN, "scope": "lib:Org1:LIB1", "users": ""},
         {"role": "", "scope": "lib:Org1:LIB1", "users": "admin_1"},
-        {"role": "library_admin", "scope": "", "users": "admin_1"},
+        {"role": roles.LIBRARY_ADMIN, "scope": "", "users": "admin_1"},
     )
     def test_remove_users_from_role_invalid_params(self, query_params: dict):
         """Test removing users with invalid query parameters.
@@ -669,7 +670,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on permissions
         """
         query_params = {
-            "role": "library_admin",
+            "role": roles.LIBRARY_ADMIN,
             "scope": "lib:Org3:LIB3",
             "users": "user1,user2",
         }

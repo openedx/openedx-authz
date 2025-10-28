@@ -13,6 +13,7 @@ import casbin
 from ddt import data, ddt, unpack
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.constants import roles
 from openedx_authz.tests.test_utils import (
     make_action_key,
     make_library_key,
@@ -257,7 +258,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key("library_admin"),
+            make_role_key(roles.LIBRARY_ADMIN),
             make_action_key("manage"),
             make_scope_key("lib", "*"),
             "allow",
@@ -278,7 +279,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key("library_author"),
+            make_role_key(roles.LIBRARY_AUTHOR),
             make_action_key("write"),
             make_scope_key("lib", "*"),
             "allow",
@@ -312,7 +313,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-6"),
-            make_role_key("library_admin"),
+            make_role_key(roles.LIBRARY_ADMIN),
             make_library_key("lib:DemoX:CSPROB"),
         ],
         [
@@ -330,7 +331,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-9"),
-            make_role_key("library_author"),
+            make_role_key(roles.LIBRARY_AUTHOR),
             make_library_key("lib:DemoX:CSPROB"),
         ],
     ] + COMMON_ACTION_GROUPING
@@ -493,7 +494,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key("library_admin"),
+            make_role_key(roles.LIBRARY_ADMIN),
             make_action_key("manage"),
             make_scope_key("lib", "*"),
             "allow",
@@ -502,7 +503,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
         ["g", make_user_key("user-2"), make_role_key("org_admin"), "*"],
         ["g", make_user_key("user-3"), make_role_key("course_admin"), "*"],
-        ["g", make_user_key("user-4"), make_role_key("library_admin"), "*"],
+        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN), "*"],
     ] + COMMON_ACTION_GROUPING
 
     @data(

@@ -13,6 +13,7 @@ from django.core.management.base import CommandError
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
+from openedx_authz.constants import permissions
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand
 
@@ -140,7 +141,7 @@ class EnforcementCommandTests(TestCase):
 
         output = self.buffer.getvalue()
         self.assertIn("✓ ALLOWED: alice view_library lib:Org1:LIB1", output)
-        mock_is_allowed.assert_called_once_with("alice", "view_library", "lib:Org1:LIB1")
+        mock_is_allowed.assert_called_once_with("alice", permissions.VIEW_LIBRARY, "lib:Org1:LIB1")
 
     @patch.object(AuthzEnforcer, "get_enforcer")
     @patch.object(authz_api, "is_user_allowed")
@@ -154,7 +155,7 @@ class EnforcementCommandTests(TestCase):
 
         output = self.buffer.getvalue()
         self.assertIn("✗ DENIED: bob delete_library lib:Org2:LIB2", output)
-        mock_is_allowed.assert_called_once_with("bob", "delete_library", "lib:Org2:LIB2")
+        mock_is_allowed.assert_called_once_with("bob", permissions.DELETE_LIBRARY, "lib:Org2:LIB2")
 
     @patch("openedx_authz.management.commands.enforcement.Enforcer")
     def test_interactive_mode_file_mode_enforcement(self, mock_enforcer_class: Mock):

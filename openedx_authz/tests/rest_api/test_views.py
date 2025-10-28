@@ -39,10 +39,7 @@ class ViewTestMixin(BaseRolesTestCase):
     """Mixin providing common test utilities for view tests."""
 
     @classmethod
-    def _assign_roles_to_users(
-        cls,
-        assignments: list[dict] | None = None,
-    ):
+    def _assign_roles_to_users(cls, assignments: list[dict] | None = None):
         """Helper method to assign roles to multiple users.
 
         This method can be used to assign a role to a single user or multiple users
@@ -115,7 +112,7 @@ class ViewTestMixin(BaseRolesTestCase):
             },
             {
                 "subject_name": "regular_7",
-                "role_name": "library_collaborator",
+                "role_name": "library_contributor",
                 "scope_name": "lib:Org3:LIB3",
             },
             {
@@ -168,9 +165,9 @@ class TestPermissionValidationMeView(ViewTestMixin):
         ([{"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"}], [True]),
         # Single permission - denied (scope not assigned to user)
         ([{"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"}], [False]),
-        # # Single permission - denied (action not assigned to user)
+        # Single permission - denied (action not assigned to user)
         ([{"action": "edit_library", "scope": "lib:Org1:LIB1"}], [False]),
-        # # Multiple permissions - mixed results
+        # Multiple permissions - mixed results
         (
             [
                 {"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"},
@@ -793,9 +790,9 @@ class TestRoleListView(ViewTestMixin):
         # Library Admin user
         ("regular_5", status.HTTP_200_OK),
         # Library Author user
-        # ("regular_6", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
-        # Library Collaborator user
-        # ("regular_7", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        ("regular_6", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        # Library Contributor user
+        ("regular_7", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
         # Library User user
         ("regular_8", status.HTTP_200_OK),
         # Regular user without permission

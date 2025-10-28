@@ -6,6 +6,7 @@ roles and permissions within specific scopes.
 """
 
 import casbin
+import pkg_resources
 from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
@@ -25,14 +26,14 @@ from openedx_authz.api.roles import (
     get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
-from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.utils import migrate_policy_between_enforcers
-from openedx_authz.tests.constants import (
+from openedx_authz.constants.roles import (
     LIST_LIBRARY_ADMIN_PERMISSIONS,
     LIST_LIBRARY_AUTHOR_PERMISSIONS,
     LIST_LIBRARY_CONTRIBUTOR_PERMISSIONS,
     LIST_LIBRARY_USER_PERMISSIONS,
 )
+from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.utils import migrate_policy_between_enforcers
 
 
 class BaseRolesTestCase(TestCase):
@@ -52,11 +53,11 @@ class BaseRolesTestCase(TestCase):
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.load_policy()
+        model_path = pkg_resources.resource_filename("openedx_authz.engine", "config/model.conf")
+        policy_path = pkg_resources.resource_filename("openedx_authz.engine", "config/authz.policy")
+
         migrate_policy_between_enforcers(
-            source_enforcer=casbin.Enforcer(
-                "openedx_authz/engine/config/model.conf",
-                "openedx_authz/engine/config/authz.policy",
-            ),
+            source_enforcer=casbin.Enforcer(model_path, policy_path),
             target_enforcer=global_enforcer,
         )
         global_enforcer.clear_policy()  # Clear to simulate fresh start for each test

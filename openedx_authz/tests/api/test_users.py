@@ -14,8 +14,8 @@ from openedx_authz.api.users import (
     is_user_allowed,
     unassign_role_from_user,
 )
+from openedx_authz.constants.roles import LIST_LIBRARY_ADMIN_PERMISSIONS, LIST_LIBRARY_AUTHOR_PERMISSIONS
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
-from openedx_authz.tests.constants import LIST_LIBRARY_ADMIN_PERMISSIONS, LIST_LIBRARY_AUTHOR_PERMISSIONS
 
 
 class UserAssignmentsSetupMixin(RolesTestSetupMixin):

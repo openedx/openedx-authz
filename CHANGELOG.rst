@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.10.1 - 2025-10-28
+********************
+
+Fixed
+=====
+
+* Fix constants and test class to be able to use it outside this app.
+
 0.10.0 - 2025-10-28
 *******************
 

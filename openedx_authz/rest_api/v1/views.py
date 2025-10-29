@@ -121,10 +121,7 @@ class PermissionValidationMeView(APIView):
                 response_data.append({"action": action, "scope": scope, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
-                return Response(
-                    data={"message": "Invalid scope format"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(

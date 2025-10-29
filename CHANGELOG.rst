@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.11.1 - 2025-10-29
+********************
+
+Changed
+=======
+
+* Refactor to get permissions' scopes instead of role.
+
 0.11.0 - 2025-10-29
 ********************
 

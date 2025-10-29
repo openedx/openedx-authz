@@ -790,9 +790,9 @@ class TestRoleListView(ViewTestMixin):
         # Library Admin user
         ("regular_5", status.HTTP_200_OK),
         # Library Author user
-        ("regular_6", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        ("regular_6", status.HTTP_200_OK),
         # Library Contributor user
-        ("regular_7", status.HTTP_200_OK),  # TODO: uncomment this when we have the explicit permissions
+        ("regular_7", status.HTTP_200_OK),
         # Library User user
         ("regular_8", status.HTTP_200_OK),
         # Regular user without permission

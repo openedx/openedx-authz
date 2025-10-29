@@ -6,7 +6,7 @@ that would be used in production environments.
 """
 
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import casbin
 from ddt import data as ddt_data
@@ -594,7 +594,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
 
         enforcer = AuthzEnforcer.get_enforcer()
 
-        self.assertTrue(enforcer._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
         test_policy = [
             make_role_key("test_role"),
@@ -623,7 +623,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
 
         enforcer = AuthzEnforcer.get_enforcer()
 
-        self.assertFalse(enforcer._e.auto_save)
+        self.assertFalse(AuthzEnforcer.is_auto_save_enabled())
         self.assertFalse(enforcer.is_auto_loading_running())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
@@ -640,7 +640,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         enforcer = AuthzEnforcer.get_enforcer()
 
         self.assertTrue(enforcer.is_auto_loading_running())
-        self.assertTrue(enforcer._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0.5)
@@ -660,7 +660,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         enforcer2 = AuthzEnforcer.get_enforcer()
         self.assertIs(enforcer1, enforcer2)
         self.assertTrue(enforcer2.is_auto_loading_running())
-        self.assertTrue(enforcer2._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
@@ -676,12 +676,12 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         """
         mock_toggle.is_enabled.return_value = False
         enforcer1 = AuthzEnforcer.get_enforcer()
-        self.assertFalse(enforcer1._e.auto_save)
+        self.assertFalse(AuthzEnforcer.is_auto_save_enabled())
 
         mock_toggle.is_enabled.return_value = True
         enforcer2 = AuthzEnforcer.get_enforcer()
         self.assertIs(enforcer1, enforcer2)
-        self.assertTrue(enforcer2._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
@@ -701,7 +701,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         enforcer = AuthzEnforcer.get_enforcer()
 
         self.assertIsNotNone(enforcer)
-        self.assertTrue(enforcer._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
@@ -719,12 +719,12 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
 
         enforcer = AuthzEnforcer.get_enforcer()
         enforcer.enable_auto_save(True)
-        self.assertTrue(enforcer._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
         # Call get_enforcer() again - should not disable auto-save
         enforcer2 = AuthzEnforcer.get_enforcer()
         self.assertIs(enforcer, enforcer2)
-        self.assertTrue(enforcer2._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
@@ -767,7 +767,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
 
         enforcer = AuthzEnforcer.get_enforcer()
 
-        self.assertFalse(enforcer._e.auto_save)
+        self.assertFalse(AuthzEnforcer.is_auto_save_enabled())
         self.assertFalse(enforcer.is_auto_loading_running())
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
@@ -817,9 +817,9 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         # First call
         enforcer1 = AuthzEnforcer.get_enforcer()
         enforcer1.enable_auto_save(True)
-        self.assertTrue(enforcer1._e.auto_save)
+        self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
         # Multiple subsequent calls
         for _ in range(5):
-            enforcer = AuthzEnforcer.get_enforcer()
-            self.assertTrue(enforcer._e.auto_save)
+            AuthzEnforcer.get_enforcer()
+            self.assertTrue(AuthzEnforcer.is_auto_save_enabled())

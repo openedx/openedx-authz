@@ -83,6 +83,17 @@ class AuthzEnforcer:
             cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
 
     @classmethod
+    def is_auto_save_enabled(cls) -> bool:
+        """Check if auto-save is currently enabled on the enforcer.
+
+        Returns:
+            bool: True if auto-save is enabled, False otherwise
+        """
+        if cls._enforcer is None:
+            return False
+        return cls._enforcer._e.auto_save  # pylint: disable=protected-access
+
+    @classmethod
     def configure_enforcer_auto_save(cls, auto_save_policy: bool):
         """Configure auto-save on the enforcer.
 
@@ -95,7 +106,7 @@ class AuthzEnforcer:
         Returns:
             None
         """
-        if cls._enforcer._e.auto_save != auto_save_policy:
+        if cls.is_auto_save_enabled() != auto_save_policy:
             cls._enforcer.enable_auto_save(auto_save_policy)
 
     @classmethod

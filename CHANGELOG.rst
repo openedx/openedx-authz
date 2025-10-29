@@ -24,6 +24,11 @@ Changed
 
 * Refactor to get permissions' scopes instead of role.
 
+Fixed
+=====
+
+* Use correct content library toggle to check if Content Library V2 is enabled.
+
 0.11.0 - 2025-10-29
 ********************
 

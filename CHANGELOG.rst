@@ -14,7 +14,13 @@ Change Log
 Unreleased
 **********
 
-*
+0.12.0 - 2025-10-30
+********************
+
+Changed
+=======
+
+* Load authorization policies in permission class.
 
 0.11.2 - 2025-10-30
 ********************

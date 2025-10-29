@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.11.0 - 2025-10-29
+********************
+
+Added
+=====
+
+* Disable auto-save and auto-load of policies if Content Library V2 is disabled.
+
 0.10.1 - 2025-10-28
 ********************
 

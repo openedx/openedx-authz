@@ -590,7 +590,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Policy changes are persisted to database
             - CASBIN_AUTO_LOAD_POLICY_INTERVAL=0 doesn't disable auto-save
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -619,7 +619,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Auto-save is disabled via deactivate_enforcer
             - Auto-load is stopped
         """
-        mock_toggle.is_enabled.return_value = False
+        mock_toggle.return_value = False
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -635,7 +635,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Auto-load thread is started with configured interval
             - Auto-save is enabled
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -652,7 +652,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Subsequent calls don't restart the auto-load thread
             - Auto-save remains enabled
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer1 = AuthzEnforcer.get_enforcer()
         self.assertTrue(enforcer1.is_auto_loading_running())
@@ -674,11 +674,11 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - First call with toggle off: auto-save disabled
             - Second call with toggle on: auto-save enabled
         """
-        mock_toggle.is_enabled.return_value = False
+        mock_toggle.return_value = False
         enforcer1 = AuthzEnforcer.get_enforcer()
         self.assertFalse(AuthzEnforcer.is_auto_save_enabled())
 
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
         enforcer2 = AuthzEnforcer.get_enforcer()
         self.assertIs(enforcer1, enforcer2)
         self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
@@ -696,7 +696,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Enforcer initializes successfully
             - Auto-save is enabled (DummyToggle returns True)
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -715,7 +715,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Tests can manually enable auto-save
             - Subsequent get_enforcer() calls preserve auto-save state
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
         enforcer.enable_auto_save(True)
@@ -735,7 +735,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Policies added via add_policy() are persisted to database
             - Policies can be reloaded from database
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
         enforcer.enable_auto_save(True)
@@ -763,7 +763,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Auto-save is disabled
             - Auto-load is not running
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -779,7 +779,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - Policies added are only in memory
             - Reloading from database clears them
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         enforcer = AuthzEnforcer.get_enforcer()
 
@@ -812,7 +812,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             - After manually enabling auto-save, it stays enabled
             - Multiple get_enforcer() calls don't change auto-save state
         """
-        mock_toggle.is_enabled.return_value = True
+        mock_toggle.return_value = True
 
         # First call
         enforcer1 = AuthzEnforcer.get_enforcer()

@@ -27,12 +27,9 @@ try:
     from cms.djangoapps.contentstore.toggles import libraries_v2_enabled
 except ImportError:
     # If the CMS is not available, define a dummy toggle that is always enabled
-    class DummyToggle:
-        @staticmethod
-        def is_enabled():
-            return True
-
-    libraries_v2_enabled = DummyToggle()
+    def libraries_v2_enabled() -> bool:
+        """Dummy toggle that is always enabled."""
+        return True
 
 
 logger = logging.getLogger(__name__)
@@ -162,7 +159,7 @@ class AuthzEnforcer:
         # removed for the next release cycle.
         # When replaced, we will only need to configure the enforcer here. Which
         # is in charge of enabling/disabling auto-load and auto-save.
-        if libraries_v2_enabled.is_enabled():
+        if libraries_v2_enabled():
             cls.configure_enforcer_auto_save_and_load()
         else:
             cls.deactivate_enforcer()

@@ -5,6 +5,7 @@ from typing import ClassVar
 from rest_framework.permissions import BasePermission
 
 from openedx_authz import api
+from openedx_authz.engine.enforcer import AuthzEnforcer
 
 
 class PermissionMeta(type(BasePermission)):
@@ -182,6 +183,7 @@ class DynamicScopePermission(BaseScopePermission):
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
+        AuthzEnforcer.get_enforcer().load_policy()
         return self._get_permission_instance(request).has_permission(request, view)
 
     def has_object_permission(self, request, view, obj) -> bool:
@@ -198,6 +200,7 @@ class DynamicScopePermission(BaseScopePermission):
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
+        AuthzEnforcer.get_enforcer().load_policy()
         return self._get_permission_instance(request).has_object_permission(request, view, obj)
 
 

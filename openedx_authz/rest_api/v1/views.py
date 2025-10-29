@@ -16,7 +16,6 @@ from rest_framework.views import APIView
 
 from openedx_authz import api
 from openedx_authz.constants import permissions
-from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -257,8 +256,6 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        AuthzEnforcer.get_enforcer().load_policy()
-
         user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
         usernames = {assignment.subject.username for assignment in user_role_assignments}
         context = {"user_map": get_user_map(usernames)}
@@ -285,8 +282,6 @@ class RoleUserAPIView(APIView):
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-
-        AuthzEnforcer.get_enforcer().load_policy()
 
         completed, errors = [], []
         for user_identifier in data["users"]:
@@ -330,8 +325,6 @@ class RoleUserAPIView(APIView):
     @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
-        AuthzEnforcer.get_enforcer().load_policy()
-
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -437,8 +430,6 @@ class RoleListView(APIView):
         serializer = ListRolesWithScopeSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
-
-        AuthzEnforcer.get_enforcer().load_policy()
 
         generic_scope = get_generic_scope(query_params["scope"])
         roles = api.get_role_definitions_in_scope(generic_scope)

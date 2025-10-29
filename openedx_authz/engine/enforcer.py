@@ -31,6 +31,7 @@ except ImportError:
         @staticmethod
         def is_enabled():
             return True
+
     libraries_v2_enabled = DummyToggle()
 
 
@@ -69,6 +70,35 @@ class AuthzEnforcer:
         return cls._enforcer
 
     @classmethod
+    def configure_enforcer_auto_loading(cls, auto_load_policy_interval: int = None):
+        """Enable auto-load policy and auto-save on the enforcer.
+
+        This method ensures that the singleton enforcer instance is created
+        and ready for use.
+
+        Returns:
+            None
+        """
+        if not cls._enforcer.is_auto_loading_running():
+            cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
+
+    @classmethod
+    def configure_enforcer_auto_save(cls, auto_save_policy: bool):
+        """Configure auto-save on the enforcer.
+
+        This method ensures that auto-save is enabled or disabled based on
+        the auto_save_policy parameter.
+
+        Args:
+            auto_save_policy: True to enable auto-save, False to disable
+
+        Returns:
+            None
+        """
+        if cls._enforcer._e.auto_save != auto_save_policy:
+            cls._enforcer.enable_auto_save(auto_save_policy)
+
+    @classmethod
     def deactivate_enforcer(cls):
         """Deactivate the current enforcer instance, if any.
 
@@ -87,25 +117,24 @@ class AuthzEnforcer:
                 logger.error(f"Error stopping auto-load policy thread: {e}")
 
     @classmethod
-    def enable_enforcer_auto_save_and_load(cls):
+    def configure_enforcer_auto_save_and_load(cls):
         """Enable auto-load policy and auto-save on the enforcer.
 
-        This method ensures that the singleton enforcer instance is created
-        and ready for use.
+        This method ensures that the singleton enforcer instance is configured
+        for auto-load and auto-save based on settings.
 
         Returns:
             None
         """
         auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
+        auto_save_policy = getattr(settings, "CASBIN_AUTO_SAVE_POLICY", True)
 
-        # Only start auto-load if it's not already running
         if auto_load_policy_interval > 0:
-            if not cls._enforcer.is_auto_loading_running():
-                cls._enforcer.start_auto_load_policy(auto_load_policy_interval)
+            cls.configure_enforcer_auto_loading(auto_load_policy_interval)
         else:
             logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
 
-        cls._enforcer.enable_auto_save(True)
+        cls.configure_enforcer_auto_save(auto_save_policy)
 
     @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:
@@ -120,8 +149,10 @@ class AuthzEnforcer:
         # HACK: This code block will only be useful when in Ulmo to deactivate
         # the enforcer when the new library experience is disabled. It should be
         # removed for the next release cycle.
+        # When replaced, we will only need to configure the enforcer here. Which
+        # is in charge of enabling/disabling auto-load and auto-save.
         if libraries_v2_enabled.is_enabled():
-            cls.enable_enforcer_auto_save_and_load()
+            cls.configure_enforcer_auto_save_and_load()
         else:
             cls.deactivate_enforcer()
 

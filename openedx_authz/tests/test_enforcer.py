@@ -6,6 +6,7 @@ that would be used in production environments.
 """
 
 import time
+from unittest.mock import Mock, patch
 
 import casbin
 from ddt import data as ddt_data
@@ -521,39 +522,304 @@ class TestAutoLoadPolicy(TransactionTestCase):
         policies_after_auto_load = global_enforcer.get_grouping_policy()
         self.assertIn(new_assignment, policies_after_auto_load)
 
-    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=-1)
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
     def test_auto_load_disabled(self):
-        """Test that auto-load can be disabled by setting interval to -1.
+        """Test that auto-load can be disabled while auto-save remains enabled.
 
-        This test verifies that when CASBIN_AUTO_LOAD_POLICY_INTERVAL is set to -1,
-        the enforcer does NOT automatically load policies from the database.
+        This test verifies that when CASBIN_AUTO_LOAD_POLICY_INTERVAL is 0,
+        the enforcer does NOT automatically load policies, but auto-save
+        works normally for manual operations.
 
         Expected result:
-            - Policies remain empty after seeding database
-            - Manual load_policy() is required to load policies
-            - New policies don't appear without manual reload
+            - Policies remain empty initially (no auto-load)
+            - Policies can be seeded to database (auto-save works)
+            - Manual load_policy() loads policies from database
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
 
-        # Initial policy count should be 0
         initial_policy_count = len(global_enforcer.get_policy())
         self.assertEqual(initial_policy_count, 0)
 
-        # Policies should still be empty since auto-load is disabled
-        # and no database queries should have been made
         with self.assertNumQueries(0):
             time.sleep(1.0)
             policies_after_wait = global_enforcer.get_policy()
             self.assertEqual(len(policies_after_wait), 0)
 
-        # Seed the database with policies
         self._seed_database_with_policies()
 
-        # Manually load policies
         with self.assertNumQueries(1):
             time.sleep(1.0)
             global_enforcer.load_policy()
-            # Since auto-save is also disabled, the policies should still
-            # be empty after manual load
             policies_after_manual_load = global_enforcer.get_policy()
-            self.assertEqual(len(policies_after_manual_load), 0)
+            self.assertGreater(len(policies_after_manual_load), 0)
+
+
+class TestEnforcerToggleBehavior(TransactionTestCase):
+    """Test cases for enforcer behavior with libraries_v2_enabled toggle.
+
+    These tests verify that the enforcer correctly responds to the
+    libraries_v2_enabled toggle state, enabling/disabling auto-save
+    and auto-load as appropriate.
+
+    Uses TransactionTestCase to ensure clean state between tests.
+    """
+
+    def setUp(self):
+        """Set up test environment with clean enforcer state."""
+        super().setUp()
+        # Reset the singleton enforcer before each test
+        AuthzEnforcer._enforcer = None  # pylint: disable=protected-access
+
+    def tearDown(self):
+        """Clean up enforcer state after test."""
+        if AuthzEnforcer._enforcer:  # pylint: disable=protected-access
+            try:
+                AuthzEnforcer.deactivate_enforcer()
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
+        AuthzEnforcer._enforcer = None  # pylint: disable=protected-access
+        super().tearDown()
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_enforcer_auto_save_enabled_when_toggle_enabled(self, mock_toggle):
+        """Test that auto-save is enabled when libraries_v2_enabled toggle is on.
+
+        Expected result:
+            - Enforcer is initialized with auto-save enabled
+            - Policy changes are persisted to database
+            - CASBIN_AUTO_LOAD_POLICY_INTERVAL=0 doesn't disable auto-save
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        self.assertTrue(enforcer._e.auto_save)
+
+        test_policy = [
+            make_role_key("test_role"),
+            make_action_key("test_action"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ]
+        enforcer.add_policy(*test_policy)
+
+        enforcer.load_policy()
+        policies = enforcer.get_policy()
+
+        self.assertIn(test_policy, policies)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_enforcer_deactivated_when_toggle_disabled(self, mock_toggle):
+        """Test that enforcer is deactivated when libraries_v2_enabled toggle is off.
+
+        Expected result:
+            - Enforcer is initialized but deactivated
+            - Auto-save is disabled via deactivate_enforcer
+            - Auto-load is stopped
+        """
+        mock_toggle.is_enabled.return_value = False
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        self.assertFalse(enforcer._e.auto_save)
+        self.assertFalse(enforcer.is_auto_loading_running())
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0.5)
+    def test_enforcer_auto_load_starts_when_toggle_enabled(self, mock_toggle):
+        """Test that auto-load starts when toggle is enabled and interval > 0.
+
+        Expected result:
+            - Auto-load thread is started with configured interval
+            - Auto-save is enabled
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        self.assertTrue(enforcer.is_auto_loading_running())
+        self.assertTrue(enforcer._e.auto_save)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0.5)
+    def test_enforcer_auto_load_not_restarted_on_subsequent_calls(self, mock_toggle):
+        """Test that auto-load is not restarted on subsequent get_enforcer() calls.
+
+        Expected result:
+            - Auto-load starts on first call
+            - Subsequent calls don't restart the auto-load thread
+            - Auto-save remains enabled
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer1 = AuthzEnforcer.get_enforcer()
+        self.assertTrue(enforcer1.is_auto_loading_running())
+
+        enforcer2 = AuthzEnforcer.get_enforcer()
+        self.assertIs(enforcer1, enforcer2)
+        self.assertTrue(enforcer2.is_auto_loading_running())
+        self.assertTrue(enforcer2._e.auto_save)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_toggle_state_checked_on_every_get_enforcer_call(self, mock_toggle):
+        """Test that toggle state is checked on every get_enforcer() call.
+
+        This verifies the "HACK" behavior where the toggle state is
+        re-evaluated each time get_enforcer() is called.
+
+        Expected result:
+            - First call with toggle off: auto-save disabled
+            - Second call with toggle on: auto-save enabled
+        """
+        mock_toggle.is_enabled.return_value = False
+        enforcer1 = AuthzEnforcer.get_enforcer()
+        self.assertFalse(enforcer1._e.auto_save)
+
+        mock_toggle.is_enabled.return_value = True
+        enforcer2 = AuthzEnforcer.get_enforcer()
+        self.assertIs(enforcer1, enforcer2)
+        self.assertTrue(enforcer2._e.auto_save)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_dummy_toggle_behavior_in_tests(self, mock_toggle):
+        """Test enforcer behavior with DummyToggle (CMS not available).
+
+        When CMS is not available, a DummyToggle is used that always
+        returns True. This test verifies that the enforcer still works
+        correctly in this scenario.
+
+        Expected result:
+            - Enforcer initializes successfully
+            - Auto-save is enabled (DummyToggle returns True)
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        self.assertIsNotNone(enforcer)
+        self.assertTrue(enforcer._e.auto_save)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_auto_save_preserved_with_interval_zero(self, mock_toggle):
+        """Test that auto-save state is preserved when interval is 0.
+
+        When CASBIN_AUTO_LOAD_POLICY_INTERVAL is 0, calling get_enforcer()
+        multiple times should not disable auto-save if it was manually enabled.
+
+        Expected result:
+            - Tests can manually enable auto-save
+            - Subsequent get_enforcer() calls preserve auto-save state
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+        enforcer.enable_auto_save(True)
+        self.assertTrue(enforcer._e.auto_save)
+
+        # Call get_enforcer() again - should not disable auto-save
+        enforcer2 = AuthzEnforcer.get_enforcer()
+        self.assertIs(enforcer, enforcer2)
+        self.assertTrue(enforcer2._e.auto_save)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_auto_save_persistence_with_interval_zero(self, mock_toggle):
+        """Test that policies persist to database when auto-save is enabled with interval 0.
+
+        Expected result:
+            - Policies added via add_policy() are persisted to database
+            - Policies can be reloaded from database
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+        enforcer.enable_auto_save(True)
+
+        test_policy = [
+            make_role_key("test_role"),
+            make_action_key("test_action"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ]
+        enforcer.add_policy(*test_policy)
+
+        # Reload from database
+        enforcer.load_policy()
+        policies = enforcer.get_policy()
+
+        self.assertIn(test_policy, policies)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0, CASBIN_AUTO_SAVE_POLICY=False)
+    def test_auto_save_disabled_explicitly(self, mock_toggle):
+        """Test that auto-save is disabled when CASBIN_AUTO_SAVE_POLICY is False.
+
+        Expected result:
+            - Auto-save is disabled
+            - Auto-load is not running
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        self.assertFalse(enforcer._e.auto_save)
+        self.assertFalse(enforcer.is_auto_loading_running())
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0, CASBIN_AUTO_SAVE_POLICY=False)
+    def test_policies_not_persisted_when_auto_save_disabled(self, mock_toggle):
+        """Test that policies don't persist when auto-save is explicitly disabled.
+
+        Expected result:
+            - Policies added are only in memory
+            - Reloading from database clears them
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        enforcer = AuthzEnforcer.get_enforcer()
+
+        test_policy = [
+            make_role_key("test_role"),
+            make_action_key("test_action"),
+            make_scope_key("lib", "*"),
+            "allow",
+        ]
+        enforcer.add_policy(*test_policy)
+
+        # Policy should be in memory
+        self.assertIn(test_policy, enforcer.get_policy())
+
+        # Reload from database - should clear memory-only policy
+        enforcer.load_policy()
+        policies = enforcer.get_policy()
+
+        self.assertNotIn(test_policy, policies)
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_multiple_get_enforcer_calls_preserve_auto_save(self, mock_toggle):
+        """Test that multiple get_enforcer() calls don't repeatedly disable auto-save.
+
+        This is a regression test for the bug where get_enforcer() would
+        disable auto-save on every call when interval was 0.
+
+        Expected result:
+            - After manually enabling auto-save, it stays enabled
+            - Multiple get_enforcer() calls don't change auto-save state
+        """
+        mock_toggle.is_enabled.return_value = True
+
+        # First call
+        enforcer1 = AuthzEnforcer.get_enforcer()
+        enforcer1.enable_auto_save(True)
+        self.assertTrue(enforcer1._e.auto_save)
+
+        # Multiple subsequent calls
+        for _ in range(5):
+            enforcer = AuthzEnforcer.get_enforcer()
+            self.assertTrue(enforcer._e.auto_save)

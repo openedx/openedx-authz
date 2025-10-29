@@ -70,3 +70,4 @@ ROOT_URLCONF = "openedx_authz.urls"
 # Casbin configuration
 CASBIN_MODEL = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 CASBIN_AUTO_LOAD_POLICY_INTERVAL = 0
+CASBIN_AUTO_SAVE_POLICY = True

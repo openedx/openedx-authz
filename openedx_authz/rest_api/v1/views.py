@@ -15,10 +15,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
-from openedx_authz.api.data import ScopeData
 from openedx_authz.constants import permissions
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.filter import Filter
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -259,8 +257,7 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        flt = Filter(v2=[ScopeData(external_key=query_params["scope"]).namespaced_key])
-        AuthzEnforcer.get_enforcer().load_filtered_policy(flt)
+        AuthzEnforcer.get_enforcer().load_policy()
 
         user_role_assignments = api.get_all_user_role_assignments_in_scope(query_params["scope"])
         usernames = {assignment.subject.username for assignment in user_role_assignments}

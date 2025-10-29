@@ -34,8 +34,8 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
-    "get_users_for_role",
     "get_scopes_for_user_and_permission",
+    "get_users_for_role_in_scope",
 ]
 
 

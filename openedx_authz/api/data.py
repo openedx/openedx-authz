@@ -656,7 +656,7 @@ class PermissionData:
         """
         return self.action.external_key
 
-    def __eq__(self, other):
+    def __eq__(self, other: "PermissionData") -> bool:
         """Compare permissions based on their action identifier.
 
         Two permissions are considered equal if they have the same action,
@@ -677,11 +677,9 @@ class PermissionData:
             >>> perm1 in [perm2]  # Uses __eq__
             True
         """
-        if not isinstance(other, PermissionData):
-            return False
         if self.action is None or other.action is None:
             return False
-        return self.action.external_key == other.action.external_key
+        return self.action.external_key == other.action.external_key and self.effect == other.effect
 
     def __str__(self):
         """Human readable string representation of the permission and its effect."""

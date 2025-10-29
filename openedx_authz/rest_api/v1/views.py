@@ -109,8 +109,6 @@ class PermissionValidationMeView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        AuthzEnforcer.get_enforcer().load_policy()
-
         username = request.user.username
         response_data = []
         for permission in data:

@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.11.2 - 2025-10-30
+********************
+
+Added
+=====
+
+* Consider Content Library V2 toggle only in CMS service variant.
+
 0.11.1 - 2025-10-29
 ********************
 

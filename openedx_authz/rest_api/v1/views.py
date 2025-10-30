@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from openedx_authz import api
 from openedx_authz.constants import permissions
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -102,6 +103,8 @@ class PermissionValidationMeView(APIView):
     )
     def post(self, request: HttpRequest) -> Response:
         """Validate one or more permissions for the authenticated user."""
+        AuthzEnforcer.get_enforcer().load_policy()
+
         serializer = PermissionValidationSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

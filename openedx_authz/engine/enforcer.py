@@ -23,14 +23,18 @@ from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 
-try:
-    from cms.djangoapps.contentstore.toggles import libraries_v2_enabled
-except ImportError:
-    # If the CMS is not available, define a dummy toggle that is always enabled
-    def libraries_v2_enabled() -> bool:
-        """Dummy toggle that is always enabled."""
-        return True
 
+def libraries_v2_enabled() -> bool:
+    """Dummy toggle that is always enabled."""
+    return True
+
+
+if getattr(settings, "SERVICE_VARIANT", None) == "cms":
+    try:
+        from cms.djangoapps.contentstore.toggles import libraries_v2_enabled
+    except ImportError:
+        # If the CMS is not available, use the dummy toggle.
+        pass
 
 logger = logging.getLogger(__name__)
 

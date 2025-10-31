@@ -195,6 +195,21 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, expected_response)
 
+    def test_permission_validation_staff_superuser_access(self):
+        """Test permission validation for staff and superuser users."""
+        self.client.force_authenticate(user=self.admin_user)
+        request_data = [
+            {"action": perm.identifier, "scope": "lib:AnyOrg1:ANYLIB1"} for perm in roles.LIBRARY_ADMIN_PERMISSIONS
+        ]
+        expected_response = request_data.copy()
+        for item in expected_response:
+            item["allowed"] = True
+
+        response = self.client.post(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, expected_response)
+
     @data(
         # Single permission
         [{"action": "edit_library"}],

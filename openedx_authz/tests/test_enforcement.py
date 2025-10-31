@@ -12,6 +12,7 @@ from unittest import TestCase
 import casbin
 import pytest
 from ddt import data, ddt, unpack
+from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.constants import roles
@@ -23,6 +24,8 @@ from openedx_authz.tests.test_utils import (
     make_scope_key,
     make_user_key,
 )
+
+User = get_user_model()
 
 
 class AuthRequest(TypedDict):
@@ -576,4 +579,78 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
             "scope": scope,
             "expected_result": expected_result,
         }
+        self._test_enforcement(self.POLICY, request)
+
+
+@pytest.mark.django_db
+@ddt
+class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
+    """
+    Tests for staff and superuser automatic permission grants via custom_check.
+
+    This test class verifies that staff members and superusers are automatically
+    granted access to ContentLibrary scopes through the check_custom_conditions function,
+    without requiring explicit role assignments.
+    """
+
+    # Empty policy - no role assignments for staff/superuser users
+    POLICY = []
+
+    def setUp(self) -> None:
+        """Set up the test environment."""
+        super().setUp()
+        User.objects.create_user(username="staff_user", email="staff@example.com", password="test", is_staff=True)
+        User.objects.create_superuser(username="superuser", email="super@example.com", password="test")
+        User.objects.create_user(username="regular_user", email="regular@example.com", password="test")
+
+    @data(
+        # Staff user has automatic access to any library scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            True,
+        ),
+        (
+            make_user_key("staff_user"),
+            make_action_key("edit_library"),
+            make_library_key("lib:AnyOrg:AnyLib"),
+            True,
+        ),
+        # Superuser has automatic access to any library scope
+        (
+            make_user_key("superuser"),
+            make_action_key("view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("delete_library"),
+            make_library_key("lib:AnyOrg:AnyLib"),
+            True,
+        ),
+        # Regular user without role assignment has no access
+        (
+            make_user_key("regular_user"),
+            make_action_key("view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            False,
+        ),
+    )
+    @unpack
+    def test_staff_superuser_guaranteed_permissions(self, subject: str, action: str, scope: str, expected_result: bool):
+        """Test that staff and superusers have guaranteed permissions for ContentLibrary scopes.
+
+        This test validates that:
+        - Staff users automatically have access to all library scopes without role assignments
+        - Superusers automatically have access to all library scopes without role assignments
+        - Regular users require explicit role assignments to access libraries
+        - Access is granted through the custom_check matcher function
+
+        Expected result:
+            - Staff and superusers can perform any action on any ContentLibrary scope
+            - Regular users are denied access without role assignments
+        """
+        request = {"subject": subject, "action": action, "scope": scope, "expected_result": expected_result}
         self._test_enforcement(self.POLICY, request)

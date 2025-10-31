@@ -345,6 +345,27 @@ class TestScopeMetaClass(TestCase):
         with self.assertRaises(ValueError):
             SubjectData(external_key="")
 
+    def test_scope_data_with_wildcard_external_key(self):
+        """Test that ScopeData instantiated with wildcard (*) returns base ScopeData.
+
+        When using the global scope wildcard '*', the metaclass should return a base
+        ScopeData instance rather than attempting subclass determination.
+
+        Expected Result:
+            - ScopeData(external_key='*') creates base ScopeData instance
+            - namespaced_key is 'sc^*'
+            - No subclass determination occurs
+        """
+        scope = ScopeData(external_key="*")
+
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}*"
+
+        self.assertIsInstance(scope, ScopeData)
+        # Ensure it's exactly ScopeData, not a subclass
+        self.assertEqual(type(scope), ScopeData)
+        self.assertEqual(scope.external_key, "*")
+        self.assertEqual(scope.namespaced_key, expected_namespaced)
+
 
 @ddt
 class TestDataRepresentation(TestCase):

@@ -10,10 +10,12 @@ from typing import TypedDict
 from unittest import TestCase
 
 import casbin
+import pytest
 from ddt import data, ddt, unpack
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.constants import roles
+from openedx_authz.engine.matcher import check_custom_conditions
 from openedx_authz.tests.test_utils import (
     make_action_key,
     make_library_key,
@@ -44,6 +46,7 @@ COMMON_ACTION_GROUPING = [
 ]
 
 
+@pytest.mark.django_db
 @ddt
 class CasbinEnforcementTestCase(TestCase):
     """
@@ -65,6 +68,7 @@ class CasbinEnforcementTestCase(TestCase):
             raise FileNotFoundError(f"Model file not found: {model_file}")
 
         cls.enforcer = casbin.Enforcer(model_file)
+        cls.enforcer.add_function("custom_check", check_custom_conditions)
 
     def _load_policy(self, policy: list[str]) -> None:
         """

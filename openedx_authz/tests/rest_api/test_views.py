@@ -196,6 +196,36 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.assertEqual(response.data, expected_response)
 
     @data(
+        ("lib:AnyOrg1:ANYLIB1", True),
+        ("lib:AnyOrg2:ANYLIB2", True),
+        ("lib:AnyOrg3:ANYLIB3", True),
+        ("sc:AnyScope1", False),
+    )
+    @unpack
+    def test_permission_validation_staff_superuser_access(self, scope: str, expected_result: bool):
+        """Test that staff/superuser users have guaranteed permissions for ContentLibrary scopes.
+
+        Test cases:
+            - ContentLibrary scopes (lib:*): Staff/superuser automatically allowed
+            - Generic scopes (sc:*): No automatic access granted
+
+        Expected result:
+            - Returns 200 OK status
+            - For library scopes: All permissions are allowed (True)
+            - For non-library scopes: Permissions follow normal authorization (False)
+        """
+        self.client.force_authenticate(user=self.admin_user)
+        request_data = [{"action": perm.identifier, "scope": scope} for perm in roles.LIBRARY_ADMIN_PERMISSIONS]
+        expected_response = request_data.copy()
+        for item in expected_response:
+            item["allowed"] = expected_result
+
+        response = self.client.post(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, expected_response)
+
+    @data(
         # Single permission
         [{"action": "edit_library"}],
         [{"scope": "lib:Org1:LIB1"}],

@@ -182,6 +182,9 @@ class AuthzEnforcer:
         Returns:
             SyncedEnforcer: Configured Casbin enforcer with adapter and auto-sync
         """
+        # Avoid circular import
+        from openedx_authz.engine.matcher import check_custom_conditions  # pylint: disable=import-outside-toplevel
+
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
 
         try:
@@ -195,5 +198,6 @@ class AuthzEnforcer:
 
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
+        enforcer.add_function("custom_check", check_custom_conditions)
 
         return enforcer

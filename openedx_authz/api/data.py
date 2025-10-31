@@ -182,7 +182,8 @@ class ScopeMeta(type):
             return super().__call__(*args, **kwargs)
 
         # When working with global scopes, we can't determine subclass with an external_key since
-        # a global scope it's not attached to a specific resource type. So we only use namespaced_key
+        # a global scope it's not attached to a specific resource type. So we only use * as an
+        # an external_key to mean generic scope which maps to base ScopeData class.
         if kwargs.get("external_key") == GENERIC_SCOPE_WILDCARD:
             return super().__call__(*args, **kwargs)
 

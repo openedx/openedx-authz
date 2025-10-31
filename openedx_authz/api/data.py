@@ -181,6 +181,11 @@ class ScopeMeta(type):
         if cls is not ScopeData:
             return super().__call__(*args, **kwargs)
 
+        # When working with global scopes, we can't determine subclass with an external_key since
+        # a global scope it's not attached to a specific resource type. So we only use namespaced_key
+        if kwargs.get("external_key") == GENERIC_SCOPE_WILDCARD:
+            return super().__call__(*args, **kwargs)
+
         if "namespaced_key" in kwargs:
             scope_cls = cls.get_subclass_by_namespaced_key(kwargs["namespaced_key"])
             return super(ScopeMeta, scope_cls).__call__(*args, **kwargs)

@@ -2,7 +2,7 @@
 
 from django.contrib.auth import get_user_model
 
-from openedx_authz.api.data import UserData
+from openedx_authz.api.data import ContentLibraryData, ScopeData, UserData
 from openedx_authz.rest_api.utils import get_user_by_username_or_email
 
 User = get_user_model()
@@ -10,20 +10,21 @@ User = get_user_model()
 
 def check_custom_conditions(request_user: str, request_action: str, request_scope: str) -> bool:  # pylint: disable=unused-argument
     """
-    Evaluates custom, non-role-based conditions for library actions.
+    Evaluates custom, non-role-based conditions for authorization checks.
 
-    Checks attribute-based conditions that don't rely on role assignments:
-    - Staff and superusers have full access
-    - create_library: requires granted course creator status
-    - view_library: allowed if library has public read enabled
+    Checks attribute-based conditions that don't rely on role assignments.
+    Currently handles ContentLibraryData scopes by granting access to staff
+    and superusers.
 
     Args:
-        request_user (str): Namespaced user key
-        request_action (str): Namespaced action key
-        request_scope (str): Namespaced scope key
+        request_user (str): Namespaced user key (format: "user::<username>")
+        request_action (str): Namespaced action key (format: "action::<action_name>")
+        request_scope (str): Namespaced scope key (format: "scope_type::<scope_id>")
 
     Returns:
-        bool: True if the condition is satisfied, False otherwise
+        bool: True if the condition is satisfied (user is staff/superuser for
+              ContentLibraryData scopes), False otherwise (including when user
+              doesn't exist or scope type is not supported)
     """
     try:
         username = UserData(namespaced_key=request_user).external_key
@@ -31,7 +32,9 @@ def check_custom_conditions(request_user: str, request_action: str, request_scop
     except User.DoesNotExist:
         return False
 
-    if user.is_staff or user.is_superuser:
-        return True
+    scope = ScopeData(namespaced_key=request_scope)
+
+    if isinstance(scope, ContentLibraryData):
+        return user.is_staff or user.is_superuser
 
     return False

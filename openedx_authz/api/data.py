@@ -184,6 +184,8 @@ class ScopeMeta(type):
         # When working with global scopes, we can't determine subclass with an external_key since
         # a global scope it's not attached to a specific resource type. So we only use * as an
         # an external_key to mean generic scope which maps to base ScopeData class.
+        # The only remaining issue is that internally the namespace key used in policies will be
+        # The generic scope namespace (sc^*), so we need to handle that case here.
         if kwargs.get("external_key") == GENERIC_SCOPE_WILDCARD:
             return super().__call__(*args, **kwargs)
 
@@ -309,6 +311,11 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         'sc^generic_scope'
     """
 
+    # The 'sc' namespace is used for generic scopes that aren't tied to a specific resource type.
+    # This base class supports:
+    # 1. Global scopes (external_key='*') that apply across all resource types
+    # 2. Custom generic scopes that don't map to specific domain objects
+    # Subclasses like ContentLibraryData ('lib') represent concrete resource types.
     NAMESPACE: ClassVar[str] = "sc"
 
     @classmethod

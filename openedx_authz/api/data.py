@@ -182,7 +182,7 @@ class ScopeMeta(type):
             return super().__call__(*args, **kwargs)
 
         # When working with global scopes, we can't determine subclass with an external_key since
-        # a global scope it's not attached to a specific resource type. So we only use * as an
+        # a global scope it's not attached to a specific resource type. So we only use * as
         # an external_key to mean generic scope which maps to base ScopeData class.
         # The only remaining issue is that internally the namespace key used in policies will be
         # The generic scope namespace (sc^*), so we need to handle that case here.

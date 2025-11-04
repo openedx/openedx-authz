@@ -185,7 +185,7 @@ class ScopeMeta(type):
         # a global scope it's not attached to a specific resource type. So we only use * as
         # an external_key to mean generic scope which maps to base ScopeData class.
         # The only remaining issue is that internally the namespace key used in policies will be
-        # The generic scope namespace (sc^*), so we need to handle that case here.
+        # The global scope namespace (global^*), so we need to handle that case here.
         if kwargs.get("external_key") == GENERIC_SCOPE_WILDCARD:
             return super().__call__(*args, **kwargs)
 
@@ -206,7 +206,7 @@ class ScopeMeta(type):
         Extracts the namespace prefix (before '^') and returns the registered subclass.
 
         Args:
-            namespaced_key: The namespaced key (e.g., 'lib^lib:DemoX:CSPROB', 'sc^generic').
+            namespaced_key: The namespaced key (e.g., 'lib^lib:DemoX:CSPROB', 'global^generic').
 
         Returns:
             The ScopeData subclass for the namespace, or ScopeData if namespace not recognized.
@@ -214,7 +214,7 @@ class ScopeMeta(type):
         Examples:
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:CSPROB')
             <class 'ContentLibraryData'>
-            >>> ScopeMeta.get_subclass_by_namespaced_key('sc^generic')
+            >>> ScopeMeta.get_subclass_by_namespaced_key('global^generic')
             <class 'ScopeData'>
         """
         # TODO: Default separator, can't access directly from class so made it a constant
@@ -232,7 +232,7 @@ class ScopeMeta(type):
         the key format using the subclass's validate_external_key method.
 
         Args:
-            external_key: The external key (e.g., 'lib:DemoX:CSPROB', 'sc:generic').
+            external_key: The external key (e.g., 'lib:DemoX:CSPROB', 'global:generic').
 
         Returns:
             The ScopeData subclass corresponding to the namespace.
@@ -271,11 +271,11 @@ class ScopeMeta(type):
 
         Returns:
             dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes registered in the scope registry.
-                Each namespace corresponds to a ScopeData subclass (e.g., 'lib', 'sc').
+                Each namespace corresponds to a ScopeData subclass (e.g., 'lib', 'global').
 
         Examples:
             >>> ScopeMeta.get_all_namespaces()
-            {'sc': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
+            {'global': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
         """
         return mcs.scope_registry
 
@@ -301,22 +301,22 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     and not tied to any specific scope type, holding attributes common to all scopes.
 
     Attributes:
-        NAMESPACE: 'sc' for generic scopes.
+        NAMESPACE: 'global' for generic scopes.
         external_key: The scope identifier without namespace (e.g., 'generic_scope').
-        namespaced_key: The scope identifier with namespace (e.g., 'sc^generic_scope').
+        namespaced_key: The scope identifier with namespace (e.g., 'global^generic_scope').
 
     Examples:
         >>> scope = ScopeData(external_key='generic_scope')
         >>> scope.namespaced_key
-        'sc^generic_scope'
+        'global^generic_scope'
     """
 
-    # The 'sc' namespace is used for generic scopes that aren't tied to a specific resource type.
+    # The 'global' namespace is used for scopes that aren't tied to a specific resource type.
     # This base class supports:
-    # 1. Global scopes (external_key='*') that apply across all resource types
-    # 2. Custom generic scopes that don't map to specific domain objects
-    # Subclasses like ContentLibraryData ('lib') represent concrete resource types.
-    NAMESPACE: ClassVar[str] = "sc"
+    # 1. Global wildcard scopes (external_key='*') that apply across all resource types
+    # 2. Custom global scopes that don't map to specific domain objects (e.g., 'global:some_scope')
+    # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
+    NAMESPACE: ClassVar[str] = "global"
 
     @classmethod
     def validate_external_key(cls, _: str) -> bool:

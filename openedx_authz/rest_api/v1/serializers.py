@@ -135,7 +135,7 @@ class ListRolesWithScopeSerializer(serializers.Serializer):  # pylint: disable=a
         returns an instance of the appropriate ScopeData subclass.
 
         Args:
-            value: The scope string to validate (e.g., 'lib', 'sc', 'org').
+            value: The scope string to validate (e.g., 'lib', 'global', 'org').
 
         Returns:
             ScopeData: An instance of the appropriate ScopeData subclass for the scope.

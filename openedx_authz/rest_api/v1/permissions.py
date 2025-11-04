@@ -30,7 +30,7 @@ class PermissionMeta(type(BasePermission)):
         """Retrieve the permission class for the given namespace.
 
         Args:
-            namespace: The namespace identifier (e.g., 'lib', 'sc').
+            namespace: The namespace identifier (e.g., 'lib', 'global').
 
         Returns:
             type["BaseScopePermission"]: The permission class for the namespace,
@@ -54,8 +54,8 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     specific authorization logic for their scope types.
     """
 
-    NAMESPACE: ClassVar[str] = "sc"
-    """The namespace identifier for this permission class. Default ``sc`` for generic scopes."""
+    NAMESPACE: ClassVar[str] = "global"
+    """The namespace identifier for this permission class. Default ``global`` for generic scopes."""
 
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
@@ -78,7 +78,7 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             request: The Django REST framework request object.
 
         Returns:
-            str: The scope namespace (e.g., 'lib', 'sc').
+            str: The scope namespace (e.g., 'lib', 'global').
 
         Examples:
             >>> request.data = {"scope": "lib:DemoX:CSPROB"}
@@ -86,7 +86,7 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             'lib'
             >>> request.data = {}
             >>> permission.get_scope_namespace(request)
-            'sc'
+            'global'
         """
         scope_value = self.get_scope_value(request)
         if not scope_value:
@@ -137,7 +137,7 @@ class DynamicScopePermission(BaseScopePermission):
         >>> request.data = {"scope": "lib:DemoX:CSPROB"}
         >>> ContentLibraryPermission.has_permission(request, view)
         >>> # For a generic scope request, this will delegate to BaseScopePermission
-        >>> request.data = {"scope": "sc:generic"}
+        >>> request.data = {"scope": "global:generic"}
         >>> BaseScopePermission.has_permission(request, view)
 
     Note:

@@ -155,7 +155,7 @@ class TestPolymorphicData(TestCase):
         """Test that ScopeData can be instantiated with namespaced_key.
 
         Expected Result:
-            - ScopeData(namespaced_key='sc^generic') creates ScopeData instance
+            - ScopeData(namespaced_key='global^generic') creates ScopeData instance
         """
         namespaced_key = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}generic"
 
@@ -222,17 +222,17 @@ class TestScopeMetaClass(TestCase):
         """Test that ScopeData and its subclasses are registered correctly.
 
         Expected Result:
-            - 'sc' namespace maps to ScopeData class
+            - 'global' namespace maps to ScopeData class
             - 'lib' namespace maps to ContentLibraryData class
         """
-        self.assertIn("sc", ScopeData.scope_registry)
-        self.assertIs(ScopeData.scope_registry["sc"], ScopeData)
+        self.assertIn("global", ScopeData.scope_registry)
+        self.assertIs(ScopeData.scope_registry["global"], ScopeData)
         self.assertIn("lib", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["lib"], ContentLibraryData)
 
     @data(
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
-        ("sc^generic_scope", ScopeData),
+        ("global^generic_scope", ScopeData),
     )
     @unpack
     def test_dynamic_instantiation_via_namespaced_key(self, namespaced_key, expected_class):
@@ -240,7 +240,7 @@ class TestScopeMetaClass(TestCase):
 
         Expected Result:
             - ScopeData(namespaced_key='lib^...') returns ContentLibraryData instance
-            - ScopeData(namespaced_key='sc^...') returns ScopeData instance
+            - ScopeData(namespaced_key='global^...') returns ScopeData instance
         """
         instance = ScopeData(namespaced_key=namespaced_key)
 
@@ -249,7 +249,7 @@ class TestScopeMetaClass(TestCase):
 
     @data(
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
-        ("sc^generic", ScopeData),
+        ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
     )
     @unpack
@@ -258,7 +258,7 @@ class TestScopeMetaClass(TestCase):
 
         Expected Result:
             - 'lib^...' returns ContentLibraryData
-            - 'sc^...' returns ScopeData
+            - 'global^...' returns ScopeData
             - 'unknown^...' returns ScopeData (fallback)
         """
         subclass = ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
@@ -268,7 +268,7 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:edX:Demo", ContentLibraryData),
-        ("sc:generic_scope", ScopeData),
+        ("global:generic_scope", ScopeData),
     )
     @unpack
     def test_get_subclass_by_external_key(self, external_key, expected_class):
@@ -276,7 +276,7 @@ class TestScopeMetaClass(TestCase):
 
         Expected Result:
             - 'lib:...' returns ContentLibraryData
-            - 'sc:...' returns ScopeData
+            - 'global:...' returns ScopeData
         """
         subclass = ScopeMeta.get_subclass_by_external_key(external_key)
 
@@ -319,12 +319,12 @@ class TestScopeMetaClass(TestCase):
             - ScopeData(external_key='...') creates ScopeData instance
             - No dynamic subclass selection occurs
         """
-        scope = ScopeData(external_key="sc:generic_scope")
+        scope = ScopeData(external_key="global:generic_scope")
 
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}sc:generic_scope"
+        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}global:generic_scope"
 
         self.assertIsInstance(scope, ScopeData)
-        self.assertEqual(scope.external_key, "sc:generic_scope")
+        self.assertEqual(scope.external_key, "global:generic_scope")
         self.assertEqual(scope.namespaced_key, expected_namespaced)
 
     def test_empty_namespaced_key_raises_value_error(self):
@@ -353,7 +353,7 @@ class TestScopeMetaClass(TestCase):
 
         Expected Result:
             - ScopeData(external_key='*') creates base ScopeData instance
-            - namespaced_key is 'sc^*'
+            - namespaced_key is 'global^*'
             - No subclass determination occurs
         """
         scope = ScopeData(external_key="*")

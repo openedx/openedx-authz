@@ -500,9 +500,9 @@ class TestRolesAPI(RolesTestSetupMixin):
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org6:project_beta", 1),
         (roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org6:project_gamma", 1),
         (roles.LIBRARY_USER.external_key, "lib:Org6:project_delta", 1),
-        ("non_existent_role", "sc:any_library", 0),
-        (roles.LIBRARY_ADMIN.external_key, "sc:non_existent_scope", 0),
-        ("non_existent_role", "sc:non_existent_scope", 0),
+        ("non_existent_role", "global:any_library", 0),
+        (roles.LIBRARY_ADMIN.external_key, "global:non_existent_scope", 0),
+        ("non_existent_role", "global:non_existent_scope", 0),
     )
     @unpack
     def test_get_role_assignments_in_scope(self, role_name, scope_name, expected_count):
@@ -625,8 +625,8 @@ class TestRolesAPI(RolesTestSetupMixin):
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_201", {"liam"}),
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_301", {"liam"}),
         ("non_existent_role", "lib:Org4:art_101", set()),
-        (roles.LIBRARY_AUTHOR.external_key, "sc:non_existent_scope", set()),
-        ("non_existent_role", "sc:non_existent_scope", set()),
+        (roles.LIBRARY_AUTHOR.external_key, "global:non_existent_scope", set()),
+        ("non_existent_role", "global:non_existent_scope", set()),
     )
     @unpack
     def test_get_subjects_for_role_in_scope(self, role_name: str, scope_name: str, expected_subjects: set[str]):
@@ -654,7 +654,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     """
 
     @ddt_data(
-        (["mary", "john"], roles.LIBRARY_USER.external_key, "sc:batch_test", True),
+        (["mary", "john"], roles.LIBRARY_USER.external_key, "global:batch_test", True),
         (
             ["paul", "diana", "lila"],
             roles.LIBRARY_CONTRIBUTOR.external_key,
@@ -712,7 +712,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             self.assertIn(role, role_names)
 
     @ddt_data(
-        (["mary", "john"], roles.LIBRARY_USER.external_key, "sc:batch_test", True),
+        (["mary", "john"], roles.LIBRARY_USER.external_key, "global:batch_test", True),
         (
             ["paul", "diana", "lila"],
             roles.LIBRARY_CONTRIBUTOR.external_key,
@@ -827,7 +827,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 )
             ],
         ),
-        ("sc:non_existent_scope", []),
+        ("global:non_existent_scope", []),
     )
     @unpack
     def test_get_all_role_assignments_in_scope(self, scope_name, expected_assignments):

@@ -184,10 +184,12 @@ class AuthzEnforcer:
             ExtendedAdapter: The singleton adapter instance.
         """
         if cls._adapter is None:
-            cls._adapter = cls._enforcer._e.adapter  # pylint: disable=protected-access
+            # We need to access the protected member _e to get the adapter from the base enforcer
+            # which the SyncedEnforcer wraps.
+            cls._adapter = cls.get_enforcer()._e.adapter  # pylint: disable=protected-access
         return cls._adapter
 
-    @staticmethod
+    @classmethod
     def _initialize_enforcer(cls) -> SyncedEnforcer:
         """
         Create and configure the Casbin SyncedEnforcer instance.

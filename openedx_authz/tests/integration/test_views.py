@@ -23,7 +23,6 @@ User = get_user_model()
 
 
 @pytest.mark.integration
-@override_settings(ROOT_URLCONF="openedx_authz.urls")
 class TestRoleAssignmentView(TestCase):
     """Tests for the role assignment view."""
 

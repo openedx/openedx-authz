@@ -12,6 +12,38 @@ from django.db import models, transaction
 from openedx_authz.engine.filter import Filter
 
 
+class BaseRegistryModel(models.Model):
+    """Base model that supports automatic subclass registration.
+
+    This model provides a registry mechanism for its subclasses, allowing
+    dynamic retrieval of subclasses based on a namespace identifier.
+
+    Subclasses should define a NAMESPACE class attribute (e.g., 'user' for users)
+    and implement get_or_create_for_external_key() classmethod.
+    """
+
+    _registry: ClassVar[dict[str, type["BaseRegistryModel"]]] = {}
+    NAMESPACE: ClassVar[str] = None
+
+    class Meta:
+        abstract = True
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """Automatically register subclasses when they're defined."""
+        super().__init_subclass__(**kwargs)
+        if cls.NAMESPACE:
+            cls.get_registry()[cls.NAMESPACE] = cls
+
+    @classmethod
+    def get_registry(cls) -> dict[str, type["BaseRegistryModel"]]:
+        """Get the registry of subclasses.
+
+        Returns:
+            dict: A dictionary mapping namespace strings to subclass types.
+        """
+        return cls._registry
+
 class ScopeManager(models.Manager):
     """Custom manager for Scope model that handles polymorphic behavior."""
 
@@ -31,10 +63,10 @@ class ScopeManager(models.Manager):
             ValueError: If the namespace is not registered
         """
         namespace = scope_data.NAMESPACE
-        if namespace not in Scope._registry:  # pylint: disable=protected-access
+        if namespace not in (scope_registry := Scope.get_registry()):
             raise ValueError(f"No Scope subclass registered for namespace '{namespace}'")
 
-        scope_class = Scope._registry[namespace]  # pylint: disable=protected-access
+        scope_class = scope_registry[namespace]
         return scope_class.get_or_create_for_external_key(scope_data)
 
 
@@ -57,14 +89,14 @@ class SubjectManager(models.Manager):
             ValueError: If the namespace is not registered
         """
         namespace = subject_data.NAMESPACE
-        if namespace not in Subject._registry:  # pylint: disable=protected-access
+        if namespace not in (subject_registry := Subject.get_registry()):
             raise ValueError(f"No Subject subclass registered for namespace '{namespace}'")
 
-        subject_class = Subject._registry[namespace]  # pylint: disable=protected-access
+        subject_class = subject_registry[namespace]
         return subject_class.get_or_create_for_external_key(subject_data)
 
 
-class Scope(models.Model):
+class Scope(BaseRegistryModel):
     """Model representing a scope in the authorization system.
 
     .. no_pii:
@@ -76,23 +108,13 @@ class Scope(models.Model):
     and implement get_or_create_for_external_key() classmethod.
     """
 
-    _registry: ClassVar[dict[str, type["Scope"]]] = {}
-    NAMESPACE: ClassVar[str] = None
-
     objects = ScopeManager()
 
     class Meta:
         abstract = False
 
-    @classmethod
-    def __init_subclass__(cls, **kwargs):
-        """Automatically register subclasses when they're defined."""
-        super().__init_subclass__(**kwargs)
-        if cls.NAMESPACE:
-            Scope._registry[cls.NAMESPACE] = cls
 
-
-class Subject(models.Model):
+class Subject(BaseRegistryModel):
     """Model representing a subject in the authorization system.
 
     .. no_pii:
@@ -104,20 +126,10 @@ class Subject(models.Model):
     and implement get_or_create_for_external_key() classmethod.
     """
 
-    _registry: ClassVar[dict[str, type["Subject"]]] = {}
-    NAMESPACE: ClassVar[str] = None
-
     objects = SubjectManager()
 
     class Meta:
         abstract = False
-
-    @classmethod
-    def __init_subclass__(cls, **kwargs):
-        """Automatically register subclasses when they're defined."""
-        super().__init_subclass__(**kwargs)
-        if cls.NAMESPACE:
-            Subject._registry[cls.NAMESPACE] = cls
 
 
 class ExtendedCasbinRule(models.Model):

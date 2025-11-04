@@ -7,5 +7,5 @@ from openedx_authz.rest_api import urls
 app_name = "openedx_authz"
 
 urlpatterns = [
-    path("authz/", include((urls, "openedx_authz"))),
+    path("authz/", include(urls)),
 ]

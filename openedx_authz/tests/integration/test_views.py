@@ -47,7 +47,7 @@ class TestRoleAssignmentView(TestCase):
     def setUp(self):
         """Set up the test client and any required data."""
         self.client = APIClient()
-        self.url = reverse("openedx_authz:role-user-list")
+        self.url = reverse("openedx_authz:openedx_authz:role-user-list")
         self.library_metadata, self.library_key, self.content_library = create_test_library("TestOrg")
         self.role_key = "library_admin"
 

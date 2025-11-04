@@ -928,3 +928,30 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:
             self.assertIn(assignment, expected_assignments)
+
+    def test_assign_role_creates_extended_casbin_rule(self):
+        """Test that assigning a role creates an ExtendedCasbinRule record.
+
+        Expected result:
+            - After assigning a role, an ExtendedCasbinRule is created
+            - The ExtendedCasbinRule has the correct subject and scope references
+            - The ExtendedCasbinRule is linked to a CasbinRule
+        """
+        initial_count = ExtendedCasbinRule.objects.count()
+        subject_data = SubjectData(external_key="test_user_extended")
+        role_data = RoleData(external_key=roles.LIBRARY_USER.external_key)
+        scope_data = ScopeData(external_key="lib:TestOrg:TestLib")
+
+        assign_role_to_subject_in_scope(subject_data, role_data, scope_data)
+
+        new_count = ExtendedCasbinRule.objects.count()
+        self.assertEqual(new_count, initial_count + 1)
+
+        extended_rule = ExtendedCasbinRule.objects.order_by('-id').first()
+        self.assertIsNotNone(extended_rule)
+        self.assertIsNotNone(extended_rule.casbin_rule)
+        self.assertIsNotNone(extended_rule.subject)
+        self.assertIsNotNone(extended_rule.scope)
+        self.assertIn(role_data.namespaced_key, extended_rule.casbin_rule_key)
+        self.assertIn(subject_data.namespaced_key, extended_rule.casbin_rule_key)
+        self.assertIn(scope_data.namespaced_key, extended_rule.casbin_rule_key)

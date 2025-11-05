@@ -3,7 +3,7 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from openedx_authz.api.data import GENERIC_SCOPE_WILDCARD, ScopeData
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ScopeData
 from openedx_authz.rest_api.data import SearchField, SortField, SortOrder
 
 User = get_user_model()
@@ -28,7 +28,7 @@ def get_generic_scope(scope: ScopeData) -> ScopeData:
         >>> get_generic_scope(scope)
         ScopeData(namespaced_key="lib^*")
     """
-    return ScopeData(namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GENERIC_SCOPE_WILDCARD}")
+    return ScopeData(namespaced_key=f"{scope.NAMESPACE}{ScopeData.SEPARATOR}{GLOBAL_SCOPE_WILDCARD}")
 
 
 def get_user_map(usernames: list[str]) -> dict[str, User]:

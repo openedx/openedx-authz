@@ -31,7 +31,7 @@ __all__ = [
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 EXTERNAL_KEY_SEPARATOR = ":"
-GENERIC_SCOPE_WILDCARD = "*"
+GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
 
 
@@ -186,7 +186,7 @@ class ScopeMeta(type):
         # an external_key to mean generic scope which maps to base ScopeData class.
         # The only remaining issue is that internally the namespace key used in policies will be
         # The global scope namespace (global^*), so we need to handle that case here.
-        if kwargs.get("external_key") == GENERIC_SCOPE_WILDCARD:
+        if kwargs.get("external_key") == GLOBAL_SCOPE_WILDCARD:
             return super().__call__(*args, **kwargs)
 
         if "namespaced_key" in kwargs:

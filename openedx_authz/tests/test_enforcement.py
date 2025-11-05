@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.constants import roles
-from openedx_authz.engine.matcher import check_custom_conditions
+from openedx_authz.engine.matcher import is_admin_or_superuser_check
 from openedx_authz.tests.test_utils import (
     make_action_key,
     make_library_key,
@@ -71,7 +71,7 @@ class CasbinEnforcementTestCase(TestCase):
             raise FileNotFoundError(f"Model file not found: {model_file}")
 
         cls.enforcer = casbin.Enforcer(model_file)
-        cls.enforcer.add_function("custom_check", check_custom_conditions)
+        cls.enforcer.add_function("is_staff_or_superuser", is_admin_or_superuser_check)
 
     def _load_policy(self, policy: list[str]) -> None:
         """
@@ -586,10 +586,10 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 @ddt
 class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
     """
-    Tests for staff and superuser automatic permission grants via custom_check.
+    Tests for staff and superuser automatic permission grants via is_staff_or_superuser.
 
     This test class verifies that staff members and superusers are automatically
-    granted access to ContentLibrary scopes through the check_custom_conditions function,
+    granted access to ContentLibrary scopes through the is_admin_or_superuser_check function,
     without requiring explicit role assignments.
     """
 
@@ -646,7 +646,7 @@ class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
         - Staff users automatically have access to all library scopes without role assignments
         - Superusers automatically have access to all library scopes without role assignments
         - Regular users require explicit role assignments to access libraries
-        - Access is granted through the custom_check matcher function
+        - Access is granted through the is_staff_or_superuser matcher function
 
         Expected result:
             - Staff and superusers can perform any action on any ContentLibrary scope

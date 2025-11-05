@@ -8,7 +8,7 @@ from openedx_authz.rest_api.utils import get_user_by_username_or_email
 User = get_user_model()
 
 
-def check_custom_conditions(request_user: str, request_action: str, request_scope: str) -> bool:  # pylint: disable=unused-argument
+def is_admin_or_superuser_check(request_user: str, request_action: str, request_scope: str) -> bool:  # pylint: disable=unused-argument
     """
     Evaluates custom, non-role-based conditions for authorization checks.
 

@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+0.13.0 - 2025-11-05
+********************
+
+Added
+=====
+
+* Add support for global scopes instead of generic `sc` scope to support instance-level permissions.
+
 0.12.0 - 2025-10-30
 ********************
 

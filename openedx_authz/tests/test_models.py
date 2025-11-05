@@ -15,12 +15,11 @@ which run against the real ContentLibrary model.
 
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
 from django.test import TestCase
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import ContentLibraryData, UserData
-from openedx_authz.models import ContentLibraryScope, ExtendedCasbinRule, Scope, Subject, UserSubject
+from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.stubs.models import ContentLibrary
 
 User = get_user_model()

@@ -637,6 +637,13 @@ class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
             make_library_key("lib:TestOrg:TestLib"),
             False,
         ),
+        # Non existent library scope access denied
+        (
+            make_user_key("regular_user"),
+            make_action_key("view_library"),
+            make_library_key("lib:NonExistent:NoLib"),
+            False,
+        ),
     )
     @unpack
     def test_staff_superuser_guaranteed_permissions(self, subject: str, action: str, scope: str, expected_result: bool):

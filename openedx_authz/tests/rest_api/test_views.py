@@ -199,7 +199,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         ("lib:AnyOrg1:ANYLIB1", True),
         ("lib:AnyOrg2:ANYLIB2", True),
         ("lib:AnyOrg3:ANYLIB3", True),
-        ("sc:AnyScope1", False),
+        ("global:AnyScope1", False),
     )
     @unpack
     def test_permission_validation_staff_superuser_access(self, scope: str, expected_result: bool):
@@ -207,7 +207,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
         Test cases:
             - ContentLibrary scopes (lib:*): Staff/superuser automatically allowed
-            - Generic scopes (sc:*): No automatic access granted
+            - Generic scopes (global:*): No automatic access granted
 
         Expected result:
             - Returns 200 OK status

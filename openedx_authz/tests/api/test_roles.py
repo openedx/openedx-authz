@@ -1105,7 +1105,6 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             - Newly assigned roles work correctly
         """
         subject = SubjectData(external_key="bob")
-        original_scope = ScopeData(external_key="lib:Org1:history_201")
         new_scope = ScopeData(external_key="lib:Org1:new_library")
         new_role = RoleData(external_key="library_admin")
 

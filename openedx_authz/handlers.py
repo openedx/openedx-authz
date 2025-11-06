@@ -56,8 +56,9 @@ def delete_casbin_rule_on_extended_rule_deletion(sender, instance, **kwargs):  #
         )
 
 
-def unassign_roles_on_user_retirement(sender, user, **kwargs):
-    """Unassign roles from a user when they are retired.
+def unassign_roles_on_user_retirement(sender, user, **kwargs):  # pylint: disable=unused-argument
+    """
+    Unassign roles from a user when they are retired.
 
     This handler is triggered when a user is retired in the LMS. It ensures that
     any roles assigned to the user are removed, maintaining the integrity of the
@@ -70,7 +71,7 @@ def unassign_roles_on_user_retirement(sender, user, **kwargs):
     """
     try:
         unassign_all_roles_from_user(user.username)
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception(
             "Error unassigning roles from user %s during retirement",
             user.id,

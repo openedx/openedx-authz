@@ -419,7 +419,6 @@ def get_scopes_for_subject_and_permission(
             if permission in role.permissions and role_assignment.scope not in scopes:
                 scopes.append(role_assignment.scope)
     return scopes
-    return [SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]) for policy in policies]
 
 
 def unassign_subject_from_all_roles(subject: SubjectData) -> bool:

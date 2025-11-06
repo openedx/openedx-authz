@@ -9,7 +9,7 @@ signal is available.
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from openedx.core.djangoapps.user_api.accounts.signals import USER_RETIRE_LMS_CRITICAL
+from openedx.core.djangoapps.user_api.accounts.signals import USER_RETIRE_LMS_CRITICAL  # pylint: disable=import-error
 
 from openedx_authz.api.data import UserData
 from openedx_authz.api.users import (

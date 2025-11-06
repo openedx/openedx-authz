@@ -24,6 +24,7 @@ from django.conf import settings
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.matcher import is_admin_or_superuser_check
 
+
 def libraries_v2_enabled() -> bool:
     """Dummy toggle that is always enabled."""
     return True

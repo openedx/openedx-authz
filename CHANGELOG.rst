@@ -14,7 +14,16 @@ Change Log
 Unreleased
 **********
 
-0.14.0 - 2025-11-10
+0.15.0 - 2025-11-11
+********************
+
+Added
+=====
+
+* `ExtendedCasbinRule` model to extend the base CasbinRule model for additional metadata, and cascade delete
+  support.
+
+0.14.0 - 2025-11-11
 ********************
 
 Added
@@ -22,7 +31,7 @@ Added
 
 * Implement custom matcher to check for staff and superuser status.
 
-0.13.1 - 2025-11-10
+0.13.1 - 2025-11-11
 ********************
 
 Fixed

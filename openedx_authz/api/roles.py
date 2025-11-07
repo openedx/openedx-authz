@@ -398,6 +398,6 @@ def get_scopes_for_subject_and_permission(
     scopes = []
     for role_assignment in roles_for_subject:
         for role in role_assignment.roles:
-            if permission in role.permissions:
+            if permission in role.permissions and role_assignment.scope not in scopes:
                 scopes.append(role_assignment.scope)
     return scopes

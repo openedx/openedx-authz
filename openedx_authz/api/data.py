@@ -318,6 +318,10 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
     NAMESPACE: ClassVar[str] = "global"
 
+    def __eq__(self, other: "ScopeData") -> bool:
+        """Compare scopes based on their external_key."""
+        return self.external_key == other.external_key
+
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
         """Validate the external_key format for ScopeData.

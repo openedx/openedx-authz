@@ -620,6 +620,41 @@ class TestRolesAPI(RolesTestSetupMixin):
         for expected_scope in expected_scope_names:
             self.assertIn(expected_scope, actual_scope_names)
 
+    def test_get_scopes_for_subject_and_permission_no_duplicates(self):
+        """Test that get_scopes_for_subject_and_permission returns no duplicate scopes.
+
+        This test verifies that when a subject has multiple roles in the same scope
+        that grant the same permission, the scope appears only once in the result.
+
+        Expected result:
+            - Each scope appears exactly once in the returned list
+            - No duplicate scopes even when multiple roles grant the same permission
+        """
+        test_scope = "lib:TestOrg:duplicate_test"
+        test_subject = "test_user_duplicates"
+
+        assign_role_to_subject_in_scope(
+            SubjectData(external_key=test_subject),
+            RoleData(external_key=roles.LIBRARY_ADMIN.external_key),
+            ScopeData(external_key=test_scope),
+        )
+
+        assign_role_to_subject_in_scope(
+            SubjectData(external_key=test_subject),
+            RoleData(external_key=roles.LIBRARY_AUTHOR.external_key),
+            ScopeData(external_key=test_scope),
+        )
+
+        subject = SubjectData(external_key=test_subject)
+        permission = PermissionData(action=ActionData(external_key="view_library"))
+
+        scopes = get_scopes_for_subject_and_permission(subject, permission)
+        scope_external_keys = [scope.external_key for scope in scopes]
+
+        self.assertEqual(len(scope_external_keys), 1)
+        self.assertEqual(scope_external_keys[0], test_scope)
+        self.assertEqual(len(scope_external_keys), len(set(scope_external_keys)))
+
     @ddt_data(
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_101", {"liam"}),
         (roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_201", {"liam"}),

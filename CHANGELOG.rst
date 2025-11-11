@@ -14,6 +14,8 @@ Change Log
 Unreleased
 **********
 
+* Register ``CasbinRule`` model in the Django admin.
+
 0.15.0 - 2025-11-11
 ********************
 

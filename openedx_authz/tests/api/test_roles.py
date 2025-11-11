@@ -328,6 +328,27 @@ class TestRolesAPI(RolesTestSetupMixin):
         scope_obj = Scope.objects.get_or_create_for_external_key(scope)
         self.assertTrue(ExtendedCasbinRule.objects.filter(subject=subj_obj, scope=scope_obj).exists())
 
+    def test_assign_role_fails_when_extended_rule_not_created(self):
+        """Test that assign_role raises exception when ExtendedCasbinRule creation fails.
+
+        Expected result:
+            - Exception is raised when ExtendedCasbinRule.create_based_on_policy returns None
+            - Transaction is rolled back and no role assignment persists
+        """
+        subject = SubjectData(external_key="unit_test_user_assign_fail")
+        role = RoleData(external_key="library_user")
+        scope = ScopeData(external_key="lib:UnitTest:assign_fail_lib")
+
+        with patch("openedx_authz.models.ExtendedCasbinRule.create_based_on_policy", return_value=None):
+            with self.assertRaises(Exception) as context:
+                assign_role_to_subject_in_scope(subject, role, scope)
+
+            self.assertEqual(str(context.exception), "Failed to create ExtendedCasbinRule for the assignment")
+
+            subj_obj = Subject.objects.get_or_create_for_external_key(subject)
+            scope_obj = Scope.objects.get_or_create_for_external_key(scope)
+            self.assertFalse(ExtendedCasbinRule.objects.filter(subject=subj_obj, scope=scope_obj).exists())
+
     @ddt_data(
         # Library Admin role with actual permissions from authz.policy
         (

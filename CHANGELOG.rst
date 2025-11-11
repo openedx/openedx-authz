@@ -14,7 +14,15 @@ Change Log
 Unreleased
 **********
 
-0.13.1 - 2025-11-06
+0.14.0 - 2025-11-10
+********************
+
+Added
+=====
+
+* Implement custom matcher to check for staff and superuser status.
+
+0.13.1 - 2025-11-10
 ********************
 
 Fixed

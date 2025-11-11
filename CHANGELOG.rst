@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+0.13.1 - 2025-11-06
+********************
+
+Fixed
+=====
+
+* Avoid duplicates when getting scopes for given user and permissions.
+
 0.13.0 - 2025-11-05
 ********************
 

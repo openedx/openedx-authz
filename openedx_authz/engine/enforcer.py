@@ -16,10 +16,12 @@ Requires `CASBIN_MODEL` setting.
 """
 
 import logging
+import time
 
 from casbin import SyncedEnforcer
 from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
+from django.core.cache import cache
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 
@@ -66,8 +68,11 @@ class AuthzEnforcer:
         _adapter (ExtendedAdapter): The singleton adapter instance.
     """
 
+    CACHE_KEY = "authz_policy_last_modified_timestamp"
+
     _enforcer = None
     _adapter = None
+    _last_policy_load_timestamp = None
 
     def __new__(cls):
         """Singleton pattern to ensure a single enforcer instance."""
@@ -146,12 +151,56 @@ class AuthzEnforcer:
         auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
         auto_save_policy = getattr(settings, "CASBIN_AUTO_SAVE_POLICY", True)
 
-        if auto_load_policy_interval > 0:
-            cls.configure_enforcer_auto_loading(auto_load_policy_interval)
-        else:
-            logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
+        # TODO: remove autoload in favor of cache invalidation?
+        # if auto_load_policy_interval > 0:
+        #     cls.configure_enforcer_auto_loading(auto_load_policy_interval)
+        # else:
+        #     logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
 
         cls.configure_enforcer_auto_save(auto_save_policy)
+
+    @classmethod
+    def load_policy_if_needed(cls):
+        """Load policy if the last load timestamp indicates it's needed.
+
+        This method checks if the policy needs to be reloaded comparing
+        the last load timestamp with the last modified timestamp in cache 
+        and reloads it if necessary.
+
+        Returns:
+            None
+        """
+        last_modified_timestamp = cache.get(cls.CACHE_KEY)
+
+        current_timestamp = time.time()
+
+        if last_modified_timestamp is None:
+            # No timestamp in cache; initialize it
+            cache.set(cls.CACHE_KEY, current_timestamp, None)
+            logger.info(f">>>> Initialized policy last modified timestamp in cache. {current_timestamp}")
+
+        if (
+            cls._last_policy_load_timestamp is None or
+            last_modified_timestamp > cls._last_policy_load_timestamp
+        ):
+            # Policy has been modified since last load; reload it
+            cls._enforcer.load_policy()
+            cls._last_policy_load_timestamp = current_timestamp
+            logger.info(f">>>> Reloaded policy at {current_timestamp}")
+
+    @classmethod
+    def invalidate_policy_cache(cls):
+        """Invalidate the current policy cache to force a reload on next check.
+
+        This method updates the last modified timestamp in the cache to
+        the current time, indicating that the policy has changed.
+
+        Returns:
+            None
+        """
+        current_timestamp = time.time()
+        cache.set(cls.CACHE_KEY, current_timestamp, None)
+        logger.info(f">>>> Invalidated policy cache at {current_timestamp}")
 
     @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:
@@ -162,6 +211,9 @@ class AuthzEnforcer:
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
+
+        # (re)load policy if needed
+        cls.load_policy_if_needed()
 
         # HACK: This code block will only be useful when in Ulmo to deactivate
         # the enforcer when the new library experience is disabled. It should be

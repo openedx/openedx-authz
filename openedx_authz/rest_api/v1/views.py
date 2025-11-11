@@ -103,7 +103,7 @@ class PermissionValidationMeView(APIView):
     )
     def post(self, request: HttpRequest) -> Response:
         """Validate one or more permissions for the authenticated user."""
-        AuthzEnforcer.get_enforcer().load_policy()
+        # AuthzEnforcer.get_enforcer().load_policy()
 
         serializer = PermissionValidationSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)

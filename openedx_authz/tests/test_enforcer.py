@@ -12,6 +12,7 @@ import casbin
 from ddt import data as ddt_data
 from ddt import ddt
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase, TransactionTestCase, override_settings
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
@@ -823,3 +824,105 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         for _ in range(5):
             AuthzEnforcer.get_enforcer()
             self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
+
+class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
+    """Test cases for enforcer policy cache behavior.
+
+    These tests verify that the policy cache logic works correctly,
+    ensuring that policies are reloaded only when needed.
+    """
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_initializes_cache_timestamp(self, mock_toggle):
+        """Test that load_policy_if_needed initializes cache timestamp on first call.
+
+        Expected result:
+            - On first call, cache invalidation key is set with current timestamp
+            - Policy is loaded since last load timestamp is None
+        """
+        mock_toggle.return_value = True
+
+        AuthzEnforcer._last_policy_load_timestamp = None  # pylint: disable=protected-access
+        cache.clear()
+
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        cached_timestamp = cache.get(AuthzEnforcer.CACHE_KEY)
+        self.assertIsNotNone(cached_timestamp)
+        self.assertIsNotNone(AuthzEnforcer._last_policy_load_timestamp)  # pylint: disable=protected-access
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_loads_when_stale(self, mock_toggle):
+        """Test that load_policy_if_needed reloads policy when stale.
+
+        Expected result:
+            - If policy is stale, it is reloaded
+            - _last_policy_load_timestamp is updated with new timestamp
+        """
+        mock_toggle.return_value = True
+
+        now = time.time()
+        stale_timestamp = now - 60  # 60 seconds ago
+
+        # Set last load timestamp to stale value
+        AuthzEnforcer._last_policy_load_timestamp = stale_timestamp  # pylint: disable=protected-access
+        # Set last cache invalidation to a more recent time
+        cache.set(AuthzEnforcer.CACHE_KEY, now, None)
+
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        self.assertIsNotNone(AuthzEnforcer._last_policy_load_timestamp)  # pylint: disable=protected-access
+        self.assertGreater(
+            AuthzEnforcer._last_policy_load_timestamp,  # pylint: disable=protected-access
+            stale_timestamp,
+        )
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_doesnt_reload_when_not_stale(self, mock_toggle):
+        """Test that load_policy_if_needed does not reload policy when not stale.
+
+        Expected result:
+            - If policy is not stale, it is not reloaded
+            - _last_policy_load_timestamp remains unchanged
+        """
+        mock_toggle.return_value = True
+
+        now = time.time()
+
+        # Set last load timestamp to current time
+        AuthzEnforcer._last_policy_load_timestamp = now  # pylint: disable=protected-access
+        # Set last cache invalidation to an earlier time
+        cache.set(AuthzEnforcer.CACHE_KEY, now - 60, None)  # 60 seconds ago
+
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        self.assertEqual(
+            AuthzEnforcer._last_policy_load_timestamp,  # pylint: disable=protected-access
+            now,
+        )
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_invalidate_policy_cache(self, mock_toggle):
+        """Test that invalidate_policy_cache updates the cache invalidation key.
+
+        Expected result:
+            - Cache invalidation key is updated with current timestamp
+        """
+        mock_toggle.return_value = True
+
+        AuthzEnforcer._last_policy_load_timestamp = time.time()  # pylint: disable=protected-access
+        old_cache_value = time.time() - 60  # 60 seconds ago
+        cache.set(AuthzEnforcer.CACHE_KEY, old_cache_value, None)
+
+        AuthzEnforcer.invalidate_policy_cache()
+
+        new_cache_value = cache.get(AuthzEnforcer.CACHE_KEY)
+        self.assertIsNotNone(new_cache_value)
+        self.assertGreater(new_cache_value, old_cache_value)

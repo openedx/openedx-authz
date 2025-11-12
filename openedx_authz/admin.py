@@ -11,6 +11,8 @@ class CasbinRuleForm(forms.ModelForm):
     """Custom form for CasbinRule to make v3, v4, v5 fields optional."""
 
     class Meta:
+        """Meta class for CasbinRuleForm."""
+
         model = CasbinRule
         fields = "__all__"
 

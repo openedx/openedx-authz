@@ -219,7 +219,7 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
         )
         if not extended_rule:
             raise Exception("Failed to create ExtendedCasbinRule for the assignment")
-        
+
     # Invalidate policy cache to ensure changes are picked up
     AuthzEnforcer.invalidate_policy_cache()
     return True
@@ -248,7 +248,9 @@ def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, sc
         bool: True if the role was unassigned successfully, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    success = enforcer.delete_roles_for_user_in_domain(subject.namespaced_key, role.namespaced_key, scope.namespaced_key)
+    success = enforcer.delete_roles_for_user_in_domain(
+        subject.namespaced_key, role.namespaced_key, scope.namespaced_key
+    )
     # Invalidate policy cache to ensure changes are picked up
     AuthzEnforcer.invalidate_policy_cache()
     return success

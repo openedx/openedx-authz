@@ -17,6 +17,7 @@ class CasbinRuleForm(forms.ModelForm):
         fields = "__all__"
 
     def __init__(self, *args, **kwargs):
+        """Initialize CasbinRuleForm."""
         super().__init__(*args, **kwargs)
         # Make v2, v3, v4, v5 optional in the form
         # These fields are not always required depending on the policy type

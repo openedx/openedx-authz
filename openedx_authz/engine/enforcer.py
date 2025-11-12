@@ -148,7 +148,8 @@ class AuthzEnforcer:
         Returns:
             None
         """
-        auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
+        # auto_load_policy_interval = getattr(
+        #     settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
         auto_save_policy = getattr(settings, "CASBIN_AUTO_SAVE_POLICY", True)
 
         # TODO: remove autoload in favor of cache invalidation?
@@ -177,7 +178,8 @@ class AuthzEnforcer:
         if last_modified_timestamp is None:
             # No timestamp in cache; initialize it
             cache.set(cls.CACHE_KEY, current_timestamp, None)
-            logger.info(f">>>> Initialized policy last modified timestamp in cache. {current_timestamp}")
+            logger.info(
+                f">>>> Initialized policy last modified timestamp in cache. {current_timestamp}")
 
         if (
             cls._last_policy_load_timestamp is None or
@@ -263,11 +265,13 @@ class AuthzEnforcer:
             # issues when the app is not fully loaded (e.g., while pulling translations, etc.).
             initialize_enforcer(db_alias)
         except Exception as e:
-            logger.error(f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}")
+            logger.error(
+                f"Failed to initialize Casbin enforcer with DB alias '{db_alias}': {e}")
             raise
 
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
-        enforcer.add_function("is_staff_or_superuser", is_admin_or_superuser_check)
+        enforcer.add_function("is_staff_or_superuser",
+                              is_admin_or_superuser_check)
 
         return enforcer

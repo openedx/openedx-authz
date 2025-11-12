@@ -15,6 +15,7 @@ Unreleased
 **********
 
 * Register ``CasbinRule`` model in the Django admin.
+* Register ``ExtendedCasbinRule`` model in the Django admin as an inline model of ``CasbinRule``.
 
 0.15.0 - 2025-11-11
 ********************

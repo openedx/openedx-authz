@@ -1,9 +1,27 @@
 """Admin configuration for openedx_authz."""
 
 from casbin_adapter.models import CasbinRule
+from django import forms
 from django.contrib import admin
 
 from openedx_authz.models import ExtendedCasbinRule
+
+
+class CasbinRuleForm(forms.ModelForm):
+    """Custom form for CasbinRule to make v3, v4, v5 fields optional."""
+
+    class Meta:
+        model = CasbinRule
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make v2, v3, v4, v5 optional in the form
+        # These fields are not always required depending on the policy type
+        self.fields["v2"].required = False
+        self.fields["v3"].required = False
+        self.fields["v4"].required = False
+        self.fields["v5"].required = False
 
 
 class ExtendedCasbinRuleInline(admin.StackedInline):
@@ -18,6 +36,9 @@ class ExtendedCasbinRuleInline(admin.StackedInline):
 
 @admin.register(CasbinRule)
 class CasbinRuleAdmin(admin.ModelAdmin):
+    """Admin for CasbinRule to display additional metadata."""
+
+    form = CasbinRuleForm
     list_display = ("id", "ptype", "v0", "v1", "v2", "v3", "v4", "v5")
     search_fields = ("ptype", "v0", "v1", "v2", "v3", "v4", "v5")
     list_filter = ("ptype",)

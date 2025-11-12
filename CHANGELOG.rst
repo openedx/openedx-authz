@@ -16,6 +16,15 @@ Unreleased
 
 *
 
+0.19.0 - 2025-11-18
+********************
+
+Added
+=====
+
+* Handle cache invalidation via a uuid in the database to ensure policy reloads
+  occur only when necessary.
+
 0.18.0 - 2025-11-17
 ********************
 

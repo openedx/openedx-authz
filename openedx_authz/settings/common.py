@@ -32,7 +32,7 @@ def plugin_settings(settings):
     # This setting defines how often (in seconds) the Casbin enforcer should
     # automatically reload policies from the database.
     if not hasattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL"):
-        settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL = 5
+        settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL = 0
 
     # Set default CASBIN_AUTO_SAVE_POLICY if not already set.
     # This setting defines whether the Casbin enforcer should automatically

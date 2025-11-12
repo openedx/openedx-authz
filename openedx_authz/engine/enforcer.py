@@ -148,15 +148,15 @@ class AuthzEnforcer:
         Returns:
             None
         """
-        # auto_load_policy_interval = getattr(
-        #     settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
+        auto_load_policy_interval = getattr(
+            settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
         auto_save_policy = getattr(settings, "CASBIN_AUTO_SAVE_POLICY", True)
 
         # TODO: remove autoload in favor of cache invalidation?
-        # if auto_load_policy_interval > 0:
-        #     cls.configure_enforcer_auto_loading(auto_load_policy_interval)
-        # else:
-        #     logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
+        if auto_load_policy_interval > 0:
+            cls.configure_enforcer_auto_loading(auto_load_policy_interval)
+        else:
+            logger.warning("CASBIN_AUTO_LOAD_POLICY_INTERVAL is not set or zero; auto-load is disabled.")
 
         cls.configure_enforcer_auto_save(auto_save_policy)
 

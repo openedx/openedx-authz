@@ -396,7 +396,7 @@ class TestDataRepresentation(TestCase):
         ("write", "Write", "act^write"),
         (
             permissions.DELETE_LIBRARY.identifier,
-            "Content Libraries.Delete Library",
+            "Content Libraries > Delete Library",
             "act^content_libraries.delete_library",
         ),
         ("edit_content", "Edit Content", "act^edit_content"),
@@ -482,7 +482,7 @@ class TestDataRepresentation(TestCase):
         (
             permissions.DELETE_LIBRARY.identifier,
             "allow",
-            "Content Libraries.Delete Library - allow",
+            "Content Libraries > Delete Library - allow",
             "act^content_libraries.delete_library => allow",
         ),
     )

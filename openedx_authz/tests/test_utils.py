@@ -73,4 +73,4 @@ def make_wildcard_key(namespace: str) -> str:
     Returns:
         str: Wildcard pattern (e.g., 'lib^*', 'org^*', 'course^*')
     """
-    return f"{namespace}{ScopeData.SEPARATOR}*"
+    return f"{namespace}{ScopeData.SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"

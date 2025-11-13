@@ -825,6 +825,7 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
             AuthzEnforcer.get_enforcer()
             self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
 
+
 class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
     """Test cases for enforcer policy cache behavior.
 

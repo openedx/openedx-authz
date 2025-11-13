@@ -600,29 +600,29 @@ class ActionData(AuthZData):
 
     Attributes:
         NAMESPACE: 'act' for actions.
-        external_key: The action identifier (e.g., 'read', 'write', 'delete_library').
-        namespaced_key: The action identifier with namespace (e.g., 'act^read', 'act^delete_library').
-        name: Property that returns a human-readable action name (e.g., 'Read', 'Delete Library').
+        external_key: The action identifier (e.g., 'content_libraries.view_library').
+        namespaced_key: The action identifier with namespace (e.g., 'act^content_libraries.view_library').
+        name: Property that returns a human-readable action name (e.g., 'Content Libraries.View Library').
 
     Examples:
-        >>> action = ActionData(external_key='delete_library')
+        >>> action = ActionData(external_key='content_libraries.delete_library')
         >>> action.namespaced_key
-        'act^delete_library'
+        'act^content_libraries.delete_library'
         >>> action.name
-        'Delete Library'
+        'Content Libraries.Delete Library'
     """
 
     NAMESPACE: ClassVar[str] = "act"
 
     @property
     def name(self) -> str:
-        """The human-readable name of the action (e.g., 'Delete Library', 'Edit Content').
+        """The human-readable name of the action (e.g., 'Content Libraries.Delete Library').
 
         This property transforms the external_key into a human-readable display name
         by replacing underscores with spaces and capitalizing each word.
 
         Returns:
-            str: The human-readable action name (e.g., 'Delete Library').
+            str: The human-readable action name (e.g., 'Content Libraries.Delete Library').
         """
         return self.external_key.replace("_", " ").title()
 
@@ -665,7 +665,7 @@ class PermissionData:
         """Get the permission identifier.
 
         Returns:
-            str: The permission identifier (e.g., 'delete_library').
+            str: The permission identifier (e.g., 'content_libraries.delete_library').
         """
         return self.action.external_key
 
@@ -753,7 +753,8 @@ class RoleData(AuthZData):
         """Get the technical identifiers for all permissions in this role.
 
         Returns:
-            list[str]: Permission identifiers (e.g., ['delete_library', 'edit_content']).
+            list[str]: Permission identifiers
+                (e.g., ['content_libraries.delete_library', 'content_libraries.edit_library_content']).
         """
         return [permission.identifier for permission in self.permissions]
 

@@ -52,15 +52,16 @@ def authz_permissions(permissions: list[str]):
     by MethodPermissionMixin during authorization.
 
     Args:
-        permissions: List of permission identifiers (e.g., ["view_library_team", "manage_library_team"])
+        permissions: List of permission identifiers
+            e.g., ["content_libraries.view_library_team", "content_libraries.manage_library_team"])
 
     Examples:
         >>> class MyView(APIView):
-        ...     @authz_permissions(["view_library_team"])
+        ...     @authz_permissions(["content_libraries.view_library_team"])
         ...     def get(self, request):
         ...         pass
         ...
-        ...     @authz_permissions(["manage_library_team"])
+        ...     @authz_permissions(["content_libraries.manage_library_team"])
         ...     def post(self, request):
         ...         pass
     """

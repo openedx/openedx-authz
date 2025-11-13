@@ -28,46 +28,46 @@ The following permissions are associated with the content library roles:
 Library Permissions
 =======================
 
-- **View the library** (``view_library``): Allows users to view the content library.
-- **Manage library tags** (``manage_library_tags``): Allows users to manage the tags associated with library items.
-- **Delete the library** (``delete_library``): Allows users to delete the entire content library.
+- **View the library** (``content_libraries.view_library``): Allows users to view the content library.
+- **Manage library tags** (``content_libraries.manage_library_tags``): Allows users to manage the tags associated with library items.
+- **Delete the library** (``content_libraries.delete_library``): Allows users to delete the entire content library.
 
 
 Library Content Permissions
 ===============================
 
-- **Edit library content** (``edit_library_content``): Allows users to edit existing content within the library.
-- **Publish library content** (``publish_library_content``): Allows users to publish content to or from the library.
-- **Reuse library content** (``reuse_library_content``): Allows users to reuse content from the library in other contexts.
+- **Edit library content** (``content_libraries.edit_library_content``): Allows users to edit existing content within the library.
+- **Publish library content** (``content_libraries.publish_library_content``): Allows users to publish content to or from the library.
+- **Reuse library content** (``content_libraries.reuse_library_content``): Allows users to reuse content from the library in other contexts.
 
 
 Library Team Permissions
 =============================
 
-- **View the library team** (``view_library_team``): Allows users to view the list of users or roles associated with the library.
-- **Manage the library team** (``manage_library_team``): Allows users to add, remove, or change the roles of users in the library team.
+- **View the library team** (``content_libraries.view_library_team``): Allows users to view the list of users or roles associated with the library.
+- **Manage the library team** (``content_libraries.manage_library_team``): Allows users to add, remove, or change the roles of users in the library team.
 
 
 Library Collections Permissions
 ===================================
 
-- **Create library collections** (``create_library_collection``): Allows users to create new collections within the library.
-- **Edit library collections** (``edit_library_collection``): Allows users to modify existing collections within the library.
-- **Delete library collections** (``delete_library_collection``): Allows users to delete collections within the library.
+- **Create library collections** (``content_libraries.create_library_collection``): Allows users to create new collections within the library.
+- **Edit library collections** (``content_libraries.edit_library_collection``): Allows users to modify existing collections within the library.
+- **Delete library collections** (``content_libraries.delete_library_collection``): Allows users to delete collections within the library.
 
 Permissions Inheritance
 ========================
 
-* **Managing library tags** (``manage_library_tags``) implies **editing library content** (``edit_library_content``).
-* **Deleting the library** (``delete_library``) implies **editing library content** (``edit_library_content``).
-* **Publishing library content** (``publish_library_content``) implies **editing library content** (``edit_library_content``).
-* **Editing library content** (``edit_library_content``) implies **viewing the library** (``view_library``).
-* **Reusing library content** (``reuse_library_content``) implies **viewing the library** (``view_library``).
-* **Publishing library content** (``publish_library_content``) implies **viewing the library** (``view_library``).
-* **Managing the library team** (``manage_library_team``) implies **viewing the library team** (``view_library_team``).
-* **Deleting a library collection** (``delete_library_collection``) implies **editing a library collection** (``edit_library_collection``).
-* **Creating a library collection** (``create_library_collection``) implies **editing a library collection** (``edit_library_collection``).
-* **Editing a library collection** (``edit_library_collection``) implies **viewing the library** (``view_library``).
+* **Managing library tags** (``content_libraries.manage_library_tags``) implies **editing library content** (``content_libraries.edit_library_content``).
+* **Deleting the library** (``content_libraries.delete_library``) implies **editing library content** (``content_libraries.edit_library_content``).
+* **Publishing library content** (``content_libraries.publish_library_content``) implies **editing library content** (``content_libraries.edit_library_content``).
+* **Editing library content** (``content_libraries.edit_library_content``) implies **viewing the library** (``content_libraries.view_library``).
+* **Reusing library content** (``content_libraries.reuse_library_content``) implies **viewing the library** (``content_libraries.view_library``).
+* **Publishing library content** (``content_libraries.publish_library_content``) implies **viewing the library** (``content_libraries.view_library``).
+* **Managing the library team** (``content_libraries.manage_library_team``) implies **viewing the library team** (``content_libraries.view_library_team``).
+* **Deleting a library collection** (``content_libraries.delete_library_collection``) implies **editing a library collection** (``content_libraries.edit_library_collection``).
+* **Creating a library collection** (``content_libraries.create_library_collection``) implies **editing a library collection** (``content_libraries.edit_library_collection``).
+* **Editing a library collection** (``content_libraries.edit_library_collection``) implies **viewing the library** (``content_libraries.view_library``).
 
 
 Roles and Permissions Summary Table
@@ -76,25 +76,29 @@ Roles and Permissions Summary Table
 .. table:: Matrix of Content Library Roles and Permissions
    :widths: auto
 
-   ============================= ================= ================ ===================== ==============
-   Permissions                   Library Admin     Library Author   Library Contributor   Library User
-   ============================= ================= ================ ===================== ==============
+   ============================================= ================= ================ ===================== ==============
+   Permissions                                   Library Admin     Library Author   Library Contributor   Library User
+   ============================================= ================= ================ ===================== ==============
    **Library**
-   view_library                  ✅                 ✅                ✅                      ✅
-   manage_library_tags           ✅                 ✅                ✅                      ❌
-   delete_library                ✅                 ❌                ❌                      ❌
+   --------------------------------------------- ----------------- ---------------- --------------------- --------------
+   content_libraries.view_library                ✅                ✅               ✅                    ✅
+   content_libraries.manage_library_tags         ✅                ✅               ✅                    ❌
+   content_libraries.delete_library              ✅                ❌               ❌                    ❌
    **Content**
-   edit_library_content          ✅                 ✅                ✅                      ❌
-   publish_library_content       ✅                 ✅                ❌                      ❌
-   reuse_library_content         ✅                 ✅                ✅                      ✅
+   --------------------------------------------- ----------------- ---------------- --------------------- --------------
+   content_libraries.edit_library_content        ✅                ✅               ✅                    ❌
+   content_libraries.publish_library_content     ✅                ✅               ❌                    ❌
+   content_libraries.reuse_library_content       ✅                ✅               ✅                    ✅
    **Team**
-   view_library_team             ✅                 ✅                ✅                      ✅
-   manage_library_team           ✅                 ❌                ❌                      ❌
+   --------------------------------------------- ----------------- ---------------- --------------------- --------------
+   content_libraries.view_library_team           ✅                ✅               ✅                    ✅
+   content_libraries.manage_library_team         ✅                ❌               ❌                    ❌
    **Collections**
-   create_library_collection     ✅                 ✅                ✅                      ❌
-   edit_library_collection       ✅                 ✅                ✅                      ❌
-   delete_library_collection     ✅                 ✅                ✅                      ❌
-   ============================= ================= ================ ===================== ==============
+   --------------------------------------------- ----------------- ---------------- --------------------- --------------
+   content_libraries.create_library_collection   ✅                ✅               ✅                    ❌
+   content_libraries.edit_library_collection     ✅                ✅               ✅                    ❌
+   content_libraries.delete_library_collection   ✅                ✅               ✅                    ❌
+   ============================================= ================= ================ ===================== ==============
 
 
 **Maintenance chart**

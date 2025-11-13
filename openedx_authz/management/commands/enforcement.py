@@ -23,10 +23,10 @@ Example usage:
     python manage.py lms enforcement -m /path/to/model.conf -p /path/to/policies.csv
 
 Example test input:
-    >>> alice view_library_team lib:OpenedX:CSPROB
-    ✓ ALLOWED: alice view_library_team lib:OpenedX:CSPROB
-    >>> bob manage_library_team lib:DemoX:LIB1
-    ✗ DENIED: bob manage_library_team lib:DemoX:LIB1
+    >>> alice content_libraries.view_library_team lib:OpenedX:CSPROB
+    ✓ ALLOWED: alice content_libraries.view_library_team lib:OpenedX:CSPROB
+    >>> bob content_libraries.manage_library_team lib:DemoX:LIB1
+    ✗ DENIED: bob content_libraries.manage_library_team lib:DemoX:LIB1
 """
 
 import argparse
@@ -207,7 +207,7 @@ class Command(BaseCommand):
         self.stdout.write("Enter 'quit', 'exit', or 'q' to exit the interactive mode.")
         self.stdout.write("")
         self.stdout.write("Format: subject action scope")
-        self.stdout.write("Example: alice view_library_team lib:OpenedX:CSPROB")
+        self.stdout.write("Example: alice content_libraries.view_library_team lib:OpenedX:CSPROB")
         self.stdout.write("")
 
         while True:
@@ -236,7 +236,7 @@ class Command(BaseCommand):
 
         Expected format:
             subject: The requesting entity (e.g., 'alice')
-            action: The requested action (e.g., 'view_library_team')
+            action: The requested action (e.g., 'content_libraries.view_library_team')
             scope: The authorization context (e.g., 'lib:OpenedX:CSPROB')
         """
         try:
@@ -244,7 +244,7 @@ class Command(BaseCommand):
             if len(parts) != 3:
                 self.stdout.write(self.style.ERROR(f"✗ Invalid format. Expected 3 parts, got {len(parts)}"))
                 self.stdout.write("Format: subject action scope")
-                self.stdout.write("Example: alice view_library_team lib:OpenedX:CSPROB")
+                self.stdout.write("Example: alice content_libraries.view_library_team lib:OpenedX:CSPROB")
                 return
 
             subject, action, scope = parts

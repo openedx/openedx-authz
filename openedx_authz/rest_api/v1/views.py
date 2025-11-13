@@ -61,7 +61,7 @@ class PermissionValidationMeView(APIView):
 
     Expects a list of permission objects, each containing:
 
-    - action: The action to validate (e.g., 'edit_library', 'delete_library_content')
+    - action: The action to validate (e.g., 'content_libraries.edit_library_content')
     - scope: The authorization scope (e.g., 'lib:DemoX:CSPROB')
 
     **Response Format**
@@ -379,7 +379,7 @@ class RoleListView(APIView):
     Returns a paginated list of role objects, each containing:
 
     - role: The role's external identifier (e.g., 'library_author', 'library_user')
-    - permissions: List of permission action keys granted by this role (e.g., 'delete_library_content')
+    - permissions: List of permission identifiers granted by this role (e.g., 'content_libraries.delete_library')
     - user_count: Number of users currently assigned to this role
 
     **Authentication and Permissions**

@@ -394,7 +394,11 @@ class TestDataRepresentation(TestCase):
     @data(
         ("read", "Read", "act^read"),
         ("write", "Write", "act^write"),
-        (permissions.DELETE_LIBRARY.identifier, "Delete Library", "act^delete_library"),
+        (
+            permissions.DELETE_LIBRARY.identifier,
+            "Content Libraries.Delete Library",
+            "act^content_libraries.delete_library",
+        ),
         ("edit_content", "Edit Content", "act^edit_content"),
     )
     @unpack
@@ -478,8 +482,8 @@ class TestDataRepresentation(TestCase):
         (
             permissions.DELETE_LIBRARY.identifier,
             "allow",
-            "Delete Library - allow",
-            "act^delete_library => allow",
+            "Content Libraries.Delete Library - allow",
+            "act^content_libraries.delete_library => allow",
         ),
     )
     @unpack

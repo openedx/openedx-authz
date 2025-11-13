@@ -5,10 +5,10 @@ including role creation, assignment, permission management, and querying
 roles and permissions within specific scopes.
 """
 
+from importlib.resources import files
 from unittest.mock import patch
 
 import casbin
-import pkg_resources
 from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
@@ -36,7 +36,7 @@ from openedx_authz.api.roles import (
     get_subjects_for_role_in_scope,
     unassign_role_from_subject_in_scope,
 )
-from openedx_authz.constants import roles
+from openedx_authz.constants import permissions, roles
 from openedx_authz.constants.roles import (
     LIBRARY_ADMIN_PERMISSIONS,
     LIBRARY_AUTHOR_PERMISSIONS,
@@ -90,8 +90,8 @@ class BaseRolesTestCase(TestCase):
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.load_policy()
-        model_path = pkg_resources.resource_filename("openedx_authz.engine", "config/model.conf")
-        policy_path = pkg_resources.resource_filename("openedx_authz.engine", "config/authz.policy")
+        model_path = str(files("openedx_authz.engine").joinpath("config/model.conf"))
+        policy_path = str(files("openedx_authz.engine").joinpath("config/authz.policy"))
 
         migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(model_path, policy_path),
@@ -593,73 +593,73 @@ class TestRolesAPI(RolesTestSetupMixin):
         # Test case: alice with 'view_library' permission (has library_admin in math_101)
         (
             "alice",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             ["lib:Org1:math_101"],
         ),
         # Test case: alice with 'publish_library_content' permission (admin grants publish)
         (
             "alice",
-            "publish_library_content",
+            permissions.PUBLISH_LIBRARY_CONTENT.identifier,
             ["lib:Org1:math_101"],
         ),
         # Test case: alice with 'delete_library' permission (admin grants delete)
         (
             "alice",
-            "delete_library",
+            permissions.DELETE_LIBRARY.identifier,
             ["lib:Org1:math_101"],
         ),
         # Test case: bob with 'view_library' permission (has library_author in history_201)
         (
             "bob",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             ["lib:Org1:history_201"],
         ),
         # Test case: bob with 'publish_library_content' permission (author grants publish)
         (
             "bob",
-            "publish_library_content",
+            permissions.PUBLISH_LIBRARY_CONTENT.identifier,
             ["lib:Org1:history_201"],
         ),
         # Test case: bob with 'delete_library' permission (author does NOT grant delete)
         (
             "bob",
-            "delete_library",
+            permissions.DELETE_LIBRARY.identifier,
             [],
         ),
         # Test case: carol with 'view_library' permission (has library_contributor in science_301)
         (
             "carol",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             ["lib:Org1:science_301"],
         ),
         # Test case: carol with 'publish_library_content' permission (contributor does NOT grant publish)
         (
             "carol",
-            "publish_library_content",
+            permissions.PUBLISH_LIBRARY_CONTENT.identifier,
             [],
         ),
         # Test case: dave with 'view_library' permission (has library_user in english_101)
         (
             "dave",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             ["lib:Org1:english_101"],
         ),
         # Test case: dave with 'publish_library_content' permission (user does NOT grant publish)
         (
             "dave",
-            "publish_library_content",
+            permissions.PUBLISH_LIBRARY_CONTENT.identifier,
             [],
         ),
         # Test case: liam with 'view_library' permission (has library_author in 3 art libraries)
         (
             "liam",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             ["lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"],
         ),
         # Test case: non-existent user
         (
             "nonexistent",
-            "view_library",
+            permissions.VIEW_LIBRARY.identifier,
             [],
         ),
     )
@@ -718,7 +718,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         )
 
         subject = SubjectData(external_key=test_subject)
-        permission = PermissionData(action=ActionData(external_key="view_library"))
+        permission = PermissionData(action=ActionData(external_key=permissions.VIEW_LIBRARY.identifier))
 
         scopes = get_scopes_for_subject_and_permission(subject, permission)
         scope_external_keys = [scope.external_key for scope in scopes]
@@ -968,7 +968,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         new_count = ExtendedCasbinRule.objects.count()
         self.assertEqual(new_count, initial_count + 1)
 
-        extended_rule = ExtendedCasbinRule.objects.order_by('-id').first()
+        extended_rule = ExtendedCasbinRule.objects.order_by("-id").first()
         self.assertIsNotNone(extended_rule)
         self.assertIsNotNone(extended_rule.casbin_rule)
         self.assertIsNotNone(extended_rule.subject)

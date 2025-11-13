@@ -13,9 +13,28 @@ from django.core.management.base import CommandError
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
-from openedx_authz.constants import permissions
+from openedx_authz.api.data import ContentLibraryData
+from openedx_authz.constants.permissions import (
+    DELETE_LIBRARY,
+    MANAGE_LIBRARY_TEAM,
+    PUBLISH_LIBRARY_CONTENT,
+    VIEW_LIBRARY,
+)
+from openedx_authz.constants.roles import LIBRARY_ADMIN
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand
+from openedx_authz.tests.test_utils import (
+    make_action_key,
+    make_library_key,
+    make_role_key,
+    make_user_key,
+    make_wildcard_key,
+)
+
+lib_id_1 = "lib:Org1:LIB1"
+lib_id_2 = "lib:Org1:LIB2"
+lib_key_namespaced_1 = make_library_key(lib_id_1)
+lib_key_namespaced_2 = make_library_key(lib_id_2)
 
 
 @ddt
@@ -39,16 +58,40 @@ class EnforcementCommandTests(TestCase):
         self.policy_file_path = NamedTemporaryFile(suffix=".policy")
         self.model_file_path = NamedTemporaryFile(suffix=".conf")
 
+        self.username = "alice"
+
         self.policies = [
-            ["role^library_admin", "act^delete_library", "lib^*", "allow"],
-            ["role^library_admin", "act^publish_library", "lib^*", "allow"],
-            ["role^library_admin", "act^manage_library_team", "lib^*", "allow"],
+            [
+                make_role_key(LIBRARY_ADMIN.external_key),
+                make_action_key(DELETE_LIBRARY.identifier),
+                make_wildcard_key(ContentLibraryData.NAMESPACE),
+                "allow",
+            ],
+            [
+                make_role_key(LIBRARY_ADMIN.external_key),
+                make_action_key(PUBLISH_LIBRARY_CONTENT.identifier),
+                make_wildcard_key(ContentLibraryData.NAMESPACE),
+                "allow",
+            ],
+            [
+                make_role_key(LIBRARY_ADMIN.external_key),
+                make_action_key(MANAGE_LIBRARY_TEAM.identifier),
+                make_wildcard_key(ContentLibraryData.NAMESPACE),
+                "allow",
+            ],
         ]
         self.roles = [
-            ["user^alice", "role^library_admin", "lib^*"],
+            [
+                make_user_key(self.username),
+                make_role_key(LIBRARY_ADMIN.external_key),
+                make_wildcard_key(ContentLibraryData.NAMESPACE),
+            ]
         ]
         self.action_grouping = [
-            ["act^delete_library", "act^view_library"],
+            [
+                make_action_key(DELETE_LIBRARY.identifier),
+                make_action_key(VIEW_LIBRARY.identifier),
+            ]
         ]
 
         self.enforcer = Mock()
@@ -136,12 +179,14 @@ class EnforcementCommandTests(TestCase):
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.return_value = True
 
-        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
+        with patch(
+            "builtins.input", side_effect=[f"{self.username} {VIEW_LIBRARY.identifier} {lib_key_namespaced_1}", "quit"]
+        ):
             call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
-        self.assertIn("✓ ALLOWED: alice view_library lib:Org1:LIB1", output)
-        mock_is_allowed.assert_called_once_with("alice", permissions.VIEW_LIBRARY.identifier, "lib:Org1:LIB1")
+        self.assertIn(f"✓ ALLOWED: {self.username} {VIEW_LIBRARY.identifier} {lib_key_namespaced_1}", output)
+        mock_is_allowed.assert_called_once_with(self.username, VIEW_LIBRARY.identifier, lib_key_namespaced_1)
 
     @patch.object(AuthzEnforcer, "get_enforcer")
     @patch.object(authz_api, "is_user_allowed")
@@ -149,20 +194,23 @@ class EnforcementCommandTests(TestCase):
         """Test interactive mode with a denied enforcement request."""
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.return_value = False
+        username = "bob"
 
-        with patch("builtins.input", side_effect=["bob delete_library lib:Org2:LIB2", "quit"]):
+        with patch(
+            "builtins.input", side_effect=[f"{username} {DELETE_LIBRARY.identifier} {lib_key_namespaced_2}", "quit"]
+        ):
             call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()
-        self.assertIn("✗ DENIED: bob delete_library lib:Org2:LIB2", output)
-        mock_is_allowed.assert_called_once_with("bob", permissions.DELETE_LIBRARY.identifier, "lib:Org2:LIB2")
+        self.assertIn(f"✗ DENIED: {username} {DELETE_LIBRARY.identifier} {lib_key_namespaced_2}", output)
+        mock_is_allowed.assert_called_once_with(username, DELETE_LIBRARY.identifier, lib_key_namespaced_2)
 
     @patch("openedx_authz.management.commands.enforcement.Enforcer")
     def test_interactive_mode_file_mode_enforcement(self, mock_enforcer_class: Mock):
         """Test that file mode uses custom enforcer for enforcement checks."""
         mock_enforcer_class.return_value = self.enforcer
 
-        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
+        with patch("builtins.input", side_effect=[f"{self.username} {VIEW_LIBRARY.identifier} {lib_id_1}", "quit"]):
             call_command(
                 self.command_name,
                 policy_file_path=self.policy_file_path.name,
@@ -171,14 +219,16 @@ class EnforcementCommandTests(TestCase):
             )
 
         output = self.buffer.getvalue()
-        self.assertIn("✓ ALLOWED: alice view_library lib:Org1:LIB1", output)
-        self.enforcer.enforce.assert_called_once_with("user^alice", "act^view_library", "lib^lib:Org1:LIB1")
+        self.assertIn(f"✓ ALLOWED: {self.username} {VIEW_LIBRARY.identifier} {lib_id_1}", output)
+        self.enforcer.enforce.assert_called_once_with(
+            make_user_key(self.username), make_action_key(VIEW_LIBRARY.identifier), lib_key_namespaced_1
+        )
 
     @data(
         "alice",
-        "alice view_library",
-        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1",
-        "alice view_library lib:Org1:LIB1 lib:Org1:LIB1 lib:Org1:LIB1",
+        f"alice {VIEW_LIBRARY.identifier}",
+        f"alice {VIEW_LIBRARY.identifier} {lib_id_1} {lib_id_1}",
+        f"alice {VIEW_LIBRARY.identifier} {lib_id_1} {lib_id_1} {lib_id_1}",
     )
     @patch.object(AuthzEnforcer, "get_enforcer")
     def test_interactive_mode_invalid_format(self, user_input: str, mock_get_enforcer: Mock):
@@ -263,7 +313,9 @@ class EnforcementCommandTests(TestCase):
         mock_get_enforcer.return_value = self.enforcer
         mock_is_allowed.side_effect = exception
 
-        with patch("builtins.input", side_effect=["alice view_library lib:Org1:LIB1", "quit"]):
+        with patch(
+            "builtins.input", side_effect=[f"{self.username} {VIEW_LIBRARY.identifier} {lib_key_namespaced_1}", "quit"]
+        ):
             call_command(self.command_name, stdout=self.buffer)
 
         output = self.buffer.getvalue()

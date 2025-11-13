@@ -221,7 +221,7 @@ class MethodPermissionMixin:
         >>> class MyView(APIView):
         ...     permission_classes = [MyPermission]
         ...
-        ...     @authz_permissions(["view_library_team"])
+        ...     @authz_permissions(["content_libraries.view_library_team"])
         ...     def get(self, request):
         ...         pass
     """

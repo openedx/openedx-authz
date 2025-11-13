@@ -172,13 +172,13 @@ class TestPermissionValidationMeView(ViewTestMixin):
         # Single permission - denied (scope not assigned to user)
         ([{"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"}], [False]),
         # Single permission - denied (action not assigned to user)
-        ([{"action": "edit_library", "scope": "lib:Org1:LIB1"}], [False]),
+        ([{"action": "content_libraries.edit_library", "scope": "lib:Org1:LIB1"}], [False]),
         # Multiple permissions - mixed results
         (
             [
                 {"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"},
                 {"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"},
-                {"action": "edit_library", "scope": "lib:Org1:LIB1"},
+                {"action": "content_libraries.edit_library", "scope": "lib:Org1:LIB1"},
             ],
             [True, False, False],
         ),

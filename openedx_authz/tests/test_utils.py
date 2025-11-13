@@ -1,6 +1,6 @@
 """Test utilities for creating namespaced keys using class constants."""
 
-from openedx_authz.api.data import ActionData, ContentLibraryData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ActionData, ContentLibraryData, RoleData, ScopeData, UserData
 
 
 def make_user_key(key: str) -> str:
@@ -62,3 +62,15 @@ def make_scope_key(namespace: str, key: str) -> str:
         str: Namespaced scope key (e.g., 'org^any-org')
     """
     return f"{namespace}{ScopeData.SEPARATOR}{key}"
+
+
+def make_wildcard_key(namespace: str) -> str:
+    """Create a wildcard pattern for a given namespace.
+
+    Args:
+        namespace: The namespace to create a wildcard for (e.g., 'lib', 'org', 'course')
+
+    Returns:
+        str: Wildcard pattern (e.g., 'lib^*', 'org^*', 'course^*')
+    """
+    return f"{namespace}{ScopeData.SEPARATOR}*"

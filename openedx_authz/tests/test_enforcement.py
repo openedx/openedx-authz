@@ -607,40 +607,40 @@ class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
         # Staff user has automatic access to any library scope
         (
             make_user_key("staff_user"),
-            make_action_key("view_library"),
+            make_action_key("content_libraries.view_library"),
             make_library_key("lib:TestOrg:TestLib"),
             True,
         ),
         (
             make_user_key("staff_user"),
-            make_action_key("edit_library"),
+            make_action_key("content_libraries.edit_library"),
             make_library_key("lib:AnyOrg:AnyLib"),
             True,
         ),
         # Superuser has automatic access to any library scope
         (
             make_user_key("superuser"),
-            make_action_key("view_library"),
+            make_action_key("content_libraries.view_library"),
             make_library_key("lib:TestOrg:TestLib"),
             True,
         ),
         (
             make_user_key("superuser"),
-            make_action_key("delete_library"),
+            make_action_key("content_libraries.delete_library"),
             make_library_key("lib:AnyOrg:AnyLib"),
             True,
         ),
         # Regular user without role assignment has no access
         (
             make_user_key("regular_user"),
-            make_action_key("view_library"),
+            make_action_key("content_libraries.view_library"),
             make_library_key("lib:TestOrg:TestLib"),
             False,
         ),
         # Non existent library scope access denied
         (
             make_user_key("regular_user"),
-            make_action_key("view_library"),
+            make_action_key("content_libraries.view_library"),
             make_library_key("lib:NonExistent:NoLib"),
             False,
         ),

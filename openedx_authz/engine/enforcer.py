@@ -21,9 +21,9 @@ import time
 from casbin import SyncedEnforcer
 from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
-from django.core.cache import cache
 
 from openedx_authz.engine.adapter import ExtendedAdapter
+from openedx_authz.models.engine import PolicyCacheControl
 
 
 def libraries_v2_enabled() -> bool:
@@ -67,8 +67,6 @@ class AuthzEnforcer:
         _enforcer (SyncedEnforcer): The singleton enforcer instance.
         _adapter (ExtendedAdapter): The singleton adapter instance.
     """
-
-    CACHE_KEY = "authz_policy_last_modified_timestamp"
 
     _enforcer = None
     _adapter = None
@@ -151,7 +149,6 @@ class AuthzEnforcer:
         auto_load_policy_interval = getattr(settings, "CASBIN_AUTO_LOAD_POLICY_INTERVAL", 0)
         auto_save_policy = getattr(settings, "CASBIN_AUTO_SAVE_POLICY", True)
 
-        # TODO: remove autoload in favor of cache invalidation?
         if auto_load_policy_interval > 0:
             cls.configure_enforcer_auto_loading(auto_load_policy_interval)
         else:
@@ -170,20 +167,20 @@ class AuthzEnforcer:
         Returns:
             None
         """
-        last_modified_timestamp = cache.get(cls.CACHE_KEY)
+        last_modified_timestamp = PolicyCacheControl.get_last_modified_timestamp()
 
         current_timestamp = time.time()
 
         if last_modified_timestamp is None:
             # No timestamp in cache; initialize it
-            cache.set(cls.CACHE_KEY, current_timestamp, None)
-            logger.info(f">>>> Initialized policy last modified timestamp in cache. {current_timestamp}")
+            PolicyCacheControl.set_last_modified_timestamp(current_timestamp)
+            logger.info("Initialized policy last modified timestamp in cache control.")
 
         if cls._last_policy_load_timestamp is None or last_modified_timestamp > cls._last_policy_load_timestamp:
             # Policy has been modified since last load; reload it
             cls._enforcer.load_policy()
             cls._last_policy_load_timestamp = current_timestamp
-            logger.info(f">>>> Reloaded policy at {current_timestamp}")
+            logger.info(f"Reloaded policy at {current_timestamp}")
 
     @classmethod
     def invalidate_policy_cache(cls):
@@ -196,8 +193,8 @@ class AuthzEnforcer:
             None
         """
         current_timestamp = time.time()
-        cache.set(cls.CACHE_KEY, current_timestamp, None)
-        logger.info(f">>>> Invalidated policy cache at {current_timestamp}")
+        PolicyCacheControl.set_last_modified_timestamp(current_timestamp)
+        logger.info(f"Invalidated policy cache at {current_timestamp}")
 
     @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:

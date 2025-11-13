@@ -12,12 +12,12 @@ import casbin
 from ddt import data as ddt_data
 from ddt import ddt
 from django.conf import settings
-from django.core.cache import cache
 from django.test import TestCase, TransactionTestCase, override_settings
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
 
@@ -845,12 +845,11 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
         mock_toggle.return_value = True
 
         AuthzEnforcer._last_policy_load_timestamp = None  # pylint: disable=protected-access
-        cache.clear()
 
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
 
-        cached_timestamp = cache.get(AuthzEnforcer.CACHE_KEY)
+        cached_timestamp = PolicyCacheControl.get_last_modified_timestamp()
         self.assertIsNotNone(cached_timestamp)
         self.assertIsNotNone(AuthzEnforcer._last_policy_load_timestamp)  # pylint: disable=protected-access
 
@@ -871,7 +870,7 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
         # Set last load timestamp to stale value
         AuthzEnforcer._last_policy_load_timestamp = stale_timestamp  # pylint: disable=protected-access
         # Set last cache invalidation to a more recent time
-        cache.set(AuthzEnforcer.CACHE_KEY, now, None)
+        PolicyCacheControl.set_last_modified_timestamp(now)
 
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
@@ -898,7 +897,7 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
         # Set last load timestamp to current time
         AuthzEnforcer._last_policy_load_timestamp = now  # pylint: disable=protected-access
         # Set last cache invalidation to an earlier time
-        cache.set(AuthzEnforcer.CACHE_KEY, now - 60, None)  # 60 seconds ago
+        PolicyCacheControl.set_last_modified_timestamp(now - 60)  # 60 seconds ago
 
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
@@ -920,10 +919,10 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
 
         AuthzEnforcer._last_policy_load_timestamp = time.time()  # pylint: disable=protected-access
         old_cache_value = time.time() - 60  # 60 seconds ago
-        cache.set(AuthzEnforcer.CACHE_KEY, old_cache_value, None)
+        PolicyCacheControl.set_last_modified_timestamp(old_cache_value)
 
         AuthzEnforcer.invalidate_policy_cache()
 
-        new_cache_value = cache.get(AuthzEnforcer.CACHE_KEY)
+        new_cache_value = PolicyCacheControl.get_last_modified_timestamp()
         self.assertIsNotNone(new_cache_value)
         self.assertGreater(new_cache_value, old_cache_value)

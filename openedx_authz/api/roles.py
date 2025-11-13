@@ -431,5 +431,4 @@ def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
         bool: True if any roles were removed, False otherwise.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    enforcer.load_policy()
     return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)

@@ -14,6 +14,19 @@ Change Log
 Unreleased
 **********
 
+*
+
+0.16.0 - 2025-11-13
+********************
+
+Changed
+=======
+
+* Update permission format to include app namespace prefix.
+
+Added
+=====
+
 * Register ``CasbinRule`` model in the Django admin.
 * Register ``ExtendedCasbinRule`` model in the Django admin as an inline model of ``CasbinRule``.
 

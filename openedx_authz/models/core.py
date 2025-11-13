@@ -44,6 +44,7 @@ class BaseRegistryModel(models.Model):
         """
         return cls._registry
 
+
 class ScopeManager(models.Manager):
     """Custom manager for Scope model that handles polymorphic behavior."""
 

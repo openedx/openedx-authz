@@ -22,7 +22,7 @@ Unreleased
 Changed
 =======
 
-* Update permission format to include app namespace prefix.
+* **BREAKING**: Update permission format to include app namespace prefix.
 
 Added
 =====

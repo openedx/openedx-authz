@@ -22,7 +22,6 @@ from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
-from openedx_authz.engine.matcher import is_admin_or_superuser_check
 
 
 def libraries_v2_enabled() -> bool:
@@ -201,6 +200,9 @@ class AuthzEnforcer:
         Returns:
             SyncedEnforcer: Configured Casbin enforcer with adapter and auto-sync
         """
+        # Avoid circular import
+        from openedx_authz.engine.matcher import is_admin_or_superuser_check  # pylint: disable=import-outside-toplevel
+
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
 
         try:

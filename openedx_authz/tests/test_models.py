@@ -13,6 +13,8 @@ polymorphism and registry patterns, see the integration tests in test_integratio
 which run against the real ContentLibrary model.
 """
 
+from uuid import UUID, uuid4
+
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -142,21 +144,21 @@ class TestExtendedCasbinRuleModelWithStub(TestCase):
 class TestPolicyCacheControlModel(TestCase):
     """Test cases for the PolicyCacheControl model."""
 
-    def test_get_and_set_last_modified_timestamp(self):
-        """Test getting and setting the last modified timestamp.
+    def test_get_and_set_version(self):
+        """Test getting and setting the cache version.
 
         Expected Result:
-        - Initially, the timestamp is set to the current time.
-        - After setting a new timestamp, it reflects the updated value.
+        - Initially, the version is set to a UUID.
+        - After setting a new version, it reflects the updated value.
         """
-        initial_timestamp = PolicyCacheControl.get_last_modified_timestamp()
-        self.assertIsInstance(initial_timestamp, float)
+        initial_version = PolicyCacheControl.get_version()
+        self.assertIsInstance(initial_version, UUID)
 
-        new_timestamp = initial_timestamp + 1000.0  # Simulate a future timestamp
-        PolicyCacheControl.set_last_modified_timestamp(new_timestamp)
+        new_version = uuid4()  # Generate a new UUID
+        PolicyCacheControl.set_version(new_version)
 
-        updated_timestamp = PolicyCacheControl.get_last_modified_timestamp()
-        self.assertEqual(updated_timestamp, new_timestamp)
+        updated_version = PolicyCacheControl.get_version()
+        self.assertEqual(updated_version, new_version)
 
     def test_singleton_behavior(self):
         """Test that only one instance of PolicyCacheControl exists.

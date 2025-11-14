@@ -7,6 +7,7 @@ that would be used in production environments.
 
 import time
 from unittest.mock import patch
+from uuid import uuid4
 
 import casbin
 from ddt import data as ddt_data
@@ -839,19 +840,22 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
         """Test that load_policy_if_needed initializes cache timestamp on first call.
 
         Expected result:
-            - On first call, cache invalidation key is set with current timestamp
-            - Policy is loaded since last load timestamp is None
+            - On first call, cache invalidation model is initialized
+            - Policy is loaded since last load version is None
         """
         mock_toggle.return_value = True
 
-        AuthzEnforcer._last_policy_load_timestamp = None  # pylint: disable=protected-access
-
+        AuthzEnforcer._last_policy_loaded_version = None  # pylint: disable=protected-access
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
 
-        cached_timestamp = PolicyCacheControl.get_last_modified_timestamp()
-        self.assertIsNotNone(cached_timestamp)
-        self.assertIsNotNone(AuthzEnforcer._last_policy_load_timestamp)  # pylint: disable=protected-access
+        cached_version = PolicyCacheControl.get_version()
+        self.assertIsNotNone(cached_version)
+        self.assertIsNotNone(AuthzEnforcer._last_policy_loaded_version)  # pylint: disable=protected-access
+        self.assertEqual(
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            cached_version,
+        )
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
@@ -860,25 +864,25 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
 
         Expected result:
             - If policy is stale, it is reloaded
-            - _last_policy_load_timestamp is updated with new timestamp
+            - _last_policy_loaded_version is updated with new version
         """
         mock_toggle.return_value = True
 
-        now = time.time()
-        stale_timestamp = now - 60  # 60 seconds ago
+        stale_version = uuid4()
+        current_version = uuid4()
 
-        # Set last load timestamp to stale value
-        AuthzEnforcer._last_policy_load_timestamp = stale_timestamp  # pylint: disable=protected-access
-        # Set last cache invalidation to a more recent time
-        PolicyCacheControl.set_last_modified_timestamp(now)
+        # Set last loaded version to stale value
+        AuthzEnforcer._last_policy_loaded_version = stale_version  # pylint: disable=protected-access
+        # Set last cache invalidation current version
+        PolicyCacheControl.set_version(current_version)
 
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
 
-        self.assertIsNotNone(AuthzEnforcer._last_policy_load_timestamp)  # pylint: disable=protected-access
-        self.assertGreater(
-            AuthzEnforcer._last_policy_load_timestamp,  # pylint: disable=protected-access
-            stale_timestamp,
+        self.assertIsNotNone(AuthzEnforcer._last_policy_loaded_version)  # pylint: disable=protected-access
+        self.assertEqual(
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            current_version,
         )
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
@@ -888,41 +892,41 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
 
         Expected result:
             - If policy is not stale, it is not reloaded
-            - _last_policy_load_timestamp remains unchanged
+            - _last_policy_loaded_version remains unchanged
         """
         mock_toggle.return_value = True
 
-        now = time.time()
+        current_version = uuid4()
 
-        # Set last load timestamp to current time
-        AuthzEnforcer._last_policy_load_timestamp = now  # pylint: disable=protected-access
-        # Set last cache invalidation to an earlier time
-        PolicyCacheControl.set_last_modified_timestamp(now - 60)  # 60 seconds ago
+        # Set last loaded version to current version
+        AuthzEnforcer._last_policy_loaded_version = current_version  # pylint: disable=protected-access
+        # Set last cache invalidation to same version
+        PolicyCacheControl.set_version(current_version)
 
         # get_enforcer calls load_policy_if_needed internally
         AuthzEnforcer.get_enforcer()
 
         self.assertEqual(
-            AuthzEnforcer._last_policy_load_timestamp,  # pylint: disable=protected-access
-            now,
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            current_version,
         )
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
     def test_invalidate_policy_cache(self, mock_toggle):
-        """Test that invalidate_policy_cache updates the cache invalidation key.
+        """Test that invalidate_policy_cache updates the cache invalidation model.
 
         Expected result:
-            - Cache invalidation key is updated with current timestamp
+            - Cache invalidation key is updated to a new version
         """
         mock_toggle.return_value = True
 
-        AuthzEnforcer._last_policy_load_timestamp = time.time()  # pylint: disable=protected-access
-        old_cache_value = time.time() - 60  # 60 seconds ago
-        PolicyCacheControl.set_last_modified_timestamp(old_cache_value)
+        AuthzEnforcer._last_policy_loaded_version = uuid4()  # pylint: disable=protected-access
+        old_cache_value = uuid4()
+        PolicyCacheControl.set_version(old_cache_value)
 
         AuthzEnforcer.invalidate_policy_cache()
 
-        new_cache_value = PolicyCacheControl.get_last_modified_timestamp()
+        new_cache_value = PolicyCacheControl.get_version()
         self.assertIsNotNone(new_cache_value)
-        self.assertGreater(new_cache_value, old_cache_value)
+        self.assertNotEqual(new_cache_value, old_cache_value)

@@ -16,7 +16,7 @@ Requires `CASBIN_MODEL` setting.
 """
 
 import logging
-import time
+from uuid import uuid4
 
 from casbin import SyncedEnforcer
 from casbin_adapter.enforcer import initialize_enforcer
@@ -70,7 +70,7 @@ class AuthzEnforcer:
 
     _enforcer = None
     _adapter = None
-    _last_policy_load_timestamp = None
+    _last_policy_loaded_version = None
 
     def __new__(cls):
         """Singleton pattern to ensure a single enforcer instance."""
@@ -158,43 +158,42 @@ class AuthzEnforcer:
 
     @classmethod
     def load_policy_if_needed(cls):
-        """Load policy if the last load timestamp indicates it's needed.
+        """Load policy if the last load version indicates it's needed.
 
         This method checks if the policy needs to be reloaded comparing
-        the last load timestamp with the last modified timestamp in cache
+        the last load version with the version in the cache invalidation model,
         and reloads it if necessary.
 
         Returns:
             None
         """
-        last_modified_timestamp = PolicyCacheControl.get_last_modified_timestamp()
+        last_version = PolicyCacheControl.get_version()
 
-        current_timestamp = time.time()
-
-        if last_modified_timestamp is None:
+        if last_version is None:
             # No timestamp in cache; initialize it
-            PolicyCacheControl.set_last_modified_timestamp(current_timestamp)
-            logger.info("Initialized policy last modified timestamp in cache control.")
+            last_version = uuid4()
+            PolicyCacheControl.set_version(last_version)
+            logger.info("Initialized policy last modified version in cache control.")
 
-        if cls._last_policy_load_timestamp is None or last_modified_timestamp > cls._last_policy_load_timestamp:
+        if cls._last_policy_loaded_version is None or last_version != cls._last_policy_loaded_version:
             # Policy has been modified since last load; reload it
             cls._enforcer.load_policy()
-            cls._last_policy_load_timestamp = current_timestamp
-            logger.info(f"Reloaded policy at {current_timestamp}")
+            cls._last_policy_loaded_version = last_version
+            logger.info(f"Reloaded policy to version {last_version}")
 
     @classmethod
     def invalidate_policy_cache(cls):
         """Invalidate the current policy cache to force a reload on next check.
 
-        This method updates the last modified timestamp in the cache to
-        the current time, indicating that the policy has changed.
+        This method updates the last modified version in the cache invalidation model
+        to a new UUID, indicating that the policy has changed.
 
         Returns:
             None
         """
-        current_timestamp = time.time()
-        PolicyCacheControl.set_last_modified_timestamp(current_timestamp)
-        logger.info(f"Invalidated policy cache at {current_timestamp}")
+        new_version = uuid4()
+        PolicyCacheControl.set_version(new_version)
+        logger.info(f"Invalidated policy cache to version {new_version}")
 
     @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:

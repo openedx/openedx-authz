@@ -557,6 +557,12 @@ def on_init(app):  # pylint: disable=unused-argument
         # If we are, assemble the path manually
         bin_path = os.path.abspath(os.path.join(sys.prefix, "bin"))
         apidoc_path = os.path.join(bin_path, apidoc_path)
+
+    # Set SPHINX_APIDOC_OPTIONS to add :no-index: to generated automodule directives
+    # This prevents duplicate object warnings for re-exported API members
+    env = os.environ.copy()
+    env['SPHINX_APIDOC_OPTIONS'] = 'members,show-inheritance,undoc-members,no-index'
+
     check_call(
         [
             apidoc_path,
@@ -565,7 +571,8 @@ def on_init(app):  # pylint: disable=unused-argument
             os.path.join(root_path, "openedx_authz"),
             os.path.join(root_path, "openedx_authz/migrations"),
             os.path.join(root_path, "openedx_authz/tests"),
-        ]
+        ],
+        env=env
     )
 
 

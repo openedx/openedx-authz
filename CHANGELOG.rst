@@ -31,6 +31,7 @@ Added
 =====
 
 * Signal to clear policies associated to a user when they are retired.
+* Migration to transfer legacy permissions from ContentLibraryPermission to the new Casbin-based authorization model.
 
 0.16.0 - 2025-11-13
 ********************
@@ -45,14 +46,6 @@ Added
 
 * Register ``CasbinRule`` model in the Django admin.
 * Register ``ExtendedCasbinRule`` model in the Django admin as an inline model of ``CasbinRule``.
-
-0.16.0 - 2025-11-14
-********************
-
-Added
-=====
-
-* Migration to transfer legacy permissions from ContentLibraryPermission to the new Casbin-based authorization model.
 
 0.15.0 - 2025-11-11
 ********************

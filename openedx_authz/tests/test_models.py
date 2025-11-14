@@ -20,6 +20,7 @@ from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import ContentLibraryData, UserData
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.stubs.models import ContentLibrary
 
 User = get_user_model()
@@ -136,3 +137,39 @@ class TestExtendedCasbinRuleModelWithStub(TestCase):
         self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+
+
+class TestPolicyCacheControlModel(TestCase):
+    """Test cases for the PolicyCacheControl model."""
+
+    def test_get_and_set_last_modified_timestamp(self):
+        """Test getting and setting the last modified timestamp.
+
+        Expected Result:
+        - Initially, the timestamp is set to the current time.
+        - After setting a new timestamp, it reflects the updated value.
+        """
+        initial_timestamp = PolicyCacheControl.get_last_modified_timestamp()
+        self.assertIsInstance(initial_timestamp, float)
+
+        new_timestamp = initial_timestamp + 1000.0  # Simulate a future timestamp
+        PolicyCacheControl.set_last_modified_timestamp(new_timestamp)
+
+        updated_timestamp = PolicyCacheControl.get_last_modified_timestamp()
+        self.assertEqual(updated_timestamp, new_timestamp)
+
+    def test_singleton_behavior(self):
+        """Test that only one instance of PolicyCacheControl exists.
+
+        Expected Result:
+        - Multiple calls to get() return the same instance.
+        - Saving the instance does not create duplicates.
+        """
+        instance1 = PolicyCacheControl.get()
+        instance2 = PolicyCacheControl.get()
+
+        self.assertEqual(instance1.id, instance2.id)
+
+        instance1.save()
+        all_instances = PolicyCacheControl.objects.all()
+        self.assertEqual(all_instances.count(), 1)

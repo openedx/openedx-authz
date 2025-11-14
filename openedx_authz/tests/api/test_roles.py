@@ -978,7 +978,6 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertIn(subject_data.namespaced_key, extended_rule.casbin_rule_key)
         self.assertIn(scope_data.namespaced_key, extended_rule.casbin_rule_key)
 
-
     @ddt_data(
         # Test user with single role in single scope
         ("alice", ["lib:Org1:math_101"], {"library_admin"}),

@@ -16,6 +16,7 @@ Requires `CASBIN_MODEL` setting.
 """
 
 import logging
+from uuid import uuid4
 
 from casbin import SyncedEnforcer
 from casbin_adapter.enforcer import initialize_enforcer
@@ -23,6 +24,7 @@ from django.conf import settings
 
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.engine.matcher import is_admin_or_superuser_check
+from openedx_authz.models.engine import PolicyCacheControl
 
 
 def libraries_v2_enabled() -> bool:
@@ -69,6 +71,7 @@ class AuthzEnforcer:
 
     _enforcer = None
     _adapter = None
+    _last_policy_loaded_version = None
 
     def __new__(cls):
         """Singleton pattern to ensure a single enforcer instance."""
@@ -155,6 +158,45 @@ class AuthzEnforcer:
         cls.configure_enforcer_auto_save(auto_save_policy)
 
     @classmethod
+    def load_policy_if_needed(cls):
+        """Load policy if the last load version indicates it's needed.
+
+        This method checks if the policy needs to be reloaded comparing
+        the last load version with the version in the cache invalidation model,
+        and reloads it if necessary.
+
+        Returns:
+            None
+        """
+        last_version = PolicyCacheControl.get_version()
+
+        if last_version is None:
+            # No timestamp in cache; initialize it
+            last_version = uuid4()
+            PolicyCacheControl.set_version(last_version)
+            logger.info("Initialized policy last modified version in cache control.")
+
+        if cls._last_policy_loaded_version is None or last_version != cls._last_policy_loaded_version:
+            # Policy has been modified since last load; reload it
+            cls._enforcer.load_policy()
+            cls._last_policy_loaded_version = last_version
+            logger.info(f"Reloaded policy to version {last_version}")
+
+    @classmethod
+    def invalidate_policy_cache(cls):
+        """Invalidate the current policy cache to force a reload on next check.
+
+        This method updates the last modified version in the cache invalidation model
+        to a new UUID, indicating that the policy has changed.
+
+        Returns:
+            None
+        """
+        new_version = uuid4()
+        PolicyCacheControl.set_version(new_version)
+        logger.info(f"Invalidated policy cache to version {new_version}")
+
+    @classmethod
     def get_enforcer(cls) -> SyncedEnforcer:
         """Get the enforcer instance, creating it if needed.
 
@@ -163,6 +205,9 @@ class AuthzEnforcer:
         """
         if cls._enforcer is None:
             cls._enforcer = cls._initialize_enforcer()
+
+        # (re)load policy if needed
+        cls.load_policy_if_needed()
 
         # HACK: This code block will only be useful when in Ulmo to deactivate
         # the enforcer when the new library experience is disabled. It should be

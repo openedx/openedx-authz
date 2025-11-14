@@ -16,6 +16,15 @@ Unreleased
 
 *
 
+0.18.0 - 2025-11-14
+********************
+
+Added
+=====
+
+* Handle cache invalidation via a uuid in the database to ensure policy reloads
+  occur only when necessary.
+
 0.17.0 - 2025-11-14
 ********************
 
@@ -28,15 +37,6 @@ Added
 ********************
 
 Changed
-=======
-
-* **BREAKING**: Update permission format to include app namespace prefix.
-
-Added
-=====
-
-* Register ``CasbinRule`` model in the Django admin.
-* Register ``ExtendedCasbinRule`` model in the Django admin as an inline model of ``CasbinRule``.
 
 0.15.0 - 2025-11-11
 ********************

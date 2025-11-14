@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.17.0 - 2025-11-14
+********************
+
+Added
+=====
+
+* Signal to clear policies associated to a user when they are retired.
+
 0.16.0 - 2025-11-13
 ********************
 

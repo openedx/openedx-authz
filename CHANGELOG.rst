@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.17.1 - 2025-11-14
+********************
+
+Fixed
+=====
+
+* Avoid circular import of AuthzEnforcer.
+
 0.17.0 - 2025-11-14
 ********************
 

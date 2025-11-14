@@ -402,7 +402,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         username = "alice"
         scope = "lib:Org1:math_101"
-        action = "delete_library"  # library_admin permission
+        action = permissions.DELETE_LIBRARY.identifier
 
         # Verify alice has the permission before unassignment
         has_permission_before = is_user_allowed(

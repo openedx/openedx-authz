@@ -31,6 +31,7 @@ Added
 =====
 
 * Signal to clear policies associated to a user when they are retired.
+* Migration to transfer legacy permissions from ContentLibraryPermission to the new Casbin-based authorization model.
 
 0.16.0 - 2025-11-13
 ********************

@@ -43,4 +43,7 @@ class OpenedxAuthzConfig(AppConfig):
 
     def ready(self):
         """Import signal handlers when Django starts."""
+        from openedx_authz.engine.enforcer import AuthzEnforcer
         import openedx_authz.handlers  # pylint: disable=import-outside-toplevel,unused-import
+        # Invalidate policy cache on startup to ensure fresh policies
+        AuthzEnforcer.invalidate_policy_cache()

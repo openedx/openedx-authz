@@ -106,6 +106,9 @@ class Command(BaseCommand):
         source_enforcer = casbin.Enforcer(model_file_path, policy_file_path)
         self.migrate_policies(source_enforcer, target_enforcer)
 
+        # Invalidate policy cache to ensure changes are picked up
+        AuthzEnforcer.invalidate_policy_cache()
+
     def migrate_policies(self, source_enforcer, target_enforcer):
         """Migrate policies from the source enforcer to the target enforcer.
 

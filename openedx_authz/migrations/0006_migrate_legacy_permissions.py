@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
     """
 
     dependencies = [
-        ("openedx_authz", "0004_contentlibraryscope"),
+        ("openedx_authz", "0005_policycachecontrol"),
     ]
 
     operations = [

@@ -836,8 +836,8 @@ class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
 
     @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
     @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
-    def test_load_policy_if_needed_initializes_cache_timestamp(self, mock_toggle):
-        """Test that load_policy_if_needed initializes cache timestamp on first call.
+    def test_load_policy_if_needed_initializes_cache_version(self, mock_toggle):
+        """Test that load_policy_if_needed initializes cache version on first call.
 
         Expected result:
             - On first call, cache invalidation model is initialized

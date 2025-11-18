@@ -11,6 +11,8 @@ class PolicyCacheControl(models.Model):
     This model can be used to trigger cache invalidation for authorization policies
     by changing the version. Whenever this model is updated, the authorization
     engine should invalidate its cached policies.
+
+    .. no_pii:
     """
 
     version = models.UUIDField(default=uuid4)

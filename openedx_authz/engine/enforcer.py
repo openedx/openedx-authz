@@ -170,7 +170,7 @@ class AuthzEnforcer:
         last_version = PolicyCacheControl.get_version()
 
         if last_version is None:
-            # No timestamp in cache; initialize it
+            # No version in cache control; initialize it
             last_version = uuid4()
             PolicyCacheControl.set_version(last_version)
             logger.info("Initialized policy last modified version in cache control.")

@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.18.0 - 2025-11-17
+********************
+
+Added
+=====
+
+* Migration to transfer legacy permissions from ContentLibraryPermission to the new Casbin-based authorization model.
+
 0.17.1 - 2025-11-14
 ********************
 

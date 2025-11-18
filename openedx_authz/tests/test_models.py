@@ -13,6 +13,8 @@ polymorphism and registry patterns, see the integration tests in test_integratio
 which run against the real ContentLibrary model.
 """
 
+from uuid import UUID, uuid4
+
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -20,6 +22,7 @@ from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import ContentLibraryData, UserData
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.stubs.models import ContentLibrary
 
 User = get_user_model()
@@ -136,3 +139,39 @@ class TestExtendedCasbinRuleModelWithStub(TestCase):
         self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+
+
+class TestPolicyCacheControlModel(TestCase):
+    """Test cases for the PolicyCacheControl model."""
+
+    def test_get_and_set_version(self):
+        """Test getting and setting the cache version.
+
+        Expected Result:
+        - Initially, the version is set to a UUID.
+        - After setting a new version, it reflects the updated value.
+        """
+        initial_version = PolicyCacheControl.get_version()
+        self.assertIsInstance(initial_version, UUID)
+
+        new_version = uuid4()  # Generate a new UUID
+        PolicyCacheControl.set_version(new_version)
+
+        updated_version = PolicyCacheControl.get_version()
+        self.assertEqual(updated_version, new_version)
+
+    def test_singleton_behavior(self):
+        """Test that only one instance of PolicyCacheControl exists.
+
+        Expected Result:
+        - Multiple calls to get() return the same instance.
+        - Saving the instance does not create duplicates.
+        """
+        instance1 = PolicyCacheControl.get()
+        instance2 = PolicyCacheControl.get()
+
+        self.assertEqual(instance1.id, instance2.id)
+
+        instance1.save()
+        all_instances = PolicyCacheControl.objects.all()
+        self.assertEqual(all_instances.count(), 1)

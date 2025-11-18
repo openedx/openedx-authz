@@ -7,6 +7,7 @@ that would be used in production environments.
 
 import time
 from unittest.mock import patch
+from uuid import uuid4
 
 import casbin
 from ddt import data as ddt_data
@@ -17,6 +18,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
 
@@ -823,3 +825,108 @@ class TestEnforcerToggleBehavior(TransactionTestCase):
         for _ in range(5):
             AuthzEnforcer.get_enforcer()
             self.assertTrue(AuthzEnforcer.is_auto_save_enabled())
+
+
+class TestEnforcerPolicyCacheBehavior(TransactionTestCase):
+    """Test cases for enforcer policy cache behavior.
+
+    These tests verify that the policy cache logic works correctly,
+    ensuring that policies are reloaded only when needed.
+    """
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_initializes_cache_version(self, mock_toggle):
+        """Test that load_policy_if_needed initializes cache version on first call.
+
+        Expected result:
+            - On first call, cache invalidation model is initialized
+            - Policy is loaded since last load version is None
+        """
+        mock_toggle.return_value = True
+
+        AuthzEnforcer._last_policy_loaded_version = None  # pylint: disable=protected-access
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        cached_version = PolicyCacheControl.get_version()
+        self.assertIsNotNone(cached_version)
+        self.assertIsNotNone(AuthzEnforcer._last_policy_loaded_version)  # pylint: disable=protected-access
+        self.assertEqual(
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            cached_version,
+        )
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_loads_when_stale(self, mock_toggle):
+        """Test that load_policy_if_needed reloads policy when stale.
+
+        Expected result:
+            - If policy is stale, it is reloaded
+            - _last_policy_loaded_version is updated with new version
+        """
+        mock_toggle.return_value = True
+
+        stale_version = uuid4()
+        current_version = uuid4()
+
+        # Set last loaded version to stale value
+        AuthzEnforcer._last_policy_loaded_version = stale_version  # pylint: disable=protected-access
+        # Set last cache invalidation current version
+        PolicyCacheControl.set_version(current_version)
+
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        self.assertIsNotNone(AuthzEnforcer._last_policy_loaded_version)  # pylint: disable=protected-access
+        self.assertEqual(
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            current_version,
+        )
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_load_policy_if_needed_doesnt_reload_when_not_stale(self, mock_toggle):
+        """Test that load_policy_if_needed does not reload policy when not stale.
+
+        Expected result:
+            - If policy is not stale, it is not reloaded
+            - _last_policy_loaded_version remains unchanged
+        """
+        mock_toggle.return_value = True
+
+        current_version = uuid4()
+
+        # Set last loaded version to current version
+        AuthzEnforcer._last_policy_loaded_version = current_version  # pylint: disable=protected-access
+        # Set last cache invalidation to same version
+        PolicyCacheControl.set_version(current_version)
+
+        # get_enforcer calls load_policy_if_needed internally
+        AuthzEnforcer.get_enforcer()
+
+        self.assertEqual(
+            AuthzEnforcer._last_policy_loaded_version,  # pylint: disable=protected-access
+            current_version,
+        )
+
+    @patch("openedx_authz.engine.enforcer.libraries_v2_enabled")
+    @override_settings(CASBIN_AUTO_LOAD_POLICY_INTERVAL=0)
+    def test_invalidate_policy_cache(self, mock_toggle):
+        """Test that invalidate_policy_cache updates the cache invalidation model.
+
+        Expected result:
+            - Cache invalidation key is updated to a new version
+        """
+        mock_toggle.return_value = True
+
+        AuthzEnforcer._last_policy_loaded_version = uuid4()  # pylint: disable=protected-access
+        old_cache_value = uuid4()
+        PolicyCacheControl.set_version(old_cache_value)
+
+        AuthzEnforcer.invalidate_policy_cache()
+
+        new_cache_value = PolicyCacheControl.get_version()
+        self.assertIsNotNone(new_cache_value)
+        self.assertNotEqual(new_cache_value, old_cache_value)

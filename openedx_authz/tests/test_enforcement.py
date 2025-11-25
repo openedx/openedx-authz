@@ -15,6 +15,7 @@ from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD
 from openedx_authz.constants import roles
 from openedx_authz.engine.matcher import is_admin_or_superuser_check
 from openedx_authz.tests.test_utils import (
@@ -127,15 +128,15 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
-        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
     ] + COMMON_ACTION_GROUPING
 
     GENERAL_CASES = [
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": "*",
+            "scope": make_scope_key("global", GLOBAL_SCOPE_WILDCARD),
             "expected_result": True,
         },
         {
@@ -179,7 +180,7 @@ class ActionGroupingTests(CasbinEnforcementTestCase):
             "p",
             make_role_key("role-1"),
             make_action_key("manage"),
-            make_scope_key("org", "*"),
+            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
@@ -234,65 +235,65 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
 
     POLICY = [
         # Policies
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         [
             "p",
             make_role_key("org_admin"),
             make_action_key("manage"),
-            make_scope_key("org", "*"),
+            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("org_editor"),
             make_action_key("edit"),
-            make_scope_key("org", "*"),
+            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("org_author"),
             make_action_key("write"),
-            make_scope_key("org", "*"),
+            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("course_admin"),
             make_action_key("manage"),
-            make_scope_key("course", "*"),
+            make_scope_key("course", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
-            make_scope_key("lib", "*"),
+            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("library_editor"),
             make_action_key("edit"),
-            make_scope_key("lib", "*"),
+            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("library_reviewer"),
             make_action_key("read"),
-            make_scope_key("lib", "*"),
+            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key(roles.LIBRARY_AUTHOR.external_key),
             make_action_key("write"),
-            make_scope_key("lib", "*"),
+            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         # Role assignments
-        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
         [
             "g",
             make_user_key("user-2"),
@@ -415,7 +416,7 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
     """
 
     POLICY = [
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         [
             "p",
             make_role_key("platform_admin"),
@@ -423,7 +424,7 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
             make_scope_key("org", "restricted-org"),
             "deny",
         ],
-        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
     ] + COMMON_ACTION_GROUPING
 
     CASES = [
@@ -484,37 +485,37 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 
     POLICY = [
         # Policies
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), "*", "allow"],
+        ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         [
             "p",
             make_role_key("org_admin"),
             make_action_key("manage"),
-            make_scope_key("org", "*"),
+            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("course_admin"),
             make_action_key("manage"),
-            make_scope_key("course", "*"),
+            make_scope_key("course", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
-            make_scope_key("lib", "*"),
+            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         # Role assignments
-        ["g", make_user_key("user-1"), make_role_key("platform_admin"), "*"],
-        ["g", make_user_key("user-2"), make_role_key("org_admin"), "*"],
-        ["g", make_user_key("user-3"), make_role_key("course_admin"), "*"],
-        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN.external_key), "*"],
+        ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-2"), make_role_key("org_admin"), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-3"), make_role_key("course_admin"), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
     ] + COMMON_ACTION_GROUPING
 
     @data(
-        ("*", True),
+        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), True),
         (make_scope_key("org", "MIT"), True),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
         (make_library_key("lib:OpenedX:math-basics"), True),
@@ -531,7 +532,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICY, request)
 
     @data(
-        ("*", False),
+        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
         (make_scope_key("org", "MIT"), True),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
         (make_library_key("lib:OpenedX:math-basics"), False),
@@ -548,7 +549,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICY, request)
 
     @data(
-        ("*", False),
+        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
         (make_scope_key("org", "MIT"), False),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
         (make_library_key("lib:OpenedX:math-basics"), False),
@@ -565,7 +566,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICY, request)
 
     @data(
-        ("*", False),
+        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
         (make_scope_key("org", "MIT"), False),
         (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
         (make_library_key("lib:OpenedX:math-basics"), True),
@@ -646,7 +647,13 @@ class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
         ),
     )
     @unpack
-    def test_staff_superuser_guaranteed_permissions(self, subject: str, action: str, scope: str, expected_result: bool):
+    def test_staff_superuser_guaranteed_permissions(
+        self,
+        subject: str,
+        action: str,
+        scope: str,
+        expected_result: bool,
+    ):
         """Test that staff and superusers have guaranteed permissions for ContentLibrary scopes.
 
         This test validates that:

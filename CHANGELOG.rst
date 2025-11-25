@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.19.2 - 2025-11-25
+********************
+
+Performance
+===========
+
+* Use a RequestCache for is_admin_or_superuser matcher to improve performance.
+
 0.19.1 - 2025-11-25
 ********************
 

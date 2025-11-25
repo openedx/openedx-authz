@@ -27,6 +27,7 @@ charset-normalizer==3.4.3
     #   requests
 click==8.3.0
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/base.txt
     #   code-annotations
     #   edx-django-utils

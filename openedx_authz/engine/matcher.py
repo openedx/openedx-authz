@@ -1,13 +1,10 @@
 """Custom condition checker. Note only used for data_library scope"""
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
+from edx_django_utils.cache import RequestCache
 
 from openedx_authz.api.data import ContentLibraryData, ScopeData, UserData
 from openedx_authz.rest_api.utils import get_user_by_username_or_email
-
-RBAC_ADMIN_CACHE_KEY_FMT = "rbac_is_admin_or_superuser_{username}"
-RBAC_ADMIN_CACHE_TIMEOUT_SECS = 2
 
 User = get_user_model()
 
@@ -33,17 +30,16 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
 
     scope = ScopeData(namespaced_key=request_scope)
     username = UserData(namespaced_key=request_user).external_key
+    request_cache = RequestCache("rbac_is_admin_or_superuser")
 
     # TODO: This special case for superuser and staff users is currently only for
     # content libraries. See: https://github.com/openedx/openedx-authz/issues/87
     if not isinstance(scope, ContentLibraryData):
         return False
 
-    cache_key = RBAC_ADMIN_CACHE_KEY_FMT.format(username=username)
-    is_allowed = cache.get(cache_key)
-
-    if is_allowed is not None:
-        return is_allowed
+    cached_response = request_cache.get_cached_response(username)
+    if cached_response.is_found:
+        return cached_response.value
 
     try:
         user = get_user_by_username_or_email(username)
@@ -51,8 +47,6 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
         return False
 
     is_allowed = user.is_staff or user.is_superuser
-
-    # TODO: Make this cache timeout configurable
-    cache.set(cache_key, is_allowed, RBAC_ADMIN_CACHE_TIMEOUT_SECS)
+    request_cache.set(username, is_allowed)
 
     return is_allowed

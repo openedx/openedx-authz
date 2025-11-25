@@ -45,6 +45,7 @@ charset-normalizer==3.4.3
     #   requests
 click==8.3.0
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
     #   click-log
@@ -196,7 +197,7 @@ packaging==25.0
     #   tox
 path==16.16.0
     # via edx-i18n-tools
-pip-tools==7.5.1
+pip-tools==7.5.2
     # via -r requirements/pip-tools.txt
 platformdirs==4.4.0
     # via

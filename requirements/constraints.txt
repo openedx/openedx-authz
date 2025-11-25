@@ -10,3 +10,6 @@
 
 # Common constraints for edx repos
 -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
+
+# Different packages want different versions of click, we force the most compatible one here
+click==8.3.0

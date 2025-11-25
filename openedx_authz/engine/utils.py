@@ -125,7 +125,7 @@ def migrate_legacy_permissions(ContentLibraryPermission):
             continue
 
         # Generating scope based on library identifier
-        scope = f"lib:{permission.library.org.name}:{permission.library.slug}"
+        scope = f"lib:{permission.library.org.short_name}:{permission.library.slug}"
 
         if permission.group:
             # Permission applied to a group

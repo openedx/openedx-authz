@@ -15,7 +15,8 @@ User = get_user_model()
 # Specify a unique prefix to avoid collisions with existing data
 OBJECT_PREFIX = "tmlp_"
 
-org_name = f"{OBJECT_PREFIX}org"
+org_name = f"{OBJECT_PREFIX}org_full_name"
+org_short_name = f"{OBJECT_PREFIX}org"
 lib_name = f"{OBJECT_PREFIX}library"
 group_name = f"{OBJECT_PREFIX}test_group"
 user_names = [f"{OBJECT_PREFIX}user{i}" for i in range(3)]
@@ -40,7 +41,7 @@ class TestLegacyPermissionsMigration(TestCase):
         """
         # Create ContentLibrary
 
-        org = Organization.objects.create(name=org_name, short_name=org_name)
+        org = Organization.objects.create(name=org_name, short_name=org_short_name)
         library = ContentLibrary.objects.create(org=org, slug=lib_name)
 
         # Create Users and Groups
@@ -104,12 +105,12 @@ class TestLegacyPermissionsMigration(TestCase):
         batch_unassign_role_from_users(
             users=user_names,
             role_external_key=LIBRARY_ADMIN.external_key,
-            scope_external_key=f"lib:{org_name}:{lib_name}",
+            scope_external_key=f"lib:{org_short_name}:{lib_name}",
         )
         batch_unassign_role_from_users(
             users=group_user_names,
             role_external_key=LIBRARY_USER.external_key,
-            scope_external_key=f"lib:{org_name}:{lib_name}",
+            scope_external_key=f"lib:{org_short_name}:{lib_name}",
         )
 
         ContentLibrary.objects.filter(slug=lib_name).delete()
@@ -133,13 +134,13 @@ class TestLegacyPermissionsMigration(TestCase):
         AuthzEnforcer.get_enforcer().load_policy()
         for user_name in user_names:
             assignments = get_user_role_assignments_in_scope(
-                user_external_key=user_name, scope_external_key=f"lib:{org_name}:{lib_name}"
+                user_external_key=user_name, scope_external_key=f"lib:{org_short_name}:{lib_name}"
             )
             self.assertEqual(len(assignments), 1)
             self.assertEqual(assignments[0].roles[0], LIBRARY_ADMIN)
         for group_user_name in group_user_names:
             assignments = get_user_role_assignments_in_scope(
-                user_external_key=group_user_name, scope_external_key=f"lib:{org_name}:{lib_name}"
+                user_external_key=group_user_name, scope_external_key=f"lib:{org_short_name}:{lib_name}"
             )
             self.assertEqual(len(assignments), 1)
             self.assertEqual(assignments[0].roles[0], LIBRARY_USER)

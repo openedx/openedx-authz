@@ -16,6 +16,14 @@ Unreleased
 
 *
 
+0.19.1 - 2025-11-25
+********************
+
+Fixed
+=====
+
+* Use `short_name` instead of `name` from organization when building library key.
+
 0.19.0 - 2025-11-18
 ********************
 

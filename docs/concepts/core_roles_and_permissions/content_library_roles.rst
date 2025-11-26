@@ -20,6 +20,10 @@ A **role** is a set of permissions that defines what actions a user can perform.
 
 - The **Library User** can view and reuse content but cannot edit or delete anything.
 
+.. note::
+
+   Global staff and superusers are like Library Admins on all libraries (they have full permissions across all content libraries by default).
+
 Permissions
 -----------
 

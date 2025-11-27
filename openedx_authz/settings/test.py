@@ -44,6 +44,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "edx_django_utils.cache.middleware.RequestCacheMiddleware",
 ]
 
 TEMPLATES = [

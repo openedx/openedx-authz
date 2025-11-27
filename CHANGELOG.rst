@@ -16,6 +16,15 @@ Unreleased
 
 *
 
+0.20.0 - 2025-11-27
+********************
+
+Added
+=====
+
+* Add configurable logging level for Casbin enforcer via ``CASBIN_LOG_LEVEL`` setting (defaults to WARNING).
+
+
 0.19.2 - 2025-11-25
 ********************
 

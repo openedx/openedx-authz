@@ -45,3 +45,8 @@ def plugin_settings(settings):
     # Set default ContentLibrary model for swappable dependency
     if not hasattr(settings, "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL"):
         settings.OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "content_libraries.ContentLibrary"
+
+    # Set default CASBIN_LOG_LEVEL if not already set.
+    # This setting defines the logging level for the Casbin enforcer.
+    if not hasattr(settings, "CASBIN_LOG_LEVEL"):
+        settings.CASBIN_LOG_LEVEL = "WARNING"

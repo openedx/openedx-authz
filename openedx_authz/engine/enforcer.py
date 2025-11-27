@@ -16,9 +16,11 @@ Requires `CASBIN_MODEL` setting.
 """
 
 import logging
+from copy import deepcopy
 from uuid import uuid4
 
 from casbin import SyncedEnforcer
+from casbin.util.log import DEFAULT_LOGGING, configure_logging
 from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
 
@@ -155,6 +157,19 @@ class AuthzEnforcer:
         cls.configure_enforcer_auto_save(auto_save_policy)
 
     @classmethod
+    def _configure_logging(cls) -> None:
+        """Configure logging levels for Casbin's internal loggers.
+
+        This controls the verbosity of Casbin's policy evaluation and role management
+        logging. The log level defaults to WARNING if CASBIN_LOG_LEVEL is not set.
+        """
+        log_level = getattr(settings, "CASBIN_LOG_LEVEL", "WARNING")
+        casbin_logging = deepcopy(DEFAULT_LOGGING)
+        for logger_name in casbin_logging["loggers"]:
+            casbin_logging["loggers"][logger_name]["level"] = log_level
+        configure_logging(casbin_logging)
+
+    @classmethod
     def load_policy_if_needed(cls):
         """Load policy if the last load version indicates it's needed.
 
@@ -245,6 +260,10 @@ class AuthzEnforcer:
         """
         # Avoid circular import
         from openedx_authz.engine.matcher import is_admin_or_superuser_check  # pylint: disable=import-outside-toplevel
+
+        # Configure logging BEFORE initialize_enforcer() because it creates a ProxyEnforcer
+        # that doesn't pass logging config and would use Casbin's defaults
+        cls._configure_logging()
 
         db_alias = getattr(settings, "CASBIN_DB_ALIAS", "default")
 

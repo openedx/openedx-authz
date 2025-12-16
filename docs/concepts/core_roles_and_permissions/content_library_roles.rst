@@ -1,3 +1,5 @@
+.. _Roles Permissions Content Library:
+
 Core Roles and Permissions: Content Library
 #############################################
 

@@ -9,6 +9,8 @@ This document outlines the built-in roles and permissions associated with the Co
     :depth: 2
     :local:
 
+.. _Library Roles:
+
 Roles
 -----
 
@@ -75,9 +77,12 @@ Permissions Inheritance
 * **Creating a library collection** (``content_libraries.create_library_collection``) implies **editing a library collection** (``content_libraries.edit_library_collection``).
 * **Editing a library collection** (``content_libraries.edit_library_collection``) implies **viewing the library** (``content_libraries.view_library``).
 
+.. _Library RP Summary Table:
 
 Roles and Permissions Summary Table
 ------------------------------------
+
+.. START LIBRARY RP TABLE:
 
 .. table:: Matrix of Content Library Roles and Permissions
    :widths: auto
@@ -106,6 +111,7 @@ Roles and Permissions Summary Table
    content_libraries.delete_library_collection   ✅                ✅               ✅                    ❌
    ============================================= ================= ================ ===================== ==============
 
+.. END LIBRARY RP TABLE
 
 **Maintenance chart**
 

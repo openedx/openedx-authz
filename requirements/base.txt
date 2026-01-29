@@ -18,7 +18,7 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.3
     # via requests
-click==8.3.0
+click==8.3.1
     # via
     #   -c requirements/constraints.txt
     #   edx-django-utils
@@ -75,7 +75,9 @@ inflection==0.5.1
 openedx-atlas==0.7.0
     # via -r requirements/base.in
 packaging==25.0
-    # via drf-yasg
+    # via
+    #   -c requirements/constraints.txt
+    #   drf-yasg
 psutil==7.1.0
     # via edx-django-utils
 pycasbin==2.2.0

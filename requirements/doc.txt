@@ -39,7 +39,7 @@ charset-normalizer==3.4.3
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.3.0
+click==8.3.1
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/test.txt
@@ -55,7 +55,6 @@ cryptography==46.0.2
     # via
     #   -r requirements/test.txt
     #   pyjwt
-    #   secretstorage
 ddt==1.7.2
     # via -r requirements/test.txt
 django==4.2.24
@@ -144,10 +143,6 @@ jaraco-context==6.0.1
     # via keyring
 jaraco-functools==4.3.0
     # via keyring
-jeepney==0.9.0
-    # via
-    #   keyring
-    #   secretstorage
 jinja2==3.1.6
     # via
     #   -r requirements/test.txt
@@ -173,6 +168,7 @@ openedx-atlas==0.7.0
     # via -r requirements/test.txt
 packaging==25.0
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/test.txt
     #   build
     #   drf-yasg
@@ -266,8 +262,6 @@ rich==14.1.0
     # via twine
 roman-numerals-py==3.1.0
     # via sphinx
-secretstorage==3.4.0
-    # via keyring
 semantic-version==2.10.0
     # via
     #   -r requirements/test.txt

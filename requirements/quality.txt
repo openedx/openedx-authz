@@ -29,7 +29,7 @@ charset-normalizer==3.4.3
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.3.0
+click==8.3.1
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/test.txt
@@ -138,6 +138,7 @@ openedx-atlas==0.7.0
     # via -r requirements/test.txt
 packaging==25.0
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/test.txt
     #   drf-yasg
     #   pytest

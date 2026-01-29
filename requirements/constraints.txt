@@ -14,5 +14,5 @@
 # Different packages want different versions of click, we force the most compatible one here
 click==8.3.1
 
-# Latest version of wheel is requiring packaging==26.0, but other packages require packaging==25.0
+# packaging 26.0 was recently released, and wheel requirements are resolving to packaging==26.0, but other packages require packaging==25.0
 packaging==25.0

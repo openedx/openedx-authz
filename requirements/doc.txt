@@ -39,9 +39,8 @@ charset-normalizer==3.4.3
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.3.0
+click==8.3.1
     # via
-    #   -c requirements/constraints.txt
     #   -r requirements/test.txt
     #   code-annotations
     #   edx-django-utils
@@ -108,7 +107,7 @@ drf-yasg==1.21.11
     # via
     #   -r requirements/test.txt
     #   edx-api-doc-tools
-edx-api-doc-tools==2.1.0
+edx-api-doc-tools==2.1.2
     # via -r requirements/test.txt
 edx-django-utils==8.0.1
     # via
@@ -171,7 +170,7 @@ nh3==0.3.0
     # via readme-renderer
 openedx-atlas==0.7.0
     # via -r requirements/test.txt
-packaging==25.0
+packaging==26.0
     # via
     #   -r requirements/test.txt
     #   build

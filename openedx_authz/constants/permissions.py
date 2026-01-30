@@ -53,3 +53,12 @@ DELETE_LIBRARY_COLLECTION = PermissionData(
     action=ActionData(external_key=f"{CONTENT_LIBRARIES_NAMESPACE}.delete_library_collection"),
     effect="allow",
 )
+
+# Course Permissions
+
+COURSES_NAMESPACE = "courses"
+
+MANAGE_ADVANCED_SETTINGS = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_advanced_settings"),
+    effect="allow",
+)

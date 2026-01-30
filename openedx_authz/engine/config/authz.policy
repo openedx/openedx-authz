@@ -68,3 +68,9 @@ g2, act^content_libraries.manage_library_team, act^content_libraries.view_librar
 g2, act^content_libraries.delete_library_collection, act^content_libraries.edit_library_collection
 g2, act^content_libraries.create_library_collection, act^content_libraries.edit_library_collection
 g2, act^content_libraries.edit_library_collection, act^content_libraries.view_library
+
+
+# Course Policies
+
+# Course Staff Permissions
+p, role^course_staff, act^courses.manage_advanced_settings, course^*, allow

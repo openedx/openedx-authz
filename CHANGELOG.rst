@@ -17,6 +17,8 @@ Unreleased
 Added
 =====
 
+* ADR on the AuthZ for Course Authoring Migration Process Details.
+
 0.22.0 - 2026-02-19
 ********************
 

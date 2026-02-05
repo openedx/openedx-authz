@@ -14,7 +14,10 @@ Change Log
 Unreleased
 **********
 
-*
+Added
+=====
+
+* ADR on the AuthZ for Course Authoring implementation plan.
 
 0.20.0 - 2025-11-27
 ********************

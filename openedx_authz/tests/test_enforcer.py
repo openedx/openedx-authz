@@ -413,7 +413,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         org_count = len(global_enforcer.get_policy())
 
         self.assertEqual(lib_count, expected_lib_count)
-        self.assertEqual(course_count, 6)
+        self.assertEqual(course_count, 7)
         self.assertEqual(org_count, 3)
 
         global_enforcer.clear_policy()

@@ -46,6 +46,10 @@ def plugin_settings(settings):
     if not hasattr(settings, "OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL"):
         settings.OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "content_libraries.ContentLibrary"
 
+    # Set default CourseOverview model for swappable dependency
+    if not hasattr(settings, "OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL"):
+        settings.OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL = "content.CourseOverview"
+
     # Set default CASBIN_LOG_LEVEL if not already set.
     # This setting defines the logging level for the Casbin enforcer.
     if not hasattr(settings, "CASBIN_LOG_LEVEL"):

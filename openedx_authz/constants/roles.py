@@ -56,3 +56,13 @@ LIBRARY_ADMIN = RoleData(external_key="library_admin", permissions=LIBRARY_ADMIN
 LIBRARY_AUTHOR = RoleData(external_key="library_author", permissions=LIBRARY_AUTHOR_PERMISSIONS)
 LIBRARY_CONTRIBUTOR = RoleData(external_key="library_contributor", permissions=LIBRARY_CONTRIBUTOR_PERMISSIONS)
 LIBRARY_USER = RoleData(external_key="library_user", permissions=LIBRARY_USER_PERMISSIONS)
+
+
+# Course Roles and Permissions
+
+
+COURSE_STAFF_PERMISSIONS = [
+    permissions.MANAGE_ADVANCED_SETTINGS,
+]
+
+COURSE_STAFF = RoleData(external_key="course_staff", permissions=COURSE_STAFF_PERMISSIONS)

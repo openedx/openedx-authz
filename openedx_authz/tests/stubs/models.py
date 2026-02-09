@@ -93,7 +93,7 @@ class ContentLibraryPermission(models.Model):
 
 class CourseOverview(models.Model):
     """
-    Model for storing and caching basic information about a course.
+    Stub model representing a course overview for testing purposes.
 
     This model contains basic course metadata such as an ID, display name, and organization.
     It is used to link CourseScope instances to actual courses in the system.

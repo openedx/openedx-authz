@@ -61,19 +61,6 @@ def _mock_get_or_create_subject(subject_data):
     return subject
 
 
-# Apply patches at module level using the new manager method
-_scope_patcher = patch(
-    "openedx_authz.models.ScopeManager.get_or_create_for_external_key",
-    side_effect=_mock_get_or_create_scope,
-)
-_subject_patcher = patch(
-    "openedx_authz.models.SubjectManager.get_or_create_for_external_key",
-    side_effect=_mock_get_or_create_subject,
-)
-_scope_patcher.start()
-_subject_patcher.start()
-
-
 class BaseRolesTestCase(TestCase):
     """Base test case with helper methods for roles testing.
 
@@ -134,6 +121,26 @@ class BaseRolesTestCase(TestCase):
         to add their specific role assignments by calling _assign_roles_to_users.
         """
         super().setUpClass()
+
+        # Apply patches here so they only affect this test
+        # and don't interfere with other tests using the real
+        # get_or_create_for_external_key implementation.
+        cls._scope_patcher = patch(
+            "openedx_authz.models.ScopeManager.get_or_create_for_external_key",
+            side_effect=_mock_get_or_create_scope,
+        )
+        cls._subject_patcher = patch(
+            "openedx_authz.models.SubjectManager.get_or_create_for_external_key",
+            side_effect=_mock_get_or_create_subject,
+        )
+
+        cls._scope_patcher.start()
+        cls._subject_patcher.start()
+
+        AuthzEnforcer.get_enforcer().stop_auto_load_policy()
+        AuthzEnforcer.get_enforcer().enable_auto_save(True)
+        cls._seed_database_with_policies()
+
         AuthzEnforcer.get_enforcer().stop_auto_load_policy()
         # Enable auto-save to ensure policies are saved to the database
         # This is necessary because the tests are not using auto-load policy
@@ -149,6 +156,15 @@ class BaseRolesTestCase(TestCase):
         """Clean up after each test to ensure isolation."""
         super().tearDown()
         AuthzEnforcer.get_enforcer().clear_policy()  # Clear policies after each test to ensure isolation
+
+    @classmethod
+    def tearDownClass(cls):
+        # Stop patches cleanly
+        # This ensures that if any test fails, the patches will still be stopped properly,
+        # preventing side effects on other tests.
+        cls._scope_patcher.stop()
+        cls._subject_patcher.stop()
+        super().tearDownClass()
 
 
 class RolesTestSetupMixin(BaseRolesTestCase):

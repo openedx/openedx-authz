@@ -9,7 +9,10 @@ from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
 from opaque_keys import InvalidKeyError
+from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
+
+from openedx_authz.tests.stubs.models import CourseOverview
 
 try:
     from openedx.core.djangoapps.content_libraries.models import ContentLibrary
@@ -459,6 +462,108 @@ class ContentLibraryData(ScopeData):
 
     def __repr__(self):
         """Developer friendly string representation of the content library."""
+        return self.namespaced_key
+
+
+@define
+class CourseOverviewData(ScopeData):
+    """A course scope for authorization in the Open edX platform.
+
+    Courses uses the CourseKey format for identification.
+
+    Attributes:
+        NAMESPACE: 'course' for course scopes.
+        external_key: The course identifier (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
+            Must be a valid CourseKey format.
+        namespaced_key: The course identifier with namespace (e.g., 'course^course-v1:TestOrg+TestCourse+2024_T1').
+        course_id: Property alias for external_key.
+
+    Examples:
+        >>> course = CourseOverviewData(external_key='course-v1:TestOrg+TestCourse+2024_T1')
+        >>> course.namespaced_key
+        'course^course-v1:TestOrg+TestCourse+2024_T1'
+        >>> course.course_id
+        'course-v1:TestOrg+TestCourse+2024_T1'
+
+    """
+
+    NAMESPACE: ClassVar[str] = "course"
+
+    @property
+    def course_id(self) -> str:
+        """The course identifier as used in Open edX (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
+
+        This is an alias for external_key that represents the course ID without the namespace prefix.
+
+        Returns:
+            str: The course identifier without namespace.
+        """
+        return self.external_key
+
+    @property
+    def course_key(self) -> CourseKey:
+        """The CourseKey object for the course.
+
+        Returns:
+            CourseKey: The course key object.
+        """
+        return CourseKey.from_string(self.course_id)
+
+    @classmethod
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for CourseOverviewData.
+
+        Args:
+            external_key: The external key to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        try:
+            CourseKey.from_string(external_key)
+            return True
+        except InvalidKeyError:
+            return False
+
+    def get_object(self) -> CourseOverview | None:
+        """Retrieve the CourseOverview instance associated with this scope.
+
+        This method converts the course_id to a CourseKey and queries the
+        database to fetch the corresponding CourseOverview object.
+
+        Returns:
+            CourseOverview | None: The CourseOverview instance if found in the database,
+                or None if the course does not exist or has an invalid key format.
+
+        Examples:
+            >>> course_scope = CourseOverviewData(external_key='course-v1:TestOrg+TestCourse+2024_T1')
+            >>> course_obj = course_scope.get_object() # CourseOverview object
+        """
+        try:
+            course_obj = CourseOverview.get_from_id(self.course_key)
+            # Validate canonical key: get_by_key is case-insensitive, but we require exact match
+            # This ensures authorization uses canonical course IDs consistently
+            if course_obj.id != self.course_key:
+                raise CourseOverview.DoesNotExist
+        except (InvalidKeyError, CourseOverview.DoesNotExist):
+            return None
+
+        return course_obj
+
+    def exists(self) -> bool:
+        """Check if the course overview exists.
+
+        Returns:
+            bool: True if the course overview exists, False otherwise.
+        """
+        return self.get_object() is not None
+
+    def __str__(self):
+        """Human readable string representation of the course overview."""
+        return self.course_id
+
+    def __repr__(self):
+        """Developer friendly string representation of the course overview."""
         return self.namespaced_key
 
 

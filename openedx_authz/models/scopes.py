@@ -62,7 +62,7 @@ class ContentLibraryScope(Scope):
 
     NAMESPACE = "lib"
 
-    # Link to the actual course or content library, if applicable. In other cases, this could be null.
+    # Link to the actual content library, if applicable. In other cases, this could be null.
     # Piggybacking on the existing ContentLibrary model to keep the ExtendedCasbinRule up to date
     # by deleting the Scope, and thus the ExtendedCasbinRule, when the ContentLibrary is deleted.
     #

@@ -36,12 +36,12 @@ def get_course_overview_model():
     """Return the CourseOverview model class specified by settings.
 
     The setting `OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL` should be an
-    app_label.ModelName string (e.g. 'content.CourseOverview').
+    app_label.ModelName string (e.g. 'course_overviews.CourseOverview').
     """
     COURSE_OVERVIEW_MODEL = getattr(
         settings,
         "OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL",
-        "content.CourseOverview",
+        "course_overviews.CourseOverview",
     )
     try:
         app_label, model_name = COURSE_OVERVIEW_MODEL.split(".")
@@ -109,11 +109,11 @@ class CourseScope(Scope):
     # Piggybacking on the existing CourseOverview model to keep the ExtendedCasbinRule up to date
     # by deleting the Scope, and thus the ExtendedCasbinRule, when the CourseOverview is deleted.
     #
-    # When content IS available, the on_delete=CASCADE will still work at the
+    # When course_overviews IS available, the on_delete=CASCADE will still work at the
     # application level through Django's signal handlers.
     # Use a string reference to the external app's model so Django won't try
     # to import it at model import time. The migration already records the
-    # dependency on `content` when the app is present.
+    # dependency on `course_overviews` when the app is present.
     course_overview = models.ForeignKey(
         settings.OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL,
         on_delete=models.CASCADE,

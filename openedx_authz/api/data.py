@@ -12,12 +12,15 @@ from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-from openedx_authz.tests.stubs.models import CourseOverview
-
 try:
     from openedx.core.djangoapps.content_libraries.models import ContentLibrary
 except ImportError:
     ContentLibrary = None
+
+try:
+    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+except ImportError:
+    CourseOverview = None
 
 __all__ = [
     "UserData",

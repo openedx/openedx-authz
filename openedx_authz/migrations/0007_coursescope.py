@@ -7,7 +7,6 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("stubs", "__first__"),
         ("openedx_authz", "0006_migrate_legacy_permissions"),
     ]
 

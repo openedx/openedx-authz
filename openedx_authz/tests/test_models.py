@@ -13,6 +13,7 @@ polymorphism and registry patterns, see the integration tests in test_integratio
 which run against the real ContentLibrary model.
 """
 
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from casbin_adapter.models import CasbinRule
@@ -168,6 +169,7 @@ class TestCourseExtendedCasbinRuleModelWithStub(TestCase):
         self.scope_data = CourseOverviewData(external_key=str(self.course_key))
         self.scope = Scope.objects.get_or_create_for_external_key(self.scope_data)
 
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)  # Patch to use the stub CourseOverview
     def test_extended_casbin_rule_creation_with_all_fields(self):
         """Test creating ExtendedCasbinRule with all fields populated.
 

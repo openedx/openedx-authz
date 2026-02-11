@@ -9,6 +9,7 @@ from opaque_keys.edx.locator import LibraryLocatorV2
 from openedx_authz.api.data import (
     ActionData,
     ContentLibraryData,
+    CourseOverviewData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
@@ -229,8 +230,11 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(ScopeData.scope_registry["global"], ScopeData)
         self.assertIn("lib", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["lib"], ContentLibraryData)
+        self.assertIn("course-v1", ScopeData.scope_registry)
+        self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
 
     @data(
+        ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("global^generic_scope", ScopeData),
     )
@@ -248,6 +252,7 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(instance.namespaced_key, namespaced_key)
 
     @data(
+        ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
@@ -266,6 +271,7 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(subclass, expected_class)
 
     @data(
+        ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
@@ -283,20 +289,24 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(subclass, expected_class)
 
     @data(
-        ("lib:DemoX:CSPROB", True),
-        ("lib:edX:Demo", True),
-        ("invalid_library_key", False),
-        ("lib-DemoX-CSPROB", False),
+        ("course-v1:WGU+CS002+2025_T1", True, CourseOverviewData),
+        ("course:WGU+CS002+2025_T1", False, CourseOverviewData),
+        ("course-v2:WGU+CS002+2025_T1", False, CourseOverviewData),
+        ("course-v1-WGU+CS002+2025_T1", False, CourseOverviewData),
+        ("lib:DemoX:CSPROB", True, ContentLibraryData),
+        ("lib:edX:Demo", True, ContentLibraryData),
+        ("invalid_library_key", False, ContentLibraryData),
+        ("lib-DemoX-CSPROB", False, ContentLibraryData),
     )
     @unpack
-    def test_content_library_validate_external_key(self, external_key, expected_valid):
-        """Test ContentLibraryData.validate_external_key validates library keys.
+    def test_scope_validate_external_key(self, external_key, expected_valid, expected_class):
+        """Test Subclasses ScopeData.validate_external_key validates library keys.
 
         Expected Result:
-            - Valid library keys (lib:Org:Code) return True
+            - Valid Scope keys like (lib:Org:Code) return True
             - Invalid formats return False
         """
-        result = ContentLibraryData.validate_external_key(external_key)
+        result = expected_class.validate_external_key(external_key)
 
         self.assertEqual(result, expected_valid)
 

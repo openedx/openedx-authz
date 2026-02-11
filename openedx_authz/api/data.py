@@ -218,6 +218,8 @@ class ScopeMeta(type):
             The ScopeData subclass for the namespace, or ScopeData if namespace not recognized.
 
         Examples:
+        >>> ScopeMeta.get_subclass_by_namespaced_key('course-v1^course-v1:WGU+CS002+2025_T1')
+            <class 'CourseOverviewData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:CSPROB')
             <class 'ContentLibraryData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('global^generic')
@@ -490,7 +492,7 @@ class CourseOverviewData(ScopeData):
 
     """
 
-    NAMESPACE: ClassVar[str] = "course"
+    NAMESPACE: ClassVar[str] = "course-v1"
 
     @property
     def course_id(self) -> str:
@@ -523,9 +525,11 @@ class CourseOverviewData(ScopeData):
             bool: True if valid, False otherwise.
         """
         try:
+            print("Validating course key:", external_key)
             CourseKey.from_string(external_key)
             return True
         except InvalidKeyError:
+            print("Invalid course key:", external_key)
             return False
 
     def get_object(self) -> CourseOverview | None:

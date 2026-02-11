@@ -39,7 +39,7 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
     request_cache = RequestCache("rbac_is_admin_or_superuser")
 
     # TODO: This special case for superuser and staff users is currently only for
-    # content libraries. See: https://github.com/openedx/openedx-authz/issues/87
+    # content libraries and course overviews. See: https://github.com/openedx/openedx-authz/issues/87
     if (scope.NAMESPACE, type(scope)) not in SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK:
         return False
 

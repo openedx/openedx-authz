@@ -103,7 +103,7 @@ class CourseScope(Scope):
     .. no_pii:
     """
 
-    NAMESPACE = "course"
+    NAMESPACE = "course-v1"
 
     # Link to the actual course, if applicable. In other cases, this could be null.
     # Piggybacking on the existing CourseOverview model to keep the ExtendedCasbinRule up to date

@@ -23,7 +23,7 @@ Unreleased
 Added
 =====
 
-* Add PoF role and permissions for the advanced course settings section
+* Add course staff role, permission to manage advanced course settings, and introduce course scope
 
 0.20.0 - 2025-11-27
 ********************

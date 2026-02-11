@@ -197,6 +197,17 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "role_name": roles.LIBRARY_USER.external_key,
                 "scope_name": "lib:Org1:english_101",
             },
+            # Basic course roles from authz.policy
+            {
+                "subject_name": "daniel",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T1",
+            },
+            {
+                "subject_name": "judy",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T2",
+            },
             # Multi-role assignments - same subject with different roles in different libraries
             {
                 "subject_name": "eve",
@@ -223,6 +234,16 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "subject_name": "heidi",
                 "role_name": roles.LIBRARY_CONTRIBUTOR.external_key,
                 "scope_name": "lib:Org1:math_advanced",
+            },
+            {
+                "subject_name": "maria",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T3",
+            },
+            {
+                "subject_name": "aida",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T3",
             },
             # Hierarchical scope assignments - different specificity levels
             {
@@ -255,6 +276,21 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "subject_name": "liam",
                 "role_name": roles.LIBRARY_AUTHOR.external_key,
                 "scope_name": "lib:Org4:art_301",
+            },
+            {
+                "subject_name": "carlos",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T1",
+            },
+            {
+                "subject_name": "carlos",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T2",
+            },
+            {
+                "subject_name": "carlos",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T3",
             },
             # Mixed permission levels across libraries for comprehensive testing
             {

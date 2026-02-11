@@ -159,7 +159,7 @@ class TestCourseExtendedCasbinRuleModelWithStub(TestCase):
             ptype="p",
             v0="user^test_user",
             v1="role^instructor",
-            v2="course^course-v1:TestOrg+TestCourse+2024_T1",
+            v2="course-v1^course-v1:TestOrg+TestCourse+2024_T1",
             v3="allow",
         )
 

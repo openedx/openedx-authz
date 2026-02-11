@@ -477,16 +477,16 @@ class CourseOverviewData(ScopeData):
     Courses uses the CourseKey format for identification.
 
     Attributes:
-        NAMESPACE: 'course' for course scopes.
+        NAMESPACE: 'course-v1' for course scopes.
         external_key: The course identifier (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
             Must be a valid CourseKey format.
-        namespaced_key: The course identifier with namespace (e.g., 'course^course-v1:TestOrg+TestCourse+2024_T1').
+        namespaced_key: The course identifier with namespace (e.g., 'course-v1^course-v1:TestOrg+TestCourse+2024_T1').
         course_id: Property alias for external_key.
 
     Examples:
         >>> course = CourseOverviewData(external_key='course-v1:TestOrg+TestCourse+2024_T1')
         >>> course.namespaced_key
-        'course^course-v1:TestOrg+TestCourse+2024_T1'
+        'course-v1^course-v1:TestOrg+TestCourse+2024_T1'
         >>> course.course_id
         'course-v1:TestOrg+TestCourse+2024_T1'
 
@@ -525,11 +525,9 @@ class CourseOverviewData(ScopeData):
             bool: True if valid, False otherwise.
         """
         try:
-            print("Validating course key:", external_key)
             CourseKey.from_string(external_key)
             return True
         except InvalidKeyError:
-            print("Invalid course key:", external_key)
             return False
 
     def get_object(self) -> CourseOverview | None:

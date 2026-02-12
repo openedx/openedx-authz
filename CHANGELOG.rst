@@ -19,6 +19,7 @@ Added
 
 * ADR on the AuthZ for Course Authoring implementation plan.
 * ADR on the AuthZ for Course Authoring Feature Flag Implementation Details.
+* ADR on the AuthZ for Course Authoring Migration Process Details.
 
 
 0.21.0 - 2026-02-12

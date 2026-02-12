@@ -214,6 +214,68 @@ class TestCourseExtendedCasbinRuleModelWithStub(TestCase):
         self.assertTrue(CourseOverviewData.validate_external_key(self.scope_data.course_id))
         self.assertIsInstance(self.scope_data.course_key, CourseKey)
 
+    def test_extended_casbin_rule_cascade_deletion_when_scope_deleted(self):
+        """Deleting a Scope should cascade to ExtendedCasbinRule and trigger the handler cleanup.
+
+        Expected Result:
+        - ExtendedCasbinRule baseline row links the Scope to the CasbinRule.
+        - Removing the Scope deletes the ExtendedCasbinRule via database cascade.
+        - CasbinRule disappears because the post_delete handler mirrors the cascade.
+        """
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key,
+            casbin_rule=self.casbin_rule,
+            scope=self.scope,
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = self.casbin_rule.id
+        scope_id = self.scope.id
+
+        self.assertTrue(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertTrue(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+
+        self.scope.delete()
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertFalse(Scope.objects.filter(id=scope_id).exists())
+
+    def test_extended_casbin_rule_cascade_deletion_when_subject_deleted(self):
+        """Deleting a Subject should cascade to ExtendedCasbinRule and invoke the handler cleanup.
+
+        Expected Result:
+        - ExtendedCasbinRule baseline row links the Subject to the CasbinRule.
+        - Removing the Subject deletes the ExtendedCasbinRule via database cascade.
+        - CasbinRule disappears because the post_delete handler mirrors the cascade.
+        """
+        casbin_rule_key = (
+            f"{self.casbin_rule.ptype},{self.casbin_rule.v0},{self.casbin_rule.v1},"
+            f"{self.casbin_rule.v2},{self.casbin_rule.v3}"
+        )
+        extended_rule = ExtendedCasbinRule.objects.create(
+            casbin_rule_key=casbin_rule_key,
+            casbin_rule=self.casbin_rule,
+            subject=self.subject,
+        )
+        extended_rule_id = extended_rule.id
+        casbin_rule_id = self.casbin_rule.id
+        subject_id = self.subject.id
+
+        self.assertTrue(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertTrue(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+
+        self.subject.delete()
+
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
+        self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+
 
 class TestPolicyCacheControlModel(TestCase):
     """Test cases for the PolicyCacheControl model."""

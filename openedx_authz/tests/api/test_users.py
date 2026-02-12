@@ -444,7 +444,6 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
         ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", True),
         ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
         ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
-
         # Library permissions
         ("alice", permissions.DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
         ("bob", permissions.PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", True),

@@ -17,9 +17,12 @@ Unreleased
 Added
 =====
 
+0.22.0 - 2026-02-19
+********************
+
 * ADR on the AuthZ for Course Authoring implementation plan.
 * ADR on the AuthZ for Course Authoring Feature Flag Implementation Details.
-
+* Defined courses roles and permissions mappings, including legacy compatible permissions.
 
 0.21.0 - 2026-02-12
 ********************

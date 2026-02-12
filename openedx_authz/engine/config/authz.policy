@@ -70,7 +70,105 @@ g2, act^content_libraries.create_library_collection, act^content_libraries.edit_
 g2, act^content_libraries.edit_library_collection, act^content_libraries.view_library
 
 
-# Course Policies
+## Course Policies
 
-# Course Staff Permissions
+# Course Auditor Role Policies
+p, role^course_auditor, act^courses.view_course, course-v1^*, allow
+p, role^course_auditor, act^courses.view_course_updates, course-v1^*, allow
+p, role^course_auditor, act^courses.view_pages_and_resources, course-v1^*, allow
+p, role^course_auditor, act^courses.view_files, course-v1^*, allow
+p, role^course_auditor, act^courses.view_grading_settings, course-v1^*, allow
+p, role^course_auditor, act^courses.view_checklists, course-v1^*, allow
+p, role^course_auditor, act^courses.view_course_team, course-v1^*, allow
+p, role^course_auditor, act^courses.view_schedule_and_details, course-v1^*, allow
+
+# Course Editor Role Policies
+p, role^course_editor, act^courses.view_course, course-v1^*, allow
+p, role^course_editor, act^courses.view_course_updates, course-v1^*, allow
+p, role^course_editor, act^courses.view_pages_and_resources, course-v1^*, allow
+p, role^course_editor, act^courses.view_files, course-v1^*, allow
+p, role^course_editor, act^courses.view_grading_settings, course-v1^*, allow
+p, role^course_editor, act^courses.view_checklists, course-v1^*, allow
+p, role^course_editor, act^courses.view_course_team, course-v1^*, allow
+p, role^course_editor, act^courses.view_schedule_and_details, course-v1^*, allow
+p, role^course_editor, act^courses.edit_course_content, course-v1^*, allow
+p, role^course_editor, act^courses.manage_library_updates, course-v1^*, allow
+p, role^course_editor, act^courses.manage_course_updates, course-v1^*, allow
+p, role^course_editor, act^courses.manage_pages_and_resources, course-v1^*, allow
+p, role^course_editor, act^courses.create_files, course-v1^*, allow
+p, role^course_editor, act^courses.edit_files, course-v1^*, allow
+p, role^course_editor, act^courses.edit_grading_settings, course-v1^*, allow
+p, role^course_editor, act^courses.manage_group_configurations, course-v1^*, allow
+p, role^course_editor, act^courses.edit_details, course-v1^*, allow
+p, role^course_editor, act^courses.manage_tags, course-v1^*, allow
+
+# Course Staff Role Policies
+p, role^course_staff, act^courses.legacy_staff_role_permissions, course-v1^*, allow
+p, role^course_staff, act^courses.view_course, course-v1^*, allow
+p, role^course_staff, act^courses.view_course_updates, course-v1^*, allow
+p, role^course_staff, act^courses.view_pages_and_resources, course-v1^*, allow
+p, role^course_staff, act^courses.view_files, course-v1^*, allow
+p, role^course_staff, act^courses.view_grading_settings, course-v1^*, allow
+p, role^course_staff, act^courses.view_checklists, course-v1^*, allow
+p, role^course_staff, act^courses.view_course_team, course-v1^*, allow
+p, role^course_staff, act^courses.view_schedule_and_details, course-v1^*, allow
+p, role^course_staff, act^courses.edit_course_content, course-v1^*, allow
+p, role^course_staff, act^courses.manage_library_updates, course-v1^*, allow
+p, role^course_staff, act^courses.manage_course_updates, course-v1^*, allow
+p, role^course_staff, act^courses.manage_pages_and_resources, course-v1^*, allow
+p, role^course_staff, act^courses.create_files, course-v1^*, allow
+p, role^course_staff, act^courses.edit_files, course-v1^*, allow
+p, role^course_staff, act^courses.edit_grading_settings, course-v1^*, allow
+p, role^course_staff, act^courses.manage_group_configurations, course-v1^*, allow
+p, role^course_staff, act^courses.edit_details, course-v1^*, allow
+p, role^course_staff, act^courses.manage_tags, course-v1^*, allow
+p, role^course_staff, act^courses.publish_course_content, course-v1^*, allow
+p, role^course_staff, act^courses.delete_files, course-v1^*, allow
+p, role^course_staff, act^courses.edit_schedule, course-v1^*, allow
 p, role^course_staff, act^courses.manage_advanced_settings, course-v1^*, allow
+p, role^course_staff, act^courses.manage_certificates, course-v1^*, allow
+p, role^course_staff, act^courses.import_course, course-v1^*, allow
+p, role^course_staff, act^courses.export_course, course-v1^*, allow
+p, role^course_staff, act^courses.export_tags, course-v1^*, allow
+
+
+# Course Admin Role Policies
+p, role^course_admin, act^courses.legacy_instructor_role_permissions, course-v1^*, allow
+p, role^course_admin, act^courses.view_course, course-v1^*, allow
+p, role^course_admin, act^courses.view_course_updates, course-v1^*, allow
+p, role^course_admin, act^courses.view_pages_and_resources, course-v1^*, allow
+p, role^course_admin, act^courses.view_files, course-v1^*, allow
+p, role^course_admin, act^courses.view_grading_settings, course-v1^*, allow
+p, role^course_admin, act^courses.view_checklists, course-v1^*, allow
+p, role^course_admin, act^courses.view_course_team, course-v1^*, allow
+p, role^course_admin, act^courses.view_schedule_and_details, course-v1^*, allow
+p, role^course_admin, act^courses.edit_course_content, course-v1^*, allow
+p, role^course_admin, act^courses.manage_library_updates, course-v1^*, allow
+p, role^course_admin, act^courses.manage_course_updates, course-v1^*, allow
+p, role^course_admin, act^courses.manage_pages_and_resources, course-v1^*, allow
+p, role^course_admin, act^courses.create_files, course-v1^*, allow
+p, role^course_admin, act^courses.edit_files, course-v1^*, allow
+p, role^course_admin, act^courses.edit_grading_settings, course-v1^*, allow
+p, role^course_admin, act^courses.manage_group_configurations, course-v1^*, allow
+p, role^course_admin, act^courses.edit_details, course-v1^*, allow
+p, role^course_admin, act^courses.manage_tags, course-v1^*, allow
+p, role^course_admin, act^courses.publish_course_content, course-v1^*, allow
+p, role^course_admin, act^courses.delete_files, course-v1^*, allow
+p, role^course_admin, act^courses.edit_schedule, course-v1^*, allow
+p, role^course_admin, act^courses.manage_advanced_settings, course-v1^*, allow
+p, role^course_admin, act^courses.manage_certificates, course-v1^*, allow
+p, role^course_admin, act^courses.import_course, course-v1^*, allow
+p, role^course_admin, act^courses.export_course, course-v1^*, allow
+p, role^course_admin, act^courses.export_tags, course-v1^*, allow
+p, role^course_admin, act^courses.manage_course_team, course-v1^*, allow
+p, role^course_admin, act^courses.manage_taxonomies, course-v1^*, allow
+
+
+# Course Limited Staff Role Policies (legacy role)
+p, role^course_limited_staff, act^courses.legacy_limited_staff_role_permissions, course-v1^*, allow
+
+# Course Data Researcher Role Policies (legacy role)
+p, role^course_data_researcher, act^courses.legacy_data_researcher_permissions, course-v1^*, allow
+
+# Course Beta Tester Role Policies (legacy role)
+p, role^course_beta_tester, act^courses.legacy_beta_tester_permissions, course-v1^*, allow

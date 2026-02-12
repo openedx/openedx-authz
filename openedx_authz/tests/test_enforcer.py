@@ -401,7 +401,10 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         org_scope = "org^*"
 
         expected_lib_count = self._count_policies_in_file(scope_pattern=lib_scope)
+        expected_course_count = self._count_policies_in_file(scope_pattern=course_scope)
         self._add_test_policies_for_multiple_scopes()
+        # The previous function added 6 custom policies for courses, add to expected
+        expected_course_count += 6
 
         self._load_policies_for_scope(lib_scope)
         lib_count = len(global_enforcer.get_policy())
@@ -413,7 +416,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         org_count = len(global_enforcer.get_policy())
 
         self.assertEqual(lib_count, expected_lib_count)
-        self.assertEqual(course_count, 7)
+        self.assertEqual(course_count, expected_course_count)
         self.assertEqual(org_count, 3)
 
         global_enforcer.clear_policy()

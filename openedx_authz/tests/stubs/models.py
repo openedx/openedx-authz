@@ -7,6 +7,8 @@ referenced in FK relationships without requiring the full application context.
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.db import models
+from opaque_keys.edx.django.models import CourseKeyField, UsageKeyField
+from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 
@@ -87,3 +89,39 @@ class ContentLibraryPermission(models.Model):
     def __str__(self):
         who = self.user.username if self.user else self.group.name
         return f"ContentLibraryPermission ({self.access_level} for {who})"
+
+
+class CourseOverview(models.Model):
+    """
+    Stub model representing a course overview for testing purposes.
+
+    This model contains basic course metadata such as an ID, display name, and organization.
+    It is used to link CourseScope instances to actual courses in the system.
+
+    .. no_pii:
+    """
+
+    # Course identification
+    id = CourseKeyField(db_index=True, primary_key=True, max_length=255)
+    _location = UsageKeyField(max_length=255)
+    org = models.TextField(max_length=255, default="outdated_entry")
+    display_name = models.TextField(null=True)
+
+    @classmethod
+    def get_from_id(cls, course_key):
+        """Get a CourseOverview by its course key.
+
+        Args:
+            course_key: The course key to look up.
+
+        Returns:
+            CourseOverview: The course overview instance.
+        """
+        if course_key is None:
+            raise ValueError("course_key must not be None")
+        try:
+            key = str(CourseKey.from_string(str(course_key)))
+        except Exception:  # pylint: disable=broad-exception-caught
+            key = str(course_key)
+        obj, _ = cls.objects.get_or_create(id=key)
+        return obj

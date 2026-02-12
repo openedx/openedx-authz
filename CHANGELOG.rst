@@ -20,6 +20,15 @@ Added
 * ADR on the AuthZ for Course Authoring implementation plan.
 * ADR on the AuthZ for Course Authoring Feature Flag Implementation Details.
 
+
+0.21.0 - 2026-02-12
+********************
+
+Added
+=====
+
+* Add course staff role, permission to manage advanced course settings, and introduce course scope
+
 0.20.0 - 2025-11-27
 ********************
 

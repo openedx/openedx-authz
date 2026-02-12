@@ -143,12 +143,12 @@ class PolicyLoadingTestSetupMixin(TestCase):
         global_enforcer = AuthzEnforcer.get_enforcer()
         test_policies = [
             # Course policies
-            ["role^course_instructor", "act^edit_course", "course^*", "allow"],
-            ["role^course_instructor", "act^grade_students", "course^*", "allow"],
-            ["role^course_ta", "act^view_course", "course^*", "allow"],
-            ["role^course_ta", "act^grade_assignments", "course^*", "allow"],
-            ["role^course_student", "act^view_course", "course^*", "allow"],
-            ["role^course_student", "act^submit_assignment", "course^*", "allow"],
+            ["role^course_instructor", "act^edit_course", "course-v1^*", "allow"],
+            ["role^course_instructor", "act^grade_students", "course-v1^*", "allow"],
+            ["role^course_ta", "act^view_course", "course-v1^*", "allow"],
+            ["role^course_ta", "act^grade_assignments", "course-v1^*", "allow"],
+            ["role^course_student", "act^view_course", "course-v1^*", "allow"],
+            ["role^course_student", "act^submit_assignment", "course-v1^*", "allow"],
             # Organization policies
             ["role^org_admin", "act^manage_org", "org^*", "allow"],
             ["role^org_admin", "act^create_courses", "org^*", "allow"],
@@ -397,7 +397,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
         lib_scope = "lib^*"
-        course_scope = "course^*"
+        course_scope = "course-v1^*"
         org_scope = "org^*"
 
         expected_lib_count = self._count_policies_in_file(scope_pattern=lib_scope)
@@ -413,7 +413,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         org_count = len(global_enforcer.get_policy())
 
         self.assertEqual(lib_count, expected_lib_count)
-        self.assertEqual(course_count, 6)
+        self.assertEqual(course_count, 7)
         self.assertEqual(org_count, 3)
 
         global_enforcer.clear_policy()

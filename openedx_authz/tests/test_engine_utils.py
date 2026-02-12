@@ -76,10 +76,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         Expected Result:
             - All policies from the file are loaded into the database
-            - The file contains 31 regular policies (p rules)
+            - The file contains 32 regular policies (p rules)
             - Policy content matches expected file content
         """
-        expected_policy_count = 31
+        expected_policy_count = 32
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -216,7 +216,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         self.assertEqual(
             len(self.target_enforcer.get_policy()),
-            31,
+            32,
             "Should have 31 regular policies from file",
         )
         self.assertEqual(
@@ -250,8 +250,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
             len(target_policies),
-            31,
-            "Should have 31 policies total, with no duplicates",
+            32,
+            "Should have 32 policies total, with no duplicates",
         )
 
         duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
@@ -346,7 +346,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 32, "Should have 31 file policies + 1 custom policy")
+        self.assertEqual(len(target_policies), 33, "Should have 32 file policies + 1 custom policy")
         self.assertIn(custom_policy, target_policies, "Custom database policy should be preserved")
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
@@ -382,4 +382,4 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 31, "All 31 policies from file should be loaded")
+        self.assertEqual(len(target_policies), 32, "All 32 policies from file should be loaded")

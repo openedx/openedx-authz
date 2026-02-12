@@ -3,10 +3,16 @@
 from django.contrib.auth import get_user_model
 from edx_django_utils.cache import RequestCache
 
-from openedx_authz.api.data import ContentLibraryData, ScopeData, UserData
+from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, ScopeData, UserData
 from openedx_authz.rest_api.utils import get_user_by_username_or_email
 
 User = get_user_model()
+
+
+SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
+    (ContentLibraryData.NAMESPACE, ContentLibraryData),
+    (CourseOverviewData.NAMESPACE, CourseOverviewData),
+}
 
 
 def is_admin_or_superuser_check(request_user: str, request_action: str, request_scope: str) -> bool:  # pylint: disable=unused-argument
@@ -14,7 +20,7 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
     Evaluates custom, non-role-based conditions for authorization checks.
 
     Checks attribute-based conditions that don't rely on role assignments.
-    Currently handles ContentLibraryData scopes by granting access to staff
+    Currently handles ContentLibraryData and CourseOverviewData scopes by granting access to staff
     and superusers.
 
     Args:
@@ -24,7 +30,7 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
 
     Returns:
         bool: True if the condition is satisfied (user is staff/superuser for
-              ContentLibraryData scopes), False otherwise (including when user
+              ContentLibraryData and CourseOverviewData scopes), False otherwise (including when user
               doesn't exist or scope type is not supported)
     """
 
@@ -33,8 +39,8 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
     request_cache = RequestCache("rbac_is_admin_or_superuser")
 
     # TODO: This special case for superuser and staff users is currently only for
-    # content libraries. See: https://github.com/openedx/openedx-authz/issues/87
-    if not isinstance(scope, ContentLibraryData):
+    # content libraries and course overviews. See: https://github.com/openedx/openedx-authz/issues/87
+    if (scope.NAMESPACE, type(scope)) not in SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK:
         return False
 
     cached_response = request_cache.get_cached_response(username)

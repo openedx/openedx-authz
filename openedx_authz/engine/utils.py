@@ -29,6 +29,15 @@ logger = logging.getLogger(__name__)
 GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 
 
+# Map new roles back to legacy roles
+role_to_legacy_role = {
+    COURSE_ADMIN.external_key: "instructor",
+    COURSE_STAFF.external_key: "staff",
+    COURSE_LIMITED_STAFF.external_key: "limited_staff",
+    COURSE_DATA_RESEARCHER.external_key: "data_researcher",
+}
+
+
 def migrate_policy_between_enforcers(
     source_enforcer: Enforcer,
     target_enforcer: Enforcer,
@@ -267,14 +276,6 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, delete_a
                 # We are only interested in course-related scopes and roles
                 if not scope.startswith("course-v1:"):
                     continue
-
-                # Map new roles back to legacy roles
-                role_to_legacy_role = {
-                    COURSE_ADMIN.external_key: "instructor",
-                    COURSE_STAFF.external_key: "staff",
-                    COURSE_LIMITED_STAFF.external_key: "limited_staff",
-                    COURSE_DATA_RESEARCHER.external_key: "data_researcher",
-                }
 
                 legacy_role = role_to_legacy_role.get(role.external_key)
                 if legacy_role is None:

@@ -8,8 +8,21 @@ import logging
 
 from casbin import Enforcer
 
-from openedx_authz.api.users import assign_role_to_user_in_scope, batch_assign_role_to_users_in_scope
-from openedx_authz.constants.roles import LIBRARY_ADMIN, LIBRARY_AUTHOR, LIBRARY_USER
+from openedx_authz.api.users import (
+    assign_role_to_user_in_scope,
+    batch_assign_role_to_users_in_scope,
+    batch_unassign_role_from_users,
+    get_user_role_assignments,
+)
+from openedx_authz.constants.roles import (
+    COURSE_ADMIN,
+    COURSE_DATA_RESEARCHER,
+    COURSE_LIMITED_STAFF,
+    COURSE_STAFF,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_USER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,3 +164,145 @@ def migrate_legacy_permissions(ContentLibraryPermission):
             )
 
     return permissions_with_errors
+
+
+def migrate_legacy_course_roles_to_authz(CourseAccessRole, delete_after_migration):
+    """
+    Migrate legacy course role data to the new Casbin-based authorization model.
+    This function reads legacy permissions from the CourseAccessRole model
+    and assigns equivalent roles in the new authorization system.
+
+    The old Course permissions are stored in the CourseAccessRole model, it consists of the following columns:
+
+    - user: FK to User
+    - org: optional Organization string
+    - course_id: optional CourseKeyField of Course
+    - role: 'instructor' | 'staff' | 'limited_staff' | 'data_researcher'
+
+    In the new Authz model, this would roughly translate to:
+
+    - course_id: scope
+    - user: subject
+    - role: role
+
+    param CourseAccessRole: The CourseAccessRole model to use.
+    """
+
+    legacy_permissions = CourseAccessRole.objects.select_related("user").all()
+
+    # List to keep track of any permissions that could not be migrated
+    permissions_with_errors = []
+    permissions_with_no_errors = []
+
+    for permission in legacy_permissions:
+        # Migrate the permission to the new model
+
+        # Derive equivalent role based on access level
+        map_legacy_role = {
+            "instructor": COURSE_ADMIN,
+            "staff": COURSE_STAFF,
+            "limited_staff": COURSE_LIMITED_STAFF,
+            "data_researcher": COURSE_DATA_RESEARCHER,
+        }
+
+        role = map_legacy_role.get(permission.role)
+        if role is None:
+            # This should not happen as there are no more access_levels defined
+            # in CourseAccessRole, log and skip
+            logger.error(f"Unknown access level: {permission.role} for User: {permission.user}")
+            permissions_with_errors.append(permission)
+            continue
+
+        # Permission applied to individual user
+        logger.info(
+            f"Migrating permission for User: {permission.user.username} "
+            f"to Role: {role.external_key} in Scope: {permission.course_id}"
+        )
+
+        assign_role_to_user_in_scope(
+            user_external_key=permission.user.username,
+            role_external_key=role.external_key,
+            scope_external_key=str(permission.course_id),
+        )
+        permissions_with_no_errors.append(permission)
+
+    if delete_after_migration:
+        CourseAccessRole.objects.filter(id__in=[p.id for p in permissions_with_no_errors]).delete()
+
+    return permissions_with_errors
+
+
+def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, delete_after_migration):
+    """
+    Migrate permissions from the new Casbin-based authorization model back to the legacy CourseAccessRole model.
+    This function reads permissions from the Casbin enforcer and creates equivalent entries in the
+    CourseAccessRole model.
+
+    This is essentially the reverse of migrate_legacy_course_roles_to_authz and is intended
+    for rollback purposes in case of migration issues.
+    """
+    # 1. Get all users with course-related permissions in the new model by filtering
+    # UserSubjects that are linked to CourseScopes with a valid course overview.
+    course_subjects = (
+        UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+        .select_related("user")
+        .distinct()
+    )
+
+    roles_with_errors = []
+
+    for course_subject in course_subjects:
+        user = course_subject.user
+        user_external_key = user.username
+
+        # 2. Get all role assignments for the user
+        role_assignments = get_user_role_assignments(user_external_key=user_external_key)
+
+        for assignment in role_assignments:
+            scope = assignment.scope.external_key
+
+            course_overview = assignment.scope.get_object()
+
+            for role in assignment.roles:
+                # We are only interested in course-related scopes and roles
+                if not scope.startswith("course-v1:"):
+                    continue
+
+                # Map new roles back to legacy roles
+                role_to_legacy_role = {
+                    COURSE_ADMIN.external_key: "instructor",
+                    COURSE_STAFF.external_key: "staff",
+                    COURSE_LIMITED_STAFF.external_key: "limited_staff",
+                    COURSE_DATA_RESEARCHER.external_key: "data_researcher",
+                }
+
+                legacy_role = role_to_legacy_role.get(role.external_key)
+                if legacy_role is None:
+                    logger.error(f"Unknown role: {role} for User: {user_external_key}")
+                    roles_with_errors.append((user_external_key, role.external_key, scope))
+                    continue
+
+                try:
+                    # Create legacy CourseAccessRole entry
+                    CourseAccessRole.objects.get_or_create(
+                        user=user,
+                        org=course_overview.org,
+                        course_id=scope,
+                        role=legacy_role,
+                    )
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.error(
+                        f"Error creating CourseAccessRole for User: "
+                        f"{user_external_key}, Role: {legacy_role}, Course: {scope}: {e}"
+                    )
+                    roles_with_errors.append((user_external_key, role.external_key, scope))
+                    continue
+
+                # If we successfully created the legacy role, we can unassign the new role
+                if delete_after_migration:
+                    batch_unassign_role_from_users(
+                        users=[user_external_key],
+                        role_external_key=role.external_key,
+                        scope_external_key=scope,
+                    )
+    return roles_with_errors

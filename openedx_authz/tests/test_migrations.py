@@ -13,6 +13,7 @@ from openedx_authz.constants.roles import (
     COURSE_DATA_RESEARCHER,
     COURSE_LIMITED_STAFF,
     COURSE_STAFF,
+    LEGACY_COURSE_ROLE_EQUIVALENCES,
     LIBRARY_ADMIN,
     LIBRARY_USER,
 )
@@ -303,6 +304,16 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             users=data_researcher_users_names,
             role_external_key=COURSE_DATA_RESEARCHER.external_key,
             scope_external_key=self.course_id,
+        )
+
+    def test_legacy_course_role_equivalences_mapping(self):
+        """Test that the LEGACY_COURSE_ROLE_EQUIVALENCES mapping contains no duplicate values."""
+        legacy_roles = LEGACY_COURSE_ROLE_EQUIVALENCES.keys()
+        new_roles = LEGACY_COURSE_ROLE_EQUIVALENCES.values()
+
+        # Check that there are no duplicate values in the mapping
+        self.assertEqual(
+            len(legacy_roles), len(set(new_roles)), "LEGACY_COURSE_ROLE_EQUIVALENCES contains duplicate values"
         )
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
@@ -613,12 +624,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
         )
 
-        # Mock the role_to_legacy_role mapping to only include a mapping
+        # Mock the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping
         # for COURSE_ADMIN to simulate the scenario where the staff, limited_staff
         # and data_researcher roles do not have a legacy role equivalent and
         # therefore cannot be migrated back to legacy roles during the rollback.
         with patch(
-            "openedx_authz.engine.utils.role_to_legacy_role",
+            "openedx_authz.engine.utils.COURSE_ROLE_EQUIVALENCES",
             {COURSE_ADMIN.external_key: "instructor"},
         ):
             permissions_with_errors = migrate_authz_to_legacy_course_roles(
@@ -636,21 +647,21 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the role_to_legacy_role mapping to only include a mapping for COURSE_ADMIN,
+            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
             # the staff role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
         for user in self.limited_staff:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the role_to_legacy_role mapping to only include a mapping for COURSE_ADMIN,
+            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
             # the limited_staff role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
         for user in self.data_researcher:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the role_to_legacy_role mapping to only include a mapping for COURSE_ADMIN,
+            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
             # the data_researcher role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
 
@@ -680,7 +691,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # After rollback, we should have 9 UserSubjects related to the course permissions
         # since the users with staff, limited_staff and data_researcher roles will not be
-        # migrated back to legacy roles due to our mocked role_to_legacy_role mapping.
+        # migrated back to legacy roles due to our mocked COURSE_ROLE_EQUIVALENCES mapping.
         self.assertEqual(len(state_after_migration_user_subjects), 9)
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)

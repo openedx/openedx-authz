@@ -19,6 +19,7 @@ from openedx_authz.constants.roles import (
     COURSE_DATA_RESEARCHER,
     COURSE_LIMITED_STAFF,
     COURSE_STAFF,
+    LEGACY_COURSE_ROLE_EQUIVALENCES,
     LIBRARY_ADMIN,
     LIBRARY_AUTHOR,
     LIBRARY_USER,
@@ -29,13 +30,8 @@ logger = logging.getLogger(__name__)
 GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 
 
-# Map new roles back to legacy roles
-role_to_legacy_role = {
-    COURSE_ADMIN.external_key: "instructor",
-    COURSE_STAFF.external_key: "staff",
-    COURSE_LIMITED_STAFF.external_key: "limited_staff",
-    COURSE_DATA_RESEARCHER.external_key: "data_researcher",
-}
+# Map new roles back to legacy roles for rollback purposes
+COURSE_ROLE_EQUIVALENCES = {v: k for k, v in LEGACY_COURSE_ROLE_EQUIVALENCES.items()}
 
 
 def migrate_policy_between_enforcers(
@@ -273,7 +269,7 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, delete_a
             course_overview = assignment.scope.get_object()
 
             for role in assignment.roles:
-                legacy_role = role_to_legacy_role.get(role.external_key)
+                legacy_role = COURSE_ROLE_EQUIVALENCES.get(role.external_key)
                 if legacy_role is None:
                     logger.error(f"Unknown role: {role} for User: {user_external_key}")
                     roles_with_errors.append((user_external_key, role.external_key, scope))

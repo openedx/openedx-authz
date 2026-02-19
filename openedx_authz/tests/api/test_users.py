@@ -431,19 +431,64 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
 
     @data(
         # Course permissions
-        ("daniel", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", True),
-        ("daniel", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", False),
-        ("judy", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", False),
-        ("judy", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
+        (
+            "daniel",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            True,
+        ),
+        (
+            "daniel",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T2",
+            False,
+        ),
+        (
+            "judy",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        ("judy", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
         # Multiple subjects with same role in same scope
-        ("maria", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
-        ("aida", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
-        ("maria", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", False),
-        ("aida", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", False),
+        (
+            "maria",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T3",
+            True,
+        ),
+        ("aida", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
+        (
+            "maria",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "aida",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
         # Same user, same role, different scopes
-        ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", True),
-        ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
-        ("carlos", permissions.MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
+        (
+            "carlos",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            True,
+        ),
+        (
+            "carlos",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T2",
+            True,
+        ),
+        (
+            "carlos",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T3",
+            True,
+        ),
         # Library permissions
         ("alice", permissions.DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
         ("bob", permissions.PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", True),

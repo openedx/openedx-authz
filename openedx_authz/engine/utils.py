@@ -273,10 +273,6 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, delete_a
             course_overview = assignment.scope.get_object()
 
             for role in assignment.roles:
-                # We are only interested in course-related scopes and roles
-                if not scope.startswith("course-v1:"):
-                    continue
-
                 legacy_role = role_to_legacy_role.get(role.external_key)
                 if legacy_role is None:
                     logger.error(f"Unknown role: {role} for User: {user_external_key}")

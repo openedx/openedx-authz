@@ -34,10 +34,18 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("Starting legacy → Authz migration..."))
 
         try:
+            if delete_after_migration:
+                confirm = input(
+                    "Are you sure you want to delete successfully migrated legacy roles? Type 'yes' to continue: "
+                )
+
+                if confirm != "yes":
+                    self.stdout.write(self.style.WARNING("Deletion aborted."))
+                    return
             with transaction.atomic():
                 errors = migrate_legacy_course_roles_to_authz(
                     CourseAccessRole=CourseAccessRole,
-                    delete_after_migration=False,  # control deletion here instead
+                    delete_after_migration=delete_after_migration,
                 )
 
                 if errors:
@@ -45,20 +53,7 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.SUCCESS("Migration completed successfully with no errors."))
 
-                # Handle deletion separately for safety
                 if delete_after_migration:
-                    confirm = input(
-                        "Are you sure you want to delete successfully migrated legacy roles? Type 'yes' to continue: "
-                    )
-
-                    if confirm != "yes":
-                        self.stdout.write(self.style.WARNING("Deletion aborted."))
-                        return
-
-                    migrated_ids = [p.id for p in CourseAccessRole.objects.all() if p not in errors]
-
-                    CourseAccessRole.objects.filter(id__in=migrated_ids).delete()
-
                     self.stdout.write(self.style.SUCCESS("Legacy roles deleted successfully."))
 
         except Exception as exc:

@@ -721,7 +721,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         mock_migrate.assert_called_once()
         args, kwargs = mock_migrate.call_args
 
-        self.assertEqual(kwargs["delete_after_migration"], False)
+        self.assertEqual(kwargs["delete_after_migration"], True)
 
     @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
     @patch("openedx_authz.management.commands.authz_rollback_course_authoring.migrate_authz_to_legacy_course_roles")
@@ -747,12 +747,8 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         with patch("builtins.input", return_value="yes"):
             call_command("authz_rollback_course_authoring", "--delete")
 
-        # First call (normal)
-        # Second call (with deletion=True)
-        self.assertEqual(mock_rollback.call_count, 2)
+        self.assertEqual(mock_rollback.call_count, 1)
 
-        first_call_kwargs = mock_rollback.call_args_list[0][1]
-        second_call_kwargs = mock_rollback.call_args_list[1][1]
+        call_kwargs = mock_rollback.call_args_list[0][1]
 
-        self.assertEqual(first_call_kwargs["delete_after_migration"], False)
-        self.assertEqual(second_call_kwargs["delete_after_migration"], True)
+        self.assertEqual(call_kwargs["delete_after_migration"], True)

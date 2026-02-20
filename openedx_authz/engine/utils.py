@@ -8,6 +8,7 @@ import logging
 
 from casbin import Enforcer
 
+from openedx_authz.api.data import CourseOverviewData
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
@@ -193,7 +194,9 @@ def migrate_legacy_course_roles_to_authz(CourseAccessRole, delete_after_migratio
     param CourseAccessRole: The CourseAccessRole model to use.
     """
 
-    legacy_permissions = CourseAccessRole.objects.select_related("user").all()
+    legacy_permissions = (
+        CourseAccessRole.objects.filter(course_id__startswith="course-v1:").select_related("user").all()
+    )
 
     # List to keep track of any permissions that could not be migrated
     permissions_with_errors = []
@@ -224,11 +227,20 @@ def migrate_legacy_course_roles_to_authz(CourseAccessRole, delete_after_migratio
             f"to Role: {role.external_key} in Scope: {permission.course_id}"
         )
 
-        assign_role_to_user_in_scope(
+        is_user_added = assign_role_to_user_in_scope(
             user_external_key=permission.user.username,
             role_external_key=role.external_key,
             scope_external_key=str(permission.course_id),
         )
+
+        if not is_user_added:
+            logger.error(
+                f"Failed to migrate permission for User: {permission.user.username} "
+                f"to Role: {role.external_key} in Scope: {permission.course_id}"
+            )
+            permissions_with_errors.append(permission)
+            continue
+
         permissions_with_no_errors.append(permission)
 
     if delete_after_migration:
@@ -264,6 +276,10 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, delete_a
         role_assignments = get_user_role_assignments(user_external_key=user_external_key)
 
         for assignment in role_assignments:
+            if not isinstance(assignment.scope, CourseOverviewData):
+                logger.error(f"Skipping role assignment for User: {user_external_key} due to missing course scope.")
+                continue
+
             scope = assignment.scope.external_key
 
             course_overview = assignment.scope.get_object()

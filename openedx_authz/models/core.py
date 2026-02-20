@@ -114,6 +114,9 @@ class Scope(BaseRegistryModel):
     class Meta:
         abstract = False
 
+    def __str__(self):
+        return f"Scope (namespace={self.NAMESPACE})"
+
 
 class Subject(BaseRegistryModel):
     """Model representing a subject in the authorization system.
@@ -131,6 +134,9 @@ class Subject(BaseRegistryModel):
 
     class Meta:
         abstract = False
+
+    def __str__(self):
+        return f"Subject (namespace={self.NAMESPACE})"
 
 
 class ExtendedCasbinRule(models.Model):
@@ -181,6 +187,9 @@ class ExtendedCasbinRule(models.Model):
     class Meta:
         verbose_name = "Extended Casbin Rule"
         verbose_name_plural = "Extended Casbin Rules"
+
+    def __str__(self):
+        return f"ExtendedCasbinRule for {self.casbin_rule}"
 
     @classmethod
     def create_based_on_policy(

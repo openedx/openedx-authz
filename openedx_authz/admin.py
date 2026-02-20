@@ -5,6 +5,8 @@ from django import forms
 from django.contrib import admin
 
 from openedx_authz.models import ExtendedCasbinRule
+from openedx_authz.models.scopes import CourseScope
+from openedx_authz.models.subjects import UserSubject
 
 
 class CasbinRuleForm(forms.ModelForm):
@@ -48,3 +50,18 @@ class CasbinRuleAdmin(admin.ModelAdmin):
     # TODO: In a future, possibly we should only show an inline for the rules that
     # have an extended rule, and show the subject and scope information in detail.
     inlines = [ExtendedCasbinRuleInline]
+
+
+@admin.register(ExtendedCasbinRule)
+class ExtendedCasbinRuleAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(UserSubject)
+class UserSubjectAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(CourseScope)
+class CourseScopeAdmin(admin.ModelAdmin):
+    list_display = ("id", "course_overview")

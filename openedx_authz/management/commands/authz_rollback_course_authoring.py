@@ -36,11 +36,20 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("Starting Authz → Legacy rollback migration..."))
 
         try:
+            if delete_after_migration:
+                confirm = input(
+                    "Are you sure you want to remove the new Authz role "
+                    "assignments after rollback? Type 'yes' to continue: "
+                )
+
+                if confirm != "yes":
+                    self.stdout.write(self.style.WARNING("Deletion aborted."))
+                    return
             with transaction.atomic():
                 errors = migrate_authz_to_legacy_course_roles(
                     CourseAccessRole=CourseAccessRole,
                     UserSubject=UserSubject,
-                    delete_after_migration=False,  # control deletion here
+                    delete_after_migration=delete_after_migration,  # control deletion here
                 )
 
                 if errors:
@@ -48,24 +57,7 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.SUCCESS("Rollback completed successfully with no errors."))
 
-                # Handle deletion separately for safety
                 if delete_after_migration:
-                    confirm = input(
-                        "Are you sure you want to remove the new Authz role "
-                        "assignments after rollback? Type 'yes' to continue: "
-                    )
-
-                    if confirm != "yes":
-                        self.stdout.write(self.style.WARNING("Deletion aborted."))
-                        return
-
-                    # Re-run with deletion enabled
-                    migrate_authz_to_legacy_course_roles(
-                        CourseAccessRole=CourseAccessRole,
-                        UserSubject=UserSubject,
-                        delete_after_migration=True,
-                    )
-
                     self.stdout.write(self.style.SUCCESS("Authz role assignments removed successfully."))
 
         except Exception as exc:

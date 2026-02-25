@@ -711,6 +711,75 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         # migrated back to legacy roles due to our mocked COURSE_ROLE_EQUIVALENCES mapping.
         self.assertEqual(len(state_after_migration_user_subjects), 9)
 
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_legacy_course_roles_to_authz_using_org_id(self):
+        """Test the migration of legacy course roles to the new Casbin-based model
+        and the rollback when there is no equivalent new role.
+        """
+
+        # Migrate from legacy CourseAccessRole to new Casbin-based model
+        permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=None, org_id=self.org, delete_after_migration=True
+        )
+        AuthzEnforcer.get_enforcer().load_policy()
+        for user in self.admin_users:
+            assignments = get_user_role_assignments_in_scope(
+                user_external_key=user.username, scope_external_key=self.course_id
+            )
+            self.assertEqual(len(assignments), 1)
+            self.assertEqual(assignments[0].roles[0], COURSE_ADMIN)
+        for user in self.staff_users:
+            assignments = get_user_role_assignments_in_scope(
+                user_external_key=user.username, scope_external_key=self.course_id
+            )
+            self.assertEqual(len(assignments), 1)
+            self.assertEqual(assignments[0].roles[0], COURSE_STAFF)
+        for user in self.limited_staff:
+            assignments = get_user_role_assignments_in_scope(
+                user_external_key=user.username, scope_external_key=self.course_id
+            )
+            self.assertEqual(len(assignments), 1)
+            self.assertEqual(assignments[0].roles[0], COURSE_LIMITED_STAFF)
+        for user in self.data_researcher:
+            assignments = get_user_role_assignments_in_scope(
+                user_external_key=user.username, scope_external_key=self.course_id
+            )
+            self.assertEqual(len(assignments), 1)
+            self.assertEqual(assignments[0].roles[0], COURSE_DATA_RESEARCHER)
+        self.assertEqual(len(permissions_with_errors), 1)
+        self.assertEqual(permissions_with_errors[0].user.username, self.error_user.username)
+        self.assertEqual(permissions_with_errors[0].role, "invalid-legacy-role")
+        self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
+
+        after_migrate_state_access_roles = list(
+            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
+        )
+
+        # self.assertEqual(len(original_state_access_roles), 13)
+
+        # Only the invalid role entry should remain since we set delete_after_migration to True
+        self.assertEqual(len(after_migrate_state_access_roles), 1)
+
+        # Must be different before and after migration since we set delete_after_migration
+        # to True and we are deleting all
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_authz_to_legacy_course_roles_with_no_org_and_courses(self):
+        # Migrate from legacy CourseAccessRole to new Casbin-based model
+
+        with self.assertRaises(ValueError):
+            migrate_authz_to_legacy_course_roles(
+                CourseAccessRole, UserSubject, course_id_list=None, org_id=None, delete_after_migration=True
+            )
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_legacy_course_roles_to_authz_with_no_org_and_courses(self):
+        # Migrate from legacy CourseAccessRole to new Casbin-based model
+        with self.assertRaises(ValueError):
+            migrate_legacy_course_roles_to_authz(
+                CourseAccessRole, course_id_list=None, org_id=None, delete_after_migration=True
+            )
+
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
     def test_authz_migrate_course_authoring_command(self, mock_migrate):

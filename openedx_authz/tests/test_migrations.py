@@ -907,7 +907,6 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(call_kwargs["delete_after_migration"], True)
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
-    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
     def test_authz_migrate_course_authoring_command_no_org_and_courses(self):
         """
         Verify that the authz_migrate_course_authoring command raises an error
@@ -918,7 +917,6 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             call_command("authz_migrate_course_authoring")
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
-    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
     def test_authz_migrate_course_authoring_command_with_org_and_courses(self):
         """
         Verify that the authz_migrate_course_authoring command raises an error

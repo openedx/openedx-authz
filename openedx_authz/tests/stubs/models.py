@@ -125,3 +125,57 @@ class CourseOverview(models.Model):
             key = str(course_key)
         obj, _ = cls.objects.get_or_create(id=key)
         return obj
+
+
+class NoneToEmptyQuerySet(models.query.QuerySet):
+    """
+    A :class:`django.db.query.QuerySet` that replaces `None` values passed to `filter` and `exclude`
+    with the corresponding `Empty` value for all fields with an `Empty` attribute.
+
+    This is to work around Django automatically converting `exact` queries for `None` into
+    `isnull` queries before the field has a chance to convert them to queries for it's own
+    empty value.
+    """
+
+    def _filter_or_exclude(self, *args, **kwargs):
+        for field_object in self.model._meta.get_fields():
+            direct = not field_object.auto_created or field_object.concrete
+            if direct and hasattr(field_object, "Empty"):
+                for suffix in ("", "_exact"):
+                    key = f"{field_object.name}{suffix}"
+                    if key in kwargs and kwargs[key] is None:
+                        kwargs[key] = field_object.Empty
+
+        return super()._filter_or_exclude(*args, **kwargs)
+
+
+class NoneToEmptyManager(models.Manager):
+    """
+    A :class:`django.db.models.Manager` that has a :class:`NoneToEmptyQuerySet`
+    as its `QuerySet`, initialized with a set of specified `field_names`.
+    """
+
+    def get_queryset(self):
+        """
+        Returns the result of NoneToEmptyQuerySet instead of a regular QuerySet.
+        """
+        return NoneToEmptyQuerySet(self.model, using=self._db)
+
+
+class CourseAccessRole(models.Model):
+    """
+    Maps users to org, courses, and roles. Used by student.roles.CourseRole and OrgRole.
+    To establish a user as having a specific role over all courses in the org, create an entry
+    without a course_id.
+
+    .. no_pii:
+    """
+
+    objects = NoneToEmptyManager()
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # blank org is for global group based roles such as course creator (may be deprecated)
+    org = models.CharField(max_length=64, db_index=True, blank=True)
+    # blank course_id implies org wide role
+    course_id = CourseKeyField(max_length=255, db_index=True, blank=True)
+    role = models.CharField(max_length=64, db_index=True)

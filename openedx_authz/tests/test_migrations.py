@@ -275,6 +275,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         class MockPermission:
             """Mock class to simulate CourseAccessRole entries for testing the rollback migration."""
+
             def __init__(self, user, role, course_id, id_in):
                 self.user = user
                 self.role = role
@@ -283,11 +284,13 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         class MockUser:
             """Mock class to simulate User objects for testing the rollback migration."""
+
             def __init__(self, username):
                 self.username = username
 
         class MockQuerySet:
             """Mock class to simulate QuerySet behavior for testing the rollback migration."""
+
             def __init__(self, permissions):
                 self.permissions = permissions
 
@@ -305,6 +308,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         class MockCourseAccessRole:
             """Mock class to simulate CourseAccessRole manager for testing the rollback migration."""
+
             objects = MockQuerySet(
                 [
                     MockPermission(MockUser("testuser"), "instructor", "course-v1:test", 1),
@@ -947,6 +951,54 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(call_kwargs["delete_after_migration"], True)
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
+    def test_authz_migrate_course_authoring_command_delete_confirmation_no(self, mock_migrate):
+        """
+        Verify that the authz_migrate_course_authoring command does NOT perform deletion
+        when user provides an answer other than 'yes' during delete confirmation.
+        """
+        mock_migrate.return_value = [], []
+        with patch("builtins.input", return_value="no"):
+            call_command("authz_migrate_course_authoring", "--delete", "--course-id-list", self.course_id)
+        mock_migrate.assert_not_called()
+
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.migrate_authz_to_legacy_course_roles")
+    def test_authz_rollback_course_authoring_command_delete_confirmation_no(self, mock_rollback):
+        """
+        Verify that the authz_rollback_course_authoring command does NOT perform deletion
+        when user provides an answer other than 'yes' during delete confirmation.
+        """
+        mock_rollback.return_value = [], []
+        with patch("builtins.input", return_value="no"):
+            call_command("authz_rollback_course_authoring", "--delete", "--course-id-list", self.course_id)
+        mock_rollback.assert_not_called()
+
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
+    def test_authz_migrate_course_authoring_command_migration_exception(self, mock_migrate):
+        """
+        Verify that the authz_migrate_course_authoring command handles exceptions raised
+        by migrate_legacy_course_roles_to_authz.
+        """
+        mock_migrate.side_effect = Exception("Migration error")
+        with self.assertRaises(Exception) as exc:
+            call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
+        self.assertIn("Migration error", str(exc.exception))
+
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.migrate_authz_to_legacy_course_roles")
+    def test_authz_rollback_course_authoring_command_rollback_exception(self, mock_rollback):
+        """
+        Verify that the authz_rollback_course_authoring command handles exceptions raised
+        by migrate_authz_to_legacy_course_roles.
+        """
+        mock_rollback.side_effect = Exception("Rollback error")
+        with self.assertRaises(Exception) as exc:
+            call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
+        self.assertIn("Rollback error", str(exc.exception))
+
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
     def test_authz_migrate_course_authoring_command_no_org_and_courses(self):
         """
         Verify that the authz_migrate_course_authoring command raises an error
@@ -955,6 +1007,16 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("authz_migrate_course_authoring")
+
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
+    def test_authz_rollback_course_authoring_command_no_org_and_courses(self):
+        """
+        Verify that the authz_rollback_course_authoring command raises an error
+        when neither course_id_list nor org_id is provided.
+        """
+
+        with self.assertRaises(CommandError):
+            call_command("authz_rollback_course_authoring")
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
     def test_authz_migrate_course_authoring_command_with_org_and_courses(self):
@@ -965,6 +1027,16 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id, "--org-id", self.org)
+
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
+    def test_authz_rollback_course_authoring_command_with_org_and_courses(self):
+        """
+        Verify that the authz_rollback_course_authoring command raises an error
+        when both course_id_list and org_id are provided.
+        """
+
+        with self.assertRaises(CommandError):
+            call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id, "--org-id", self.org)
 
     @patch("openedx_authz.engine.utils.assign_role_to_user_in_scope", return_value=False)
     @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
@@ -1004,29 +1076,24 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(successes), 0)
 
     def create_library_env(self):
-        """Helper method to create a ContentLibrary environment for testing the migration of legacy permissions
-        related to ContentLibraryPermission to the new Casbin-based model.
+        """
+        Helper method to create a ContentLibrary environment for testing.
         """
 
         # Create ContentLibrary
         org = Organization.objects.create(name=org_name, short_name=org_short_name)
         library = ContentLibrary.objects.create(org=org, slug=lib_name)
 
-        # Create Users and Groups
-        users = [
-            User.objects.create_user(username=user_name, email=f"lib_{user_name}@example.com")
-            for user_name in user_names
-        ]
-
+        # Create Groups
         group_users = [
-            User.objects.create_user(username=user_name, email=f"lib_{user_name}@example.com")
+            User.objects.create_user(username=user_name, email=f"{user_name}@example.com")
             for user_name in group_user_names
         ]
         group = Group.objects.create(name=group_name)
         group.user_set.set(group_users)
 
         # Assign legacy permissions for users and group
-        for user in users:
+        for user in self.admin_users + self.staff_users + self.limited_staff + self.data_researcher:
             ContentLibraryPermission.objects.create(
                 user=user,
                 library=library,
@@ -1040,7 +1107,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         )
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
-    def test_migrate_authz_to_legacy_course_roles_with_no_course_scopes(self):
+    def test_migrate_authz_to_legacy_course_roles_with_library_env(self):
+        """Test the migration of permissions from the new Casbin-based model back to the legacy CourseAccessRole model
+        in a ContentLibrary environment to ensure that the migration functions correctly identify the relevant
+        permissions based on the scope and do not attempt to migrate permissions that are outside
+        of the specified scope (i.e. permissions related to the ContentLibrary in this case).
+        """
         self.create_library_env()
         migrate_legacy_permissions(ContentLibraryPermission)
         permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(

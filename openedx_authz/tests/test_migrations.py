@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
@@ -273,6 +272,46 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             user=self.error_user,
             role="invalid-legacy-role",
         )
+
+        class MockPermission:
+            """Mock class to simulate CourseAccessRole entries for testing the rollback migration."""
+            def __init__(self, user, role, course_id, id_in):
+                self.user = user
+                self.role = role
+                self.course_id = course_id
+                self.id = id_in
+
+        class MockUser:
+            """Mock class to simulate User objects for testing the rollback migration."""
+            def __init__(self, username):
+                self.username = username
+
+        class MockQuerySet:
+            """Mock class to simulate QuerySet behavior for testing the rollback migration."""
+            def __init__(self, permissions):
+                self.permissions = permissions
+
+            def filter(self, **kwargs):
+                return self
+
+            def select_related(self, *args, **kwargs):
+                return self
+
+            def all(self):
+                return self.permissions
+
+            def get_or_create(self):
+                raise Exception("Unexpected error mock")
+
+        class MockCourseAccessRole:
+            """Mock class to simulate CourseAccessRole manager for testing the rollback migration."""
+            objects = MockQuerySet(
+                [
+                    MockPermission(MockUser("testuser"), "instructor", "course-v1:test", 1),
+                ]
+            )
+
+        self.mock_course_access_role = MockCourseAccessRole
 
     def tearDown(self):
         """
@@ -927,69 +966,91 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         with self.assertRaises(CommandError):
             call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id, "--org-id", self.org)
 
-
-@pytest.fixture
-def mock_course_access_role():
-    """Fixture to mock the CourseAccessRole model and its queryset
-    for testing the migration functions without relying on the actual database model."""
-
-    class MockPermission:
-        """A simple class to represent a permission with user, role, course_id and id attributes."""
-
-        def __init__(self, user, role, course_id, id_in):
-            self.user = user
-            self.role = role
-            self.course_id = course_id
-            self.id = id_in
-
-    class MockUser:
-        """A simple class to represent a user with a username attribute."""
-
-        def __init__(self, username):
-            self.username = username
-
-    class MockQuerySet:
-        """A simple class to represent a queryset of permissions."""
-
-        def __init__(self, permissions):
-            self.permissions = permissions
-
-        def filter(self, **kwargs):
-            return self
-
-        def select_related(self, *args, **kwargs):
-            return self
-
-        def all(self):
-            return self.permissions
-
-    class MockCourseAccessRole:
-        """A simple class to represent the CourseAccessRole model."""
-
-        objects = MockQuerySet(
-            [
-                MockPermission(MockUser("testuser"), "instructor", "course-v1:test", 1),
-            ]
+    @patch("openedx_authz.engine.utils.assign_role_to_user_in_scope", return_value=False)
+    @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
+    def test_migrate_legacy_course_roles_to_authz_user_not_added(
+        self,
+        _,  # comes from patch
+    ):
+        errors, successes = migrate_legacy_course_roles_to_authz(
+            self.mock_course_access_role,
+            course_id_list=["course-v1:test"],
+            org_id=None,
+            delete_after_migration=False,
         )
 
-        def __init__(self):
-            pass
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(len(successes), 0)
+        self.assertEqual(errors[0].user.username, "testuser")
 
-    return MockCourseAccessRole
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_authz_to_legacy_course_roles_user_not_added(self):
+        permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+        )
+        self.assertEqual(len(permissions_with_errors), 1)
+        self.assertEqual(len(permissions_with_no_errors), 12)
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            self.mock_course_access_role,
+            UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
 
+        # 3 users for each of the 4 roles = 12 total entries that will
+        # fail to migrate back to legacy roles due to our mock
+        self.assertEqual(len(errors), 12)
+        self.assertEqual(len(successes), 0)
 
-# pylint: disable=redefined-outer-name
-def test_migrate_legacy_course_roles_to_authz_user_not_added(monkeypatch, mock_course_access_role):
-    # Patch assign_role_to_user_in_scope to always return False
-    monkeypatch.setattr(
-        "openedx_authz.engine.utils.assign_role_to_user_in_scope",
-        lambda user_external_key, role_external_key, scope_external_key: False,
-    )
-    # Patch LEGACY_COURSE_ROLE_EQUIVALENCES
-    monkeypatch.setattr("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
-    errors, successes = migrate_legacy_course_roles_to_authz(
-        mock_course_access_role, course_id_list=["course-v1:test"], org_id=None, delete_after_migration=False
-    )
-    assert len(errors) == 1
-    assert len(successes) == 0
-    assert errors[0].user.username == "testuser"
+    def create_library_env(self):
+        """Helper method to create a ContentLibrary environment for testing the migration of legacy permissions
+        related to ContentLibraryPermission to the new Casbin-based model.
+        """
+
+        # Create ContentLibrary
+        org = Organization.objects.create(name=org_name, short_name=org_short_name)
+        library = ContentLibrary.objects.create(org=org, slug=lib_name)
+
+        # Create Users and Groups
+        users = [
+            User.objects.create_user(username=user_name, email=f"lib_{user_name}@example.com")
+            for user_name in user_names
+        ]
+
+        group_users = [
+            User.objects.create_user(username=user_name, email=f"lib_{user_name}@example.com")
+            for user_name in group_user_names
+        ]
+        group = Group.objects.create(name=group_name)
+        group.user_set.set(group_users)
+
+        # Assign legacy permissions for users and group
+        for user in users:
+            ContentLibraryPermission.objects.create(
+                user=user,
+                library=library,
+                access_level=ContentLibraryPermission.ADMIN_LEVEL,
+            )
+
+        ContentLibraryPermission.objects.create(
+            group=group,
+            library=library,
+            access_level=ContentLibraryPermission.READ_LEVEL,
+        )
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_authz_to_legacy_course_roles_with_no_course_scopes(self):
+        self.create_library_env()
+        migrate_legacy_permissions(ContentLibraryPermission)
+        permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+        )
+        self.assertEqual(len(permissions_with_errors), 1)
+        self.assertEqual(len(permissions_with_no_errors), 12)
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject, course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+        )
+
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(successes), 12)

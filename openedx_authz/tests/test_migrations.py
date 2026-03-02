@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
@@ -925,3 +926,70 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id, "--org-id", self.org)
+
+
+@pytest.fixture
+def mock_course_access_role():
+    """Fixture to mock the CourseAccessRole model and its queryset
+    for testing the migration functions without relying on the actual database model."""
+
+    class MockPermission:
+        """A simple class to represent a permission with user, role, course_id and id attributes."""
+
+        def __init__(self, user, role, course_id, id_in):
+            self.user = user
+            self.role = role
+            self.course_id = course_id
+            self.id = id_in
+
+    class MockUser:
+        """A simple class to represent a user with a username attribute."""
+
+        def __init__(self, username):
+            self.username = username
+
+    class MockQuerySet:
+        """A simple class to represent a queryset of permissions."""
+
+        def __init__(self, permissions):
+            self.permissions = permissions
+
+        def filter(self, **kwargs):
+            return self
+
+        def select_related(self, *args, **kwargs):
+            return self
+
+        def all(self):
+            return self.permissions
+
+    class MockCourseAccessRole:
+        """A simple class to represent the CourseAccessRole model."""
+
+        objects = MockQuerySet(
+            [
+                MockPermission(MockUser("testuser"), "instructor", "course-v1:test", 1),
+            ]
+        )
+
+        def __init__(self):
+            pass
+
+    return MockCourseAccessRole
+
+
+# pylint: disable=redefined-outer-name
+def test_migrate_legacy_course_roles_to_authz_user_not_added(monkeypatch, mock_course_access_role):
+    # Patch assign_role_to_user_in_scope to always return False
+    monkeypatch.setattr(
+        "openedx_authz.engine.utils.assign_role_to_user_in_scope",
+        lambda user_external_key, role_external_key, scope_external_key: False,
+    )
+    # Patch LEGACY_COURSE_ROLE_EQUIVALENCES
+    monkeypatch.setattr("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
+    errors, successes = migrate_legacy_course_roles_to_authz(
+        mock_course_access_role, course_id_list=["course-v1:test"], org_id=None, delete_after_migration=False
+    )
+    assert len(errors) == 1
+    assert len(successes) == 0
+    assert errors[0].user.username == "testuser"

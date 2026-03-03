@@ -188,7 +188,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     - role: role
 
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
-        is intended to run within a Django migration context, where direct model imports can cause issues.
+    is intended to run within a Django migration context, where direct model imports can cause issues.
     param course_id_list: Optional list of course IDs to filter the migration.
     param org_id: Optional organization ID to filter the migration.
     param delete_after_migration: Whether to delete successfully migrated legacy permissions after migration.
@@ -271,13 +271,13 @@ def migrate_authz_to_legacy_course_roles(
     for rollback purposes in case of migration issues.
 
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
-        is intended to run within a Django migration context, where direct model imports can cause issues.
+    is intended to run within a Django migration context, where direct model imports can cause issues.
     param user_subject_model: It should be the UserSubject model. This is passed in because the function
-        is intended to run within a Django migration context, where direct model imports can cause issues.
+    is intended to run within a Django migration context, where direct model imports can cause issues.
     param course_id_list: Optional list of course IDs to filter the migration.
     param org_id: Optional organization ID to filter the migration.
     param delete_after_migration: Whether to unassign successfully migrated permissions
-        from the new model after migration.
+    from the new model after migration.
     """
     if not course_id_list and not org_id:
         raise ValueError(

@@ -83,6 +83,18 @@ The following role equivalences define the migration logic:
 
 *New AuthZ role names are subject to change.*
 
+The following legacy roles won't be handled by the migration process:
+
+- finance_admin
+- sales_admin
+- library_user
+- ccx_coach
+- org_course_creator_group
+- course_creator_group
+- support
+
+New planned roles for AuthZ won't be handled by the migration process.
+
 **Execution Methods**
 
 **Automatic Execution**

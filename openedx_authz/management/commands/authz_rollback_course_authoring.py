@@ -67,8 +67,8 @@ class Command(BaseCommand):
                     return
             with transaction.atomic():
                 errors, success = migrate_authz_to_legacy_course_roles(
-                    CourseAccessRole=CourseAccessRole,
-                    UserSubject=UserSubject,
+                    course_access_role_model=CourseAccessRole,
+                    user_subject_model=UserSubject,
                     course_id_list=course_id_list,
                     org_id=org_id,
                     delete_after_migration=delete_after_migration,  # control deletion here

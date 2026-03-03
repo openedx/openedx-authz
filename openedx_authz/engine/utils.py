@@ -168,7 +168,7 @@ def migrate_legacy_permissions(ContentLibraryPermission):
     return permissions_with_errors
 
 
-def migrate_legacy_course_roles_to_authz(CourseAccessRole, course_id_list, org_id, delete_after_migration):
+def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_list, org_id, delete_after_migration):
     """
     Migrate legacy course role data to the new Casbin-based authorization model.
     This function reads legacy permissions from the CourseAccessRole model
@@ -187,7 +187,11 @@ def migrate_legacy_course_roles_to_authz(CourseAccessRole, course_id_list, org_i
     - user: subject
     - role: role
 
-    param CourseAccessRole: The CourseAccessRole model to use.
+    param course_access_role_model: The CourseAccessRole model to use. This is passed in because the function
+        is intended to run within a Django migration context, where direct model imports can cause issues.
+    param course_id_list: Optional list of course IDs to filter the migration.
+    param org_id: Optional organization ID to filter the migration.
+    param delete_after_migration: Whether to delete successfully migrated legacy permissions after migration.
     """
     if not course_id_list and not org_id:
         raise ValueError(
@@ -205,7 +209,9 @@ def migrate_legacy_course_roles_to_authz(CourseAccessRole, course_id_list, org_i
         # otherwise we will filter by org_id which is more efficient
         course_access_role_filter["course_id__in"] = course_id_list
 
-    legacy_permissions = CourseAccessRole.objects.filter(**course_access_role_filter).select_related("user").all()
+    legacy_permissions = (
+        course_access_role_model.objects.filter(**course_access_role_filter).select_related("user").all()
+    )
 
     # List to keep track of any permissions that could not be migrated
     permissions_with_errors = []
@@ -246,12 +252,14 @@ def migrate_legacy_course_roles_to_authz(CourseAccessRole, course_id_list, org_i
 
     if delete_after_migration:
         # Only delete permissions that were successfully migrated to avoid data loss.
-        CourseAccessRole.objects.filter(id__in=[p.id for p in permissions_with_no_errors]).delete()
+        course_access_role_model.objects.filter(id__in=[p.id for p in permissions_with_no_errors]).delete()
 
     return permissions_with_errors, permissions_with_no_errors
 
 
-def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, course_id_list, org_id, delete_after_migration):
+def migrate_authz_to_legacy_course_roles(
+    course_access_role_model, user_subject_model, course_id_list, org_id, delete_after_migration
+):
     """
     Migrate permissions from the new Casbin-based authorization model back to the legacy CourseAccessRole model.
     This function reads permissions from the Casbin enforcer and creates equivalent entries in the
@@ -259,6 +267,14 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, course_i
 
     This is essentially the reverse of migrate_legacy_course_roles_to_authz and is intended
     for rollback purposes in case of migration issues.
+
+    param course_access_role_model: The CourseAccessRole model to use. This is passed in because the function
+        is intended to run within a Django migration context, where direct model imports can cause issues.
+    param user_subject_model: The UserSubject model to query for users with course-related permissions.
+    param course_id_list: Optional list of course IDs to filter the migration.
+    param org_id: Optional organization ID to filter the migration.
+    param delete_after_migration: Whether to unassign successfully migrated permissions
+        from the new model after migration.
     """
     if not course_id_list and not org_id:
         raise ValueError(
@@ -279,7 +295,7 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, course_i
         # otherwise we will filter by org_id which is more efficient
         course_subject_filter["casbin_rules__scope__coursescope__course_overview__id__in"] = course_id_list
 
-    course_subjects = UserSubject.objects.filter(**course_subject_filter).select_related("user").distinct()
+    course_subjects = user_subject_model.objects.filter(**course_subject_filter).select_related("user").distinct()
 
     roles_with_errors = []
     roles_with_no_errors = []
@@ -309,7 +325,7 @@ def migrate_authz_to_legacy_course_roles(CourseAccessRole, UserSubject, course_i
 
                 try:
                     # Create legacy CourseAccessRole entry
-                    CourseAccessRole.objects.get_or_create(
+                    course_access_role_model.objects.get_or_create(
                         user=user,
                         org=course_overview.org,
                         course_id=scope,

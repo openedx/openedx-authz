@@ -1042,7 +1042,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
     @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
     def test_migrate_legacy_course_roles_to_authz_user_not_added(
         self,
-        _,  # comes from patch
+        _,
     ):
         errors, successes = migrate_legacy_course_roles_to_authz(
             self.mock_course_access_role,

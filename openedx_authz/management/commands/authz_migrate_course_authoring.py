@@ -46,7 +46,7 @@ class Command(BaseCommand):
         org_id = options.get("org_id")
 
         if not course_id_list and not org_id:
-            raise CommandError("You must specify either --course-id-list or --org-id to filter the rollback.")
+            raise CommandError("You must specify either --course-id-list or --org-id to filter the migration.")
 
         if course_id_list and org_id:
             raise CommandError("You cannot use --course-id-list and --org-id together.")
@@ -60,7 +60,7 @@ class Command(BaseCommand):
                 )
 
                 if confirm != "yes":
-                    self.stdout.write(self.style.WARNING("Deletion aborted."))
+                    self.stdout.write(self.style.WARNING("Migration aborted."))
                     return
             with transaction.atomic():
                 errors, success = migrate_legacy_course_roles_to_authz(

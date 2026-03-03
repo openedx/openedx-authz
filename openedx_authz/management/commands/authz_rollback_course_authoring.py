@@ -63,7 +63,7 @@ class Command(BaseCommand):
                 )
 
                 if confirm != "yes":
-                    self.stdout.write(self.style.WARNING("Deletion aborted."))
+                    self.stdout.write(self.style.WARNING("Rollback aborted."))
                     return
             with transaction.atomic():
                 errors, success = migrate_authz_to_legacy_course_roles(

@@ -14,6 +14,18 @@ Change Log
 Unreleased
 **********
 
+0.23.0 - 2026-02-18
+********************
+
+Added
+=====
+
+* Add authz_migrate_course_authoring command to migrate legacy CourseAccessRole data to the new Authz (Casbin-based) system
+* Add authz_rollback_course_authoring command to rollback Authz roles back to legacy CourseAccessRole
+* Support optional --delete flag for controlled cleanup of source permissions after successful migration
+* Add migrate_legacy_course_roles_to_authz and migrate_authz_to_legacy_course_roles service functions
+* Add unit tests to verify migration and command behavior
+
 Added
 =====
 

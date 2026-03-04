@@ -29,7 +29,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--course-id-list",
-            nargs="*",
+            nargs="+",
             type=str,
             help="Optional list of course IDs to filter the migration.",
         )

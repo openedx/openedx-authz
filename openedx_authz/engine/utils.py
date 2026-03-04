@@ -5,6 +5,7 @@ for the Open edX AuthZ system using Casbin.
 """
 
 import logging
+from collections import defaultdict
 
 from casbin import Enforcer
 
@@ -195,7 +196,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     """
     if not course_id_list and not org_id:
         raise ValueError(
-            "At least one of course_id_list or org_id must be provided to limit the scope of the rollback migration."
+            "At least one of course_id_list or org_id must be provided to limit the scope of the migration."
         )
     course_access_role_filter = {
         "course_id__startswith": "course-v1:",
@@ -302,6 +303,7 @@ def migrate_authz_to_legacy_course_roles(
 
     roles_with_errors = []
     roles_with_no_errors = []
+    unassignments = defaultdict(list)
 
     for course_subject in course_subjects:
         user = course_subject.user
@@ -343,15 +345,25 @@ def migrate_authz_to_legacy_course_roles(
                     roles_with_errors.append((user_external_key, role.external_key, scope))
                     continue
 
-                # If we successfully created the legacy role, we can unassign the new role
+                # If we successfully created the legacy role, we can add this role assignment
+                # to the unassignment list if delete_after_migration is True
                 if delete_after_migration:
-                    batch_unassign_role_from_users(
-                        users=[user_external_key],
-                        role_external_key=role.external_key,
-                        scope_external_key=scope,
-                    )
-                    logger.info(
-                        f"Unassigned Role: {role.external_key} from User: {user_external_key} in Scope: {scope}"
-                        f" after successful rollback migration."
-                    )
+                    unassignments[(role.external_key, scope)].append(user_external_key)
+
+    # Once the loop is done, we can log summary of unassignments
+    # and perform batch unassignment if delete_after_migration is True
+    if delete_after_migration:
+        total_unassignments = sum(len(users) for users in unassignments.values())
+        logger.info(f"Total of {total_unassignments} role assignments unassigned after successful rollback migration.")
+        for (role_external_key, scope), users in unassignments.items():
+            logger.info(
+                f"Unassigned Role: {role_external_key} from {len(users)} users \n"
+                f"in Scope: {scope} after successful rollback migration."
+            )
+            batch_unassign_role_from_users(
+                users=users,
+                role_external_key=role_external_key,
+                scope_external_key=scope,
+            )
+
     return roles_with_errors, roles_with_no_errors

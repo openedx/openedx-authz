@@ -148,7 +148,7 @@ The matcher evaluates all conditions for a policy to match:
 
 .. note::
 
-   Changing the ``model.conf`` changes the meaning of stored policy data. If the model definition changes (e.g., reordering fields, changing matchers), existing dynamic policies in the database may need to be rebuilt or migrated. Static policies (loaded from ``constants/``) are regenerated on deployment and are safe. Model changes should be treated as high-risk migrations.
+   Changing the ``model.conf`` changes the meaning of stored policy data. If the model definition changes (e.g., reordering fields, changing matchers), existing dynamic policies in the database may need to be rebuilt or migrated. Static policies (loaded from ``authz.policy``) are regenerated on deployment and are safe. Model changes should be treated as breaking and require a data migration strategy for dynamic policies.
 
 #. Data & Storage Model
 ========================
@@ -156,7 +156,7 @@ The matcher evaluates all conditions for a policy to match:
 Use the Django ORM for the Policy Store
 ----------------------------------------
 - Use the Django ORM as the backend for persistent policy storage, leveraging Casbin's Django ORM adapter (``casbin-django-orm-adapter``) and our own ``ExtendedAdapter`` for filtered loading. See the `Casbin Django ORM Adapter documentation`_ for details on the base adapter.
-- The policy store uses the same database as the host service (LMS or CMS). Since both LMS and CMS share the same MySQL/PostgreSQL database in standard deployments, policies are effectively shared. The ``openedx_authz`` app is installed in both LMS and CMS via entry points, so both services have access to the same policy data.
+- The LMS is the primary service hosting the policy store. The majority of IDAs already communicate with the LMS, so this avoids introducing additional communication paths. Both LMS and CMS share the same MySQL/PostgreSQL database in standard deployments, so policies are effectively shared. The ``openedx_authz`` app is installed in both LMS and CMS via entry points, and external clients interact with the policy store through the LMS REST API. This does not preclude evolving the store into a dedicated internal service in the future if necessary.
 - Use the schema provided by Casbin's Django ORM adapter (the ``CasbinRule`` table):
 
   - ``id``: Auto-incrementing integer primary key.
@@ -210,7 +210,7 @@ Cross-Service Policy Isolation
 ------------------------------
 - The ``CasbinRule`` table does not include a service-origin field. Any service with database access can read and write policies for any scope.
 - Isolation is enforced at the API level: the Public API functions operate on typed data objects (``ScopeData``, ``RoleData``) that constrain operations to well-defined scopes. Direct database access is discouraged.
-- Future work may introduce policy ownership metadata or namespace-based write restrictions if cross-service policy conflicts become a concern.
+- Future work may introduce policy ownership metadata, namespace-based write restrictions, or Casbin's `domain/tenant filtering <https://casbin.org/docs/rbac-with-domains/>`_ if cross-service policy conflicts become a concern.
 
 #. Client Interactions with the Authorization System
 =====================================================

@@ -31,7 +31,7 @@ The architecture consists of several key components:
 - **Authorization (AuthZ) Engine**: The Casbin-based engine that evaluates authorization requests based on defined policies.
 - **Policy Store**: The database (via Django ORM) where all authorization policies are persisted. The policy store holds two categories of policies:
 
-  1. **Static policies**: Shipped with services as default role-permission definitions (e.g., the built-in permissions for ``library_admin`` or ``course_staff``). These are loaded into the policy store via management commands (``load_policies``) or data migrations and are not meant to be edited by operators.
+  1. **Static policies**: Default role-permission definitions (e.g., the built-in permissions for ``library_admin`` or ``course_staff``) and action groupings. These are defined in the ``authz.policy`` file shipped with the package, and loaded into the policy store via the ``load_policies`` management command at deployment time. They are not meant to be edited by operators. A parallel Python representation exists in ``openedx_authz.constants`` (``roles.py``, ``permissions.py``) for use in code (e.g., migration scripts, API views).
   2. **Dynamic policies**: Created at runtime through the Policy Management API or Django Admin. These include role assignments (granting a user a role in a scope) and any operator-defined policy additions.
 
   Both categories are stored in the same ``CasbinRule`` table and are loaded into the engine uniformly. The distinction is organizational, not structural.
@@ -80,8 +80,8 @@ A Dedicated Open edX Layer for Authorization
 Interact with the Policy Store via the Open edX Layer
 ------------------------------------------------------
 - The policy store (the database, accessed through Django ORM) is managed through the Open edX Layer. No direct access to the policy store should be made by services.
-- The Open edX Layer handles loading policies from the policy store into the Authorization Engine and ensures that policies are kept up to date. Dynamic policies are reloaded when the ``PolicyCacheControl`` version changes (triggered by API write operations or management commands). Static policies are loaded via ``load_policies`` at deployment time and through data migrations.
-- The Open edX Layer manages the separation between static policies (shipped with services as default role-permission definitions in ``constants/``) and dynamic policies (created at runtime via the API). Static policies define what roles can do; dynamic policies assign users to those roles in specific scopes.
+- The Open edX Layer handles loading policies from the policy store into the Authorization Engine and ensures that policies are kept up to date. Dynamic policies are reloaded when the ``PolicyCacheControl`` version changes (triggered by API write operations or management commands). Static policies are loaded from the ``authz.policy`` file via the ``load_policies`` management command at deployment time.
+- The Open edX Layer manages the separation between static policies (role-permission definitions and action groupings in ``authz.policy``) and dynamic policies (role assignments created at runtime via the API). Static policies define what roles can do; dynamic policies assign users to those roles in specific scopes.
 
 Clients Interact Only via the Open edX Layer
 --------------------------------------------
@@ -242,7 +242,7 @@ Consequences
 
 #. **Services Should be Migrated to Use this new Architecture**: Existing services that currently implement their own authorization logic will need to be migrated to use the new architecture. See `ADR 0008`_ for the compatibility scheme and `ADR 0009`_ for the course authoring migration plan. Migration involves:
    - Refactoring code to remove direct authorization checks and replace them with calls to the Enforcement API.
-   - Defining role-permission mappings in ``constants/`` and loading them via management commands or data migrations.
+   - Defining role-permission mappings in ``authz.policy`` (and the parallel ``constants/`` Python module) and loading them via the ``load_policies`` management command.
    - Ensuring that all necessary context is provided when making authorization requests.
    - Feature flags control the cutover per scope (see `ADR 0010`_). Migration scripts handle bidirectional data migration (see `ADR 0011`_).
 
@@ -254,11 +254,11 @@ Consequences
 
 #. **Database Backend for Policy Storage**: The policy store uses the Django ORM, which supports both MySQL and PostgreSQL. In standard Open edX deployments, this is the same database used by LMS and CMS. The choice of a shared database means policies are immediately visible to both services without synchronization. If support for separate databases is needed, the ``CASBIN_DB_ALIAS`` setting allows pointing to a different database.
 
-#. **Roles and Permissions are Stored in the Policy Store**: All roles and permissions are managed through the policy store. Default role-permission definitions are maintained in ``openedx_authz.constants`` (``roles.py``, ``permissions.py``) and loaded into the policy store at deployment time. Changes to role definitions require redeployment and re-running the policy loading step.
+#. **Roles and Permissions are Stored in the Policy Store**: All roles and permissions are managed through the policy store. Default role-permission definitions are maintained in the ``authz.policy`` file and loaded into the policy store at deployment time via the ``load_policies`` management command. A parallel Python representation exists in ``openedx_authz.constants`` (``roles.py``, ``permissions.py``) for programmatic use in migration scripts and API views. Changes to role definitions require updating both representations and re-running the policy loading step.
 
    .. note::
 
-      Role and permission definitions are currently hardcoded in ``constants/``. This is acknowledged as technical debt — the long-term goal is to externalize these definitions so third-party modules can register their own roles and permissions without modifying the ``openedx-authz`` repository. See `ADR 0009`_ for context.
+      Role and permission definitions are currently hardcoded in the package (``authz.policy`` and ``constants/``). This is acknowledged as technical debt — the long-term goal is to externalize these definitions so third-party modules can register their own roles and permissions without modifying the ``openedx-authz`` repository. See `ADR 0009`_ for context.
 
 #. **The Policy Storage Table is Not Friendly to Manual Management**: The ``CasbinRule`` table uses generic field names (``v0``-``v5``) whose meaning depends on the ``ptype``. Direct manual edits are discouraged. The ``ExtendedCasbinRule`` provides human-readable metadata and typed foreign keys for querying. All changes should be made through the provided APIs or management commands.
 
@@ -294,4 +294,4 @@ References
 
 .. _ADR 0011: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0011-course-authoring-migration-process.rst
 
-.. _Casbin Django ORM Adapter documentation: https://github.com/pycasbin/django-orm-adapter
+.. _Casbin Django ORM Adapter documentation: https://github.com/officialpycasbin/django-orm-adapter

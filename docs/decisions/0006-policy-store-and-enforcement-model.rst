@@ -26,11 +26,6 @@ Use a Casbin Model CONF that Supports Core Principles
 - Favor simple matchers to improve performance and maintainability. This means avoiding complex regexes and nested logic where possible.
 - Use Casbin's built-in support for role hierarchies (g, g2) to manage role inheritance and simplify policy definitions.
 
-Do not Handle Grouping and Context Inheritance via Casbin's Built-in Mechanisms
--------------------------------------------------------------------------------
-- Grouping resources will not be implemented via Casbin's built-in grouping mechanisms (g, g2) but will be explicitly managed when checking permissions in the application layer. For example, if a user has the ``course_admin`` role in ``org:123``, this will not automatically grant them the ``course_admin`` role in all courses within that org. Instead, the application layer will need to check both the user's role and the specific context (e.g., organization or course) when making authorization decisions.
-- Define roles that are context-specific, such as ``course_admin`` for a specific course or ``org_admin`` for a specific organization.
-
 Establish Naming Conventions for Subjects, Actions, Objects, and Contexts
 -------------------------------------------------------------------------
 - Favor the use of simple and easy to read matchers and policies to keep the system maintainable. Revisit complexity if needed.
@@ -117,8 +112,6 @@ Consequences
 #. **ABAC will be Supported Eventually via Custom Matchers**: While the initial implementation will focus on RBAC, the Casbin model will be designed to support ABAC features in the future. This will be achieved through the use of custom matchers that can evaluate attributes of subjects, actions, objects, and contexts.
 
 #. **Default Deny Policy**: The default behavior of the authorization engine will be to deny access unless explicitly allowed by a policy. This is a security best practice that minimizes the risk of unauthorized access.
-
-#. **Grouping will be Handled in the Application Layer**: Instead of using Casbin's built-in grouping mechanisms, the application layer will handle grouping and context inheritance. This provides greater flexibility and allows for more complex authorization logic that is specific to the application's needs.
 
 #. **The Casbin Table Schema will Include Metadata**: The policy store schema will include metadata fields to differentiate between static and dynamic policies. This allows for better management and auditing of policies.
 

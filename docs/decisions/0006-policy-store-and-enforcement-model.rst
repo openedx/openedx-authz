@@ -8,7 +8,9 @@ Status
 Context
 *******
 
-This ADR details how authorization policies are stored, versioned, and configured across the platform. It defines the Policy Store as the single source of truth, describes the relational database schema and metadata, and establishes naming conventions for subjects, actions, objects, and contexts. It also specifies the Casbin ``model.conf`` configuration, including the default matcher, allow/deny effects, static vs. dynamic policies, versioning rules, and how services ship and manage their ``authz.policy`` files.
+This ADR details how authorization policies are stored, versioned, and configured across the platform. It defines the :term:`Policy Store` as the single source of truth, describes the relational database schema and metadata, and establishes naming conventions for :term:`subjects<Subject>`, :term:`actions<Action>`, objects, and contexts. It also specifies the Casbin :term:`model configuration<Model Configuration>` (``model.conf``), including the default :term:`matcher<Matcher>`, allow/deny effects, :term:`static<Static Policy>` vs. :term:`dynamic policies<Dynamic Policy>`, versioning rules, and how services ship and manage their ``authz.policy`` files.
+
+.. seealso:: :doc:`/references/glossary` for definitions of all terms used in this ADR.
 
 Decision
 ********
@@ -49,21 +51,21 @@ Use ``authz.policy`` Files for Default Policies
 #. Policy Management and Versioning
 ====================================
 
-Store Dynamic Policies Directly in the Policy Store
----------------------------------------------------
-- Consider two types of policies: static policies (shipped with services in ``authz.policy`` files) and dynamic policies (created and managed via the Policy Management API and persisted in the policy store).
-- Dynamic policies created via the Policy Management API will be stored directly in the policy store (MySQL database) using a Casbin adapter.
+Store Dynamic Policies Directly in the Policy Store (Django ORM Adapter)
+------------------------------------------------------------------------
+- Consider two types of policies: static policies (shipped with services in ``authz.policy`` files) and dynamic policies (created and managed via the Role Management API and persisted in the policy store).
+- Dynamic policies created via the Role Management API will be stored directly in the policy store (MySQL database) using a Casbin adapter.
 
 Differentiate Between Static and Dynamic Policies
 -------------------------------------------------
 - Static policies (default) should be differentiated from dynamic policies in the policy store using a metadata field (e.g., ``is_static`` boolean field) and should be immutable after being loaded from the ``authz.policy`` file.
-- Dynamic policies can be created, updated, and deleted via the Policy Management API, allowing administrators to adapt policies to changing requirements without modifying service code.
+- Dynamic policies can be created, updated, and deleted via the Role Management API, allowing administrators to adapt policies to changing requirements without modifying service code.
 - Using dynamic policies allows for greater flexibility and adaptability, as policies can be modified in response to evolving business needs or security requirements. However, they might also introduce complexity and potential performance overhead if not defined and managed carefully.
 
 Version Static Policies and Make Dynamic Policies Immutable
 -----------------------------------------------------------
-- Version the ``authz.policy`` files with the service version to ensure that changes to static policies are tracked and can be rolled back if needed.
-- Dynamic policies created via the Policy Management API should be immutable once created. To change a dynamic policy, it should be deleted and recreated with the desired changes. This approach ensures that policy changes are auditable and traceable.
+- Version the ``authz.policy`` files with the along with the framework version to ensure that changes to static policies are tracked and can be rolled back if needed.
+- Dynamic policies created via the Role Management API should be immutable once created. To change a dynamic policy, it should be deleted and recreated with the desired changes. This approach ensures that policy changes are auditable and traceable.
 - Implement auditing and logging for all policy changes, including who made the change, when it was made, and what the change was. This is crucial for maintaining security and compliance.
 
 #. Authorization Source of Truth
@@ -71,13 +73,13 @@ Version Static Policies and Make Dynamic Policies Immutable
 
 Make the Policy Store the Single Source of Truth
 ------------------------------------------------
-- The ``model.conf`` with the Casbin model configuration (``model.conf``) and the policy store (via MySQL adapter) together form the single source of truth for authorization in Open edX.
+- The ``model.conf`` with the Casbin model configuration (``model.conf``) and the policy store (via Django ORM adapter) together form the single source of truth for authorization in Open edX.
 - The policy store contains all dynamic policies and the static policies loaded from the ``authz.policy`` files at service initialization.
 - The policy store is the single source of truth for authorization rules. By default, services share the same store to ensure consistency and avoid conflicts.
 
 Allow Shared or Separate Policy Stores as Needed
 ------------------------------------------------
-- By default, all services share the same policy store to ensure consistency and avoid conflicts.
+- By default, all services share the same policy store (LMS) to ensure consistency and avoid conflicts.
 - If isolation between services is required, this can be achieved in two ways: (1) by using a namespace or domain field in the shared table, or (2) by creating a separate policy store for a specific service.
 
 #. Authorization Ownership
@@ -85,7 +87,7 @@ Allow Shared or Separate Policy Stores as Needed
 
 Delegate Policy Ownership to Services
 -------------------------------------
-- Services are responsible for defining their own policies in the ``authz.policy`` files and managing their own dynamic policies via the Policy Management API.
+- Services are responsible for defining their own policies in the ``authz.policy`` files and managing their own dynamic policies via the Role Management API.
 - These policies are managed by each service according to its domain. For example, the LMS manages courseware access policies, while the CMS manages content creation policies.
 - Authorization decisions must always be answered by the service that owns the relevant data and policies (policy owner). For instance, the LMS decides whether a user can access a course because it owns enrollments and courseware data. The CMS decides whether a user can edit content because it owns the content data.
 - The policy store is by default shared across services, but each service is responsible for its own policies and authorization decisions.
@@ -122,7 +124,7 @@ Consequences
 
 #. **Static Policies will be Immutable**: Policies defined in the ``authz.policy`` files will be immutable after being loaded into the policy store. For a policy to be removed, should go through a deprecation cycle where it is first marked as deprecated and then removed in a future version.
 
-#. **Each Service Should Define Its Own Policies (``authz.policy``)**: Each service is responsible for defining its own policies in the ``authz.policy`` files and managing its own dynamic policies via the Policy Management API. This ensures that services can tailor their authorization rules to their specific needs while maintaining a clear boundary of responsibility. If no defaults are defined, the service will start with an empty policy set.
+#. **Each Service Should Define Its Own Policies (``authz.policy``)**: Each service is responsible for defining its own policies in the ``authz.policy`` files and managing its own dynamic policies via the Role Management API. This ensures that services can tailor their authorization rules to their specific needs while maintaining a clear boundary of responsibility. If no defaults are defined, the service will start with an empty policy set.
 
 #. **Clients Share the Same Policy Store**: By default, all services share the same policy store to ensure consistency and avoid conflicts. This means that policies defined by one service can affect authorization decisions in another service.
 

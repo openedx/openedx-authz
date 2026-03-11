@@ -20,6 +20,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from casbin import SyncedEnforcer
+from casbin.util import key_match_func
 from casbin.util.log import DEFAULT_LOGGING, configure_logging
 from casbin_adapter.enforcer import initialize_enforcer
 from django.conf import settings
@@ -279,5 +280,6 @@ class AuthzEnforcer:
         adapter = ExtendedAdapter()
         enforcer = SyncedEnforcer(settings.CASBIN_MODEL, adapter)
         enforcer.add_function("is_staff_or_superuser", is_admin_or_superuser_check)
+        enforcer.add_named_domain_matching_func("g", key_match_func)
 
         return enforcer

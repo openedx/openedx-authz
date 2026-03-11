@@ -1,6 +1,14 @@
 """Test utilities for creating namespaced keys using class constants."""
 
-from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ActionData, ContentLibraryData, RoleData, ScopeData, UserData
+from openedx_authz.api.data import (
+    GLOBAL_SCOPE_WILDCARD,
+    ActionData,
+    ContentLibraryData,
+    CourseOverviewData,
+    RoleData,
+    ScopeData,
+    UserData,
+)
 
 
 def make_user_key(key: str) -> str:
@@ -49,6 +57,18 @@ def make_library_key(key: str) -> str:
         str: Namespaced library key (e.g., 'lib^lib:DemoX:CSPROB')
     """
     return f"{ContentLibraryData.NAMESPACE}{ContentLibraryData.SEPARATOR}{key}"
+
+
+def make_course_key(key: str) -> str:
+    """Create a namespaced course key.
+
+    Args:
+        key: The course identifier (e.g., 'course-v1:DemoX+DemoCourse+2026_T1')
+
+    Returns:
+        str: Namespaced course key (e.g., 'course-v1^course-v1:DemoX+DemoCourse+2026_T1')
+    """
+    return f"{CourseOverviewData.NAMESPACE}{CourseOverviewData.SEPARATOR}{key}"
 
 
 def make_scope_key(namespace: str, key: str) -> str:

@@ -11,19 +11,22 @@ from unittest import TestCase
 
 import casbin
 import pytest
+from casbin.util import key_match_func
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD
-from openedx_authz.constants import roles
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ContentLibraryData, CourseOverviewData
+from openedx_authz.constants import permissions, roles
 from openedx_authz.engine.matcher import is_admin_or_superuser_check
 from openedx_authz.tests.test_utils import (
     make_action_key,
+    make_course_key,
     make_library_key,
     make_role_key,
     make_scope_key,
     make_user_key,
+    make_wildcard_key,
 )
 
 User = get_user_model()
@@ -73,6 +76,7 @@ class CasbinEnforcementTestCase(TestCase):
 
         cls.enforcer = casbin.Enforcer(model_file)
         cls.enforcer.add_function("is_staff_or_superuser", is_admin_or_superuser_check)
+        cls.enforcer.add_named_domain_matching_func("g", key_match_func)
 
     def _load_policy(self, policy: list[str]) -> None:
         """
@@ -580,6 +584,82 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
             "scope": scope,
             "expected_result": expected_result,
         }
+        self._test_enforcement(self.POLICY, request)
+
+
+@ddt
+class OrgGlobEnforcementTests(CasbinEnforcementTestCase):
+    """
+    Tests for organization-level glob patterns in course and library scopes.
+
+    This test class verifies that policies defined with org-level glob patterns
+    (e.g., "course-v1:OpenedX*" or "lib:DemoX*") are correctly enforced for
+    concrete course and library scopes that belong to those organizations.
+    """
+
+    POLICY = [
+        # Policies
+        [
+            "p",
+            make_role_key(roles.COURSE_STAFF.external_key),
+            make_action_key("courses.view_course"),
+            make_wildcard_key(CourseOverviewData.NAMESPACE),
+            "allow",
+        ],
+        [
+            "p",
+            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_action_key("content_libraries.view_library"),
+            make_wildcard_key(ContentLibraryData.NAMESPACE),
+            "allow",
+        ],
+        # Role assignments
+        [
+            "g",
+            make_user_key("user-1"),
+            make_role_key(roles.COURSE_STAFF.external_key),
+            make_course_key("course-v1:OpenedX*"),
+        ],
+        [
+            "g",
+            make_user_key("user-2"),
+            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_library_key("lib:DemoX*"),
+        ],
+    ]
+
+    CASES = [
+        # Permission granted
+        {
+            "subject": make_user_key("user-1"),
+            "action": make_action_key(permissions.COURSES_VIEW_COURSE.action.external_key),
+            "scope": make_course_key("course-v1:OpenedX+DemoCourse+2026_T1"),
+            "expected_result": True,
+        },
+        {
+            "subject": make_user_key("user-2"),
+            "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
+            "scope": make_library_key("lib:DemoX:OrgLevelGlobLib"),
+            "expected_result": True,
+        },
+        # Permission denied
+        {
+            "subject": make_user_key("user-1"),
+            "action": make_action_key(permissions.COURSES_VIEW_COURSE.action.external_key),
+            "scope": make_course_key("course-v1:InexistentOrg+DemoCourse+2026_T1"),
+            "expected_result": False,
+        },
+        {
+            "subject": make_user_key("user-2"),
+            "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
+            "scope": make_library_key("lib:InexistentOrg:OrgLevelGlobLib"),
+            "expected_result": False,
+        },
+    ]
+
+    @data(*CASES)
+    def test_org_level_glob_enforcement(self, request: AuthRequest):
+        """Test that org-level glob patterns in scopes are enforced correctly."""
         self._test_enforcement(self.POLICY, request)
 
 

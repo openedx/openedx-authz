@@ -11,6 +11,7 @@ from django.db import models
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ScopeData
 from openedx_authz.models.core import Scope
 
 
@@ -81,7 +82,7 @@ class ContentLibraryScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope):
+    def get_or_create_for_external_key(cls, scope: ScopeData) -> "ContentLibraryScope":
         """Get or create a ContentLibraryScope for the given external key.
 
         Args:
@@ -89,8 +90,14 @@ class ContentLibraryScope(Scope):
                 a LibraryLocatorV2-compatible string.
 
         Returns:
-            ContentLibraryScope: The Scope instance for the given ContentLibrary
+            ContentLibraryScope: The Scope instance for the given ContentLibrary,
+                or None if the scope is a glob pattern (contains wildcard).
         """
+        # For glob scopes we don't create a Scope object since
+        # they don't represent a specific content library
+        if GLOBAL_SCOPE_WILDCARD in scope.external_key:
+            return None
+
         library_key = LibraryLocatorV2.from_string(scope.external_key)
         content_library = ContentLibrary.objects.get_by_key(library_key)
         scope, _ = cls.objects.get_or_create(content_library=content_library)
@@ -124,7 +131,7 @@ class CourseScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope):
+    def get_or_create_for_external_key(cls, scope: ScopeData) -> "CourseScope":
         """Get or create a CourseScope for the given external key.
 
         Args:
@@ -132,8 +139,14 @@ class CourseScope(Scope):
                 a CourseKey string.
 
         Returns:
-            CourseScope: The Scope instance for the given CourseOverview
+            CourseScope: The Scope instance for the given CourseOverview,
+                or None if the scope is a glob pattern (contains wildcard).
         """
+        # For glob scopes we don't create a Scope object
+        # since they don't represent a specific course
+        if GLOBAL_SCOPE_WILDCARD in scope.external_key:
+            return None
+
         course_key = CourseKey.from_string(scope.external_key)
         course_overview = CourseOverview.get_from_id(course_key)
         scope, _ = cls.objects.get_or_create(course_overview=course_overview)

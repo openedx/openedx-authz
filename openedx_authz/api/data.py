@@ -529,7 +529,7 @@ class OrgLibraryGlobData(ContentLibraryData):
     """Organization-level glob pattern for content libraries.
 
     This class represents glob patterns that match multiple libraries within an organization.
-    Format: 'lib:ORG:*' where ORG is a valid organization identifier.
+    Format: ``lib:ORG:*`` where ORG is a valid organization identifier.
 
     The glob pattern allows granting permissions to all libraries within a specific organization
     without needing to specify each library individually.
@@ -538,15 +538,15 @@ class OrgLibraryGlobData(ContentLibraryData):
         NAMESPACE (str): Inherited 'lib' from ContentLibraryData.
         ID_SEPARATOR (str): ':' for content library scopes.
         IS_GLOB (bool): True for organization-level glob patterns.
-        external_key (str): The glob pattern (e.g., 'lib:DemoX:*').
-        namespaced_key (str): The pattern with namespace (e.g., 'lib^lib:DemoX:*').
+        external_key (str): The glob pattern (e.g., ``lib:DemoX:*``).
+        namespaced_key (str): The pattern with namespace (e.g., ``lib^lib:DemoX:*``).
 
     Validation Rules:
-        - Must end with GLOBAL_SCOPE_WILDCARD (*)
-        - Must have format 'lib:ORG:*' (exactly one organization identifier)
+        - Must end with GLOBAL_SCOPE_WILDCARD (``*``)
+        - Must have format ``lib:ORG:*`` (exactly one organization identifier)
         - The organization must exist in at least one ContentLibrary
         - Wildcard can only appear at the end after org identifier
-        - Cannot have wildcards at slug level (lib:ORG:SLUG* is invalid)
+        - Cannot have wildcards at slug level (``lib:ORG:SLUG*`` is invalid)
 
     Examples:
         >>> glob = OrgLibraryGlobData(external_key='lib:DemoX:*')
@@ -565,7 +565,7 @@ class OrgLibraryGlobData(ContentLibraryData):
         """Get the organization identifier from the glob pattern.
 
         Returns:
-            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX:*'), None otherwise.
+            str: The organization identifier (e.g., ``DemoX`` from ``lib:DemoX:*``), None otherwise.
         """
         return self.get_org(self.external_key)
 
@@ -574,7 +574,7 @@ class OrgLibraryGlobData(ContentLibraryData):
         """Validate the external_key format for organization-level library globs.
 
         Args:
-            external_key (str): The external key to validate (e.g., 'lib:DemoX:*').
+            external_key (str): The external key to validate (e.g., ``lib:DemoX:*``).
 
         Returns:
             bool: True if the format is valid, False otherwise.
@@ -604,7 +604,7 @@ class OrgLibraryGlobData(ContentLibraryData):
             external_key (str): The external key to extract the organization identifier from.
 
         Returns:
-            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX:*'), None otherwise.
+            str: The organization identifier (e.g., ``DemoX`` from ``lib:DemoX:*``), None otherwise.
         """
         suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
         if not external_key.endswith(suffix):
@@ -776,7 +776,7 @@ class OrgCourseGlobData(CourseOverviewData):
         namespaced_key (str): The pattern with namespace (e.g., 'course-v1^course-v1:OpenedX+*').
 
     Validation Rules:
-        - Must end with GLOBAL_SCOPE_WILDCARD (*)
+        - Must end with GLOBAL_SCOPE_WILDCARD (``*``)
         - Must have format 'course-v1:ORG+*' (exactly one organization identifier)
         - The organization must exist in at least one CourseOverview
         - Wildcard can only appear at the end after org identifier

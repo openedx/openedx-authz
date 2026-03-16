@@ -92,11 +92,6 @@ class ContentLibraryScope(Scope):
             ContentLibraryScope: The Scope instance for the given ContentLibrary,
                 or None if the scope is a glob pattern (contains wildcard).
         """
-        # For glob scopes we don't create a Scope object since
-        # they don't represent a specific content library
-        if scope.IS_GLOB:
-            return None
-
         library_key = LibraryLocatorV2.from_string(scope.external_key)
         content_library = ContentLibrary.objects.get_by_key(library_key)
         scope, _ = cls.objects.get_or_create(content_library=content_library)
@@ -141,11 +136,6 @@ class CourseScope(Scope):
             CourseScope: The Scope instance for the given CourseOverview,
                 or None if the scope is a glob pattern (contains wildcard).
         """
-        # For glob scopes we don't create a Scope object
-        # since they don't represent a specific course
-        if scope.IS_GLOB:
-            return None
-
         course_key = CourseKey.from_string(scope.external_key)
         course_overview = CourseOverview.get_from_id(course_key)
         scope, _ = cls.objects.get_or_create(course_overview=course_overview)

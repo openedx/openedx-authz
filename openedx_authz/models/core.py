@@ -63,6 +63,11 @@ class ScopeManager(models.Manager):
         Raises:
             ValueError: If the namespace is not registered
         """
+        # For glob scopes we don't create a Scope object since
+        # they don't represent a specific resource type
+        if scope_data.IS_GLOB:
+            return None
+
         namespace = scope_data.NAMESPACE
         if namespace not in (scope_registry := Scope.get_registry()):
             raise ValueError(f"No Scope subclass registered for namespace '{namespace}'")

@@ -817,8 +817,8 @@ class OrgCourseGlobData(CourseOverviewData):
             return False
 
         # Enforce explicit org-level separator: 'course-v1:ORG+*'
-        glob_suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
-        if not external_key.endswith(glob_suffix):
+        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
+        if not external_key.endswith(suffix):
             return False
 
         org = cls.get_org(external_key)

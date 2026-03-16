@@ -38,7 +38,7 @@ EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
 
-# Pattern for allowed characters in organization identifiers (from opaque-keys library)
+# Pattern for allowed characters in the parts of a scope external key (from opaque-keys library)
 # Matches: word characters (letters, digits, underscore), hyphens, tildes, periods, colons
 # Reference: opaque_keys.edx.locator.Locator.ALLOWED_ID_CHARS
 ALLOWED_CHARS_PATTERN = re.compile(r"^[\w\-~.:]+$", re.UNICODE)

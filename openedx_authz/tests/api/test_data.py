@@ -350,7 +350,14 @@ class TestScopeMetaClass(TestCase):
             del ScopeMeta.glob_registry
 
             class TempScope(ScopeData):
+                """Temporary scope class for testing."""
                 NAMESPACE = "temp"
+
+                def get_object(self):
+                    return None
+
+                def exists(self) -> bool:
+                    return False
 
             # Metaclass should have recreated the registries on the class
             self.assertTrue(hasattr(TempScope, "scope_registry"))

@@ -325,6 +325,43 @@ class TestScopeMetaClass(TestCase):
 
         self.assertEqual(result, expected_valid)
 
+    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self):
+        """Unknown namespace should raise ValueError in get_subclass_by_external_key."""
+        with self.assertRaises(ValueError):
+            ScopeMeta.get_subclass_by_external_key("unknown:DemoX")
+
+    def test_get_subclass_by_external_key_invalid_format_raises_value_error(self):
+        """Invalid format (fails subclass.validate_external_key) should raise ValueError."""
+        with self.assertRaises(ValueError):
+            ScopeMeta.get_subclass_by_external_key("lib:invalid_library_key")
+
+    def test_scope_meta_initializes_registries_when_missing(self):
+        """ScopeMeta should create registries if they don't exist on initialization.
+
+        This validates the defensive branch in ScopeMeta.__init__ that initializes
+        scope_registry and glob_registry when they are not present on the class.
+        """
+        original_scope_registry = ScopeMeta.scope_registry
+        original_glob_registry = ScopeMeta.glob_registry
+
+        try:
+            # Simulate an environment where the registries are not yet defined
+            del ScopeMeta.scope_registry
+            del ScopeMeta.glob_registry
+
+            class TempScope(ScopeData):
+                NAMESPACE = "temp"
+
+            # Metaclass should have recreated the registries on the class
+            self.assertTrue(hasattr(TempScope, "scope_registry"))
+            self.assertTrue(hasattr(TempScope, "glob_registry"))
+            # And the new scope should be registered under its namespace
+            self.assertIs(TempScope.scope_registry.get("temp"), TempScope)
+        finally:
+            # Restore original registries to avoid side effects on other tests
+            ScopeMeta.scope_registry = original_scope_registry
+            ScopeMeta.glob_registry = original_glob_registry
+
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
         """Test that direct subclass instantiation doesn't trigger metaclass logic.
 
@@ -680,6 +717,17 @@ class TestOrgLibraryGlobData(TestCase):
         ("lib:DemoX:*", True),
         ("lib:Org-123:*", True),
         ("lib:Org.with.dots:*", True),
+        ("lib:Org With Space:*", False),
+        ("lib:Org/With/Slash:*", False),
+        ("lib:Org\\With\\Backslash:*", False),
+        ("lib:Org,With,Comma:*", False),
+        ("lib:Org;With;Semicolon:*", False),
+        ("lib:Org@WithAt:*", False),
+        ("lib:Org#WithHash:*", False),
+        ("lib:Org$WithDollar:*", False),
+        ("lib:Org&WithAmp:*", False),
+        ("lib:Org+WithPlus:*", False),
+        ("lib:(Org):*", False),
         ("lib:Org", False),
         ("other:DemoX:*", False),
         ("lib:DemoX:*:*", False),
@@ -695,6 +743,8 @@ class TestOrgLibraryGlobData(TestCase):
         ("lib:Org.with.dots:*", "Org.with.dots"),
         ("lib:Org:With:Colon:*", None),
         ("lib:*", None),
+        ("lib:DemoX", None),
+        ("lib:DemoX:*:*", None),
     )
     @unpack
     def test_get_org(self, external_key, expected_org):
@@ -728,6 +778,13 @@ class TestOrgLibraryGlobData(TestCase):
 
         self.assertFalse(result)
 
+    def test_exists_false_when_org_cannot_be_parsed(self):
+        """exists() returns False when org property is None (invalid pattern)."""
+        scope = OrgLibraryGlobData(external_key="lib:Org:With:Colon:*")
+
+        self.assertIsNone(scope.org)
+        self.assertFalse(scope.exists())
+
 
 @ddt
 @override_settings(OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL="course_overviews.CourseOverview")
@@ -738,6 +795,17 @@ class TestOrgCourseGlobData(TestCase):
         ("course-v1:OpenedX+*", True),
         ("course-v1:My-Org_1+*", True),
         ("course-v1:Org.with.dots+*", True),
+        ("course-v1:Org With Space+*", False),
+        ("course-v1:Org/With/Slash+*", False),
+        ("course-v1:Org\\With\\Backslash+*", False),
+        ("course-v1:Org,With,Comma+*", False),
+        ("course-v1:Org;With;Semicolon+*", False),
+        ("course-v1:Org@WithAt+*", False),
+        ("course-v1:Org#WithHash+*", False),
+        ("course-v1:Org$WithDollar+*", False),
+        ("course-v1:Org&WithAmp+*", False),
+        ("course-v1:Org+WithPlus+*", False),
+        ("course-v1:(Org)+*", False),
         ("course-v1:Org:With:Plus+*", False),
         ("course-v1:OpenedX", False),
         ("other:OpenedX+*", False),
@@ -786,3 +854,10 @@ class TestOrgCourseGlobData(TestCase):
         result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
 
         self.assertFalse(result)
+
+    def test_exists_false_when_org_cannot_be_parsed(self):
+        """exists() returns False when org property is None (invalid pattern)."""
+        scope = OrgCourseGlobData(external_key="course-v1:Org:With:Colon+*")
+
+        self.assertIsNone(scope.org)
+        self.assertFalse(scope.exists())

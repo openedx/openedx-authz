@@ -34,8 +34,8 @@ __all__ = [
     "SubjectData",
     "ContentLibraryData",
     "CourseOverviewData",
-    "OrgLevelLibraryGlob",
-    "OrgLevelCourseGlob",
+    "OrgLibraryGlobData",
+    "OrgCourseGlobData",
 ]
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
@@ -182,11 +182,11 @@ class ScopeMeta(type):
             1. external_key: Determines subclass from the key format. The namespace prefix
                before the first ':' is used to look up the appropriate subclass.
                Example: ScopeData(external_key='lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(external_key='lib:DemoX*') → OrgLevelLibraryGlob
+               Example: ScopeData(external_key='lib:DemoX*') → OrgLibraryGlobData
 
             2. namespaced_key: Determines subclass from the namespace prefix before '^'.
                Example: ScopeData(namespaced_key='lib^lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(namespaced_key='lib^lib:DemoX*') → OrgLevelLibraryGlob
+               Example: ScopeData(namespaced_key='lib^lib:DemoX*') → OrgLibraryGlobData
 
         Usage patterns:
             - namespaced_key: Used when retrieving objects from the policy store
@@ -199,7 +199,7 @@ class ScopeMeta(type):
             True
             >>> # From glob external key
             >>> scope = ScopeData(external_key='lib:DemoX*')
-            >>> isinstance(scope, OrgLevelLibraryGlob)
+            >>> isinstance(scope, OrgLibraryGlobData)
             True
             >>> # From namespaced key (e.g., policy store)
             >>> scope = ScopeData(namespaced_key='lib^lib:DemoX:CSPROB')
@@ -246,7 +246,7 @@ class ScopeMeta(type):
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:CSPROB')
             <class 'ContentLibraryData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX*')
-            <class 'OrgLevelLibraryGlob'>
+            <class 'OrgLibraryGlobData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('global^generic')
             <class 'ScopeData'>
         """
@@ -292,9 +292,9 @@ class ScopeMeta(type):
             >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX+CS101+2024')
             <class 'CourseOverviewData'>
             >>> ScopeMeta.get_subclass_by_external_key('lib:DemoX*')
-            <class 'OrgLevelLibraryGlob'>
+            <class 'OrgLibraryGlobData'>
             >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX*')
-            <class 'OrgLevelCourseGlob'>
+            <class 'OrgCourseGlobData'>
 
         Notes:
             - The external_key format should be 'namespace:some-identifier' (e.g., 'lib:DemoX:CSPROB').
@@ -527,7 +527,7 @@ class ContentLibraryData(ScopeData):
 
 
 @define
-class OrgLevelLibraryGlob(ContentLibraryData):
+class OrgLibraryGlobData(ContentLibraryData):
     """Organization-level glob pattern for content libraries.
 
     This class represents glob patterns that match multiple libraries within an organization.
@@ -549,7 +549,7 @@ class OrgLevelLibraryGlob(ContentLibraryData):
         - Cannot have wildcards at slug level (lib:ORG:SLUG* is invalid)
 
     Examples:
-        >>> glob = OrgLevelLibraryGlob(external_key='lib:DemoX*')
+        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX*')
         >>> glob.org
         'DemoX'
 
@@ -748,7 +748,7 @@ class CourseOverviewData(ScopeData):
 
 
 @define
-class OrgLevelCourseGlob(CourseOverviewData):
+class OrgCourseGlobData(CourseOverviewData):
     """Organization-level glob pattern for courses.
 
     This class represents glob patterns that match multiple courses within an organization.
@@ -770,7 +770,7 @@ class OrgLevelCourseGlob(CourseOverviewData):
         - Cannot have wildcards at course or run level (course-v1:ORG+COURSE* is invalid)
 
     Examples:
-        >>> glob = OrgLevelCourseGlob(external_key='course-v1:OpenedX*')
+        >>> glob = OrgCourseGlobData(external_key='course-v1:OpenedX*')
         >>> glob.org
         'OpenedX'
 

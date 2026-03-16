@@ -639,7 +639,7 @@ class OrgGlobEnforcementTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-2"),
             "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
-            "scope": make_library_key("lib:DemoX:OrgLevelGlobLib"),
+            "scope": make_library_key("lib:DemoX:OrgGlobLib"),
             "expected_result": True,
         },
         # Permission denied
@@ -652,7 +652,7 @@ class OrgGlobEnforcementTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-2"),
             "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
-            "scope": make_library_key("lib:InexistentOrg:OrgLevelGlobLib"),
+            "scope": make_library_key("lib:InexistentOrg:OrgGlobLib"),
             "expected_result": False,
         },
     ]

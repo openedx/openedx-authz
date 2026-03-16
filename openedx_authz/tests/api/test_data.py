@@ -3,13 +3,15 @@
 from unittest.mock import Mock, patch
 
 from ddt import data, ddt, unpack
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import (
     ActionData,
     ContentLibraryData,
     CourseOverviewData,
+    OrgCourseGlobData,
+    OrgLibraryGlobData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
@@ -19,6 +21,7 @@ from openedx_authz.api.data import (
     UserData,
 )
 from openedx_authz.constants import permissions, roles
+from openedx_authz.tests.stubs.models import ContentLibrary, CourseOverview, Organization
 
 
 @ddt
@@ -233,9 +236,17 @@ class TestScopeMetaClass(TestCase):
         self.assertIn("course-v1", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
 
+        # Glob registries for organization-level scopes
+        self.assertIn("lib", ScopeMeta.glob_registry)
+        self.assertIs(ScopeMeta.glob_registry["lib"], OrgLibraryGlobData)
+        self.assertIn("course-v1", ScopeMeta.glob_registry)
+        self.assertIs(ScopeMeta.glob_registry["course-v1"], OrgCourseGlobData)
+
     @data(
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib^lib:DemoX*", OrgLibraryGlobData),
+        ("course-v1^course-v1:OpenedX*", OrgCourseGlobData),
         ("global^generic_scope", ScopeData),
     )
     @unpack
@@ -254,6 +265,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib^lib:DemoX*", OrgLibraryGlobData),
+        ("course-v1^course-v1:OpenedX*", OrgCourseGlobData),
         ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
     )
@@ -273,6 +286,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib:DemoX*", OrgLibraryGlobData),
+        ("course-v1:OpenedX*", OrgCourseGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
     )
@@ -652,5 +667,123 @@ class TestContentLibraryData(TestCase):
         mock_content_library_model.objects.get_by_key.side_effect = mock_content_library_model.DoesNotExist
 
         result = library_scope.exists()
+
+        self.assertFalse(result)
+
+
+@ddt
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
+class TestOrgLibraryGlobData(TestCase):
+    """Tests for the OrgLibraryGlobData scope."""
+
+    @data(
+        ("lib:DemoX*", True),
+        ("lib:Org-123*", True),
+        ("lib:Org.with.dots*", True),
+        ("lib:Org:With:Colon*", False),
+        ("lib:Org", False),
+        ("other:DemoX*", False),
+        ("lib:DemoX**", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate organization-level library glob external keys."""
+        self.assertEqual(OrgLibraryGlobData.validate_external_key(external_key), expected_valid)
+
+    @data(
+        ("lib:DemoX*", "DemoX"),
+        ("lib:Org-123*", "Org-123"),
+        ("lib:Org.with.dots*", "Org.with.dots"),
+        ("lib:Org:With:Colon*", None),
+        ("lib:*", None),
+    )
+    @unpack
+    def test_get_org(self, external_key, expected_org):
+        """Test organization extraction from library glob pattern."""
+        self.assertEqual(OrgLibraryGlobData.get_org(external_key), expected_org)
+
+    def test_exists_true_when_org_has_libraries_in_db(self):
+        """exists() returns True when at least one library with the org exists in the DB."""
+        org_name = "DemoX"
+        organization = Organization.objects.create(short_name=org_name)
+        ContentLibrary.objects.create(org=organization, slug="testlib", title="Test Library")
+
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+
+        self.assertTrue(result)
+
+    def test_exists_false_when_org_does_not_exist_in_db(self):
+        """exists() returns False when the org does not exist in the DB."""
+        org_name = "DemoX"
+
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+
+        self.assertFalse(result)
+
+    def test_exists_false_when_org_exists_but_no_libraries_in_db(self):
+        """exists() returns False when the org exists but no libraries exist in the DB."""
+        org_name = "DemoX"
+        Organization.objects.create(short_name=org_name)
+
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+
+        self.assertFalse(result)
+
+
+@ddt
+@override_settings(OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL="course_overviews.CourseOverview")
+class TestOrgCourseGlobData(TestCase):
+    """Tests for the OrgCourseGlobData scope."""
+
+    @data(
+        ("course-v1:OpenedX*", True),
+        ("course-v1:My-Org_1*", True),
+        ("course-v1:Org.with.dots*", True),
+        ("course-v1:Org:With:Plus*", False),
+        ("course-v1:OpenedX", False),
+        ("other:OpenedX*", False),
+        ("course-v1:OpenedX**", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate organization-level course glob external keys."""
+        self.assertEqual(OrgCourseGlobData.validate_external_key(external_key), expected_valid)
+
+    @data(
+        ("course-v1:OpenedX*", "OpenedX"),
+        ("course-v1:My-Org_1*", "My-Org_1"),
+        ("course-v1:Org.with.dots*", "Org.with.dots"),
+        ("course-v1:Org:With:Plus*", None),
+        ("course-v1:*", None),
+    )
+    @unpack
+    def test_get_org(self, external_key, expected_org):
+        """Test organization extraction from course glob pattern."""
+        self.assertEqual(OrgCourseGlobData.get_org(external_key), expected_org)
+
+    def test_exists_true_when_org_has_courses(self):
+        """exists() returns True when at least one course with the org exists."""
+        org_name = "OpenedX"
+        Organization.objects.create(short_name=org_name)
+        CourseOverview.objects.create(org=org_name, display_name="Test Course")
+
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
+
+        self.assertTrue(result)
+
+    def test_exists_false_when_org_does_not_exist(self):
+        """exists() returns False when the org does not exist."""
+        org_name = "OpenedX"
+
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
+
+        self.assertFalse(result)
+
+    def test_exists_false_when_org_exists_but_no_courses(self):
+        """exists() returns False when the org exists but no courses exist."""
+        org_name = "OpenedX"
+        Organization.objects.create(short_name=org_name)
+
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
 
         self.assertFalse(result)

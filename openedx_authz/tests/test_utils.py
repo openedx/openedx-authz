@@ -11,6 +11,99 @@ from openedx_authz.api.data import (
 )
 
 
+def make_policy(role_key: str, action_key: str, scope_key: str, effect: str = "allow") -> list[str]:
+    """Create a policy.
+
+    Args:
+        role_key (str): The role key of the policy.
+        action_key (str): The action key of the policy.
+        scope_key (str): The scope key of the policy.
+        effect (str): The effect of the policy.
+
+    Returns:
+        list[str]: The policy.
+    """
+    return [
+        "p",
+        make_role_key(role_key),
+        make_action_key(action_key),
+        make_wildcard_key(scope_key),
+        effect,
+    ]
+
+
+def make_library_assignment(user_key: str, role_key: str, scope_key: str) -> list[str]:
+    """Create a library assignment.
+
+    Args:
+        user_key (str): The user key of the assignment.
+        role_key (str): The role key of the assignment.
+        scope_key (str): The scope key of the assignment.
+    """
+    return [
+        "g",
+        make_user_key(user_key),
+        make_role_key(role_key),
+        make_library_key(scope_key),
+    ]
+
+
+def make_course_assignment(user_key: str, role_key: str, scope_key: str) -> list[str]:
+    """Create a course assignment.
+
+    Args:
+        user_key (str): The user key of the assignment.
+        role_key (str): The role key of the assignment.
+        scope_key (str): The scope key of the assignment.
+
+    Returns:
+        list[str]: The course assignment.
+    """
+    return [
+        "g",
+        make_user_key(user_key),
+        make_role_key(role_key),
+        make_course_key(scope_key),
+    ]
+
+
+def make_course_case(username: str, permission: str, scope: str, expected_result: bool) -> dict:
+    """Create a course case test data.
+
+    Args:
+        username (str): The username of the user.
+        permission (str): The permission to test.
+        scope (str): The scope to test.
+        expected_result (bool): The expected result.
+
+    Returns:
+        dict: The course case.
+    """
+    return {
+        "subject": make_user_key(username),
+        "action": make_action_key(permission),
+        "scope": make_course_key(scope),
+        "expected_result": expected_result,
+    }
+
+
+def make_library_case(username: str, permission: str, scope: str, expected_result: bool) -> dict:
+    """Create a library case test data.
+
+    Args:
+        username (str): The username of the user.
+        permission (str): The permission to test.
+        scope (str): The scope to test.
+        expected_result (bool): The expected result.
+    """
+    return {
+        "subject": make_user_key(username),
+        "action": make_action_key(permission),
+        "scope": make_library_key(scope),
+        "expected_result": expected_result,
+    }
+
+
 def make_user_key(key: str) -> str:
     """Create a namespaced user key.
 
@@ -88,7 +181,7 @@ def make_wildcard_key(namespace: str) -> str:
     """Create a wildcard pattern for a given namespace.
 
     Args:
-        namespace: The namespace to create a wildcard for (e.g., 'lib', 'org', 'course')
+        namespace (str): The namespace to create a wildcard for (e.g., 'lib', 'org', 'course')
 
     Returns:
         str: Wildcard pattern (e.g., 'lib^*', 'org^*', 'course^*')

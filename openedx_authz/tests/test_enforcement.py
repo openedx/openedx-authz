@@ -17,16 +17,25 @@ from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ContentLibraryData, CourseOverviewData
-from openedx_authz.constants import permissions, roles
+from openedx_authz.constants import roles
+from openedx_authz.constants.permissions import (
+    COURSES_CREATE_FILES,
+    COURSES_VIEW_COURSE,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY,
+)
 from openedx_authz.engine.matcher import is_admin_or_superuser_check
 from openedx_authz.tests.test_utils import (
     make_action_key,
-    make_course_key,
+    make_course_assignment,
+    make_course_case,
+    make_library_assignment,
+    make_library_case,
     make_library_key,
+    make_policy,
     make_role_key,
     make_scope_key,
     make_user_key,
-    make_wildcard_key,
 )
 
 User = get_user_model()
@@ -588,79 +597,75 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
 
 
 @ddt
-class OrgGlobEnforcementTests(CasbinEnforcementTestCase):
+class OrgGlobCourseEnforcementTests(CasbinEnforcementTestCase):
     """
-    Tests for organization-level glob patterns in course and library scopes.
+    Tests for organization-level glob patterns in course scopes.
 
     This test class verifies that policies defined with org-level glob patterns
-    (e.g., "course-v1:OpenedX*" or "lib:DemoX*") are correctly enforced for
-    concrete course and library scopes that belong to those organizations.
+    (e.g., "course-v1:OpenedX+*") are correctly enforced for concrete course
+    scopes that belong to those organizations.
     """
 
-    POLICY = [
-        # Policies
-        [
-            "p",
-            make_role_key(roles.COURSE_STAFF.external_key),
-            make_action_key("courses.view_course"),
-            make_wildcard_key(CourseOverviewData.NAMESPACE),
-            "allow",
-        ],
-        [
-            "p",
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
-            make_action_key("content_libraries.view_library"),
-            make_wildcard_key(ContentLibraryData.NAMESPACE),
-            "allow",
-        ],
-        # Role assignments
-        [
-            "g",
-            make_user_key("user-1"),
-            make_role_key(roles.COURSE_STAFF.external_key),
-            make_course_key("course-v1:OpenedX*"),
-        ],
-        [
-            "g",
-            make_user_key("user-2"),
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
-            make_library_key("lib:DemoX*"),
-        ],
+    POLICIES = [
+        make_policy(roles.COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)
+    ]
+
+    ASSIGNMENTS = [
+        make_course_assignment("user1", roles.COURSE_STAFF.external_key, "course-v1:OpenedX+*"),
     ]
 
     CASES = [
         # Permission granted
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key(permissions.COURSES_VIEW_COURSE.action.external_key),
-            "scope": make_course_key("course-v1:OpenedX+DemoCourse+2026_T1"),
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-2"),
-            "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
-            "scope": make_library_key("lib:DemoX:OrgGlobLib"),
-            "expected_result": True,
-        },
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Python+2026", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+K8S+2027", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+JS+2028", True),
         # Permission denied
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key(permissions.COURSES_VIEW_COURSE.action.external_key),
-            "scope": make_course_key("course-v1:InexistentOrg+DemoCourse+2026_T1"),
-            "expected_result": False,
-        },
-        {
-            "subject": make_user_key("user-2"),
-            "action": make_action_key(permissions.VIEW_LIBRARY.action.external_key),
-            "scope": make_library_key("lib:InexistentOrg:OrgGlobLib"),
-            "expected_result": False,
-        },
+        make_course_case("user1", COURSES_CREATE_FILES.identifier, "course-v1:OpenedX+Python+2026", False),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedXv2+Demo+2026", False),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:InexistentOrg+Demo+2026", False),
+        make_course_case("user2", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Demo+2026", False),
     ]
 
     @data(*CASES)
     def test_org_level_glob_enforcement(self, request: AuthRequest):
-        """Test that org-level glob patterns in scopes are enforced correctly."""
-        self._test_enforcement(self.POLICY, request)
+        """Test that org-level glob patterns in course scopes are enforced correctly."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
+
+
+@ddt
+class OrgGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
+    """
+    Tests for organization-level glob patterns in library scopes.
+
+    This test class verifies that policies defined with org-level glob patterns
+    (e.g., "lib:DemoX:*") are correctly enforced for concrete library scopes
+    that belong to those organizations.
+    """
+
+    POLICIES = [
+        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
+    ]
+
+    ASSIGNMENTS = [
+        make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:DemoX:*"),
+    ]
+
+    CASES = [
+        # Permission granted
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:DemoX:CS101", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:DemoX:CS102", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:DemoX:CS500", True),
+        # Permission denied
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:DemoX:CS101", False),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:InexistentOrg:CS101", False),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:DemoX-similar:CS101", False),
+        make_library_case("user2", VIEW_LIBRARY.identifier, "lib:DemoX:CS101", False),
+    ]
+
+    @data(*CASES)
+    def test_org_level_glob_enforcement(self, request: AuthRequest):
+        """Test that org-level glob patterns in library scopes are enforced correctly."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
 @pytest.mark.django_db

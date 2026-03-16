@@ -265,8 +265,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
-        ("lib^lib:DemoX*", OrgLibraryGlobData),
-        ("course-v1^course-v1:OpenedX*", OrgCourseGlobData),
+        ("lib^lib:DemoX:*", OrgLibraryGlobData),
+        ("course-v1^course-v1:OpenedX+*", OrgCourseGlobData),
         ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
     )
@@ -286,8 +286,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
-        ("lib:DemoX*", OrgLibraryGlobData),
-        ("course-v1:OpenedX*", OrgCourseGlobData),
+        ("lib:DemoX:*", OrgLibraryGlobData),
+        ("course-v1:OpenedX+*", OrgCourseGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
     )
@@ -677,13 +677,12 @@ class TestOrgLibraryGlobData(TestCase):
     """Tests for the OrgLibraryGlobData scope."""
 
     @data(
-        ("lib:DemoX*", True),
-        ("lib:Org-123*", True),
-        ("lib:Org.with.dots*", True),
-        ("lib:Org:With:Colon*", False),
+        ("lib:DemoX:*", True),
+        ("lib:Org-123:*", True),
+        ("lib:Org.with.dots:*", True),
         ("lib:Org", False),
-        ("other:DemoX*", False),
-        ("lib:DemoX**", False),
+        ("other:DemoX:*", False),
+        ("lib:DemoX:*:*", False),
     )
     @unpack
     def test_validate_external_key(self, external_key, expected_valid):
@@ -691,10 +690,10 @@ class TestOrgLibraryGlobData(TestCase):
         self.assertEqual(OrgLibraryGlobData.validate_external_key(external_key), expected_valid)
 
     @data(
-        ("lib:DemoX*", "DemoX"),
-        ("lib:Org-123*", "Org-123"),
-        ("lib:Org.with.dots*", "Org.with.dots"),
-        ("lib:Org:With:Colon*", None),
+        ("lib:DemoX:*", "DemoX"),
+        ("lib:Org-123:*", "Org-123"),
+        ("lib:Org.with.dots:*", "Org.with.dots"),
+        ("lib:Org:With:Colon:*", None),
         ("lib:*", None),
     )
     @unpack
@@ -708,7 +707,7 @@ class TestOrgLibraryGlobData(TestCase):
         organization = Organization.objects.create(short_name=org_name)
         ContentLibrary.objects.create(org=organization, slug="testlib", title="Test Library")
 
-        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
 
         self.assertTrue(result)
 
@@ -716,7 +715,7 @@ class TestOrgLibraryGlobData(TestCase):
         """exists() returns False when the org does not exist in the DB."""
         org_name = "DemoX"
 
-        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
 
         self.assertFalse(result)
 
@@ -725,7 +724,7 @@ class TestOrgLibraryGlobData(TestCase):
         org_name = "DemoX"
         Organization.objects.create(short_name=org_name)
 
-        result = OrgLibraryGlobData(external_key=f"lib:{org_name}*").exists()
+        result = OrgLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
 
         self.assertFalse(result)
 
@@ -736,12 +735,12 @@ class TestOrgCourseGlobData(TestCase):
     """Tests for the OrgCourseGlobData scope."""
 
     @data(
-        ("course-v1:OpenedX*", True),
-        ("course-v1:My-Org_1*", True),
-        ("course-v1:Org.with.dots*", True),
-        ("course-v1:Org:With:Plus*", False),
+        ("course-v1:OpenedX+*", True),
+        ("course-v1:My-Org_1+*", True),
+        ("course-v1:Org.with.dots+*", True),
+        ("course-v1:Org:With:Plus+*", False),
         ("course-v1:OpenedX", False),
-        ("other:OpenedX*", False),
+        ("other:OpenedX+*", False),
         ("course-v1:OpenedX**", False),
     )
     @unpack
@@ -750,10 +749,10 @@ class TestOrgCourseGlobData(TestCase):
         self.assertEqual(OrgCourseGlobData.validate_external_key(external_key), expected_valid)
 
     @data(
-        ("course-v1:OpenedX*", "OpenedX"),
-        ("course-v1:My-Org_1*", "My-Org_1"),
-        ("course-v1:Org.with.dots*", "Org.with.dots"),
-        ("course-v1:Org:With:Plus*", None),
+        ("course-v1:OpenedX+*", "OpenedX"),
+        ("course-v1:My-Org_1+*", "My-Org_1"),
+        ("course-v1:Org.with.dots+*", "Org.with.dots"),
+        ("course-v1:Org:With:Plus+*", None),
         ("course-v1:*", None),
     )
     @unpack
@@ -767,7 +766,7 @@ class TestOrgCourseGlobData(TestCase):
         Organization.objects.create(short_name=org_name)
         CourseOverview.objects.create(org=org_name, display_name="Test Course")
 
-        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
 
         self.assertTrue(result)
 
@@ -775,7 +774,7 @@ class TestOrgCourseGlobData(TestCase):
         """exists() returns False when the org does not exist."""
         org_name = "OpenedX"
 
-        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
 
         self.assertFalse(result)
 
@@ -784,6 +783,6 @@ class TestOrgCourseGlobData(TestCase):
         org_name = "OpenedX"
         Organization.objects.create(short_name=org_name)
 
-        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}*").exists()
+        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
 
         self.assertFalse(result)

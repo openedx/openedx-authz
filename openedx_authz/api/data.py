@@ -425,11 +425,12 @@ class ContentLibraryData(ScopeData):
     Content libraries use the LibraryLocatorV2 format for identification.
 
     Attributes:
-        NAMESPACE: 'lib' for content library scopes.
-        external_key: The content library identifier (e.g., 'lib:DemoX:CSPROB').
+        NAMESPACE (str): 'lib' for content library scopes.
+        ID_SEPARATOR (str): ':' for content library scopes.
+        external_key (str): The content library identifier (e.g., 'lib:DemoX:CSPROB').
             Must be a valid LibraryLocatorV2 format.
-        namespaced_key: The library identifier with namespace (e.g., 'lib^lib:DemoX:CSPROB').
-        library_id: Property alias for external_key.
+        namespaced_key (str): The library identifier with namespace (e.g., 'lib^lib:DemoX:CSPROB').
+        library_id (str): Property alias for external_key.
 
     Examples:
         >>> library = ContentLibraryData(external_key='lib:DemoX:CSPROB')
@@ -443,6 +444,7 @@ class ContentLibraryData(ScopeData):
     """
 
     NAMESPACE: ClassVar[str] = "lib"
+    ID_SEPARATOR: ClassVar[str] = ":"
 
     @property
     def library_id(self) -> str:
@@ -527,25 +529,27 @@ class OrgLibraryGlobData(ContentLibraryData):
     """Organization-level glob pattern for content libraries.
 
     This class represents glob patterns that match multiple libraries within an organization.
-    Format: 'lib:ORG*' where ORG is a valid organization identifier.
+    Format: 'lib:ORG:*' where ORG is a valid organization identifier.
 
     The glob pattern allows granting permissions to all libraries within a specific organization
     without needing to specify each library individually.
 
     Attributes:
         NAMESPACE (str): Inherited 'lib' from ContentLibraryData.
-        external_key (str): The glob pattern (e.g., 'lib:DemoX*').
-        namespaced_key (str): The pattern with namespace (e.g., 'lib^lib:DemoX*').
+        ID_SEPARATOR (str): ':' for content library scopes.
+        IS_GLOB (bool): True for organization-level glob patterns.
+        external_key (str): The glob pattern (e.g., 'lib:DemoX:*').
+        namespaced_key (str): The pattern with namespace (e.g., 'lib^lib:DemoX:*').
 
     Validation Rules:
         - Must end with GLOBAL_SCOPE_WILDCARD (*)
-        - Must have format 'lib:ORG*' (exactly one organization identifier)
+        - Must have format 'lib:ORG:*' (exactly one organization identifier)
         - The organization must exist in at least one ContentLibrary
         - Wildcard can only appear at the end after org identifier
         - Cannot have wildcards at slug level (lib:ORG:SLUG* is invalid)
 
     Examples:
-        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX*')
+        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX:*')
         >>> glob.org
         'DemoX'
 
@@ -561,7 +565,7 @@ class OrgLibraryGlobData(ContentLibraryData):
         """Get the organization identifier from the glob pattern.
 
         Returns:
-            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX*'), None otherwise.
+            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX:*'), None otherwise.
         """
         return self.get_org(self.external_key)
 
@@ -570,7 +574,7 @@ class OrgLibraryGlobData(ContentLibraryData):
         """Validate the external_key format for organization-level library globs.
 
         Args:
-            external_key (str): The external key to validate (e.g., 'lib:DemoX*').
+            external_key (str): The external key to validate (e.g., 'lib:DemoX:*').
 
         Returns:
             bool: True if the format is valid, False otherwise.
@@ -578,7 +582,9 @@ class OrgLibraryGlobData(ContentLibraryData):
         if not external_key.startswith(cls.NAMESPACE + EXTERNAL_KEY_SEPARATOR):
             return False
 
-        if not external_key.endswith(GLOBAL_SCOPE_WILDCARD):
+        # Enforce explicit org-level separator: 'lib:ORG:*'
+        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
+        if not external_key.endswith(suffix):
             return False
 
         org = cls.get_org(external_key)
@@ -598,9 +604,13 @@ class OrgLibraryGlobData(ContentLibraryData):
             external_key (str): The external key to extract the organization identifier from.
 
         Returns:
-            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX*'), None otherwise.
+            str: The organization identifier (e.g., 'DemoX' from 'lib:DemoX:*'), None otherwise.
         """
-        scope_prefix = external_key[: -len(GLOBAL_SCOPE_WILDCARD)]
+        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
+        if not external_key.endswith(suffix):
+            return None
+
+        scope_prefix = external_key[: -len(suffix)]
         parts = scope_prefix.split(EXTERNAL_KEY_SEPARATOR)
 
         if len(parts) != 2 or not parts[1]:
@@ -650,11 +660,14 @@ class CourseOverviewData(ScopeData):
     Courses uses the CourseKey format for identification.
 
     Attributes:
-        NAMESPACE: 'course-v1' for course scopes.
-        external_key: The course identifier (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
+        NAMESPACE (str): 'course-v1' for course scopes.
+        ID_SEPARATOR (str): '+' for course scopes.
+        IS_GLOB (bool): False for course scopes.
+        external_key (str): The course identifier (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
             Must be a valid CourseKey format.
-        namespaced_key: The course identifier with namespace (e.g., 'course-v1^course-v1:TestOrg+TestCourse+2024_T1').
-        course_id: Property alias for external_key.
+        namespaced_key (str): The course identifier with namespace
+            (e.g., 'course-v1^course-v1:TestOrg+TestCourse+2024_T1').
+        course_id (str): Property alias for external_key.
 
     Examples:
         >>> course = CourseOverviewData(external_key='course-v1:TestOrg+TestCourse+2024_T1')
@@ -662,10 +675,10 @@ class CourseOverviewData(ScopeData):
         'course-v1^course-v1:TestOrg+TestCourse+2024_T1'
         >>> course.course_id
         'course-v1:TestOrg+TestCourse+2024_T1'
-
     """
 
     NAMESPACE: ClassVar[str] = "course-v1"
+    ID_SEPARATOR: ClassVar[str] = "+"
 
     @property
     def course_id(self) -> str:
@@ -750,25 +763,27 @@ class OrgCourseGlobData(CourseOverviewData):
     """Organization-level glob pattern for courses.
 
     This class represents glob patterns that match multiple courses within an organization.
-    Format: 'course-v1:ORG*' where ORG is a valid organization identifier.
+    Format: 'course-v1:ORG+*' where ORG is a valid organization identifier.
 
     The glob pattern allows granting permissions to all courses within a specific organization
     without needing to specify each course individually.
 
     Attributes:
-        NAMESPACE: Inherited 'course-v1' from CourseOverviewData.
-        external_key: The glob pattern (e.g., 'course-v1:OpenedX*').
-        namespaced_key: The pattern with namespace (e.g., 'course-v1^course-v1:OpenedX*').
+        NAMESPACE (str): Inherited 'course-v1' from CourseOverviewData.
+        ID_SEPARATOR (str): '+' for course scopes.
+        IS_GLOB (bool): True for organization-level glob patterns.
+        external_key (str): The glob pattern (e.g., 'course-v1:OpenedX+*').
+        namespaced_key (str): The pattern with namespace (e.g., 'course-v1^course-v1:OpenedX+*').
 
     Validation Rules:
         - Must end with GLOBAL_SCOPE_WILDCARD (*)
-        - Must have format 'course-v1:ORG*' (exactly one organization identifier)
+        - Must have format 'course-v1:ORG+*' (exactly one organization identifier)
         - The organization must exist in at least one CourseOverview
         - Wildcard can only appear at the end after org identifier
         - Cannot have wildcards at course or run level (course-v1:ORG+COURSE* is invalid)
 
     Examples:
-        >>> glob = OrgCourseGlobData(external_key='course-v1:OpenedX*')
+        >>> glob = OrgCourseGlobData(external_key='course-v1:OpenedX+*')
         >>> glob.org
         'OpenedX'
 
@@ -784,7 +799,7 @@ class OrgCourseGlobData(CourseOverviewData):
         """Get the organization identifier from the glob pattern.
 
         Returns:
-            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX*'), None otherwise.
+            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX+*'), None otherwise.
         """
         return self.get_org(self.external_key)
 
@@ -793,7 +808,7 @@ class OrgCourseGlobData(CourseOverviewData):
         """Validate the external_key format for organization-level course globs.
 
         Args:
-            external_key (str): The external key to validate (e.g., 'course-v1:OpenedX*').
+            external_key (str): The external key to validate (e.g., 'course-v1:OpenedX+*').
 
         Returns:
             bool: True if the format is valid, False otherwise.
@@ -801,7 +816,9 @@ class OrgCourseGlobData(CourseOverviewData):
         if not external_key.startswith(cls.NAMESPACE + EXTERNAL_KEY_SEPARATOR):
             return False
 
-        if not external_key.endswith(GLOBAL_SCOPE_WILDCARD):
+        # Enforce explicit org-level separator: 'course-v1:ORG+*'
+        glob_suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
+        if not external_key.endswith(glob_suffix):
             return False
 
         org = cls.get_org(external_key)
@@ -821,9 +838,13 @@ class OrgCourseGlobData(CourseOverviewData):
             external_key (str): The external key to extract the organization identifier from.
 
         Returns:
-            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX*'), None otherwise.
+            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX+*'), None otherwise.
         """
-        scope_prefix = external_key[: -len(GLOBAL_SCOPE_WILDCARD)]
+        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
+        if not external_key.endswith(suffix):
+            return None
+
+        scope_prefix = external_key[: -len(suffix)]
         parts = scope_prefix.split(EXTERNAL_KEY_SEPARATOR)
 
         if len(parts) != 2 or not parts[1]:

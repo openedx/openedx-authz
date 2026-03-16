@@ -177,11 +177,11 @@ class ScopeMeta(type):
             1. external_key: Determines subclass from the key format. The namespace prefix
                before the first ':' is used to look up the appropriate subclass.
                Example: ScopeData(external_key='lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(external_key='lib:DemoX*') → OrgLibraryGlobData
+               Example: ScopeData(external_key='lib:DemoX:*') → OrgLibraryGlobData
 
             2. namespaced_key: Determines subclass from the namespace prefix before '^'.
                Example: ScopeData(namespaced_key='lib^lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(namespaced_key='lib^lib:DemoX*') → OrgLibraryGlobData
+               Example: ScopeData(namespaced_key='lib^lib:DemoX:*') → OrgLibraryGlobData
 
         Usage patterns:
             - namespaced_key: Used when retrieving objects from the policy store
@@ -193,7 +193,7 @@ class ScopeMeta(type):
             >>> isinstance(scope, ContentLibraryData)
             True
             >>> # From glob external key
-            >>> scope = ScopeData(external_key='lib:DemoX*')
+            >>> scope = ScopeData(external_key='lib:DemoX:*')
             >>> isinstance(scope, OrgLibraryGlobData)
             True
             >>> # From namespaced key (e.g., policy store)
@@ -230,7 +230,7 @@ class ScopeMeta(type):
         If the key contains a wildcard, returns the appropriate glob subclass.
 
         Args:
-            namespaced_key: The namespaced key (e.g., 'lib^lib:DemoX:CSPROB', 'lib^lib:DemoX*', 'global^generic').
+            namespaced_key: The namespaced key (e.g., 'lib^lib:DemoX:CSPROB', 'lib^lib:DemoX:*', 'global^generic').
 
         Returns:
             The ScopeData subclass for the namespace, or ScopeData if namespace not recognized.
@@ -240,7 +240,9 @@ class ScopeMeta(type):
             <class 'CourseOverviewData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:CSPROB')
             <class 'ContentLibraryData'>
-            >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX*')
+            >>> ScopeMeta.get_subclass_by_namespaced_key('course-v1^course-v1:WGU+*')
+            <class 'OrgCourseGlobData'>
+            >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:*')
             <class 'OrgLibraryGlobData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('global^generic')
             <class 'ScopeData'>
@@ -272,7 +274,7 @@ class ScopeMeta(type):
         the appropriate glob subclass instead of the standard scope class.
 
         Args:
-            external_key: The external key (e.g., 'lib:DemoX:CSPROB', 'lib:DemoX*', 'global:generic').
+            external_key: The external key (e.g., 'lib:DemoX:CSPROB', 'lib:DemoX:*', 'global:generic').
 
         Returns:
             The ScopeData subclass corresponding to the namespace.
@@ -286,9 +288,9 @@ class ScopeMeta(type):
             <class 'ContentLibraryData'>
             >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX+CS101+2024')
             <class 'CourseOverviewData'>
-            >>> ScopeMeta.get_subclass_by_external_key('lib:DemoX*')
+            >>> ScopeMeta.get_subclass_by_external_key('lib:DemoX:*')
             <class 'OrgLibraryGlobData'>
-            >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX*')
+            >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX+*')
             <class 'OrgCourseGlobData'>
 
         Notes:
@@ -537,7 +539,7 @@ class OrgLibraryGlobData(ContentLibraryData):
     Attributes:
         NAMESPACE (str): Inherited 'lib' from ContentLibraryData.
         ID_SEPARATOR (str): ':' for content library scopes.
-        IS_GLOB (bool): True for organization-level glob patterns.
+        IS_GLOB (bool): True for scope data that represents a glob pattern.
         external_key (str): The glob pattern (e.g., ``lib:DemoX:*``).
         namespaced_key (str): The pattern with namespace (e.g., ``lib^lib:DemoX:*``).
 
@@ -662,7 +664,6 @@ class CourseOverviewData(ScopeData):
     Attributes:
         NAMESPACE (str): 'course-v1' for course scopes.
         ID_SEPARATOR (str): '+' for course scopes.
-        IS_GLOB (bool): False for course scopes.
         external_key (str): The course identifier (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
             Must be a valid CourseKey format.
         namespaced_key (str): The course identifier with namespace
@@ -771,7 +772,7 @@ class OrgCourseGlobData(CourseOverviewData):
     Attributes:
         NAMESPACE (str): Inherited 'course-v1' from CourseOverviewData.
         ID_SEPARATOR (str): '+' for course scopes.
-        IS_GLOB (bool): True for organization-level glob patterns.
+        IS_GLOB (bool): True for scope data that represents a glob pattern.
         external_key (str): The glob pattern (e.g., 'course-v1:OpenedX+*').
         namespaced_key (str): The pattern with namespace (e.g., 'course-v1^course-v1:OpenedX+*').
 

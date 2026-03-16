@@ -11,7 +11,6 @@ from django.db import models
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ScopeData
 from openedx_authz.models.core import Scope
 
 
@@ -82,7 +81,7 @@ class ContentLibraryScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope: ScopeData) -> "ContentLibraryScope":
+    def get_or_create_for_external_key(cls, scope) -> "ContentLibraryScope":
         """Get or create a ContentLibraryScope for the given external key.
 
         Args:
@@ -95,7 +94,7 @@ class ContentLibraryScope(Scope):
         """
         # For glob scopes we don't create a Scope object since
         # they don't represent a specific content library
-        if GLOBAL_SCOPE_WILDCARD in scope.external_key:
+        if scope.IS_GLOB:
             return None
 
         library_key = LibraryLocatorV2.from_string(scope.external_key)
@@ -131,7 +130,7 @@ class CourseScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope: ScopeData) -> "CourseScope":
+    def get_or_create_for_external_key(cls, scope) -> "CourseScope":
         """Get or create a CourseScope for the given external key.
 
         Args:
@@ -144,7 +143,7 @@ class CourseScope(Scope):
         """
         # For glob scopes we don't create a Scope object
         # since they don't represent a specific course
-        if GLOBAL_SCOPE_WILDCARD in scope.external_key:
+        if scope.IS_GLOB:
             return None
 
         course_key = CourseKey.from_string(scope.external_key)

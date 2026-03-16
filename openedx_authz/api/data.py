@@ -12,15 +12,10 @@ from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-try:
-    from openedx.core.djangoapps.content_libraries.models import ContentLibrary
-except ImportError:
-    ContentLibrary = None
+from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
-try:
-    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-except ImportError:
-    CourseOverview = None
+ContentLibrary = get_content_library_model()
+CourseOverview = get_course_overview_model()
 
 __all__ = [
     "UserData",
@@ -381,6 +376,7 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     # 2. Custom global scopes that don't map to specific domain objects (e.g., 'global:some_scope')
     # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
     NAMESPACE: ClassVar[str] = "global"
+    IS_GLOB: ClassVar[bool] = False
 
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
@@ -557,6 +553,8 @@ class OrgLibraryGlobData(ContentLibraryData):
         This class is automatically instantiated by the ScopeMeta metaclass when
         a library scope with a wildcard is created.
     """
+
+    IS_GLOB: ClassVar[bool] = True
 
     @property
     def org(self) -> str | None:
@@ -778,6 +776,8 @@ class OrgCourseGlobData(CourseOverviewData):
         This class is automatically instantiated by the ScopeMeta metaclass when
         a course scope with a wildcard is created.
     """
+
+    IS_GLOB: ClassVar[bool] = True
 
     @property
     def org(self) -> str | None:

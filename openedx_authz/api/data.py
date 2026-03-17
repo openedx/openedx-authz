@@ -27,9 +27,9 @@ __all__ = [
     "ContentLibraryData",
     "CourseOverviewData",
     "GroupingPolicyIndex",
-    "OrgCourseGlobData",
+    "OrgCourseOverviewGlobData",
     "OrgGlobData",
-    "OrgLibraryGlobData",
+    "OrgContentLibraryGlobData",
     "PermissionData",
     "PolicyIndex",
     "RoleAssignmentData",
@@ -177,11 +177,11 @@ class ScopeMeta(type):
             1. external_key: Determines subclass from the key format. The namespace prefix
                before the first ':' is used to look up the appropriate subclass.
                Example: ScopeData(external_key='lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(external_key='lib:DemoX:*') → OrgLibraryGlobData
+               Example: ScopeData(external_key='lib:DemoX:*') → OrgContentLibraryGlobData
 
             2. namespaced_key: Determines subclass from the namespace prefix before '^'.
                Example: ScopeData(namespaced_key='lib^lib:DemoX:CSPROB') → ContentLibraryData
-               Example: ScopeData(namespaced_key='lib^lib:DemoX:*') → OrgLibraryGlobData
+               Example: ScopeData(namespaced_key='lib^lib:DemoX:*') → OrgContentLibraryGlobData
 
         Usage patterns:
             - namespaced_key: Used when retrieving objects from the policy store
@@ -194,7 +194,7 @@ class ScopeMeta(type):
             True
             >>> # From glob external key
             >>> scope = ScopeData(external_key='lib:DemoX:*')
-            >>> isinstance(scope, OrgLibraryGlobData)
+            >>> isinstance(scope, OrgContentLibraryGlobData)
             True
             >>> # From namespaced key (e.g., policy store)
             >>> scope = ScopeData(namespaced_key='lib^lib:DemoX:CSPROB')
@@ -241,9 +241,9 @@ class ScopeMeta(type):
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:CSPROB')
             <class 'ContentLibraryData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('course-v1^course-v1:WGU+*')
-            <class 'OrgCourseGlobData'>
+            <class 'OrgCourseOverviewGlobData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('lib^lib:DemoX:*')
-            <class 'OrgLibraryGlobData'>
+            <class 'OrgContentLibraryGlobData'>
             >>> ScopeMeta.get_subclass_by_namespaced_key('global^generic')
             <class 'ScopeData'>
         """
@@ -289,9 +289,9 @@ class ScopeMeta(type):
             >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX+CS101+2024')
             <class 'CourseOverviewData'>
             >>> ScopeMeta.get_subclass_by_external_key('lib:DemoX:*')
-            <class 'OrgLibraryGlobData'>
+            <class 'OrgContentLibraryGlobData'>
             >>> ScopeMeta.get_subclass_by_external_key('course-v1:OpenedX+*')
-            <class 'OrgCourseGlobData'>
+            <class 'OrgCourseOverviewGlobData'>
 
         Notes:
             - The external_key format should be 'namespace:some-identifier' (e.g., 'lib:DemoX:CSPROB').
@@ -638,7 +638,7 @@ class OrgGlobData(ScopeData):
 
 
 @define
-class OrgLibraryGlobData(OrgGlobData):
+class OrgContentLibraryGlobData(OrgGlobData):
     """Organization-level glob pattern for content libraries.
 
     This class represents glob patterns that match multiple libraries within an organization.
@@ -662,7 +662,7 @@ class OrgLibraryGlobData(OrgGlobData):
         - Cannot have wildcards at slug level (``lib:ORG:SLUG*`` is invalid)
 
     Examples:
-        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX:*')
+        >>> glob = OrgContentLibraryGlobData(external_key='lib:DemoX:*')
         >>> glob.org
         'DemoX'
         >>> glob.get_object()
@@ -782,7 +782,7 @@ class CourseOverviewData(ScopeData):
 
 
 @define
-class OrgCourseGlobData(OrgGlobData):
+class OrgCourseOverviewGlobData(OrgGlobData):
     """Organization-level glob pattern for courses.
 
     This class represents glob patterns that match multiple courses within an organization.
@@ -806,7 +806,7 @@ class OrgCourseGlobData(OrgGlobData):
         - Cannot have wildcards at course or run level (course-v1:ORG+COURSE* is invalid)
 
     Examples:
-        >>> glob = OrgCourseGlobData(external_key='course-v1:OpenedX+*')
+        >>> glob = OrgCourseOverviewGlobData(external_key='course-v1:OpenedX+*')
         >>> glob.org
         'OpenedX'
         >>> glob.get_object()

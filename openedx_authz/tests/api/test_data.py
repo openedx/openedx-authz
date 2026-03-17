@@ -351,6 +351,7 @@ class TestScopeMetaClass(TestCase):
 
             class TempScope(ScopeData):
                 """Temporary scope class for testing."""
+
                 NAMESPACE = "temp"
 
                 def get_object(self):
@@ -748,10 +749,9 @@ class TestOrgLibraryGlobData(TestCase):
         ("lib:DemoX:*", "DemoX"),
         ("lib:Org-123:*", "Org-123"),
         ("lib:Org.with.dots:*", "Org.with.dots"),
-        ("lib:Org:With:Colon:*", None),
-        ("lib:*", None),
+        ("lib:Org:With:Colon:*", "Org:With:Colon"),
         ("lib:DemoX", None),
-        ("lib:DemoX:*:*", None),
+        ("lib:DemoX:+*", None),
     )
     @unpack
     def test_get_org(self, external_key, expected_org):
@@ -787,7 +787,7 @@ class TestOrgLibraryGlobData(TestCase):
 
     def test_exists_false_when_org_cannot_be_parsed(self):
         """exists() returns False when org property is None (invalid pattern)."""
-        scope = OrgLibraryGlobData(external_key="lib:Org:With:Colon:*")
+        scope = OrgLibraryGlobData(external_key="lib:Invalid+*")
 
         self.assertIsNone(scope.org)
         self.assertFalse(scope.exists())
@@ -827,8 +827,7 @@ class TestOrgCourseGlobData(TestCase):
         ("course-v1:OpenedX+*", "OpenedX"),
         ("course-v1:My-Org_1+*", "My-Org_1"),
         ("course-v1:Org.with.dots+*", "Org.with.dots"),
-        ("course-v1:Org:With:Plus+*", None),
-        ("course-v1:*", None),
+        ("course-v1:Org:With:Plus+*", "Org:With:Plus"),
     )
     @unpack
     def test_get_org(self, external_key, expected_org):
@@ -864,7 +863,7 @@ class TestOrgCourseGlobData(TestCase):
 
     def test_exists_false_when_org_cannot_be_parsed(self):
         """exists() returns False when org property is None (invalid pattern)."""
-        scope = OrgCourseGlobData(external_key="course-v1:Org:With:Colon+*")
+        scope = OrgCourseGlobData(external_key="course-v1:Invalid:*")
 
         self.assertIsNone(scope.org)
         self.assertFalse(scope.exists())

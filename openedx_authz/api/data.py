@@ -162,8 +162,7 @@ class ScopeMeta(type):
         if not hasattr(cls, "glob_registry"):
             cls.glob_registry = {}
 
-        # Register glob classes (they have 'Glob' in their name)
-        if "Glob" in name and cls.NAMESPACE:
+        if cls.IS_GLOB and cls.NAMESPACE:
             cls.glob_registry[cls.NAMESPACE] = cls
         else:
             cls.scope_registry[cls.NAMESPACE] = cls

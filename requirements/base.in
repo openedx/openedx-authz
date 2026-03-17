@@ -11,3 +11,4 @@ edx-opaque-keys             # Opaque keys for resource identification
 edx-api-doc-tools           # Tools for API documentation
 edx-django-utils            # Used for RequestCache
 edx-drf-extensions          # Extensions for Django Rest Framework used by Open edX
+edx-organizations           # Organizations library for Open edX

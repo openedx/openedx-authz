@@ -45,6 +45,8 @@ ddt==1.7.2
     #   -r requirements/base.txt
     #   casbin-django-orm-adapter
     #   django-crum
+    #   django-model-utils
+    #   django-simple-history
     #   django-waffle
     #   djangorestframework
     #   drf-jwt
@@ -52,10 +54,19 @@ ddt==1.7.2
     #   edx-api-doc-tools
     #   edx-django-utils
     #   edx-drf-extensions
+    #   edx-organizations
 django-crum==0.7.9
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
+django-model-utils==5.0.0
+    # via
+    #   -r requirements/base.txt
+    #   edx-organizations
+django-simple-history==3.11.0
+    # via
+    #   -r requirements/base.txt
+    #   edx-organizations
 django-waffle==5.0.0
     # via
     #   -r requirements/base.txt
@@ -68,6 +79,7 @@ djangorestframework==3.16.1
     #   drf-yasg
     #   edx-api-doc-tools
     #   edx-drf-extensions
+    #   edx-organizations
 dnspython==2.8.0
     # via
     #   -r requirements/base.txt
@@ -87,11 +99,16 @@ edx-django-utils==8.0.1
     #   -r requirements/base.txt
     #   edx-drf-extensions
 edx-drf-extensions==10.6.0
-    # via -r requirements/base.txt
+    # via
+    #   -r requirements/base.txt
+    #   edx-organizations
 edx-opaque-keys==3.0.0
     # via
     #   -r requirements/base.txt
     #   edx-drf-extensions
+    #   edx-organizations
+edx-organizations==7.3.0
+    # via -r requirements/base.txt
 idna==3.10
     # via
     #   -r requirements/base.txt
@@ -113,6 +130,10 @@ packaging==26.0
     #   -r requirements/base.txt
     #   drf-yasg
     #   pytest
+pillow==12.1.1
+    # via
+    #   -r requirements/base.txt
+    #   edx-organizations
 pluggy==1.6.0
     # via
     #   pytest

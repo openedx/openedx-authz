@@ -23,19 +23,20 @@ CourseOverview = get_course_overview_model()
 Organization = get_organization_model()
 
 __all__ = [
-    "UserData",
-    "PermissionData",
-    "GroupingPolicyIndex",
-    "PolicyIndex",
     "ActionData",
+    "ContentLibraryData",
+    "CourseOverviewData",
+    "GroupingPolicyIndex",
+    "OrgCourseGlobData",
+    "OrgGlobData",
+    "OrgLibraryGlobData",
+    "PermissionData",
+    "PolicyIndex",
     "RoleAssignmentData",
     "RoleData",
     "ScopeData",
     "SubjectData",
-    "ContentLibraryData",
-    "CourseOverviewData",
-    "OrgLibraryGlobData",
-    "OrgCourseGlobData",
+    "UserData",
 ]
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"

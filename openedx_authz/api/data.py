@@ -12,10 +12,15 @@ from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
-from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
+from openedx_authz.models.scopes import (
+    get_content_library_model,
+    get_course_overview_model,
+    get_organization_model,
+)
 
 ContentLibrary = get_content_library_model()
 CourseOverview = get_course_overview_model()
+Organization = get_organization_model()
 
 __all__ = [
     "UserData",
@@ -37,11 +42,6 @@ AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
-
-# Pattern for allowed characters in the parts of a scope external key (from opaque-keys library)
-# Matches: word characters (letters, digits, underscore), hyphens, tildes, periods, colons
-# Reference: opaque_keys.edx.locator.Locator.ALLOWED_ID_CHARS
-ALLOWED_CHARS_PATTERN = re.compile(r"^[\w\-~.]+$", re.UNICODE)
 
 
 class GroupingPolicyIndex(Enum):
@@ -527,40 +527,34 @@ class ContentLibraryData(ScopeData):
 
 
 @define
-class OrgLibraryGlobData(ContentLibraryData):
-    """Organization-level glob pattern for content libraries.
+class OrgGlobData(ScopeData):
+    """Base class for organization-scoped *glob* scope keys.
 
-    This class represents glob patterns that match multiple libraries within an organization.
-    Format: ``lib:ORG:*`` where ORG is a valid organization identifier.
+    This represents an *organization-wide* pattern: it matches "all resources within an
+    organization" for a given namespace, rather than a single concrete object. The pattern is
+    stored in :attr:`external_key` and **must** end with the global wildcard (``*``).
 
-    The glob pattern allows granting permissions to all libraries within a specific organization
-    without needing to specify each library individually.
+    The expected shape is::
+
+        {NAMESPACE}{EXTERNAL_KEY_SEPARATOR}{org}{ID_SEPARATOR}*
+
+    where ``{org}`` is the organization identifier (e.g., ``DemoX``) and ``ID_SEPARATOR`` is
+    namespace-specific (subclasses must define it to match their key format).
 
     Attributes:
-        NAMESPACE (str): Inherited 'lib' from ContentLibraryData.
-        ID_SEPARATOR (str): ':' for content library scopes.
-        IS_GLOB (bool): True for scope data that represents a glob pattern.
-        external_key (str): The glob pattern (e.g., ``lib:DemoX:*``).
-        namespaced_key (str): The pattern with namespace (e.g., ``lib^lib:DemoX:*``).
-
-    Validation Rules:
-        - Must end with GLOBAL_SCOPE_WILDCARD (``*``)
-        - Must have format ``lib:ORG:*`` (exactly one organization identifier)
-        - The organization must exist in at least one ContentLibrary
-        - Wildcard can only appear at the end after org identifier
-        - Cannot have wildcards at slug level (``lib:ORG:SLUG*`` is invalid)
+        IS_GLOB (bool): Always True for organization-level glob patterns.
+        ID_SEPARATOR (str): Separator used right before the wildcard (e.g., ``:`` or ``+``).
+        ORG_NAME_VALID_PATTERN (re.Pattern | str): Regex used to validate the organization
+            identifier extracted from :attr:`external_key`.
 
     Examples:
-        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX:*')
-        >>> glob.org
-        'DemoX'
-
-    Note:
-        This class is automatically instantiated by the ScopeMeta metaclass when
-        a library scope with a wildcard is created.
+        - ``lib:DemoX:*`` (all libraries in org ``DemoX``)
+        - ``course-v1:DemoX+*`` (all courses in org ``DemoX``)
     """
 
     IS_GLOB: ClassVar[bool] = True
+    ID_SEPARATOR: ClassVar[str]
+    ORG_NAME_VALID_PATTERN: ClassVar[re.Pattern] = r"^[a-zA-Z0-9._-]*$"
 
     @property
     def org(self) -> str | None:
@@ -573,10 +567,10 @@ class OrgLibraryGlobData(ContentLibraryData):
 
     @classmethod
     def validate_external_key(cls, external_key: str) -> bool:
-        """Validate the external_key format for organization-level library globs.
+        """Validate the external_key format for organization-level glob patterns.
 
         Args:
-            external_key (str): The external key to validate (e.g., ``lib:DemoX:*``).
+            external_key (str): The external key to validate (e.g., ``lib:DemoX:*`` or ``course-v1:DemoX+*``).
 
         Returns:
             bool: True if the format is valid, False otherwise.
@@ -588,7 +582,7 @@ class OrgLibraryGlobData(ContentLibraryData):
         if org is None:
             return False
 
-        if not ALLOWED_CHARS_PATTERN.match(org):
+        if not re.match(cls.ORG_NAME_VALID_PATTERN, org):
             return False
 
         return True
@@ -603,52 +597,84 @@ class OrgLibraryGlobData(ContentLibraryData):
         Returns:
             str: The organization identifier (e.g., ``DemoX`` from ``lib:DemoX:*``), None otherwise.
         """
+        if not hasattr(cls, "ID_SEPARATOR"):
+            raise NotImplementedError("OrgGlobBaseClass requires subclasses to define ID_SEPARATOR.")
+
         suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
         if not external_key.endswith(suffix):
             return None
 
-        # Remove the suffix (:*) from the external key
-        # lib:DemoX:* -> lib:DemoX
+        # Remove the suffix from the external key
+        # lib:DemoX:* -> lib:DemoX | course-v1:DemoX+* -> course-v1:DemoX
         scope_prefix = external_key[: -len(suffix)]
         # Split the scope prefix by the separator
-        # lib:DemoX -> ['lib', 'DemoX']
+        # lib:DemoX -> ['lib', 'DemoX'] | course-v1:DemoX -> ['course-v1', 'DemoX']
         _namespace, org = scope_prefix.split(EXTERNAL_KEY_SEPARATOR, 1)
 
         return org
 
-    @classmethod
-    def org_exists(cls, org: str) -> bool:
-        """Check if at least one content library exists with the given organization.
-
-        Args:
-            org (str): Organization identifier to check.
+    def get_object(self) -> Organization | None:
+        """Retrieve the Organization instance associated with this scope.
 
         Returns:
-            bool: True if at least one library with this org exists, False otherwise.
+            Organization | None: The Organization instance if found,
+                or None if the organization does not exist.
         """
-        lib_obj = ContentLibrary.objects.filter(org__short_name=org).only("org").last()
-        return lib_obj is not None and lib_obj.org.short_name == org
-
-    def get_object(self) -> None:
-        """Glob patterns don't represent a single object.
-
-        Returns:
-            None: Glob patterns match multiple objects, not a single one.
-        """
-        return None
+        try:
+            org_obj = Organization.objects.get(short_name=self.org)
+            if org_obj.short_name != self.org:
+                raise Organization.DoesNotExist
+            return org_obj
+        except Organization.DoesNotExist:
+            return None
 
     def exists(self) -> bool:
-        """Check if the glob pattern is valid.
-
-        For glob patterns, existence means the organization exists,
-        not that a specific library exists.
+        """Check if the organization exists.
 
         Returns:
             bool: True if the organization exists, False otherwise.
         """
-        if self.org is None:
-            return False
-        return self.org_exists(self.org)
+        return self.get_object() is not None
+
+
+@define
+class OrgLibraryGlobData(OrgGlobData):
+    """Organization-level glob pattern for content libraries.
+
+    This class represents glob patterns that match multiple libraries within an organization.
+    Format: ``lib:ORG:*`` where ORG is a valid organization identifier.
+
+    The glob pattern allows granting permissions to all libraries within a specific organization
+    without needing to specify each library individually.
+
+    Attributes:
+        NAMESPACE (str): 'lib' for content library scopes.
+        ID_SEPARATOR (str): ':' for content library scopes.
+        IS_GLOB (bool): True for scope data that represents a glob pattern.
+        external_key (str): The glob pattern (e.g., ``lib:DemoX:*``).
+        namespaced_key (str): The pattern with namespace (e.g., ``lib^lib:DemoX:*``).
+
+    Validation Rules:
+        - Must end with GLOBAL_SCOPE_WILDCARD (``*``)
+        - Must have format ``lib:ORG:*`` (exactly one organization identifier)
+        - The organization must exist
+        - Wildcard can only appear at the end after org identifier
+        - Cannot have wildcards at slug level (``lib:ORG:SLUG*`` is invalid)
+
+    Examples:
+        >>> glob = OrgLibraryGlobData(external_key='lib:DemoX:*')
+        >>> glob.org
+        'DemoX'
+        >>> glob.get_object()
+        <Organization: DemoX>
+
+    Note:
+        This class is automatically instantiated by the ScopeMeta metaclass when
+        a library scope with a wildcard is created.
+    """
+
+    NAMESPACE: ClassVar[str] = "lib"
+    ID_SEPARATOR: ClassVar[str] = ":"
 
 
 @define
@@ -756,7 +782,7 @@ class CourseOverviewData(ScopeData):
 
 
 @define
-class OrgCourseGlobData(CourseOverviewData):
+class OrgCourseGlobData(OrgGlobData):
     """Organization-level glob pattern for courses.
 
     This class represents glob patterns that match multiple courses within an organization.
@@ -766,7 +792,7 @@ class OrgCourseGlobData(CourseOverviewData):
     without needing to specify each course individually.
 
     Attributes:
-        NAMESPACE (str): Inherited 'course-v1' from CourseOverviewData.
+        NAMESPACE (str): 'course-v1' for course scopes.
         ID_SEPARATOR (str): '+' for course scopes.
         IS_GLOB (bool): True for scope data that represents a glob pattern.
         external_key (str): The glob pattern (e.g., 'course-v1:OpenedX+*').
@@ -775,7 +801,7 @@ class OrgCourseGlobData(CourseOverviewData):
     Validation Rules:
         - Must end with GLOBAL_SCOPE_WILDCARD (``*``)
         - Must have format 'course-v1:ORG+*' (exactly one organization identifier)
-        - The organization must exist in at least one CourseOverview
+        - The organization must exist
         - Wildcard can only appear at the end after org identifier
         - Cannot have wildcards at course or run level (course-v1:ORG+COURSE* is invalid)
 
@@ -783,101 +809,16 @@ class OrgCourseGlobData(CourseOverviewData):
         >>> glob = OrgCourseGlobData(external_key='course-v1:OpenedX+*')
         >>> glob.org
         'OpenedX'
+        >>> glob.get_object()
+        <Organization: OpenedX>
 
     Note:
         This class is automatically instantiated by the ScopeMeta metaclass when
         a course scope with a wildcard is created.
     """
 
-    IS_GLOB: ClassVar[bool] = True
-
-    @property
-    def org(self) -> str | None:
-        """Get the organization identifier from the glob pattern.
-
-        Returns:
-            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX+*'), None otherwise.
-        """
-        return self.get_org(self.external_key)
-
-    @classmethod
-    def validate_external_key(cls, external_key: str) -> bool:
-        """Validate the external_key format for organization-level course globs.
-
-        Args:
-            external_key (str): The external key to validate (e.g., 'course-v1:OpenedX+*').
-
-        Returns:
-            bool: True if the format is valid, False otherwise.
-        """
-        if not external_key.startswith(cls.NAMESPACE + EXTERNAL_KEY_SEPARATOR):
-            return False
-
-        org = cls.get_org(external_key)
-        if org is None:
-            return False
-
-        if not ALLOWED_CHARS_PATTERN.match(org):
-            return False
-
-        return True
-
-    @classmethod
-    def get_org(cls, external_key: str) -> str | None:
-        """Extract the organization identifier from the glob pattern.
-
-        Args:
-            external_key (str): The external key to extract the organization identifier from.
-
-        Returns:
-            str | None: The organization identifier (e.g., 'OpenedX' from 'course-v1:OpenedX+*'), None otherwise.
-        """
-        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
-        if not external_key.endswith(suffix):
-            return None
-
-        # Remove the suffix (+*) from the external key
-        # course-v1:ORG+* -> course-v1:ORG
-        scope_prefix = external_key[: -len(suffix)]
-        # Split the scope prefix by the separator
-        # course-v1:ORG -> ['course-v1', 'ORG']
-        _namespace, org = scope_prefix.split(EXTERNAL_KEY_SEPARATOR, 1)
-
-        return org
-
-    @classmethod
-    def org_exists(cls, org: str) -> bool:
-        """Check if at least one course exists with the given organization.
-
-        Args:
-            org (str): Organization identifier to check.
-
-        Returns:
-            bool: True if at least one course with this org exists, False otherwise.
-        """
-        course_obj = CourseOverview.objects.filter(org=org).only("org").last()
-        return course_obj is not None and course_obj.org == org
-
-    def get_object(self) -> None:
-        """Glob patterns don't represent a single object.
-
-        Returns:
-            None: Glob patterns match multiple objects, not a single one.
-        """
-        return None
-
-    def exists(self) -> bool:
-        """Check if the glob pattern is valid.
-
-        For glob patterns, existence means the organization exists,
-        not that a specific course exists.
-
-        Returns:
-            bool: True if the organization exists, False otherwise.
-        """
-        if self.org is None:
-            return False
-        return self.org_exists(self.org)
+    NAMESPACE: ClassVar[str] = "course-v1"
+    ID_SEPARATOR: ClassVar[str] = "+"
 
 
 class SubjectMeta(type):

@@ -26,8 +26,8 @@ from ddt import ddt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
-from organizations.api import ensure_organization  # pylint: disable=import-error
-from organizations.models import Organization  # pylint: disable=import-error
+from organizations.api import ensure_organization
+from organizations.models import Organization
 
 from openedx_authz.api.data import ContentLibraryData, RoleData, SubjectData, UserData
 from openedx_authz.api.roles import assign_role_to_subject_in_scope

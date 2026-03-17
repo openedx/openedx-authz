@@ -41,7 +41,7 @@ NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$
 # Pattern for allowed characters in the parts of a scope external key (from opaque-keys library)
 # Matches: word characters (letters, digits, underscore), hyphens, tildes, periods, colons
 # Reference: opaque_keys.edx.locator.Locator.ALLOWED_ID_CHARS
-ALLOWED_CHARS_PATTERN = re.compile(r"^[\w\-~.:]+$", re.UNICODE)
+ALLOWED_CHARS_PATTERN = re.compile(r"^[\w\-~.]+$", re.UNICODE)
 
 
 class GroupingPolicyIndex(Enum):
@@ -584,11 +584,6 @@ class OrgLibraryGlobData(ContentLibraryData):
         if not external_key.startswith(cls.NAMESPACE + EXTERNAL_KEY_SEPARATOR):
             return False
 
-        # Enforce explicit org-level separator: 'lib:ORG:*'
-        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
-        if not external_key.endswith(suffix):
-            return False
-
         org = cls.get_org(external_key)
         if org is None:
             return False
@@ -612,13 +607,14 @@ class OrgLibraryGlobData(ContentLibraryData):
         if not external_key.endswith(suffix):
             return None
 
+        # Remove the suffix (:*) from the external key
+        # lib:DemoX:* -> lib:DemoX
         scope_prefix = external_key[: -len(suffix)]
-        parts = scope_prefix.split(EXTERNAL_KEY_SEPARATOR)
+        # Split the scope prefix by the separator
+        # lib:DemoX -> ['lib', 'DemoX']
+        _namespace, org = scope_prefix.split(EXTERNAL_KEY_SEPARATOR, 1)
 
-        if len(parts) != 2 or not parts[1]:
-            return None
-
-        return parts[1]
+        return org
 
     @classmethod
     def org_exists(cls, org: str) -> bool:
@@ -817,11 +813,6 @@ class OrgCourseGlobData(CourseOverviewData):
         if not external_key.startswith(cls.NAMESPACE + EXTERNAL_KEY_SEPARATOR):
             return False
 
-        # Enforce explicit org-level separator: 'course-v1:ORG+*'
-        suffix = cls.ID_SEPARATOR + GLOBAL_SCOPE_WILDCARD
-        if not external_key.endswith(suffix):
-            return False
-
         org = cls.get_org(external_key)
         if org is None:
             return False
@@ -845,13 +836,14 @@ class OrgCourseGlobData(CourseOverviewData):
         if not external_key.endswith(suffix):
             return None
 
+        # Remove the suffix (+*) from the external key
+        # course-v1:ORG+* -> course-v1:ORG
         scope_prefix = external_key[: -len(suffix)]
-        parts = scope_prefix.split(EXTERNAL_KEY_SEPARATOR)
+        # Split the scope prefix by the separator
+        # course-v1:ORG -> ['course-v1', 'ORG']
+        _namespace, org = scope_prefix.split(EXTERNAL_KEY_SEPARATOR, 1)
 
-        if len(parts) != 2 or not parts[1]:
-            return None
-
-        return parts[1]
+        return org
 
     @classmethod
     def org_exists(cls, org: str) -> bool:

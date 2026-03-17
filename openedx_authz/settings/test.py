@@ -77,3 +77,4 @@ CASBIN_AUTO_SAVE_POLICY = True
 # Use stub model for testing instead of the real content_libraries app
 OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL = "stubs.ContentLibrary"
 OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL = "stubs.CourseOverview"
+OPENEDX_AUTHZ_ORGANIZATION_MODEL = "stubs.Organization"

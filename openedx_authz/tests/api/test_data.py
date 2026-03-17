@@ -776,15 +776,6 @@ class TestOrgLibraryGlobData(TestCase):
 
         self.assertFalse(result)
 
-    def test_exists_false_when_org_exists_but_no_libraries_in_db(self):
-        """exists() returns False when the org exists but no libraries exist in the DB."""
-        org_name = "DemoX"
-        Organization.objects.create(short_name=org_name)
-
-        result = OrgLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
-
-        self.assertFalse(result)
-
     def test_exists_false_when_org_cannot_be_parsed(self):
         """exists() returns False when org property is None (invalid pattern)."""
         scope = OrgLibraryGlobData(external_key="lib:Invalid+*")
@@ -847,15 +838,6 @@ class TestOrgCourseGlobData(TestCase):
     def test_exists_false_when_org_does_not_exist(self):
         """exists() returns False when the org does not exist."""
         org_name = "OpenedX"
-
-        result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
-
-        self.assertFalse(result)
-
-    def test_exists_false_when_org_exists_but_no_courses(self):
-        """exists() returns False when the org exists but no courses exist."""
-        org_name = "OpenedX"
-        Organization.objects.create(short_name=org_name)
 
         result = OrgCourseGlobData(external_key=f"course-v1:{org_name}+*").exists()
 

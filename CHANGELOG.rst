@@ -14,6 +14,8 @@ Change Log
 Unreleased
 **********
 
+* Add ADR for global scope support for role assignments.
+
 0.23.0 - 2026-02-18
 ********************
 

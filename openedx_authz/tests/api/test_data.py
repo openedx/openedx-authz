@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 
 from ddt import data, ddt, unpack
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import (
@@ -717,7 +717,6 @@ class TestContentLibraryData(TestCase):
 
 
 @ddt
-@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
 class TestOrgContentLibraryGlobData(TestCase):
     """Tests for the OrgContentLibraryGlobData scope."""
 
@@ -737,6 +736,7 @@ class TestOrgContentLibraryGlobData(TestCase):
         ("lib:Org+WithPlus:*", False),
         ("lib:(Org):*", False),
         ("lib:Org", False),
+        ("lib:Org*", False),
         ("other:DemoX:*", False),
         ("lib:DemoX:*:*", False),
     )
@@ -752,14 +752,17 @@ class TestOrgContentLibraryGlobData(TestCase):
         ("lib:Org:With:Colon:*", "Org:With:Colon"),
         ("lib:DemoX", None),
         ("lib:DemoX:+*", None),
+        ("lib:DemoX*", None),
+        ("lib:DemoX:**", None),
+        ("lib:DemoX:suffix", None),
     )
     @unpack
     def test_get_org(self, external_key, expected_org):
         """Test organization extraction from library glob pattern."""
         self.assertEqual(OrgContentLibraryGlobData.get_org(external_key), expected_org)
 
-    def test_exists_true_when_org_has_libraries_in_db(self):
-        """exists() returns True when at least one library with the org exists in the DB."""
+    def test_exists_true_when_org_exists(self):
+        """exists() returns True when the org exists."""
         org_name = "DemoX"
         organization = Organization.objects.create(short_name=org_name)
         ContentLibrary.objects.create(org=organization, slug="testlib", title="Test Library")
@@ -768,8 +771,8 @@ class TestOrgContentLibraryGlobData(TestCase):
 
         self.assertTrue(result)
 
-    def test_exists_false_when_org_does_not_exist_in_db(self):
-        """exists() returns False when the org does not exist in the DB."""
+    def test_exists_false_when_org_does_not_exist(self):
+        """exists() returns False when the org does not exist."""
         org_name = "DemoX"
 
         result = OrgContentLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
@@ -785,7 +788,6 @@ class TestOrgContentLibraryGlobData(TestCase):
 
 
 @ddt
-@override_settings(OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL="course_overviews.CourseOverview")
 class TestOrgCourseOverviewGlobData(TestCase):
     """Tests for the OrgCourseOverviewGlobData scope."""
 
@@ -806,6 +808,7 @@ class TestOrgCourseOverviewGlobData(TestCase):
         ("course-v1:(Org)+*", False),
         ("course-v1:Org:With:Plus+*", False),
         ("course-v1:OpenedX", False),
+        ("course-v1:OpenedX*", False),
         ("other:OpenedX+*", False),
         ("course-v1:OpenedX**", False),
     )
@@ -819,14 +822,18 @@ class TestOrgCourseOverviewGlobData(TestCase):
         ("course-v1:My-Org_1+*", "My-Org_1"),
         ("course-v1:Org.with.dots+*", "Org.with.dots"),
         ("course-v1:Org:With:Plus+*", "Org:With:Plus"),
+        ("course-v1:OpenedX", None),
+        ("course-v1:OpenedX*", None),
+        ("course-v1:OpenedX+**", None),
+        ("course-v1:OpenedX+suffix", None),
     )
     @unpack
     def test_get_org(self, external_key, expected_org):
         """Test organization extraction from course glob pattern."""
         self.assertEqual(OrgCourseOverviewGlobData.get_org(external_key), expected_org)
 
-    def test_exists_true_when_org_has_courses(self):
-        """exists() returns True when at least one course with the org exists."""
+    def test_exists_true_when_org_exists(self):
+        """exists() returns True when the org exists."""
         org_name = "OpenedX"
         Organization.objects.create(short_name=org_name)
         CourseOverview.objects.create(org=org_name, display_name="Test Course")

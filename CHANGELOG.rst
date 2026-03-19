@@ -14,6 +14,8 @@ Change Log
 Unreleased
 **********
 
+* Add ADR for global scope support for role assignments.
+
 1.2.0 - 2026-03-30
 ******************
 
@@ -35,9 +37,9 @@ Added
 ******************
 
 Removed
-=======
 
 * Dropped support for Python 3.11.
+=======
 
 0.23.0 - 2026-02-18
 ********************

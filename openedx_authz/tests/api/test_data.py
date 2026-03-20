@@ -10,6 +10,8 @@ from openedx_authz.api.data import (
     ActionData,
     ContentLibraryData,
     CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
@@ -19,6 +21,7 @@ from openedx_authz.api.data import (
     UserData,
 )
 from openedx_authz.constants import permissions, roles
+from openedx_authz.tests.stubs.models import ContentLibrary, CourseOverview, Organization
 
 
 @ddt
@@ -233,9 +236,17 @@ class TestScopeMetaClass(TestCase):
         self.assertIn("course-v1", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
 
+        # Glob registries for organization-level scopes
+        self.assertIn("lib", ScopeMeta.glob_registry)
+        self.assertIs(ScopeMeta.glob_registry["lib"], OrgContentLibraryGlobData)
+        self.assertIn("course-v1", ScopeMeta.glob_registry)
+        self.assertIs(ScopeMeta.glob_registry["course-v1"], OrgCourseOverviewGlobData)
+
     @data(
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib^lib:DemoX*", OrgContentLibraryGlobData),
+        ("course-v1^course-v1:OpenedX*", OrgCourseOverviewGlobData),
         ("global^generic_scope", ScopeData),
     )
     @unpack
@@ -254,6 +265,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib^lib:DemoX:*", OrgContentLibraryGlobData),
+        ("course-v1^course-v1:OpenedX+*", OrgCourseOverviewGlobData),
         ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
     )
@@ -273,6 +286,8 @@ class TestScopeMetaClass(TestCase):
     @data(
         ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
+        ("lib:DemoX:*", OrgContentLibraryGlobData),
+        ("course-v1:OpenedX+*", OrgCourseOverviewGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
     )
@@ -309,6 +324,51 @@ class TestScopeMetaClass(TestCase):
         result = expected_class.validate_external_key(external_key)
 
         self.assertEqual(result, expected_valid)
+
+    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self):
+        """Unknown namespace should raise ValueError in get_subclass_by_external_key."""
+        with self.assertRaises(ValueError):
+            ScopeMeta.get_subclass_by_external_key("unknown:DemoX")
+
+    def test_get_subclass_by_external_key_invalid_format_raises_value_error(self):
+        """Invalid format (fails subclass.validate_external_key) should raise ValueError."""
+        with self.assertRaises(ValueError):
+            ScopeMeta.get_subclass_by_external_key("lib:invalid_library_key")
+
+    def test_scope_meta_initializes_registries_when_missing(self):
+        """ScopeMeta should create registries if they don't exist on initialization.
+
+        This validates the defensive branch in ScopeMeta.__init__ that initializes
+        scope_registry and glob_registry when they are not present on the class.
+        """
+        original_scope_registry = ScopeMeta.scope_registry
+        original_glob_registry = ScopeMeta.glob_registry
+
+        try:
+            # Simulate an environment where the registries are not yet defined
+            del ScopeMeta.scope_registry
+            del ScopeMeta.glob_registry
+
+            class TempScope(ScopeData):
+                """Temporary scope class for testing."""
+
+                NAMESPACE = "temp"
+
+                def get_object(self):
+                    return None
+
+                def exists(self) -> bool:
+                    return False
+
+            # Metaclass should have recreated the registries on the class
+            self.assertTrue(hasattr(TempScope, "scope_registry"))
+            self.assertTrue(hasattr(TempScope, "glob_registry"))
+            # And the new scope should be registered under its namespace
+            self.assertIs(TempScope.scope_registry.get("temp"), TempScope)
+        finally:
+            # Restore original registries to avoid side effects on other tests
+            ScopeMeta.scope_registry = original_scope_registry
+            ScopeMeta.glob_registry = original_glob_registry
 
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
         """Test that direct subclass instantiation doesn't trigger metaclass logic.
@@ -654,3 +714,145 @@ class TestContentLibraryData(TestCase):
         result = library_scope.exists()
 
         self.assertFalse(result)
+
+
+@ddt
+class TestOrgContentLibraryGlobData(TestCase):
+    """Tests for the OrgContentLibraryGlobData scope."""
+
+    @data(
+        ("lib:DemoX:*", True),
+        ("lib:Org-123:*", True),
+        ("lib:Org.with.dots:*", True),
+        ("lib:Org With Space:*", False),
+        ("lib:Org/With/Slash:*", False),
+        ("lib:Org\\With\\Backslash:*", False),
+        ("lib:Org,With,Comma:*", False),
+        ("lib:Org;With;Semicolon:*", False),
+        ("lib:Org@WithAt:*", False),
+        ("lib:Org#WithHash:*", False),
+        ("lib:Org$WithDollar:*", False),
+        ("lib:Org&WithAmp:*", False),
+        ("lib:Org+WithPlus:*", False),
+        ("lib:(Org):*", False),
+        ("lib:Org", False),
+        ("lib:Org*", False),
+        ("other:DemoX:*", False),
+        ("lib:DemoX:*:*", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate organization-level library glob external keys."""
+        self.assertEqual(OrgContentLibraryGlobData.validate_external_key(external_key), expected_valid)
+
+    @data(
+        ("lib:DemoX:*", "DemoX"),
+        ("lib:Org-123:*", "Org-123"),
+        ("lib:Org.with.dots:*", "Org.with.dots"),
+        ("lib:Org:With:Colon:*", "Org:With:Colon"),
+        ("lib:DemoX", None),
+        ("lib:DemoX:+*", None),
+        ("lib:DemoX*", None),
+        ("lib:DemoX:**", None),
+        ("lib:DemoX:suffix", None),
+    )
+    @unpack
+    def test_get_org(self, external_key, expected_org):
+        """Test organization extraction from library glob pattern."""
+        self.assertEqual(OrgContentLibraryGlobData.get_org(external_key), expected_org)
+
+    def test_exists_true_when_org_exists(self):
+        """exists() returns True when the org exists."""
+        org_name = "DemoX"
+        organization = Organization.objects.create(short_name=org_name)
+        ContentLibrary.objects.create(org=organization, slug="testlib", title="Test Library")
+
+        result = OrgContentLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
+
+        self.assertTrue(result)
+
+    def test_exists_false_when_org_does_not_exist(self):
+        """exists() returns False when the org does not exist."""
+        org_name = "DemoX"
+
+        result = OrgContentLibraryGlobData(external_key=f"lib:{org_name}:*").exists()
+
+        self.assertFalse(result)
+
+    def test_exists_false_when_org_cannot_be_parsed(self):
+        """exists() returns False when org property is None (invalid pattern)."""
+        scope = OrgContentLibraryGlobData(external_key="lib:Invalid+*")
+
+        self.assertIsNone(scope.org)
+        self.assertFalse(scope.exists())
+
+
+@ddt
+class TestOrgCourseOverviewGlobData(TestCase):
+    """Tests for the OrgCourseOverviewGlobData scope."""
+
+    @data(
+        ("course-v1:OpenedX+*", True),
+        ("course-v1:My-Org_1+*", True),
+        ("course-v1:Org.with.dots+*", True),
+        ("course-v1:Org With Space+*", False),
+        ("course-v1:Org/With/Slash+*", False),
+        ("course-v1:Org\\With\\Backslash+*", False),
+        ("course-v1:Org,With,Comma+*", False),
+        ("course-v1:Org;With;Semicolon+*", False),
+        ("course-v1:Org@WithAt+*", False),
+        ("course-v1:Org#WithHash+*", False),
+        ("course-v1:Org$WithDollar+*", False),
+        ("course-v1:Org&WithAmp+*", False),
+        ("course-v1:Org+WithPlus+*", False),
+        ("course-v1:(Org)+*", False),
+        ("course-v1:Org:With:Plus+*", False),
+        ("course-v1:OpenedX", False),
+        ("course-v1:OpenedX*", False),
+        ("other:OpenedX+*", False),
+        ("course-v1:OpenedX**", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate organization-level course glob external keys."""
+        self.assertEqual(OrgCourseOverviewGlobData.validate_external_key(external_key), expected_valid)
+
+    @data(
+        ("course-v1:OpenedX+*", "OpenedX"),
+        ("course-v1:My-Org_1+*", "My-Org_1"),
+        ("course-v1:Org.with.dots+*", "Org.with.dots"),
+        ("course-v1:Org:With:Plus+*", "Org:With:Plus"),
+        ("course-v1:OpenedX", None),
+        ("course-v1:OpenedX*", None),
+        ("course-v1:OpenedX+**", None),
+        ("course-v1:OpenedX+suffix", None),
+    )
+    @unpack
+    def test_get_org(self, external_key, expected_org):
+        """Test organization extraction from course glob pattern."""
+        self.assertEqual(OrgCourseOverviewGlobData.get_org(external_key), expected_org)
+
+    def test_exists_true_when_org_exists(self):
+        """exists() returns True when the org exists."""
+        org_name = "OpenedX"
+        Organization.objects.create(short_name=org_name)
+        CourseOverview.objects.create(org=org_name, display_name="Test Course")
+
+        result = OrgCourseOverviewGlobData(external_key=f"course-v1:{org_name}+*").exists()
+
+        self.assertTrue(result)
+
+    def test_exists_false_when_org_does_not_exist(self):
+        """exists() returns False when the org does not exist."""
+        org_name = "OpenedX"
+
+        result = OrgCourseOverviewGlobData(external_key=f"course-v1:{org_name}+*").exists()
+
+        self.assertFalse(result)
+
+    def test_exists_false_when_org_cannot_be_parsed(self):
+        """exists() returns False when org property is None (invalid pattern)."""
+        scope = OrgCourseOverviewGlobData(external_key="course-v1:Invalid:*")
+
+        self.assertIsNone(scope.org)
+        self.assertFalse(scope.exists())

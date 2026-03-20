@@ -28,6 +28,8 @@ django==4.2.24
     #   -r requirements/base.in
     #   casbin-django-orm-adapter
     #   django-crum
+    #   django-model-utils
+    #   django-simple-history
     #   django-waffle
     #   djangorestframework
     #   drf-jwt
@@ -35,8 +37,13 @@ django==4.2.24
     #   edx-api-doc-tools
     #   edx-django-utils
     #   edx-drf-extensions
+    #   edx-organizations
 django-crum==0.7.9
     # via edx-django-utils
+django-model-utils==5.0.0
+    # via edx-organizations
+django-simple-history==3.11.0
+    # via edx-organizations
 django-waffle==5.0.0
     # via
     #   edx-django-utils
@@ -48,6 +55,7 @@ djangorestframework==3.16.1
     #   drf-yasg
     #   edx-api-doc-tools
     #   edx-drf-extensions
+    #   edx-organizations
 dnspython==2.8.0
     # via pymongo
 drf-jwt==1.19.2
@@ -61,11 +69,16 @@ edx-django-utils==8.0.1
     #   -r requirements/base.in
     #   edx-drf-extensions
 edx-drf-extensions==10.6.0
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   edx-organizations
 edx-opaque-keys==3.0.0
     # via
     #   -r requirements/base.in
     #   edx-drf-extensions
+    #   edx-organizations
+edx-organizations==7.3.0
+    # via -r requirements/base.in
 idna==3.10
     # via requests
 inflection==0.5.1
@@ -74,6 +87,8 @@ openedx-atlas==0.7.0
     # via -r requirements/base.in
 packaging==26.0
     # via drf-yasg
+pillow==12.1.1
+    # via edx-organizations
 psutil==7.1.0
     # via edx-django-utils
 pycasbin==2.2.0

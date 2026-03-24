@@ -306,12 +306,16 @@ class ScopeMeta(type):
         is_glob = GLOBAL_SCOPE_WILDCARD in external_key
 
         if is_glob:
-            # Try to get glob-specific class first
             glob_subclass = mcs.glob_registry.get(namespace)
-            if glob_subclass and glob_subclass.validate_external_key(external_key):
-                return glob_subclass
 
-        # Fall back to standard scope class
+            if not glob_subclass:
+                raise ValueError(f"Unknown glob scope: {namespace} for external_key: {external_key}")
+
+            if not glob_subclass.validate_external_key(external_key):
+                raise ValueError(f"Invalid external_key format for glob scope: {external_key}")
+
+            return glob_subclass
+
         scope_subclass = mcs.scope_registry.get(namespace)
 
         if not scope_subclass:

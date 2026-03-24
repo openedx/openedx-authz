@@ -325,15 +325,24 @@ class TestScopeMetaClass(TestCase):
 
         self.assertEqual(result, expected_valid)
 
-    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self):
-        """Unknown namespace should raise ValueError in get_subclass_by_external_key."""
+    @data(
+        "unknown:DemoX",
+        "unknown:DemoX:*",
+    )
+    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self, external_key):
+        """Unknown namespace should raise ValueError, including wildcard keys."""
         with self.assertRaises(ValueError):
-            ScopeMeta.get_subclass_by_external_key("unknown:DemoX")
+            ScopeMeta.get_subclass_by_external_key(external_key)
 
-    def test_get_subclass_by_external_key_invalid_format_raises_value_error(self):
-        """Invalid format (fails subclass.validate_external_key) should raise ValueError."""
+    @data(
+        "lib:invalid_library_key",
+        "lib:DemoX:slug*",
+        "course-v1:OpenedX+CS101+*",
+    )
+    def test_get_subclass_by_external_key_invalid_format_raises_value_error(self, external_key):
+        """Invalid format should raise ValueError for regular and wildcard keys."""
         with self.assertRaises(ValueError):
-            ScopeMeta.get_subclass_by_external_key("lib:invalid_library_key")
+            ScopeMeta.get_subclass_by_external_key(external_key)
 
     def test_scope_meta_initializes_registries_when_missing(self):
         """ScopeMeta should create registries if they don't exist on initialization.

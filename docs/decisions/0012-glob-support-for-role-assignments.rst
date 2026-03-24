@@ -53,6 +53,7 @@ We will configure the ``AuthzEnforcer`` to use a domain/scope matching function 
 
 - The enforcer will register a domain matching function for the ``g`` (grouping) function (for example, using ``key_match_func``).
 - This matching function will treat ``*`` as a wildcard at the **end** of the string. That is, patterns such as ``course-v1:OpenedX+*`` will match ``course-v1:OpenedX+SOME+COURSE``, but the model will not rely on complex patterns or regular expressions.
+- Matching is **case-sensitive**. Scope comparisons follow exact string semantics for non-wildcard characters (for example, ``course-v1:openedx+*`` does not match ``course-v1:OpenedX+...``).
 - Existing ``g`` policies that use exact scopes remain valid and continue to behave identically.
 
 This change allows the Casbin engine to evaluate role assignments that apply to a family of scopes instead of a single exact value, without modifying the underlying storage schema (``CasbinRule``) or the overall request format (``r = sub, act, scope``).
@@ -70,8 +71,21 @@ The following rules apply initially:
 - The glob character (``*``) is only supported as a **suffix wildcard**. It cannot appear in the middle of a scope identifier.
 - A glob pattern represents a **bounded prefix match** for the external key portion of a scope within its namespace. The API validation ensures the prefix is meaningful (i.e., it corresponds to a valid identifier boundary for that namespace), so the glob cannot be used to accidentally broaden access.
 - For any glob patterns (courses, libraries, or future namespaces), malformed inputs (such as mid-string wildcards or prefixes that do not match the expected key format/boundaries) are **rejected**.
-- Additional namespaces must define their own, explicit validation rules before accepting glob scopes.
+- Additional namespaces must define their own, explicit validation rules before accepting glob scopes. If a namespace does not have a custom matcher/validator, any ``*`` in its scope is rejected and only exact scopes are accepted.
 - As needs evolve, more glob types can be added safely by introducing namespace-specific semantics and validations (for example, additional prefix boundaries such as program/tenant prefixes, or narrower matching strategies if required).
+
+Examples of valid/invalid namespace scope globs
+-----------------------------------------------
+
+Given the current suffix-glob policy (single trailing ``*`` at a namespace-approved boundary):
+
+- Invalid: ``*`` (unbounded across all namespaces/scopes).
+- Invalid: ``c*`` or ``l*`` (not a valid namespaced scope prefix).
+- Invalid: ``course-v1*`` or ``lib*`` (missing ``:`` and required namespace structure).
+- Invalid: ``course-v1:*`` or ``lib:*`` (wildcard starts before a bounded prefix inside the ``course-v1`` or ``lib`` key).
+- Invalid: ``course-v1:O*`` or ``lib:MIT*`` (wildcard starts mid-segment. Prefix boundary is not complete).
+- Valid: ``course-v1:OpenedX+*`` (wildcard starts at an approved boundary for the ``course-v1`` namespace).
+- Valid: ``lib:MITx:*`` (wildcard starts at an approved boundary for the ``lib`` namespace).
 
 These validation rules are implemented in the Open edX layer (API / data layer), not in the Casbin matcher itself. The enforcer remains general-purpose. The domain-specific semantics of what constitutes an acceptable glob pattern are enforced at the boundary where user/operator input is turned into policies.
 

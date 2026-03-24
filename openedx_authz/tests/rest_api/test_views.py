@@ -717,6 +717,143 @@ class TestRoleUserAPIView(ViewTestMixin):
 
 
 @ddt
+class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
+    """API tests for scope string validation on role assignment and removal (PUT/DELETE).
+
+    These mirror security rules enforced by ``ScopeData(external_key=...)``: organization-level
+    globs must use ``lib:ORG:*`` or ``course-v1:ORG+*``. Malicious patterns must be rejected
+    before any assignment runs.
+    """
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.client.force_authenticate(user=self.admin_user)
+        self.url = reverse("openedx_authz:role-user-list")
+
+    @data(
+        # Course: globs only after full org segment (ORG+*), not course-v1:ORG* or mid-key globs
+        "course-v1:OpenedX*",
+        "course-v1:OpenedX**",
+        "course-v1:c*",
+        "course-v1:Open*",
+        "course-v1:OpenedX+C*",
+        "course-v1:OpenedX+CS101+*",
+        "course-v1:OpenedX+CS101*",
+        # Library: org-level glob is lib:ORG:* — not slug-level or stray *
+        "lib:Org1:LIB*",
+        "lib:DemoX*",
+        "lib:DemoX:*:*",
+        "lib:DemoX:slug*",
+        # Wrong namespace or unparsable external keys
+        "other:OpenedX+*",
+        "unknown:DemoX:*",
+        "not-a-valid-external-key",
+        # Attempts to pass namespaced keys or Casbin-style keys as the external scope
+        "course-v1^course-v1:OpenedX+*",
+        "lib^lib:DemoX:*",
+        "course-v1^course-v1:OpenedX*",
+    )
+    def test_put_rejects_malformed_or_overbroad_scope_strings(self, invalid_scope: str):
+        """PUT must return 400 when the scope is not a valid concrete key or org-level glob."""
+        request_data = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": invalid_scope,
+            "users": ["regular_1"],
+        }
+
+        response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
+        "course-v1:OpenedX*",
+        "course-v1:OpenedX+CS101+*",
+        "lib:DemoX*",
+        "unknown:DemoX:*",
+        "course-v1^course-v1:OpenedX+*",
+    )
+    def test_delete_rejects_malformed_or_overbroad_scope_strings(self, invalid_scope: str):
+        """DELETE must return 400 for the same invalid scope strings as PUT."""
+        query_params = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": invalid_scope,
+            "users": "regular_1",
+        }
+
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
+        # Empty org segment after validation (must not assign at "all orgs")
+        "lib::*",
+        "course-v1:+*",
+        # Valid shape but organization is not in the system
+        "lib:NonexistentOrgZ99:*",
+        "course-v1:NonexistentOrgZ99+*",
+    )
+    def test_put_rejects_scope_that_does_not_exist(self, scope: str):
+        """Well-formed keys that do not resolve to an existing org/course must return 400."""
+        request_data = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": scope,
+            "users": ["regular_1"],
+        }
+
+        response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("scope", response.data)
+        self.assertIn("invalid", [error.code for error in response.data["scope"]])
+
+    @patch.object(api, "assign_role_to_user_in_scope", return_value=True)
+    @patch.object(api.OrgContentLibraryGlobData, "exists", return_value=True)
+    def test_put_accepts_valid_library_org_glob_scope(self, _mock_exists, _mock_assign):
+        """Valid library org glob passes serializer validation and reaches assignment."""
+        request_data = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": "lib:Org1:*",
+            "users": ["regular_1"],
+        }
+
+        response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 1)
+
+    @patch.object(api, "assign_role_to_user_in_scope", return_value=True)
+    @patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True)
+    def test_put_accepts_valid_course_org_glob_scope(self, _mock_exists, _mock_assign):
+        """Valid course org glob (course-v1:ORG+*) passes validation for a course role."""
+        request_data = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": "course-v1:OpenedX+*",
+            "users": ["regular_1"],
+        }
+
+        response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 1)
+
+    @patch.object(api, "assign_role_to_user_in_scope", return_value=True)
+    @patch.object(api.CourseOverviewData, "exists", return_value=True)
+    def test_put_accepts_valid_full_course_key_scope(self, _mock_exists, _mock_assign):
+        """A full course run key is accepted for a course role when the course exists."""
+        request_data = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": "course-v1:OpenedX+DemoCourse+2026_T1",
+            "users": ["regular_1"],
+        }
+
+        response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 1)
+
+
+@ddt
 class TestRoleListView(ViewTestMixin):
     """Test suite for RoleListView."""
 

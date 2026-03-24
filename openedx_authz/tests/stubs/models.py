@@ -10,19 +10,7 @@ from django.db import models
 from opaque_keys.edx.django.models import CourseKeyField, UsageKeyField
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
-
-
-class Organization(models.Model):
-    """Stub model representing an organization for testing purposes.
-
-    .. no_pii:
-    """
-
-    name = models.CharField(max_length=255)
-    short_name = models.CharField(max_length=100)
-
-    def __str__(self):
-        return str(self.name)
+from organizations.models import Organization
 
 
 class ContentLibraryManager(models.Manager):

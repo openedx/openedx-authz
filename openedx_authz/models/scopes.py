@@ -50,27 +50,8 @@ def get_course_overview_model():
         return None
 
 
-def get_organization_model():
-    """Return the Organization model class specified by settings.
-
-    The setting `OPENEDX_AUTHZ_ORGANIZATION_MODEL` should be an
-    app_label.ModelName string (e.g. 'organizations.Organization').
-    """
-    ORGANIZATION_MODEL = getattr(
-        settings,
-        "OPENEDX_AUTHZ_ORGANIZATION_MODEL",
-        "organizations.Organization",
-    )
-    try:
-        app_label, model_name = ORGANIZATION_MODEL.split(".")
-        return apps.get_model(app_label, model_name, require_ready=False)
-    except LookupError:
-        return None
-
-
 ContentLibrary = get_content_library_model()
 CourseOverview = get_course_overview_model()
-Organization = get_organization_model()
 
 
 class ContentLibraryScope(Scope):

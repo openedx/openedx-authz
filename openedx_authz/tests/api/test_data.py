@@ -761,6 +761,7 @@ class TestOrgContentLibraryGlobData(TestCase):
         """Test organization extraction from library glob pattern."""
         self.assertEqual(OrgContentLibraryGlobData.get_org(external_key), expected_org)
 
+    @patch("openedx_authz.api.data.Organization", Organization)
     def test_exists_true_when_org_exists(self):
         """exists() returns True when the org exists."""
         org_name = "DemoX"
@@ -832,6 +833,7 @@ class TestOrgCourseOverviewGlobData(TestCase):
         """Test organization extraction from course glob pattern."""
         self.assertEqual(OrgCourseOverviewGlobData.get_org(external_key), expected_org)
 
+    @patch("openedx_authz.api.data.Organization", Organization)
     def test_exists_true_when_org_exists(self):
         """exists() returns True when the org exists."""
         org_name = "OpenedX"

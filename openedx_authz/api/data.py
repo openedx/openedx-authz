@@ -11,16 +11,12 @@ from attrs import define
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
+from organizations.models import Organization
 
-from openedx_authz.models.scopes import (
-    get_content_library_model,
-    get_course_overview_model,
-    get_organization_model,
-)
+from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
 ContentLibrary = get_content_library_model()
 CourseOverview = get_course_overview_model()
-Organization = get_organization_model()
 
 __all__ = [
     "ActionData",

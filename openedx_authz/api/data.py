@@ -449,6 +449,15 @@ class ContentLibraryData(ScopeData):
     ID_SEPARATOR: ClassVar[str] = ":"
 
     @property
+    def org(self) -> str:
+        """Get the organization name from the library key.
+
+        Returns:
+            str: The organization name (e.g., ``DemoX`` from ``lib:DemoX:CSPROB``).
+        """
+        return self.library_key.org
+
+    @property
     def library_id(self) -> str:
         """The library identifier as used in Open edX (e.g., 'lib:DemoX:CSPROB').
 
@@ -551,6 +560,15 @@ class CourseOverviewData(ScopeData):
 
     NAMESPACE: ClassVar[str] = "course-v1"
     ID_SEPARATOR: ClassVar[str] = "+"
+
+    @property
+    def org(self) -> str:
+        """Get the organization name from the course key.
+
+        Returns:
+            str: The organization name (e.g., ``DemoX`` from ``course-v1:DemoX+TestCourse+2024_T1``).
+        """
+        return self.course_key.org
 
     @property
     def course_id(self) -> str:

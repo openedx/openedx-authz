@@ -31,6 +31,7 @@ from openedx_authz.api.roles import (
     get_role_definitions_in_scope,
     get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
+    get_subject_role_assignments_for_role,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
@@ -602,6 +603,23 @@ class TestRolesAPI(RolesTestSetupMixin):
             # Compare the role part of the assignment
             found = any(expected_role in assignment.roles for assignment in role_assignments)
             self.assertTrue(found, f"Expected role {expected_role} not found in assignments")
+
+    @ddt_data(
+        ("liam", roles.LIBRARY_AUTHOR.external_key, 3),
+        ("eve", roles.LIBRARY_ADMIN.external_key, 1),
+        ("eve", roles.LIBRARY_AUTHOR.external_key, 1),
+        ("eve", roles.LIBRARY_USER.external_key, 1),
+        ("alice", roles.LIBRARY_AUTHOR.external_key, 0),
+        ("non_existent_user", roles.LIBRARY_ADMIN.external_key, 0),
+    )
+    @unpack
+    def test_get_subject_role_assignments_for_role(self, subject_name, role_name, expected_count):
+        """Test retrieving role assignments for a subject filtered by role across all scopes."""
+        role_assignments = get_subject_role_assignments_for_role(
+            SubjectData(external_key=subject_name),
+            RoleData(external_key=role_name),
+        )
+        self.assertEqual(len(role_assignments), expected_count)
 
     @ddt_data(
         (roles.LIBRARY_ADMIN.external_key, "lib:Org1:math_101", 1),

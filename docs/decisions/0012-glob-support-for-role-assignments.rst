@@ -35,7 +35,7 @@ should be allowed if the user's role assignment matches the ``course-v1:OpenedX+
 
 At the same time, we must preserve the guarantees of the authorization model:
 
-- **Safety**: Glob patterns must not accidentally grant permissions outside of the intended boundary.
+- **Safety**: Glob patterns must not accidentally grant permissions outside the intended identifier boundary.
 - **Clarity**: Patterns must be easy to understand and reason about for operators and auditors.
 - **Extensibility**: The mechanism should be general enough to support future use cases without requiring a redesign of the model.
 
@@ -52,7 +52,7 @@ The decision is intentionally **general**: the core change is to allow glob matc
 We will configure the ``AuthzEnforcer`` to use a domain/scope matching function for ``g`` policies that supports glob-like suffixes. Concretely:
 
 - The enforcer will register a domain matching function for the ``g`` (grouping) function (for example, using ``key_match_func``).
-- This matching function will treat ``*`` as a wildcard at the **end** of the string. That is, patterns such as ``course-v1:OpenedX+*`` will match ``course-v1:OpenedX+SOME+COURSE``, but the model will not rely on complex patterns or regular expressions.
+- This matching function will treat ``*`` as a wildcard at the **end** of the string (suffix wildcard). That is, patterns such as ``course-v1:OpenedX+*`` will match ``course-v1:OpenedX+SOME+COURSE``, but the model will not rely on complex patterns or regular expressions.
 - Matching is **case-sensitive**. Scope comparisons follow exact string semantics for non-wildcard characters (for example, ``course-v1:openedx+*`` does not match ``course-v1:OpenedX+...``).
 - Existing ``g`` policies that use exact scopes remain valid and continue to behave identically. They follow the same validation path as before. Only scopes containing a ``*`` suffix glob take a different API-side validation path.
 
@@ -69,10 +69,10 @@ All APIs that create, update, or delete role assignments (i.e., policies of type
 The following rules apply initially:
 
 - The glob character (``*``) is only supported as a **suffix wildcard**. It cannot appear in the middle of a scope identifier.
-- A glob pattern represents a **bounded prefix match** for the external key portion of a scope within its namespace. The API validation ensures the prefix is meaningful (i.e., it corresponds to a valid identifier boundary for that namespace), so the glob cannot be used to accidentally broaden access.
-- For any glob patterns (courses, libraries, or future namespaces), malformed inputs (such as mid-string wildcards or prefixes that do not match the expected key format/boundaries) are **rejected**.
+- A glob pattern represents a **boundary-constrained prefix match** for the external key portion of a scope within its namespace. In practice, this means matching is limited to a well-defined identifier boundary, and the glob cannot be used to create overly broad or unsafe matches.
+- For any glob patterns (courses, libraries, or future namespaces), malformed inputs (such as mid-string wildcards or prefixes that do not match expected key formats or identifier boundaries) are **rejected**.
 - Additional namespaces must define their own, explicit validation rules before accepting glob scopes. If a namespace does not have a custom matcher/validator, any ``*`` in its scope is rejected and only exact scopes are accepted.
-- As needs evolve, more glob types can be added safely by introducing namespace-specific semantics and validations (for example, additional prefix boundaries such as program/tenant prefixes, or narrower matching strategies if required).
+- As needs evolve, more glob pattern types can be added safely by introducing namespace-specific semantics and validations (for example, additional prefix boundaries such as program/tenant prefixes, or narrower matching strategies if required).
 
 Examples of valid/invalid namespace scope globs
 -----------------------------------------------
@@ -82,7 +82,7 @@ Given the current suffix-glob policy (single trailing ``*`` at a namespace-appro
 - Invalid: ``*`` (unbounded across all namespaces/scopes).
 - Invalid: ``c*`` or ``l*`` (not a valid namespaced scope prefix).
 - Invalid: ``course-v1*`` or ``lib*`` (missing ``:`` and required namespace structure).
-- Invalid: ``course-v1:*`` or ``lib:*`` (wildcard starts before a bounded prefix inside the ``course-v1`` or ``lib`` key).
+- Invalid: ``course-v1:*`` or ``lib:*`` (wildcard starts before a valid prefix boundary inside the ``course-v1`` or ``lib`` key).
 - Invalid: ``course-v1:O*`` or ``lib:MIT*`` (wildcard starts mid-segment. Prefix boundary is not complete).
 - Valid: ``course-v1:OpenedX+*`` (wildcard starts at an approved boundary for the ``course-v1`` namespace).
 - Valid: ``lib:MITx:*`` (wildcard starts at an approved boundary for the ``lib`` namespace).
@@ -92,11 +92,11 @@ These validation rules are implemented in the Open edX layer (API / data layer),
 3. Keep the model general and extensible
 ========================================
 
-By introducing glob support in role assignments in a constrained way, we unlock a set of future extensions without redesigning the model:
+By introducing glob support in role assignments in a boundary-constrained way, we unlock a set of future extensions without redesigning the model:
 
 - **Other scope types**
 
-  - Scope types with hierarchical or prefix-based identifiers (for example, libraries or other content groupings) can adopt glob support by:
+  - Scope types with hierarchical or prefix-based identifiers (for example, libraries or other content groupings) can adopt glob pattern support by:
 
     - Defining their own namespace-specific rules for valid suffix globs.
     - Reusing the same enforcer-level domain matching capability.
@@ -114,13 +114,13 @@ Positive consequences
 
 - **Increased expressiveness**: Operators can express multi-scope role assignments (for example, "course staff for all courses in organization OpenedX") without enumerating each course in individual ``g`` policies.
 - **Reduced operational overhead**: New resources that fall under an existing glob pattern automatically inherit the appropriate role assignments, reducing the need for ongoing manual updates.
-- **Better alignment with real-world use cases**: Many organizational setups naturally require "all resources under this prefix" semantics. Glob support maps directly to those needs.
+- **Better alignment with real-world use cases**: Many organizational setups naturally require "all resources under this prefix" semantics. Glob pattern support maps directly to those needs.
 - **Clear extension path**: The mechanism is generic enough to be reused for other namespaces (such as organization or library scopes), as long as each namespace defines and enforces its own validation rules.
 
 Negative consequences / risks
 =============================
 
-- **Security and safety**: If validation is misconfigured or bypassed, glob patterns could unintentionally grant access beyond the intended boundary. This risk is mitigated by:
+- **Security and safety**: If validation is misconfigured or bypassed, glob patterns could unintentionally grant access beyond the intended identifier boundary. This risk is mitigated by:
 
   - Enforcing validation in the Open edX API layer.
   - Restricting globs to trailing ``*`` patterns.

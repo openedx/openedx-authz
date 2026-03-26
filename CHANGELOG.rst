@@ -14,6 +14,22 @@ Change Log
 Unreleased
 **********
 
+1.1.0 - 2026-03-17
+******************
+
+Added
+=====
+
+* Add support for organization global scopes.
+
+1.0.0 - 2026-03-13
+******************
+
+Removed
+=======
+
+* Dropped support for Python 3.11.
+
 0.23.0 - 2026-02-18
 ********************
 

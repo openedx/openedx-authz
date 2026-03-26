@@ -67,17 +67,17 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
         try:
             scope = api.ScopeData(external_key=scope_value)
         except ValueError as exc:
-            raise serializers.ValidationError(exc) from exc
+            raise serializers.ValidationError({"scope": str(exc)}) from exc
 
         if not scope.exists():
-            raise serializers.ValidationError(f"Scope '{scope_value}' does not exist")
+            raise serializers.ValidationError({"scope": f"Scope '{scope_value}' does not exist"})
 
         role = api.RoleData(external_key=role_value)
         generic_scope = get_generic_scope(scope)
         role_definitions = api.get_role_definitions_in_scope(generic_scope)
 
         if role not in role_definitions:
-            raise serializers.ValidationError(f"Role '{role_value}' does not exist in scope '{scope_value}'")
+            raise serializers.ValidationError({"role": f"Role '{role_value}' does not exist in scope '{scope_value}'"})
 
         return validated_data
 

@@ -41,3 +41,7 @@ waffle.Switch:
   ".. no_pii:": "This model has no PII"
 casbin_adapter.CasbinRule:
   ".. no_pii:": "This model stores authorization policy rules and contains no PII"
+organizations.HistoricalOrganization:
+  ".. no_pii:": "Historical snapshot of organization metadata and contains no PII"
+organizations.HistoricalOrganizationCourse:
+  ".. no_pii:": "Historical relation between organizations and courses and contains no PII"

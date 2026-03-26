@@ -38,6 +38,7 @@ INSTALLED_APPS = (
     "openedx_authz.engine.apps.CasbinAdapterConfig",
     "openedx_authz.apps.OpenedxAuthzConfig",
     "openedx_authz.tests.stubs.apps.StubsConfig",
+    "organizations",
 )
 
 MIDDLEWARE = [

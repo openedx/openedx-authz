@@ -81,7 +81,7 @@ class ContentLibraryScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope):
+    def get_or_create_for_external_key(cls, scope) -> "ContentLibraryScope":
         """Get or create a ContentLibraryScope for the given external key.
 
         Args:
@@ -89,7 +89,8 @@ class ContentLibraryScope(Scope):
                 a LibraryLocatorV2-compatible string.
 
         Returns:
-            ContentLibraryScope: The Scope instance for the given ContentLibrary
+            ContentLibraryScope: The Scope instance for the given ContentLibrary,
+                or None if the scope is a glob pattern (contains wildcard).
         """
         library_key = LibraryLocatorV2.from_string(scope.external_key)
         content_library = ContentLibrary.objects.get_by_key(library_key)
@@ -124,7 +125,7 @@ class CourseScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope):
+    def get_or_create_for_external_key(cls, scope) -> "CourseScope":
         """Get or create a CourseScope for the given external key.
 
         Args:
@@ -132,7 +133,8 @@ class CourseScope(Scope):
                 a CourseKey string.
 
         Returns:
-            CourseScope: The Scope instance for the given CourseOverview
+            CourseScope: The Scope instance for the given CourseOverview,
+                or None if the scope is a glob pattern (contains wildcard).
         """
         course_key = CourseKey.from_string(scope.external_key)
         course_overview = CourseOverview.get_from_id(course_key)

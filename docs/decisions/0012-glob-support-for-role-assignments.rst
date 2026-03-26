@@ -11,7 +11,7 @@ Context
 
 The current authorization system is based on Casbin and models:
 
-- **Permissions per role** (``p`` policies), where the ``scope`` field may already use patterns (for example, ``lib^*``) through matcher functions in the model.
+- **Permissions per role** (``p`` policies), where the ``scope`` field may already include the existing namespace wildcard ``^*`` (for example, ``lib^*`` meaning "any scope in the ``lib`` namespace").
 - **Role assignments** (``g`` policies), which link a subject to a role within a scope.
 
 The current Casbin model treats the ``scope`` field in ``g`` policies as an **exact match**. This is sufficient when roles are granted for a single, concrete scope value, but it is limiting when operators need to:
@@ -54,7 +54,7 @@ We will configure the ``AuthzEnforcer`` to use a domain/scope matching function 
 - The enforcer will register a domain matching function for the ``g`` (grouping) function (for example, using ``key_match_func``).
 - This matching function will treat ``*`` as a wildcard at the **end** of the string. That is, patterns such as ``course-v1:OpenedX+*`` will match ``course-v1:OpenedX+SOME+COURSE``, but the model will not rely on complex patterns or regular expressions.
 - Matching is **case-sensitive**. Scope comparisons follow exact string semantics for non-wildcard characters (for example, ``course-v1:openedx+*`` does not match ``course-v1:OpenedX+...``).
-- Existing ``g`` policies that use exact scopes remain valid and continue to behave identically.
+- Existing ``g`` policies that use exact scopes remain valid and continue to behave identically. They follow the same validation path as before. Only scopes containing a ``*`` suffix glob take a different API-side validation path.
 
 This change allows the Casbin engine to evaluate role assignments that apply to a family of scopes instead of a single exact value, without modifying the underlying storage schema (``CasbinRule``) or the overall request format (``r = sub, act, scope``).
 

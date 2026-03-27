@@ -23,6 +23,7 @@ from openedx_authz.api.roles import (
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
+    get_role_assignments,
     get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
     get_subject_role_assignments_for_role,
@@ -41,6 +42,7 @@ __all__ = [
     "get_user_role_assignments",
     "get_user_role_assignments_in_scope",
     "get_user_role_assignments_for_role_in_scope",
+    "get_user_role_assignments_filtered",
     "get_all_user_role_assignments_in_scope",
     "is_user_allowed",
     "get_scopes_for_user_and_permission",
@@ -177,6 +179,33 @@ def get_user_role_assignments_for_role_in_scope(
     return get_subject_role_assignments_for_role_in_scope(
         RoleData(external_key=role_external_key),
         ScopeData(external_key=scope_external_key),
+    )
+
+
+def get_user_role_assignments_filtered(
+    *,
+    user_external_key: str | None = None,
+    role_external_key: str | None = None,
+    scope_external_key: str | None = None,
+) -> list[RoleAssignmentData]:
+    """Get role assignments filtered by user, role, and/or scope.
+
+    This function provides flexible filtering of role assignments by any combination
+    of user, role, and scope. At least one filter parameter should be provided for
+    meaningful results.
+
+    Args:
+        user_external_key: Optional user ID to filter by (e.g., 'john_doe').
+        role_external_key: Optional role name to filter by (e.g., 'library_admin').
+        scope_external_key: Optional scope to filter by (e.g., 'lib:DemoX:CSPROB').
+
+    Returns:
+        list[RoleAssignmentData]: Filtered role assignments.
+    """
+    return get_role_assignments(
+        subject=UserData(external_key=user_external_key) if user_external_key else None,
+        role=RoleData(external_key=role_external_key) if role_external_key else None,
+        scope=ScopeData(external_key=scope_external_key) if scope_external_key else None,
     )
 
 

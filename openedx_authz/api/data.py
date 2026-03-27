@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from abc import abstractmethod
 from enum import Enum
+from functools import cached_property
 from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
@@ -468,7 +469,7 @@ class ContentLibraryData(ScopeData):
         """
         return self.external_key
 
-    @property
+    @cached_property
     def library_key(self) -> LibraryLocatorV2:
         """The LibraryLocatorV2 object for the content library.
 
@@ -581,7 +582,7 @@ class CourseOverviewData(ScopeData):
         """
         return self.external_key
 
-    @property
+    @cached_property
     def course_key(self) -> CourseKey:
         """The CourseKey object for the course.
 

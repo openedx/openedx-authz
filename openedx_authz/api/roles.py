@@ -294,7 +294,7 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
     return role_assignments
 
 
-def get_field_index_and_values(
+def _get_field_index_and_values(
     subject: SubjectData | None,
     role: RoleData | None,
     scope: ScopeData | None,
@@ -305,16 +305,6 @@ def get_field_index_and_values(
     values starting from that index. Empty strings serve as wildcards for positions
     between specified values.
 
-    Examples:
-        >>> get_field_index_and_values(user, None, None)
-        (0, ['user^steve'])
-        >>> get_field_index_and_values(user, role, None)
-        (0, ['user^steve', 'role^course_admin'])
-        >>> get_field_index_and_values(None, role, scope)
-        (1, ['role^course_admin', 'course-v1^course-v1:OpenedX+Demo+Course'])
-        >>> get_field_index_and_values(user, None, scope)
-        (0, ['user^steve', '', 'course-v1^course-v1:OpenedX+Demo+Course'])
-
     Args:
         subject: Optional subject to filter by.
         role: Optional role to filter by.
@@ -323,6 +313,16 @@ def get_field_index_and_values(
     Returns:
         tuple: (field_index, field_values) where field_index is the starting position
             and field_values are the consecutive filter values from that position.
+
+     Examples:
+        >>> _get_field_index_and_values(user, None, None)
+        (0, ['user^steve'])
+        >>> _get_field_index_and_values(user, role, None)
+        (0, ['user^steve', 'role^course_admin'])
+        >>> _get_field_index_and_values(None, role, scope)
+        (1, ['role^course_admin', 'course-v1^course-v1:OpenedX+Demo+Course'])
+        >>> _get_field_index_and_values(user, None, scope)
+        (0, ['user^steve', '', 'course-v1^course-v1:OpenedX+Demo+Course'])
     """
     values = [
         subject.namespaced_key if subject else "",
@@ -364,7 +364,7 @@ def get_role_assignments(
     """
     enforcer = AuthzEnforcer.get_enforcer()
     role_assignments = []
-    field_index, field_values = get_field_index_and_values(subject, role, scope)
+    field_index, field_values = _get_field_index_and_values(subject, role, scope)
     policies = enforcer.get_filtered_grouping_policy(field_index, *field_values)
 
     for policy in policies:

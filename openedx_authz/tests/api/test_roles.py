@@ -21,13 +21,16 @@ from openedx_authz.api.data import (
     RoleData,
     ScopeData,
     SubjectData,
+    UserData,
 )
 from openedx_authz.api.roles import (
+    _get_field_index_and_values,
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     get_all_subject_role_assignments_in_scope,
     get_permissions_for_active_roles_in_scope,
     get_permissions_for_single_role,
+    get_role_assignments,
     get_role_definitions_in_scope,
     get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
@@ -333,6 +336,17 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "subject_name": "frank",
                 "role_name": roles.LIBRARY_USER.external_key,
                 "scope_name": "lib:Org6:project_epsilon",
+            },
+            # Same user, same scope, different role
+            {
+                "subject_name": "george",
+                "role_name": roles.LIBRARY_AUTHOR.external_key,
+                "scope_name": "lib:Org6:project_zeta",
+            },
+            {
+                "subject_name": "george",
+                "role_name": roles.LIBRARY_CONTRIBUTOR.external_key,
+                "scope_name": "lib:Org6:project_zeta",
             },
         ]
         cls._assign_roles_to_users(assignments=assignments)
@@ -641,6 +655,99 @@ class TestRolesAPI(RolesTestSetupMixin):
         )
 
         self.assertEqual(len(role_assignments), expected_count)
+
+    @ddt_data(
+        # Test with subject only
+        ("alice", None, None, 1),
+        ("eve", None, None, 3),
+        # Test with role only
+        (None, roles.LIBRARY_ADMIN.external_key, None, 5),
+        (None, roles.LIBRARY_AUTHOR.external_key, None, 8),
+        (None, roles.LIBRARY_CONTRIBUTOR.external_key, None, 6),
+        (None, roles.LIBRARY_USER.external_key, None, 6),
+        (None, roles.COURSE_STAFF.external_key, None, 7),
+        # Test with scope only
+        (None, None, "lib:Org1:math_101", 1),
+        (None, None, "lib:Org1:history_201", 1),
+        (None, None, "lib:Org1:science_301", 1),
+        (None, None, "lib:Org1:english_101", 1),
+        (None, None, "lib:Org1:math_advanced", 2),
+        # Test with subject and scope
+        ("alice", None, "lib:Org1:math_101", 1),
+        ("bob", None, "lib:Org1:history_201", 1),
+        ("carol", None, "lib:Org1:science_301", 1),
+        ("george", None, "lib:Org6:project_zeta", 2),
+        # Test with subject and role
+        ("daniel", roles.COURSE_STAFF.external_key, None, 1),
+        ("liam", roles.LIBRARY_AUTHOR.external_key, None, 3),
+        ("carlos", roles.COURSE_STAFF.external_key, None, 3),
+        # Test with role and scope
+        (None, roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:math_advanced", 2),
+        (None, roles.LIBRARY_ADMIN.external_key, "lib:Org5:economics_101", 1),
+        (None, roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org5:economics_101", 1),
+        (None, roles.LIBRARY_USER.external_key, "lib:Org5:economics_101", 1),
+        # Test with subject, role, and scope
+        ("ivy", roles.LIBRARY_ADMIN.external_key, "lib:Org3:cs_101", 1),
+        ("jack", roles.LIBRARY_AUTHOR.external_key, "lib:Org3:cs_101", 1),
+        ("kate", roles.LIBRARY_USER.external_key, "lib:Org3:cs_101", 1),
+        ("peter", roles.LIBRARY_ADMIN.external_key, "lib:Org6:project_alpha", 1),
+        ("peter", roles.LIBRARY_AUTHOR.external_key, "lib:Org6:project_beta", 1),
+        ("peter", roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org6:project_gamma", 1),
+        ("peter", roles.LIBRARY_USER.external_key, "lib:Org6:project_delta", 1),
+        # Edge cases - non-existent entities
+        ("non_existent_user", None, "lib:Org1:math_101", 0),
+        ("alice", None, "lib:Org999:non_existent_scope", 0),
+        ("non_existent_user", None, "lib:Org999:non_existent_scope", 0),
+        (None, "non_existent_role", "lib:Org1:math_101", 0),
+        ("alice", "non_existent_role", "lib:Org1:math_101", 0),
+        ("non_existent_user", "non_existent_role", "lib:Org999:non_existent_scope", 0),
+    )
+    @unpack
+    def test_get_role_assignments_with_filters(self, subject_name, role_name, scope_name, expected_count):
+        """Test get_role_assignments with flexible subject/role/scope filtering.
+
+        This test demonstrates that get_role_assignments supports multiple filtering modes:
+        - Filter by subject only: Get all role assignments across all scopes for a user
+        - Filter by role only: Get all assignments for a specific role across all scopes
+        - Filter by scope only: Get all role assignments within a specific scope
+        - Filter by subject and scope: Equivalent to get_subject_role_assignments_in_scope
+        - Filter by subject and role: Get assignments for a user with a specific role
+        - Filter by role and scope: Find all subjects with a specific role in a scope
+        - Filter by all three: Precise queries for a specific subject-role-scope combination
+        - Handle non-existent entities gracefully: Returns empty list for invalid filters
+
+        Expected result:
+            - Returns correct number of role assignments based on the filters provided
+            - Each assignment matches all specified filters
+            - Returns empty list for non-existent entities
+        """
+        subject = SubjectData(external_key=subject_name) if subject_name else None
+        role = RoleData(external_key=role_name) if role_name else None
+        scope = ScopeData(external_key=scope_name) if scope_name else None
+
+        role_assignments = get_role_assignments(subject=subject, role=role, scope=scope)
+
+        self.assertEqual(len(role_assignments), expected_count)
+
+        # Ensure all assignments match the filters
+        for assignment in role_assignments:
+            if subject_name:
+                self.assertEqual(
+                    assignment.subject.external_key,
+                    subject_name,
+                    f"Expected subject {subject_name}, got {assignment.subject.external_key}",
+                )
+            if role_name:
+                self.assertTrue(
+                    any(r.external_key == role_name for r in assignment.roles),
+                    f"Expected role {role_name} not found in assignment",
+                )
+            if scope_name:
+                self.assertEqual(
+                    assignment.scope.external_key,
+                    scope_name,
+                    f"Expected scope {scope_name}, got {assignment.scope.external_key}",
+                )
 
     @ddt_data(
         # Test case: alice with 'view_library' permission (has library_admin in math_101)
@@ -1181,3 +1288,142 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
 
         new_roles = {r.external_key for assignment in new_assignments for r in assignment.roles}
         self.assertIn("library_admin", new_roles)
+
+
+@ddt
+class TestFieldIndexAndValues(TestCase):
+    """Test cases for _get_field_index_and_values helper function.
+
+    This function builds field index and values for Casbin's get_filtered_grouping_policy.
+    It determines the leftmost non-None field as field_index and returns consecutive values
+    from that position, using empty strings as wildcards for gaps.
+    """
+
+    @ddt_data(
+        # All None
+        (None, None, None, 0, []),
+        # All three parameters provided
+        (
+            UserData(external_key="steve"),
+            RoleData(external_key="course_admin"),
+            ScopeData(external_key="course-v1:OpenedX+Demo+Course"),
+            0,
+            [
+                "user^steve",
+                "role^course_admin",
+                "course-v1^course-v1:OpenedX+Demo+Course",
+            ],
+        ),
+        # Only subject provided
+        (
+            UserData(external_key="steve"),
+            None,
+            None,
+            0,
+            ["user^steve"],
+        ),
+        # Subject and role provided (no scope)
+        (
+            UserData(external_key="steve"),
+            RoleData(external_key="course_admin"),
+            None,
+            0,
+            ["user^steve", "role^course_admin"],
+        ),
+        # Only role provided (subject is None)
+        (None, RoleData(external_key="course_admin"), None, 1, ["role^course_admin"]),
+        # Role and scope provided (subject is None)
+        (
+            None,
+            RoleData(external_key="course_admin"),
+            ScopeData(external_key="course-v1:OpenedX+Demo+Course"),
+            1,
+            ["role^course_admin", "course-v1^course-v1:OpenedX+Demo+Course"],
+        ),
+        # Only scope provided (subject and role are None)
+        (
+            None,
+            None,
+            ScopeData(external_key="course-v1:OpenedX+Demo+Course"),
+            2,
+            ["course-v1^course-v1:OpenedX+Demo+Course"],
+        ),
+        # Subject and scope provided (role is None - creates gap)
+        (
+            UserData(external_key="steve"),
+            None,
+            ScopeData(external_key="course-v1:OpenedX+Demo+Course"),
+            0,
+            ["user^steve", "", "course-v1^course-v1:OpenedX+Demo+Course"],
+        ),
+        # Library-related examples
+        (
+            UserData(external_key="alice"),
+            RoleData(external_key="library_admin"),
+            ScopeData(external_key="lib:Org1:math_101"),
+            0,
+            ["user^alice", "role^library_admin", "lib^lib:Org1:math_101"],
+        ),
+        (
+            None,
+            RoleData(external_key="library_user"),
+            ScopeData(external_key="lib:Org2:science_101"),
+            1,
+            ["role^library_user", "lib^lib:Org2:science_101"],
+        ),
+    )
+    @unpack
+    def test_get_field_index_and_values(
+        self,
+        subject,
+        role,
+        scope,
+        expected_index,
+        expected_values,
+    ):  # pylint: disable=too-many-positional-arguments
+        """Test that _get_field_index_and_values correctly builds field index and values.
+
+        Expected result:
+            - Returns the correct field_index (leftmost non-None parameter position)
+            - Returns consecutive values from that index
+            - Empty strings serve as wildcards for gaps
+            - Trailing empty strings are removed
+        """
+        field_index, field_values = _get_field_index_and_values(subject, role, scope)
+
+        self.assertEqual(field_index, expected_index)
+        self.assertEqual(field_values, expected_values)
+
+    def test_get_field_index_and_values_removes_trailing_wildcards(self):
+        """Test that trailing empty strings are removed from field_values.
+
+        Expected result:
+            - When the last parameters are None, they don't appear as empty strings
+            - Only intermediate gaps appear as empty strings
+        """
+        subject = UserData(external_key="john")
+        role = RoleData(external_key="instructor")
+        scope = None
+
+        field_index, field_values = _get_field_index_and_values(subject, role, scope)
+
+        self.assertEqual(field_index, 0)
+        self.assertEqual(field_values, ["user^john", "role^instructor"])
+        self.assertNotEqual(field_values[-1], "")
+
+    def test_get_field_index_and_values_preserves_intermediate_wildcards(self):
+        """Test that intermediate gaps are preserved as empty strings.
+
+        Expected result:
+            - When middle parameter is None but first and last are provided,
+              an empty string appears in the middle of the list
+        """
+        subject = UserData(external_key="mary")
+        role = None
+        scope = ScopeData(external_key="lib:Org3:history_201")
+
+        field_index, field_values = _get_field_index_and_values(subject, role, scope)
+
+        self.assertEqual(field_index, 0)
+        self.assertEqual(field_values, ["user^mary", "", "lib^lib:Org3:history_201"])
+        self.assertEqual(field_values[1], "")

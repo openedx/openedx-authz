@@ -410,23 +410,6 @@ def get_subject_role_assignments_in_scope(subject: SubjectData, scope: ScopeData
     return role_assignments
 
 
-def get_subject_role_assignments_for_role(subject: SubjectData, role: RoleData) -> list[RoleAssignmentData]:
-    """Get role assignments for a subject filtered by a specific role across all scopes.
-
-    Args:
-        subject: The SubjectData object representing the subject.
-        role: The RoleData object representing the role to filter by.
-
-    Returns:
-        list[RoleAssignmentData]: A list of assignments where the subject has the specified role.
-    """
-    return [
-        assignment
-        for assignment in get_subject_role_assignments(subject)
-        if any(assigned_role.namespaced_key == role.namespaced_key for assigned_role in assignment.roles)
-    ]
-
-
 def get_subject_role_assignments_for_role_in_scope(role: RoleData, scope: ScopeData) -> list[RoleAssignmentData]:
     """Get the subjects assigned to a specific role in a specific scope.
 

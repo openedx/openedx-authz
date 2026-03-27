@@ -26,7 +26,6 @@ from openedx_authz.api.roles import (
     get_role_assignments,
     get_scopes_for_subject_and_permission,
     get_subject_role_assignments,
-    get_subject_role_assignments_for_role,
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
@@ -48,7 +47,6 @@ __all__ = [
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
     "unassign_all_roles_from_user",
-    "get_user_role_assignments_for_role",
 ]
 
 
@@ -130,22 +128,6 @@ def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData
         list[RoleAssignmentData]: A list of role assignments and all their metadata assigned to the user.
     """
     return get_subject_role_assignments(UserData(external_key=user_external_key))
-
-
-def get_user_role_assignments_for_role(user_external_key: str, role_external_key: str) -> list[RoleAssignmentData]:
-    """Get role assignments for a user filtered by a specific role across all scopes.
-
-    Args:
-        user_external_key (str): ID of the user (e.g., 'john_doe').
-        role_external_key (str): Name of the role (e.g., 'instructor').
-
-    Returns:
-        list[RoleAssignmentData]: A list of role assignments for the given user and role.
-    """
-    return get_subject_role_assignments_for_role(
-        UserData(external_key=user_external_key),
-        RoleData(external_key=role_external_key),
-    )
 
 
 def get_user_role_assignments_in_scope(user_external_key: str, scope_external_key: str) -> list[RoleAssignmentData]:

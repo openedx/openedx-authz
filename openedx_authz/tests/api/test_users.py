@@ -9,6 +9,7 @@ from openedx_authz.api.users import (
     batch_unassign_role_from_users,
     get_all_user_role_assignments_in_scope,
     get_user_role_assignments,
+    get_user_role_assignments_for_role,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
     is_user_allowed,
@@ -51,6 +52,39 @@ class UserAssignmentsSetupMixin(RolesTestSetupMixin):
 @ddt
 class TestUserRoleAssignments(UserAssignmentsSetupMixin):
     """Test suite for user-role assignment API functions."""
+
+    @data(
+        ("alice", roles.LIBRARY_ADMIN.external_key, 1, {"lib:Org1:math_101"}),
+        ("eve", roles.LIBRARY_ADMIN.external_key, 1, {"lib:Org2:physics_401"}),
+        (
+            "liam",
+            roles.LIBRARY_AUTHOR.external_key,
+            3,
+            {"lib:Org4:art_101", "lib:Org4:art_201", "lib:Org4:art_301"},
+        ),
+        ("alice", roles.LIBRARY_AUTHOR.external_key, 0, set()),
+        ("non_existent_user", roles.LIBRARY_ADMIN.external_key, 0, set()),
+    )
+    @unpack
+    def test_get_user_role_assignments_for_role(
+        self,
+        username,
+        role_external_key,
+        expected_count,
+        expected_scopes,
+    ):
+        role_assignments = get_user_role_assignments_for_role(
+            user_external_key=username,
+            role_external_key=role_external_key,
+        )
+
+        self.assertEqual(len(role_assignments), expected_count)
+
+        role_names = {r.external_key for assignment in role_assignments for r in assignment.roles}
+        self.assertEqual(role_names, set() if expected_count == 0 else {role_external_key})
+
+        scopes = {assignment.scope.external_key for assignment in role_assignments}
+        self.assertEqual(scopes, expected_scopes)
 
     @data(
         ("john", roles.LIBRARY_ADMIN.external_key, "lib:Org1:math_101", False),

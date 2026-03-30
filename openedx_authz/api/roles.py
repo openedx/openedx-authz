@@ -323,18 +323,18 @@ def _get_field_index_and_values(
         (1, ['role^course_admin', 'course-v1^course-v1:OpenedX+Demo+Course'])
         >>> _get_field_index_and_values(user, None, scope)
         (0, ['user^steve', '', 'course-v1^course-v1:OpenedX+Demo+Course'])
+        >>> _get_field_index_and_values(None, None, scope)
+        (2, ['course-v1^course-v1:OpenedX+Demo+Course'])
     """
-    values = [
-        subject.namespaced_key if subject else "",
-        role.namespaced_key if role else "",
-        scope.namespaced_key if scope else "",
-    ]
+    fields = [subject, role, scope]
+    field_index = 0
 
-    # Find first non-empty value (leftmost defined field)
-    try:
-        field_index = next(idx for idx, value in enumerate(values) if value)
-    except StopIteration:
-        return 0, []
+    for index, field in enumerate(fields):
+        if field is not None:
+            field_index = index
+            break
+
+    values = [field.namespaced_key if field else "" for field in fields]
 
     # Take slice from first defined field
     field_values = values[field_index:]

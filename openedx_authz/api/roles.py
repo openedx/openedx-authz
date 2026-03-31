@@ -26,21 +26,22 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import ExtendedCasbinRule
 
 __all__ = [
-    "get_permissions_for_single_role",
-    "get_permissions_for_roles",
-    "get_all_roles_names",
-    "get_all_roles_in_scope",
-    "get_permissions_for_active_roles_in_scope",
-    "get_role_definitions_in_scope",
     "assign_role_to_subject_in_scope",
     "batch_assign_role_to_subjects_in_scope",
-    "unassign_role_from_subject_in_scope",
     "batch_unassign_role_from_subjects_in_scope",
-    "get_subject_role_assignments_in_scope",
-    "get_subject_role_assignments_for_role_in_scope",
+    "get_all_roles_in_scope",
+    "get_all_roles_names",
     "get_all_subject_role_assignments_in_scope",
-    "get_subject_role_assignments",
+    "get_permissions_for_active_roles_in_scope",
+    "get_permissions_for_roles",
+    "get_permissions_for_single_role",
+    "get_role_assignments",
+    "get_role_definitions_in_scope",
     "get_scopes_for_subject_and_permission",
+    "get_subject_role_assignments",
+    "get_subject_role_assignments_for_role_in_scope",
+    "get_subject_role_assignments_in_scope",
+    "unassign_role_from_subject_in_scope",
     "unassign_subject_from_all_roles",
 ]
 
@@ -286,6 +287,92 @@ def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentDat
         role_assignments.append(
             RoleAssignmentData(
                 subject=subject,
+                roles=[role],
+                scope=ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value]),
+            )
+        )
+    return role_assignments
+
+
+def _get_field_index_and_values(
+    subject: SubjectData | None,
+    role: RoleData | None,
+    scope: ScopeData | None,
+) -> tuple[int, list[str]]:
+    """Build field index and values for Casbin's get_filtered_grouping_policy.
+
+    Returns the leftmost non-None field as field_index and a list of consecutive
+    values starting from that index. Empty strings serve as wildcards for positions
+    between specified values.
+
+    Args:
+        subject: Optional subject to filter by.
+        role: Optional role to filter by.
+        scope: Optional scope to filter by.
+
+    Returns:
+        tuple: (field_index, field_values) where field_index is the starting position
+            and field_values are the consecutive filter values from that position.
+
+     Examples:
+        >>> _get_field_index_and_values(user, None, None)
+        (0, ['user^steve'])
+        >>> _get_field_index_and_values(user, role, None)
+        (0, ['user^steve', 'role^course_admin'])
+        >>> _get_field_index_and_values(None, role, scope)
+        (1, ['role^course_admin', 'course-v1^course-v1:OpenedX+Demo+Course'])
+        >>> _get_field_index_and_values(user, None, scope)
+        (0, ['user^steve', '', 'course-v1^course-v1:OpenedX+Demo+Course'])
+        >>> _get_field_index_and_values(None, None, scope)
+        (2, ['course-v1^course-v1:OpenedX+Demo+Course'])
+    """
+    fields = [subject, role, scope]
+    field_index = 0
+
+    for index, field in enumerate(fields):
+        if field is not None:
+            field_index = index
+            break
+
+    values = [field.namespaced_key if field else "" for field in fields]
+
+    # Take slice from first defined field
+    field_values = values[field_index:]
+
+    # Remove trailing wildcards
+    while field_values and field_values[-1] == "":
+        field_values.pop()
+
+    return field_index, field_values
+
+
+def get_role_assignments(
+    *,
+    subject: SubjectData | None = None,
+    role: RoleData | None = None,
+    scope: ScopeData | None = None,
+) -> list[RoleAssignmentData]:
+    """Get all the roles for a subject across all scopes filtered by the given filters.
+
+    Args:
+        subject: Optional SubjectData object to filter by.
+        role: Optional RoleData object to filter by.
+        scope: Optional ScopeData object to filter by.
+
+    Returns:
+        list[RoleAssignmentData]: A list of RoleAssignmentData objects filtered by the given filters.
+    """
+    enforcer = AuthzEnforcer.get_enforcer()
+    role_assignments = []
+    field_index, field_values = _get_field_index_and_values(subject, role, scope)
+    policies = enforcer.get_filtered_grouping_policy(field_index, *field_values)
+
+    for policy in policies:
+        role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
+        role.permissions = get_permissions_for_single_role(role)
+        role_assignments.append(
+            RoleAssignmentData(
+                subject=SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]),
                 roles=[role],
                 scope=ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value]),
             )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from abc import abstractmethod
 from enum import Enum
+from functools import cached_property
 from typing import Any, ClassVar, Literal, Type
 
 from attrs import define
@@ -449,6 +450,15 @@ class ContentLibraryData(ScopeData):
     ID_SEPARATOR: ClassVar[str] = ":"
 
     @property
+    def org(self) -> str:
+        """Get the organization name from the library key.
+
+        Returns:
+            str: The organization name (e.g., ``DemoX`` from ``lib:DemoX:CSPROB``).
+        """
+        return self.library_key.org
+
+    @property
     def library_id(self) -> str:
         """The library identifier as used in Open edX (e.g., 'lib:DemoX:CSPROB').
 
@@ -459,7 +469,7 @@ class ContentLibraryData(ScopeData):
         """
         return self.external_key
 
-    @property
+    @cached_property
     def library_key(self) -> LibraryLocatorV2:
         """The LibraryLocatorV2 object for the content library.
 
@@ -553,6 +563,15 @@ class CourseOverviewData(ScopeData):
     ID_SEPARATOR: ClassVar[str] = "+"
 
     @property
+    def org(self) -> str:
+        """Get the organization name from the course key.
+
+        Returns:
+            str: The organization name (e.g., ``DemoX`` from ``course-v1:DemoX+TestCourse+2024_T1``).
+        """
+        return self.course_key.org
+
+    @property
     def course_id(self) -> str:
         """The course identifier as used in Open edX (e.g., 'course-v1:TestOrg+TestCourse+2024_T1').
 
@@ -563,7 +582,7 @@ class CourseOverviewData(ScopeData):
         """
         return self.external_key
 
-    @property
+    @cached_property
     def course_key(self) -> CourseKey:
         """The CourseKey object for the course.
 

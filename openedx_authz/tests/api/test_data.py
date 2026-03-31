@@ -98,6 +98,28 @@ class TestNamespacedData(TestCase):
 
         self.assertEqual(scope.namespaced_key, expected)
 
+    @data(
+        ("lib:DemoX:CSPROB", "DemoX"),
+        ("lib:Org1:math_101", "Org1"),
+    )
+    @unpack
+    def test_content_library_data_org_property(self, external_key, expected_org):
+        """Test that ContentLibraryData returns the correct organization name."""
+        scope = ContentLibraryData(external_key=external_key)
+
+        self.assertEqual(scope.org, expected_org)
+
+    @data(
+        ("course-v1:DemoX+TestCourse+2024_T1", "DemoX"),
+        ("course-v1:WGU+CS002+2025_T1", "WGU"),
+    )
+    @unpack
+    def test_course_overview_data_org_property(self, external_key, expected_org):
+        """Test that CourseOverviewData returns the correct organization name."""
+        scope = CourseOverviewData(external_key=external_key)
+
+        self.assertEqual(scope.org, expected_org)
+
 
 @ddt
 class TestPolymorphicData(TestCase):

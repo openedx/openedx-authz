@@ -14,6 +14,15 @@ Change Log
 Unreleased
 **********
 
+1.2.0 - 2026-03-30
+******************
+
+Added
+=====
+
+* Add ``get_user_role_assignments_filtered`` api function to fetch user role assignments filtered by user, role, and/or scope.
+* Add ``org`` property to ``ContentLibraryData`` and ``CourseOverviewData``.
+
 1.1.0 - 2026-03-17
 ******************
 

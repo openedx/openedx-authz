@@ -27,6 +27,7 @@ from openedx_authz.api.roles import (
     _get_field_index_and_values,
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
+    get_all_subject_role_assignments,
     get_all_subject_role_assignments_in_scope,
     get_permissions_for_active_roles_in_scope,
     get_permissions_for_single_role,
@@ -1109,6 +1110,43 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         self.assertEqual(len(role_assignments), len(expected_assignments))
         for assignment in role_assignments:
             self.assertIn(assignment, expected_assignments)
+
+    def test_get_all_subject_role_assignments(self):
+        """Test retrieving all role assignments across all subjects and scopes.
+
+        Expected result:
+            - Returns all role assignments present in the system.
+            - Each assignment includes subject, role, and scope.
+            - Known assignments from the test setup are present in the result.
+        """
+        role_assignments = get_all_subject_role_assignments()
+
+        self.assertGreater(len(role_assignments), 0)
+
+        # Verify each assignment has the expected structure
+        for assignment in role_assignments:
+            self.assertIsNotNone(assignment.subject)
+            self.assertIsNotNone(assignment.scope)
+            self.assertGreater(len(assignment.roles), 0)
+            for role in assignment.roles:
+                self.assertIsNotNone(role.external_key)
+
+        # Verify known assignments from setup are present
+        subject_scope_role_triples = {
+            (a.subject.external_key, a.scope.external_key, a.roles[0].external_key) for a in role_assignments
+        }
+        self.assertIn(
+            ("alice", "lib:Org1:math_101", roles.LIBRARY_ADMIN.external_key),
+            subject_scope_role_triples,
+        )
+        self.assertIn(
+            ("eve", "lib:Org2:physics_401", roles.LIBRARY_ADMIN.external_key),
+            subject_scope_role_triples,
+        )
+        self.assertIn(
+            ("liam", "lib:Org4:art_101", roles.LIBRARY_AUTHOR.external_key),
+            subject_scope_role_triples,
+        )
 
     def test_assign_role_creates_extended_casbin_rule(self):
         """Test that assigning a role creates an ExtendedCasbinRule record.

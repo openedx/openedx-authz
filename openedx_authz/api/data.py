@@ -1207,3 +1207,18 @@ class RoleAssignmentData:
         """Developer friendly string representation of the role assignment."""
         role_keys = ", ".join(role.namespaced_key for role in self.roles)
         return f"{self.subject.namespaced_key} => [{role_keys}] @ {self.scope.namespaced_key}"
+
+
+@define
+class UserAssignments:
+    """A user with their role assignments"""
+
+    user: "User"
+    assignments: list[RoleAssignmentData]
+
+
+class UserAssignmentsFilter(Enum):
+    """Enum for the filters that can be applied over UserAssignments."""
+
+    SCOPES = "scopes"
+    ORGS = "orgs"

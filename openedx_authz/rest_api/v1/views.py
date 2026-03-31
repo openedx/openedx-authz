@@ -19,28 +19,31 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
+from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_generic_scope,
-    get_user_by_username_or_email,
-    get_user_map,
     sort_users,
 )
+from openedx_authz.rest_api.v1.filters import TeamMemberOrderingFilter, TeamMemberSearchFilter
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
+    ListTeamMembersSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
+    TeamMemberSerializer,
     UserRoleAssignmentSerializer,
 )
+from openedx_authz.utils import get_user_by_username_or_email
 
 logger = logging.getLogger(__name__)
 
@@ -535,3 +538,51 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "short_name"]
     permission_classes = [AnyScopePermission]
+
+
+@view_auth_classes()
+class TeamMembersAPIView(APIView):
+    """
+    API view for listing users in relation to role assignments
+    This API is used in the Team Members section in Admin Console.
+    In this content, a team member is anyone with studio access.
+    """
+
+    pagination_class = AuthZAPIViewPagination
+    filter_backends = [TeamMemberSearchFilter, TeamMemberOrderingFilter]
+
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("scopes", str, description="The scopes to query assignments for"),
+            apidocs.query_parameter("orgs", str, description="The orgs to query assignments for"),
+            apidocs.query_parameter("search", str, description="The search query to filter users by"),
+            apidocs.query_parameter("sort_by", str, description="The field to sort by"),
+            apidocs.query_parameter("order", str, description="The order to sort by"),
+            apidocs.query_parameter("page", int, description="Page number for pagination"),
+            apidocs.query_parameter("page_size", int, description="Number of items per page"),
+        ],
+        responses={
+            status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
+            status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+        },
+    )
+    def get(self, request: HttpRequest) -> Response:
+        """Retrieve all users that have at least one assignation according to the filtering fields."""
+        serializer = ListTeamMembersSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        query_params = serializer.validated_data
+
+        users_with_assignments = api.get_visible_role_assignments_for_user(
+            orgs=query_params.get("orgs"),
+            scopes=query_params.get("scopes"),
+            allowed_for_user_external_key=request.user.username,
+        )
+
+        team_members = TeamMemberSerializer(users_with_assignments, many=True).data
+        for backend in self.filter_backends:
+            team_members = backend().filter_queryset(request, team_members, self)
+
+        paginator = self.pagination_class()
+        paginated_response_data = paginator.paginate_queryset(team_members, request)
+        return paginator.get_paginated_response(paginated_response_data)

@@ -11,10 +11,16 @@ with the role management system, which uses namespaced subjects
 
 from openedx_authz.api.data import (
     ActionData,
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
     ScopeData,
+    UserAssignments,
+    UserAssignmentsFilter,
     UserData,
 )
 from openedx_authz.api.permissions import is_subject_allowed
@@ -32,6 +38,8 @@ from openedx_authz.api.roles import (
     unassign_role_from_subject_in_scope,
     unassign_subject_from_all_roles,
 )
+from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
+from openedx_authz.constants.permissions import COURSES_MANAGE_COURSE_TEAM, MANAGE_LIBRARY_TEAM
 
 __all__ = [
     "assign_role_to_user_in_scope",
@@ -43,6 +51,7 @@ __all__ = [
     "get_user_role_assignments_for_role_in_scope",
     "get_user_role_assignments_filtered",
     "get_all_user_role_assignments_in_scope",
+    "get_visible_role_assignments_for_user",
     "is_user_allowed",
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
@@ -203,6 +212,71 @@ def get_all_user_role_assignments_in_scope(
         list[RoleAssignmentData]: A list of user role assignments and all their metadata in the specified scope.
     """
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
+
+
+def _filter_allowed_assignments(
+    user_external_key: str, assignments: list[RoleAssignmentData]
+) -> list[RoleAssignmentData]:
+    """
+    Filter the given role assignments to only include those that the user has permission to view.
+    """
+    allowed_assignments: list[RoleAssignmentData] = []
+    for assignment in assignments:
+        permission = None
+
+        # For CourseOverviewData and ContentLibraryData, check for the view permission
+        if isinstance(assignment.scope, (CourseOverviewData, OrgCourseOverviewGlobData)):
+            permission = COURSES_MANAGE_COURSE_TEAM.identifier
+        elif isinstance(assignment.scope, (ContentLibraryData, OrgContentLibraryGlobData)):
+            permission = MANAGE_LIBRARY_TEAM.identifier
+
+        if permission and is_user_allowed(
+            user_external_key=user_external_key,
+            action_external_key=permission,
+            scope_external_key=assignment.scope.external_key,
+        ):
+            allowed_assignments.append(assignment)
+
+    return allowed_assignments
+
+
+def get_visible_role_assignments_for_user(
+    orgs: list[str] = None,
+    scopes: list[str] = None,
+    allowed_for_user_external_key: str = None,
+) -> list[UserAssignments]:
+    """
+    Get all user role assignments filtered by orgs and/or scopes, and only include
+    assignments that the specified user has permission to view.
+
+    Args:
+        orgs: Optional list of orgs to filter by (e.g., ['edX', 'MITx']).
+        scopes: Optional list of scopes to filter by (e.g., ['lib:DemoX:CSPROB']).
+        allowed_for_user_external_key: The username to check permissions against (e.g., 'john_doe').
+
+    Returns:
+        list[UserAssignments]: A list of users with their role assignments, filtered by orgs/scopes and permissions.
+    """
+    user_role_assignments = get_user_role_assignments_filtered()
+    # Filter assignments based on the user's permissions
+    user_role_assignments = _filter_allowed_assignments(
+        user_external_key=allowed_for_user_external_key,
+        assignments=user_role_assignments,
+    )
+    # Group assignments by user
+    users_with_assignments = get_user_assignment_map(user_role_assignments)
+
+    users_with_assignments = filter_user_assignments(
+        users_with_assignments=users_with_assignments,
+        by=UserAssignmentsFilter.SCOPES,
+        values=scopes,
+    )
+    users_with_assignments = filter_user_assignments(
+        users_with_assignments=users_with_assignments,
+        by=UserAssignmentsFilter.ORGS,
+        values=orgs,
+    )
+    return users_with_assignments
 
 
 def is_user_allowed(

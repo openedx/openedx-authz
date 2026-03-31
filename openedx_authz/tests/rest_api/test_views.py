@@ -1004,6 +1004,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
 
         Expected result:
             - Returns appropriate status code based on user permissions
+
         """
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
@@ -1040,12 +1041,273 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
 
         Expected result:
             - Returns 401 UNAUTHORIZED status
+
         """
         self.client.force_authenticate(user=None)
 
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class TestTeamMembersAPIView(ViewTestMixin):
+    """
+    Test suite for TeamMembersAPIView.
+
+    Setup summary (from ViewTestMixin.setUpClass):
+        lib:Org1:LIB1 → admin_1 (library_admin), regular_1 (library_user), regular_2 (library_user)  [3 users]
+        lib:Org2:LIB2 → admin_2 (library_user),  regular_3 (library_user),  regular_4 (library_user) [3 users]
+        lib:Org3:LIB3 → admin_3 (library_admin), regular_5 (library_admin), regular_6 (library_author),
+                        regular_7 (library_contributor), regular_8 (library_user)                    [5 users]
+
+    Total unique users with assignments: 11
+    (admin_1..3 are staff/superuser; regular_1..8 are plain users)
+
+    Visibility via filter_allowed_assignments:
+        - Staff/superuser: sees all 11 users (is_admin_or_superuser_check grants MANAGE_LIBRARY_TEAM on lib scopes)
+        - regular_5 (library_admin in Org3:LIB3): MANAGE_LIBRARY_TEAM granted → sees Org3 members (5)
+        - regular_1 (library_user in Org1:LIB1): no MANAGE_LIBRARY_TEAM → sees 0
+        - regular_3 (library_user in Org2:LIB2): no MANAGE_LIBRARY_TEAM → sees 0
+        - regular_9 (no assignments): sees 0 users
+    """
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+
+        self.url = reverse("openedx_authz:user-list")
+        self.get_user_map_patcher = patch(
+            "openedx_authz.api.utils.get_user_map",
+            side_effect=get_user_map_without_profile,
+        )
+        self.get_user_map_patcher.start()
+        self.addCleanup(self.get_user_map_patcher.stop)
+
+    # -------------------------------------------------------------------- #
+    # Visibility: calling user only sees assignments it has view access to #
+    # -------------------------------------------------------------------- #
+
+    @data(
+        # Staff/superuser sees all users across all scopes
+        ("admin_1", 11),
+        # regular_5 has LIBRARY_ADMIN in lib:Org3:LIB3 (MANAGE_LIBRARY_TEAM granted) → sees only Org3 members
+        ("regular_5", 5),
+        # regular_1 has LIBRARY_USER in lib:Org1:LIB1 (no MANAGE_LIBRARY_TEAM) → sees nothing
+        ("regular_1", 0),
+        # regular_3 has LIBRARY_USER in lib:Org2:LIB2 (no MANAGE_LIBRARY_TEAM) → sees nothing
+        ("regular_3", 0),
+        # regular_9 has no assignments → sees nothing
+        ("regular_9", 0),
+    )
+    @unpack
+    def test_visibility_limited_to_accessible_scopes(self, username: str, expected_count: int):
+        """Calling user only sees assignments for scopes it has MANAGE_*_TEAM access to.
+
+        Expected result:
+            - Staff/superuser sees all users across all scopes.
+            - Regular users only see members of scopes they can manage the team for.
+            - Users without MANAGE_*_TEAM permission see no results.
+
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    def test_unauthenticated_returns_401(self):
+        """Unauthenticated requests are rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED.
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # -------------------------------------------------------------------- #
+
+    # Filter by scopes                                                     #
+    # -------------------------------------------------------------------- #
+
+    @data(
+        # Single scope
+        ("lib:Org1:LIB1", 3),
+        ("lib:Org2:LIB2", 3),
+        ("lib:Org3:LIB3", 5),
+        # Multiple scopes (users are unique per scope, no overlap)
+        ("lib:Org1:LIB1,lib:Org2:LIB2", 6),
+        ("lib:Org1:LIB1,lib:Org3:LIB3", 8),
+        ("lib:Org1:LIB1,lib:Org2:LIB2,lib:Org3:LIB3", 11),
+        # Non-existent scope returns no results
+        ("lib:Org99:NOLIB", 0),
+    )
+    @unpack
+    def test_filter_by_scopes(self, scopes: str, expected_count: int):
+        """Results are filtered to the requested scopes.
+
+        Expected result:
+            - Only users with assignments in the given scope(s) are returned.
+            - Multiple scopes are OR-combined.
+        """
+        response = self.client.get(self.url, {"scopes": scopes})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    # ------------------------------------------------------------------ #
+    # Filter by orgs                                                     #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        # Single org
+        ("Org1", 3),
+        ("Org2", 3),
+        ("Org3", 5),
+        # Multiple orgs
+        ("Org1,Org2", 6),
+        ("Org1,Org3", 8),
+        ("Org1,Org2,Org3", 11),
+        # Non-existent org returns no results
+        ("OrgX", 0),
+    )
+    @unpack
+    def test_filter_by_orgs(self, orgs: str, expected_count: int):
+        """Results are filtered to the requested orgs.
+
+        Expected result:
+            - Only users with assignments in the given org(s) are returned.
+            - Multiple orgs are OR-combined.
+        """
+        response = self.client.get(self.url, {"orgs": orgs})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    # ------------------------------------------------------------------ #
+    # Search (username, full_name, email)                                #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        # Exact username match
+        ("admin_1", 1),
+        # Partial username match
+        ("admin", 3),
+        ("regular", 8),
+        # Email match
+        ("admin_1@example.com", 1),
+        ("@example.com", 11),
+        # No match
+        ("nonexistent", 0),
+    )
+    @unpack
+    def test_search(self, search: str, expected_count: int):
+        """Search filters by username, full_name, or email (case-insensitive).
+
+        Expected result:
+            - Returns only users whose username, full_name, or email contains the search term.
+        """
+        response = self.client.get(self.url, {"search": search})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    # ------------------------------------------------------------------ #
+    # Sorting                                                            #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ("username", "asc"),
+        ("username", "desc"),
+        ("email", "asc"),
+        ("email", "desc"),
+        ("full_name", "asc"),
+        ("full_name", "desc"),
+    )
+    @unpack
+    def test_sorting(self, sort_by: str, order: str):
+        """Results can be sorted by username, full_name, or email in asc/desc order.
+
+        Expected result:
+            - Returns 200 OK.
+            - Results are ordered according to the requested field and direction.
+        """
+        response = self.client.get(self.url, {"sort_by": sort_by, "order": order})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        values = [item[sort_by] for item in response.data["results"]]
+        expected = sorted(values, key=lambda v: (v or "").lower(), reverse=order == "desc")
+        self.assertEqual(values, expected)
+
+    @data(
+        {"sort_by": "invalid"},
+        {"order": "ascending"},
+        {"order": "descending"},
+    )
+    def test_sorting_invalid_params(self, query_params: dict):
+        """Invalid sort_by or order values return 400.
+
+        Expected result:
+            - Returns 400 BAD REQUEST.
+        """
+        response = self.client.get(self.url, query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ------------------------------------------------------------------ #
+    # Pagination                                                         #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ({"page": 1, "page_size": 5}, 5, True),
+        ({"page": 2, "page_size": 5}, 5, True),
+        ({"page": 3, "page_size": 5}, 1, False),
+        ({"page": 1, "page_size": 11}, 11, False),
+        ({"page": 1, "page_size": 6}, 6, True),
+    )
+    @unpack
+    def test_pagination(self, query_params: dict, expected_page_count: int, has_next: bool):
+        """Results are paginated correctly.
+
+        Expected result:
+            - Returns 200 OK.
+            - Page contains the expected number of items.
+            - `next` link is present only when more pages exist.
+        """
+        response = self.client.get(self.url, query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 11)
+        self.assertEqual(len(response.data["results"]), expected_page_count)
+        if has_next:
+            self.assertIsNotNone(response.data["next"])
+        else:
+            self.assertIsNone(response.data["next"])
+
+    # ------------------------------------------------------------------ #
+    # Response shape                                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_response_shape(self):
+        """Each result item contains the expected fields.
+
+        Expected result:
+            - Returns 200 OK.
+            - Each item has username, full_name, email, and assignation_count.
+        """
+        response = self.client.get(self.url, {"scopes": "lib:Org1:LIB1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in response.data["results"]:
+            self.assertIn("username", item)
+            self.assertIn("full_name", item)
+            self.assertIn("email", item)
+            self.assertIn("assignation_count", item)
+            self.assertEqual(item["assignation_count"], 1)
 
 
 @ddt

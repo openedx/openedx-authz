@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
-from openedx_authz.api.data import RoleAssignmentData, SuperAdminAssignmentData
+from openedx_authz.api.data import RoleAssignmentData, SuperAdminAssignmentData, UserAssignmentData
 from openedx_authz.api.users import (
     get_superadmin_assignments,
     get_visible_user_role_assignments_filtered_by_current_user,
@@ -38,11 +38,14 @@ from openedx_authz.rest_api.v1.filters import (
     TeamMemberAssignmentsOrderingFilter,
     TeamMemberOrderingFilter,
     TeamMemberSearchFilter,
+    UserAssignmentsOrderingFilter,
+    UserAssignmentsSearchFilter,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
+    ListAllTeamMembersAssignmentsSerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
     ListTeamMemberAssignmentsQuerySerializer,
@@ -53,6 +56,7 @@ from openedx_authz.rest_api.v1.serializers import (
     RemoveUsersFromRoleWithScopeSerializer,
     TeamMemberAssignmentSerializer,
     TeamMemberSerializer,
+    TeamMemberUserAssignmentSerializer,
     UserRoleAssignmentSerializer,
     UserValidationAPIViewResponseSerializer,
     UserValidationAPIViewSerializer,
@@ -854,6 +858,151 @@ class TeamMemberAssignmentsAPIView(APIView):
         )
 
         assignments = TeamMemberAssignmentSerializer(user_role_assignments, many=True).data
+        for backend in self.filter_backends:
+            assignments = backend().filter_queryset(request, assignments, self)
+
+        # Paginate
+        paginator = self.pagination_class()
+        paginated_response_data = paginator.paginate_queryset(assignments, request)
+        return paginator.get_paginated_response(paginated_response_data)
+
+
+@view_auth_classes()
+class AssignmentsAPIView(APIView):
+    """
+    API view for listing all user role assignments
+    This API is used on the main team members view on the Admin Console.
+
+    **Endpoints**
+
+    - GET: Retrieve all user role assignments
+
+    **Query Parameters**
+
+    - orgs (Optional): Comma-separated list of orgs to filter assignments by
+    - roles (Optional): Comma-separated list of roles to filter assignments by
+    - scopes (Optional): Comma-separated list of scopes to filter assignments by
+    - search (Optional): Search term to filter assignments by full_name, username, or email
+    - sort_by (Optional): Field to sort by. Options: role, org, scope, full_name, username, email. Defaults to full_name
+    - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+
+    **Response Format**
+
+    Returns a paginated list of user assignment objects, each containing:
+
+    - is_superadmin: whether this entry denotes a superadmin
+    - role: The role
+    - org: The org over which this role is applied
+    - scope: The scope over which this role is applied
+    - permission_count: The number of permissions that apply to this role
+    - full_name: The full name of the user in this assignment
+    - username: The username of the user in this assignment
+    - email: The email of the user in this assignment
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - Results are filtered according to calling user's "view scope team members" permissions.
+
+    **Example Request**
+
+    GET /api/authz/v1/assignments/?order=desc&sort_by=role&page=1&page_size=2&search=cont
+
+    **Example Response**::
+
+        {
+            "count": 2,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "is_superadmin": false,
+                    "role": "course_staff",
+                    "org": "OpenedX",
+                    "scope": "course-v1:OpenedX+DemoX+DemoCourse",
+                    "permission_count": 27,
+                    "full_name": "",
+                    "username": "contributor",
+                    "email": "contributor@example.com"
+                },
+                {
+                    "is_superadmin": true,
+                    "role": "django.superuser",
+                    "org": "*",
+                    "scope": "*",
+                    "permission_count": null,
+                    "full_name": "",
+                    "username": "admin",
+                    "email": "admin@example.com"
+                },
+            ]
+        }
+    """
+
+    pagination_class = AuthZAPIViewPagination
+    filter_backends = [UserAssignmentsSearchFilter, UserAssignmentsOrderingFilter]
+    permission_classes = [AnyScopePermission]
+
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("orgs", str, description="The orgs to query assignments for"),
+            apidocs.query_parameter("roles", str, description="The roles to query assignments for"),
+            apidocs.query_parameter("scopes", str, description="The scopes to query assignments for"),
+            apidocs.query_parameter(
+                "search", str, description="The search query to filter assignments by full_name, username, or email"
+            ),
+            apidocs.query_parameter(
+                "sort_by",
+                str,
+                description="The field to sort by. Options: role, org, scope, full_name, username, email",
+            ),
+            apidocs.query_parameter("order", str, description="The order to sort by"),
+            apidocs.query_parameter("page", int, description="Page number for pagination"),
+            apidocs.query_parameter("page_size", int, description="Number of items per page"),
+        ],
+        responses={
+            status.HTTP_200_OK: TeamMemberUserAssignmentSerializer(many=True),
+            status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
+        },
+    )
+    @authz_permissions(
+        [
+            permissions.VIEW_LIBRARY_TEAM.identifier,
+            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+        ]
+    )
+    def get(self, request: HttpRequest) -> Response:
+        """Retrieve all user role assignments."""
+        serializer = ListAllTeamMembersAssignmentsSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        query_params = serializer.validated_data
+
+        user_role_assignments: list[UserAssignmentData | SuperAdminAssignmentData] = []
+
+        # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
+        user_role_assignments += get_superadmin_assignments()
+
+        users_with_assignments = api.get_visible_role_assignments_for_user(
+            orgs=query_params.get("orgs"),
+            scopes=query_params.get("scopes"),
+            roles=query_params.get("roles"),
+            allowed_for_user_external_key=request.user.username,
+        )
+
+        # Unpack list of UserAssignments to a list of UserAssignmentData
+        for uwa in users_with_assignments:
+            user_role_assignments += [
+                UserAssignmentData(
+                    user=uwa.user, subject=assignment.subject, roles=assignment.roles, scope=assignment.scope
+                )
+                for assignment in uwa.assignments
+            ]
+
+        assignments = TeamMemberUserAssignmentSerializer(user_role_assignments, many=True).data
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 

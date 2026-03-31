@@ -28,6 +28,17 @@ class AssignmentSortField(BaseEnum):
     SCOPE = "scope"
 
 
+class UserAssignmentSortField(BaseEnum):
+    """Enum for the user role assignment fields to sort by."""
+
+    ROLE = "role"
+    ORG = "org"
+    SCOPE = "scope"
+    NAME = "full_name"
+    USERNAME = "username"
+    EMAIL = "email"
+
+
 class SortOrder(BaseEnum):
     """Enum for the order to sort by."""
 

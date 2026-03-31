@@ -38,6 +38,7 @@ __all__ = [
     "ScopeData",
     "SubjectData",
     "SuperAdminAssignmentData",
+    "UserAssignmentData",
     "UserData",
 ]
 
@@ -1128,9 +1129,20 @@ class SuperAdminAssignmentData:
     staff/superuser and their access is not derived from a specific role assignment.
     """
 
-    user: "User" = None
+    user: "User" | None = None
     is_staff: bool = False
     is_superuser: bool = False
+
+
+@define
+class UserAssignmentData(RoleAssignmentData):
+    """Represents a user entry in a team member assignment list.
+
+    Used alongside SuperAdminAssignmentData in serializer contexts where individual
+    assignment information is needed.
+    """
+
+    user: "User" | None = None
 
 
 @define
@@ -1146,3 +1158,4 @@ class UserAssignmentsFilter(Enum):
 
     SCOPES = "scopes"
     ORGS = "orgs"
+    ROLES = "roles"

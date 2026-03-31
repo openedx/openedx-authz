@@ -296,6 +296,7 @@ def _filter_allowed_assignments(
 def get_visible_role_assignments_for_user(
     orgs: list[str] = None,
     scopes: list[str] = None,
+    roles: list[str] = None,
     allowed_for_user_external_key: str = None,
 ) -> list[UserAssignments]:
     """
@@ -328,6 +329,11 @@ def get_visible_role_assignments_for_user(
         users_with_assignments=users_with_assignments,
         by=UserAssignmentsFilter.ORGS,
         values=orgs,
+    )
+    users_with_assignments = filter_user_assignments(
+        users_with_assignments=users_with_assignments,
+        by=UserAssignmentsFilter.ROLES,
+        values=roles,
     )
     return users_with_assignments
 

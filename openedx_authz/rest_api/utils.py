@@ -4,7 +4,14 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
 )
-from openedx_authz.rest_api.data import AssignmentSortField, SearchField, SortField, SortOrder
+from openedx_authz.rest_api.data import (
+    AssignmentSortField,
+    BaseEnum,
+    SearchField,
+    SortField,
+    SortOrder,
+    UserAssignmentSortField,
+)
 
 
 def get_generic_scope(scope: ScopeData) -> ScopeData:
@@ -95,6 +102,41 @@ def filter_users(users: list[dict], search: str | None, roles: list[str] | None)
     return filtered_users
 
 
+def _sort_by_field(
+    items: list[dict],
+    sort_by: str,
+    order: str,
+    allowed_fields: type[BaseEnum],
+) -> list[dict]:
+    """
+    Sort a list of dicts by a given field and order, validating against the provided enum.
+
+    Args:
+        items (list[dict]): The items to sort.
+        sort_by (str): The field to sort by.
+        order (str): The order to sort by.
+        allowed_fields (type[BaseEnum]): The enum class whose values are the valid sort fields.
+
+    Raises:
+        ValueError: If the sort field is invalid.
+        ValueError: If the sort order is invalid.
+
+    Returns:
+        list[dict]: The sorted items.
+    """
+    if sort_by not in allowed_fields.values():
+        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {allowed_fields.values()}")
+
+    if order not in SortOrder.values():
+        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
+
+    return sorted(
+        items,
+        key=lambda item: (item.get(sort_by) or "").lower(),
+        reverse=order == SortOrder.DESC,
+    )
+
+
 def sort_assignments(
     assignments: list[dict],
     sort_by: AssignmentSortField = AssignmentSortField.ROLE,
@@ -115,15 +157,27 @@ def sort_assignments(
     Returns:
         list[dict]: The sorted assignments.
     """
-    if sort_by not in AssignmentSortField.values():
-        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {AssignmentSortField.values()}")
+    return _sort_by_field(assignments, sort_by, order, AssignmentSortField)
 
-    if order not in SortOrder.values():
-        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
 
-    sorted_assignments = sorted(
-        assignments,
-        key=lambda assignment: (assignment.get(sort_by) or "").lower(),
-        reverse=order == SortOrder.DESC,
-    )
-    return sorted_assignments
+def sort_user_assignments(
+    assignments: list[dict],
+    sort_by: UserAssignmentSortField = UserAssignmentSortField.ROLE,
+    order: SortOrder = SortOrder.ASC,
+) -> list[dict]:
+    """
+    Sort role assignments by a given field and order.
+
+    Args:
+        assignments (list[dict]): The assignments to sort.
+        sort_by (UserAssignmentSortField, optional): The field to sort by. Defaults to UserAssignmentSortField.ROLE.
+        order (SortOrder, optional): The order to sort by. Defaults to SortOrder.ASC.
+
+    Raises:
+        ValueError: If the sort field is invalid.
+        ValueError: If the sort order is invalid.
+
+    Returns:
+        list[dict]: The sorted assignments.
+    """
+    return _sort_by_field(assignments, sort_by, order, UserAssignmentSortField)

@@ -74,6 +74,8 @@ def filter_user_assignments(
             return assignment.scope.external_key
         elif by == UserAssignmentsFilter.ORGS:
             return getattr(assignment.scope, "org", None)
+        elif by == UserAssignmentsFilter.ROLES:
+            return assignment.roles[0].external_key if assignment.roles else None
         else:
             raise ValueError(f"Invalid filter: '{by}'. Must be one of {[f.value for f in UserAssignmentsFilter]}")
 

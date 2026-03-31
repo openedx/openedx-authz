@@ -20,6 +20,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
+from openedx_authz.api.data import RoleAssignmentData, SuperAdminAssignmentData
+from openedx_authz.api.users import get_superadmins, get_user_role_assignments_for_user_filtered
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
@@ -29,18 +31,24 @@ from openedx_authz.rest_api.utils import (
     get_generic_scope,
     sort_users,
 )
-from openedx_authz.rest_api.v1.filters import TeamMemberOrderingFilter, TeamMemberSearchFilter
+from openedx_authz.rest_api.v1.filters import (
+    TeamMemberAssignmentsOrderingFilter,
+    TeamMemberOrderingFilter,
+    TeamMemberSearchFilter,
+)
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
+    ListTeamMemberAssignmentsSerializer,
     ListTeamMembersSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
+    TeamMemberAssignmentSerializer,
     TeamMemberSerializer,
     UserRoleAssignmentSerializer,
     UserValidationAPIViewResponseSerializer,
@@ -675,3 +683,55 @@ class UserValidationAPIView(APIView):
         }
         response_serializer = UserValidationAPIViewResponseSerializer(response_data)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@view_auth_classes()
+class TeamMemberAssignmentsAPIView(APIView):
+    """
+    API view for listing user role assignments
+    """
+
+    pagination_class = AuthZAPIViewPagination
+    filter_backends = [TeamMemberAssignmentsOrderingFilter]
+
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter("orgs", str, description="The orgs to query assignations for"),
+            apidocs.query_parameter("roles", str, description="The roles to query assignations for"),
+            apidocs.query_parameter("sort_by", str, description="The field to sort by"),
+            apidocs.query_parameter("order", str, description="The order to sort by"),
+            apidocs.query_parameter("page", int, description="Page number for pagination"),
+            apidocs.query_parameter("page_size", int, description="Number of items per page"),
+        ],
+        responses={
+            status.HTTP_200_OK: TeamMemberAssignmentSerializer(many=True),
+            status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+        },
+    )
+    def get(self, request: HttpRequest, username: str) -> Response:
+        """Retrieve all user role assignments."""
+        serializer = ListTeamMemberAssignmentsSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        query_params = serializer.validated_data
+
+        user_role_assignments: list[RoleAssignmentData | SuperAdminAssignmentData] = []
+
+        # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
+        user_role_assignments += get_superadmins(user_external_keys=[username])
+
+        user_role_assignments += get_user_role_assignments_for_user_filtered(
+            user_external_key=username,
+            orgs=query_params.get("orgs"),
+            roles=query_params.get("roles"),
+            allowed_for_user_external_key=request.user.username,
+        )
+
+        assignments = TeamMemberAssignmentSerializer(user_role_assignments, many=True).data
+        for backend in self.filter_backends:
+            assignments = backend().filter_queryset(request, assignments, self)
+
+        # Paginate
+        paginator = self.pagination_class()
+        paginated_response_data = paginator.paginate_queryset(assignments, request)
+        return paginator.get_paginated_response(paginated_response_data)

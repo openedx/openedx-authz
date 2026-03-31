@@ -37,6 +37,7 @@ __all__ = [
     "RoleData",
     "ScopeData",
     "SubjectData",
+    "SuperAdminAssignmentData",
     "UserData",
 ]
 
@@ -1117,6 +1118,19 @@ class RoleAssignmentData:
         """Developer friendly string representation of the role assignment."""
         role_keys = ", ".join(role.namespaced_key for role in self.roles)
         return f"{self.subject.namespaced_key} => [{role_keys}] @ {self.scope.namespaced_key}"
+
+
+@define
+class SuperAdminAssignmentData:
+    """Represents a superadmin entry in a team member assignment list.
+
+    Used alongside RoleAssignmentData in serializer contexts where a user is a
+    staff/superuser and their access is not derived from a specific role assignment.
+    """
+
+    subject: SubjectData = None
+    is_staff: bool = False
+    is_superuser: bool = False
 
 
 @define

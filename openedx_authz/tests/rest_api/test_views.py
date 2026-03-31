@@ -1070,13 +1070,11 @@ class TestTeamMembersAPIView(ViewTestMixin):
         - regular_1 (library_user in Org1:LIB1): VIEW_LIBRARY_TEAM granted → sees Org1 members (3)
         - regular_3 (library_user in Org2:LIB2): VIEW_LIBRARY_TEAM granted → sees Org2 members (3)
         - regular_6 (library_author in Org3:LIB3): VIEW_LIBRARY_TEAM granted → sees Org3 members (5)
-        - regular_9 (no assignments): sees 0 users
     """
 
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
-
         self.url = reverse("openedx_authz:user-list")
         self.get_user_map_patcher = patch(
             "openedx_authz.api.utils.get_user_map",
@@ -1129,8 +1127,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        # -------------------------------------------------------------------- #
-
+    # -------------------------------------------------------------------- #
     # Filter by scopes                                                     #
     # -------------------------------------------------------------------- #
 
@@ -1308,6 +1305,309 @@ class TestTeamMembersAPIView(ViewTestMixin):
             self.assertIn("email", item)
             self.assertIn("assignation_count", item)
             self.assertEqual(item["assignation_count"], 1)
+
+
+@ddt
+class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
+    """
+    Test suite for TeamMemberAssignmentsAPIView.
+
+    Setup summary (from ViewTestMixin.setUpClass):
+        lib:Org1:LIB1 → admin_1 (library_admin), regular_1 (library_user), regular_2 (library_user)
+        lib:Org2:LIB2 → admin_2 (library_user),  regular_3 (library_user),  regular_4 (library_user)
+        lib:Org3:LIB3 → admin_3 (library_admin), regular_5 (library_admin), regular_6 (library_author),
+                        regular_7 (library_contributor), regular_8 (library_user)
+
+    URL: /authz/v1/users/<username>/assignments
+    Response fields per item: is_superadmin, role, org, scope, permission_count
+
+    Superadmin entry:
+        admin_1..3 are staff/superusers. Querying any of them always prepends one
+        SuperAdminAssignmentData entry: role="django.superuser" (or "django.staff"),
+        org="*", scope="*", permission_count=None, is_superadmin=True.
+        This entry is always included regardless of org/role filters, since those
+        filters are applied only to the role assignments, not to the superadmin entry.
+
+    Visibility via filter_allowed_assignments:
+        - Staff/superuser: sees all assignments for any user
+        - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 assignments
+        - regular_9 (no assignments): sees nothing for any user
+    """
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.get_user_map_patcher = patch(
+            "openedx_authz.api.utils.get_user_map",
+            side_effect=get_user_map_without_profile,
+        )
+        self.get_user_map_patcher.start()
+        self.addCleanup(self.get_user_map_patcher.stop)
+
+    def _url(self, username: str) -> str:
+        return reverse("openedx_authz:user-assignment-list", kwargs={"username": username})
+
+    # -------------------------------------------------------------------- #
+    # Visibility: calling user only sees assignments it has view access to #
+    # -------------------------------------------------------------------- #
+
+    @data(
+        # Staff/superuser targets get 1 superadmin entry + their role assignment(s)
+        ("admin_1", "admin_1", 2),  # superadmin entry + library_admin in Org1
+        ("admin_1", "admin_2", 2),  # superadmin entry + library_user in Org2
+        ("admin_1", "admin_3", 2),  # superadmin entry + library_admin in Org3
+        # Regular user targets get only their role assignments (no superadmin entry)
+        ("admin_1", "regular_5", 1),
+        # The superadmin entry is always included for superadmin targets, visible to all callers
+        ("regular_1", "admin_1", 2),  # superadmin entry + library_admin in Org1 (visible via Org1 access)
+        # regular_1 cannot see admin_2's Org2 role assignment, but superadmin entry is still included
+        ("regular_1", "admin_2", 1),  # superadmin entry only
+        # regular_9 has no assignments but superadmin entry is still included for admin targets
+        ("regular_9", "admin_1", 1),  # superadmin entry only
+    )
+    @unpack
+    def test_visibility_limited_to_accessible_scopes(self, caller: str, target: str, expected_count: int):
+        """Calling user only sees role assignments for scopes it has view access to.
+
+        The superadmin entry is always included when the target is a superadmin,
+        regardless of the calling user's permissions.
+
+        Expected result:
+            - Superadmin targets always include the superadmin entry.
+            - Role assignments are filtered by the calling user's permissions.
+            - Regular user targets return only their visible role assignments.
+        """
+        self.client.force_authenticate(user=User.objects.get(username=caller))
+
+        response = self.client.get(self._url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    def test_unauthenticated_returns_401(self):
+        """Unauthenticated requests are rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED.
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self._url("admin_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_unknown_user_returns_empty(self):
+        """Requesting assignments for a non-existent user returns an empty list.
+
+        Expected result:
+            - Returns 200 OK with count 0.
+        """
+        response = self.client.get(self._url("nonexistent_user"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    # ------------------------------------------------------------------ #
+    # Filter by orgs                                                     #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        # admin_3 has library_admin in lib:Org3:LIB3; superadmin entry is always included
+        ("admin_3", "Org3", 2),  # superadmin entry + Org3 role assignment
+        ("admin_3", "Org1", 1),  # superadmin entry only (no Org1 role assignment)
+        # regular_5 has library_admin in lib:Org3:LIB3 (no superadmin entry)
+        ("regular_5", "Org3", 1),
+        ("regular_5", "Org1", 0),
+        # non-existent org: superadmin entry still included for admin targets
+        ("admin_1", "OrgX", 1),  # superadmin entry only
+    )
+    @unpack
+    def test_filter_by_orgs(self, target: str, orgs: str, expected_count: int):
+        """Results are filtered to the requested orgs.
+
+        Expected result:
+            - Only assignments in the given org(s) are returned.
+            - Multiple orgs are OR-combined.
+        """
+        response = self.client.get(self._url(target), {"orgs": orgs})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    def test_filter_by_multiple_orgs(self):
+        """Multiple orgs are OR-combined.
+
+        Expected result:
+            - Returns assignments matching any of the given orgs.
+        """
+        # regular_6 has library_author in lib:Org3:LIB3
+        # regular_7 has library_contributor in lib:Org3:LIB3
+        # Use admin_1 (staff) to see all of regular_8's assignments
+        # regular_8 has library_user in lib:Org3:LIB3 only
+        response = self.client.get(self._url("regular_8"), {"orgs": "Org1,Org3"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+
+    # ------------------------------------------------------------------ #
+    # Filter by roles                                                    #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        # role filter applies only to role assignments; superadmin entry is always included for admin targets
+        ("admin_1", roles.LIBRARY_ADMIN.external_key, 2),  # superadmin entry + library_admin
+        ("admin_1", roles.LIBRARY_USER.external_key, 1),  # superadmin entry only
+        ("regular_5", roles.LIBRARY_ADMIN.external_key, 1),
+        ("regular_5", roles.LIBRARY_USER.external_key, 0),
+        ("regular_6", roles.LIBRARY_AUTHOR.external_key, 1),
+        ("regular_6", roles.LIBRARY_ADMIN.external_key, 0),
+        ("admin_1", "non_existent_role", 1),  # superadmin entry only
+    )
+    @unpack
+    def test_filter_by_roles(self, target: str, role_filter: str, expected_count: int):
+        """Results are filtered to the requested roles.
+
+        Expected result:
+            - Only assignments with the given role(s) are returned.
+        """
+        response = self.client.get(self._url(target), {"roles": role_filter})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+
+    def test_filter_by_multiple_roles(self):
+        """Multiple roles are OR-combined for role assignments; superadmin entry always included.
+
+        Expected result:
+            - Returns assignments matching any of the given roles, plus the superadmin entry.
+        """
+        # admin_3 has library_admin in Org3:LIB3; filter for admin + author returns
+        # 1 role assignment + 1 superadmin entry = 2
+        response = self.client.get(
+            self._url("admin_3"),
+            {"roles": f"{roles.LIBRARY_ADMIN.external_key},{roles.LIBRARY_AUTHOR.external_key}"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+
+    # ------------------------------------------------------------------ #
+    # Sorting                                                            #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ("role", "asc"),
+        ("role", "desc"),
+        ("org", "asc"),
+        ("org", "desc"),
+        ("scope", "asc"),
+        ("scope", "desc"),
+    )
+    @unpack
+    def test_sorting(self, sort_by: str, order: str):
+        """Results can be sorted by role, org, or scope in asc/desc order.
+
+        Uses regular_3 and regular_4 who both have library_user in Org2:LIB2,
+        and admin_2 who also has library_user in Org2:LIB2 — but we need a user
+        with multiple assignments to verify ordering. Use admin_1 (staff) viewing
+        regular_5 who has a single assignment; sorting still returns 200 OK.
+
+        Expected result:
+            - Returns 200 OK.
+            - Results are ordered according to the requested field and direction.
+        """
+        # admin_1 is staff so sees all assignments; regular_5 has 1 assignment
+        response = self.client.get(self._url("regular_5"), {"sort_by": sort_by, "order": order})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        values = [item[sort_by] for item in response.data["results"]]
+        expected = sorted(values, key=lambda v: (v or "").lower(), reverse=order == "desc")
+        self.assertEqual(values, expected)
+
+    @data(
+        {"sort_by": "invalid"},
+        {"sort_by": "username"},
+        {"order": "ascending"},
+        {"order": "descending"},
+    )
+    def test_sorting_invalid_params(self, query_params: dict):
+        """Invalid sort_by or order values return 400.
+
+        Expected result:
+            - Returns 400 BAD REQUEST.
+        """
+        response = self.client.get(self._url("admin_1"), query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ------------------------------------------------------------------ #
+    # Pagination                                                         #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ({"page": 1, "page_size": 1}, 1, True),
+        ({"page": 2, "page_size": 1}, 1, False),
+        ({"page": 1, "page_size": 2}, 2, False),
+    )
+    @unpack
+    def test_pagination(self, query_params: dict, expected_page_count: int, has_next: bool):
+        """Results are paginated correctly.
+
+        Assigns regular_8 a second role (library_admin in Org1:LIB1) so it has
+        2 assignments visible to admin_1 (staff).
+
+        Expected result:
+            - Returns 200 OK.
+            - Page contains the expected number of items.
+            - `next` link is present only when more pages exist.
+        """
+        assign_role_to_user_in_scope("regular_8", roles.LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
+
+        response = self.client.get(self._url("regular_8"), query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), expected_page_count)
+        if has_next:
+            self.assertIsNotNone(response.data["next"])
+        else:
+            self.assertIsNone(response.data["next"])
+
+    # ------------------------------------------------------------------ #
+    # Response shape                                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_response_shape(self):
+        """Each result item contains the expected fields.
+
+        admin_1 is a superuser, so the response contains two items:
+        - A superadmin entry with role="django.superuser", org="*", scope="*",
+          permission_count=None, is_superadmin=True
+        - A regular role assignment entry with concrete values and is_superadmin=False
+
+        Expected result:
+            - Returns 200 OK.
+            - Each item has is_superadmin, role, org, scope, and permission_count.
+        """
+        response = self.client.get(self._url("admin_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+
+        superadmin_item = next(item for item in response.data["results"] if item["is_superadmin"])
+        self.assertIn(superadmin_item["role"], ("django.superuser", "django.staff"))
+        self.assertEqual(superadmin_item["org"], "*")
+        self.assertEqual(superadmin_item["scope"], "*")
+        self.assertIsNone(superadmin_item["permission_count"])
+
+        role_item = next(item for item in response.data["results"] if not item["is_superadmin"])
+        self.assertIn("role", role_item)
+        self.assertIn("org", role_item)
+        self.assertIn("scope", role_item)
+        self.assertIn("permission_count", role_item)
+        self.assertEqual(role_item["role"], roles.LIBRARY_ADMIN.external_key)
+        self.assertEqual(role_item["org"], "Org1")
+        self.assertEqual(role_item["scope"], "lib:Org1:LIB1")
+        self.assertGreater(role_item["permission_count"], 0)
 
 
 @ddt

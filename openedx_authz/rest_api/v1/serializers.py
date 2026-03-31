@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.api.data import UserAssignments
-from openedx_authz.rest_api.data import SortField, SortOrder
+from openedx_authz.rest_api.data import AssignmentSortField, SortField, SortOrder
 from openedx_authz.rest_api.utils import get_generic_scope
 from openedx_authz.rest_api.v1.fields import (
     CaseSensitiveCommaSeparatedListField,
@@ -292,3 +292,66 @@ class UserValidationAPIViewResponseSerializer(serializers.Serializer):  # pylint
         help_text="List of user identifiers that were not found or are invalid",
     )
     summary = UserValidationSummarySerializer(help_text="Summary statistics for the validation operation")
+
+
+class ListTeamMemberAssignmentsSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for listing team member assignments."""
+
+    orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    roles = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    sort_by = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in AssignmentSortField],
+        default=AssignmentSortField.ROLE,
+    )
+    order = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortOrder],
+        default=SortOrder.ASC,
+    )
+
+
+class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for team member assignments."""
+
+    is_superadmin = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    org = serializers.SerializerMethodField()
+    scope = serializers.SerializerMethodField()
+    permission_count = serializers.SerializerMethodField()
+
+    def get_is_superadmin(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> bool:
+        """Get whether this assignment entry is for a superadmin."""
+        return isinstance(obj, api.SuperAdminAssignmentData)
+
+    def get_role(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get the role for the given role assignment."""
+        match obj:
+            case api.SuperAdminAssignmentData():
+                return "django.superuser" if obj.is_superuser else "django.staff"
+            case api.RoleAssignmentData():
+                return obj.roles[0].external_key if obj.roles else ""
+
+    def get_org(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get the org for the given role assignment."""
+        match obj:
+            case api.SuperAdminAssignmentData():
+                return "*"
+            case api.RoleAssignmentData():
+                return getattr(obj.scope, "org", None)
+
+    def get_scope(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get the scope for the given role assignment."""
+        match obj:
+            case api.SuperAdminAssignmentData():
+                return "*"
+            case api.RoleAssignmentData():
+                return obj.scope.external_key
+
+    def get_permission_count(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> int | None:
+        """Get the permission count for the given role assignment."""
+        match obj:
+            case api.SuperAdminAssignmentData():
+                return None
+            case api.RoleAssignmentData():
+                return len(obj.roles[0].permissions) if obj.roles else 0

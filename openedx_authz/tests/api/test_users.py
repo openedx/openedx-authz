@@ -1,6 +1,9 @@
 """Test suite for user-role assignment API functions."""
 
+from unittest.mock import patch
+
 from ddt import data, ddt, unpack
+from django.contrib.auth import get_user_model
 
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
@@ -14,6 +17,7 @@ from openedx_authz.api.users import (
     is_user_allowed,
     unassign_all_roles_from_user,
     unassign_role_from_user,
+    validate_users,
 )
 from openedx_authz.constants import permissions, roles
 from openedx_authz.constants.roles import LIBRARY_ADMIN_PERMISSIONS, LIBRARY_AUTHOR_PERMISSIONS
@@ -514,3 +518,55 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             scope_external_key=scope_name,
         )
         self.assertEqual(result, expected_result)
+
+
+@ddt
+class TestValidateUsersAPI(UserAssignmentsSetupMixin):
+    """Test suite for validate_users API function - focused on business logic."""
+
+    def test_validate_users_empty_list(self):
+        """Test validate_users with empty input list."""
+        valid_users, invalid_users = validate_users([])
+
+        self.assertEqual(valid_users, [])
+        self.assertEqual(invalid_users, [])
+
+    def test_validate_users_inactive_user_edge_case(self):
+        """Test that inactive users are correctly identified as invalid."""
+        User = get_user_model()
+
+        # Create an inactive user for this test
+        inactive_user = User.objects.create_user(
+            username="inactive_api_test", email="inactive_api@example.com", is_active=False
+        )
+
+        valid_users, invalid_users = validate_users([inactive_user.username])
+
+        # Cleanup
+        inactive_user.delete()
+
+        self.assertEqual(valid_users, [])
+        self.assertEqual(invalid_users, [inactive_user.username])
+
+    @patch("openedx_authz.api.users.get_user_by_username_or_email")
+    def test_validate_users_unexpected_exception_propagation(self, mock_get_user):
+        """Test that unexpected exceptions from get_user_by_username_or_email are re-raised."""
+        # Simulate an unexpected database error
+        mock_get_user.side_effect = Exception("Database connection lost")
+
+        with self.assertRaises(Exception) as cm:
+            validate_users(["any_user"])
+
+        self.assertEqual(str(cm.exception), "Database connection lost")
+        mock_get_user.assert_called_once_with("any_user")
+
+    @patch("openedx_authz.api.users.get_user_by_username_or_email")
+    def test_validate_users_user_does_not_exist_handling(self, mock_get_user):
+        """Test handling of User.DoesNotExist exception."""
+        User = get_user_model()
+        mock_get_user.side_effect = User.DoesNotExist("User not found")
+
+        valid_users, invalid_users = validate_users(["nonexistent_user"])
+
+        self.assertEqual(valid_users, [])
+        self.assertEqual(invalid_users, ["nonexistent_user"])

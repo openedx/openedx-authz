@@ -9,6 +9,8 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user^john_doe').
 """
 
+from django.contrib.auth import get_user_model
+
 from openedx_authz.api.data import (
     ActionData,
     PermissionData,
@@ -35,6 +37,7 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
+from openedx_authz.utils import get_user_by_username_or_email
 
 __all__ = [
     "assign_role_to_user_in_scope",
@@ -51,6 +54,7 @@ __all__ = [
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
     "unassign_all_roles_from_user",
+    "validate_users",
 ]
 
 
@@ -339,3 +343,29 @@ def unassign_all_roles_from_user(user_external_key: str) -> bool:
         bool: True if any roles were removed, False otherwise.
     """
     return unassign_subject_from_all_roles(UserData(external_key=user_external_key))
+
+
+def validate_users(user_identifiers: list[str]) -> tuple[list[str], list[str]]:
+    """Validate a list of user identifiers.
+
+    Args:
+        user_identifiers (list[str]): List of usernames or emails to validate
+
+    Returns:
+        tuple: (valid_users, invalid_users) lists
+    """
+    User = get_user_model()
+    valid_users = []
+    invalid_users = []
+
+    for user_identifier in user_identifiers:
+        try:
+            user = get_user_by_username_or_email(user_identifier)
+            if user.is_active:
+                valid_users.append(user_identifier)
+            else:
+                invalid_users.append(user_identifier)
+        except User.DoesNotExist:
+            invalid_users.append(user_identifier)
+
+    return valid_users, invalid_users

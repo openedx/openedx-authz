@@ -16,5 +16,6 @@ avoid circular dependencies.
 """
 
 from openedx_authz.models.core import *
+from openedx_authz.models.migrations import *
 from openedx_authz.models.scopes import *
 from openedx_authz.models.subjects import *

@@ -54,3 +54,8 @@ def plugin_settings(settings):
     # This setting defines the logging level for the Casbin enforcer.
     if not hasattr(settings, "CASBIN_LOG_LEVEL"):
         settings.CASBIN_LOG_LEVEL = "WARNING"
+
+    # Set default ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION if not already set.
+    # This setting defines whether to enable automatic course migration.
+    if not hasattr(settings, "ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION"):
+        settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION = False

@@ -4,6 +4,10 @@
 #
 #    pip-compile --output-file=requirements/dev.txt requirements/dev.in
 #
+amqp==5.3.1
+    # via
+    #   -r requirements/quality.txt
+    #   kombu
 asgiref==3.9.1
     # via
     #   -r requirements/quality.txt
@@ -15,6 +19,10 @@ astroid==4.0.3
     #   pylint-celery
 attrs==25.3.0
     # via -r requirements/quality.txt
+billiard==4.2.4
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 build==1.4.2
     # via
     #   -r requirements/pip-tools.txt
@@ -24,6 +32,8 @@ cachetools==6.2.6
     #   -r requirements/ci.txt
     #   tox
 casbin-django-orm-adapter==1.7.0
+    # via -r requirements/quality.txt
+celery==5.6.3
     # via -r requirements/quality.txt
 certifi==2025.8.3
     # via
@@ -43,19 +53,35 @@ charset-normalizer==3.4.3
     # via
     #   -r requirements/quality.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
+    #   celery
+    #   click-didyoumean
     #   click-log
+    #   click-plugins
+    #   click-repl
     #   code-annotations
     #   edx-django-utils
     #   edx-lint
     #   pip-tools
+click-didyoumean==0.3.1
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 click-log==0.4.0
     # via
     #   -r requirements/quality.txt
     #   edx-lint
+click-plugins==1.1.1.2
+    # via
+    #   -r requirements/quality.txt
+    #   celery
+click-repl==0.3.0
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 code-annotations==2.3.0
     # via
     #   -r requirements/quality.txt
@@ -188,6 +214,10 @@ jinja2==3.1.6
     #   -r requirements/quality.txt
     #   code-annotations
     #   diff-cover
+kombu==5.6.2
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 lxml[html-clean]==6.0.1
     # via
     #   edx-i18n-tools
@@ -211,6 +241,7 @@ packaging==26.0
     #   -r requirements/quality.txt
     #   build
     #   drf-yasg
+    #   kombu
     #   pyproject-api
     #   pytest
     #   tox
@@ -240,6 +271,10 @@ pluggy==1.6.0
     #   tox
 polib==1.2.0
     # via edx-i18n-tools
+prompt-toolkit==3.0.52
+    # via
+    #   -r requirements/quality.txt
+    #   click-repl
 psutil==7.1.0
     # via
     #   -r requirements/quality.txt
@@ -310,6 +345,10 @@ pytest-cov==7.0.0
     # via -r requirements/quality.txt
 pytest-django==4.11.1
     # via -r requirements/quality.txt
+python-dateutil==2.9.0.post0
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 python-slugify==8.0.4
     # via
     #   -r requirements/quality.txt
@@ -343,6 +382,7 @@ six==1.17.0
     #   -r requirements/quality.txt
     #   edx-ccx-keys
     #   edx-lint
+    #   python-dateutil
 snowballstemmer==3.0.1
     # via
     #   -r requirements/quality.txt
@@ -371,6 +411,14 @@ typing-extensions==4.15.0
     # via
     #   -r requirements/quality.txt
     #   edx-opaque-keys
+tzdata==2026.1
+    # via
+    #   -r requirements/quality.txt
+    #   kombu
+tzlocal==5.3.1
+    # via
+    #   -r requirements/quality.txt
+    #   celery
 uritemplate==4.2.0
     # via
     #   -r requirements/quality.txt
@@ -379,10 +427,20 @@ urllib3==2.5.0
     # via
     #   -r requirements/quality.txt
     #   requests
+vine==5.1.0
+    # via
+    #   -r requirements/quality.txt
+    #   amqp
+    #   celery
+    #   kombu
 virtualenv==20.36.1
     # via
     #   -r requirements/ci.txt
     #   tox
+wcwidth==0.6.0
+    # via
+    #   -r requirements/quality.txt
+    #   prompt-toolkit
 wheel==0.46.3
     # via
     #   -r requirements/pip-tools.txt

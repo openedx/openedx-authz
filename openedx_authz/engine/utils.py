@@ -6,30 +6,75 @@ for the Open edX AuthZ system using Casbin.
 
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
 
 from casbin import Enforcer
+from django.contrib.auth.models import AbstractUser
+from django.core.cache import cache
 
-from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
+from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData, RoleAssignmentData
 from openedx_authz.api.roles import get_all_role_assignments_per_scope_type
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
 )
-from openedx_authz.constants.roles import (
-    LEGACY_COURSE_ROLE_EQUIVALENCES,
-    LIBRARY_ADMIN,
-    LIBRARY_AUTHOR,
-    LIBRARY_USER,
-)
+from openedx_authz.constants.roles import LEGACY_COURSE_ROLE_EQUIVALENCES, LIBRARY_ADMIN, LIBRARY_AUTHOR, LIBRARY_USER
+from openedx_authz.models.migrations import AuthzCourseAuthoringMigrationRun, MigrationType, ScopeType
 
 logger = logging.getLogger(__name__)
 
-GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 
+GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 
 # Map new roles back to legacy roles for rollback purposes
 COURSE_ROLE_EQUIVALENCES = {v: k for k, v in LEGACY_COURSE_ROLE_EQUIVALENCES.items()}
+
+MIGRATION_LOCK_TIMEOUT = 60 * 60  # 1 hour
+
+
+def _get_lock_key(scope_type: ScopeType, scope_key: str) -> str:
+    """Generate a cache key for migration locking.
+
+    Args:
+        scope_type (ScopeType): Type of scope ('course' or 'org')
+        scope_key (str): Identifier for the scope
+
+    Returns:
+        str: Cache key for the migration run lock
+    """
+    return f"authz_migration_lock:{scope_type}:{scope_key}"
+
+
+def _acquire_lock(scope_type: ScopeType, scope_key: str, migration_run_id: int) -> bool:
+    """Acquire a lock for migration to prevent concurrent migrations.
+
+    cache.add() returns True only if the key did not exist (lock acquired).
+    If it returns False, another migration run is already in progress.
+
+    Args:
+        scope_type (ScopeType): Type of scope ('course' or 'org')
+        scope_key (str): Identifier for the scope
+        migration_run_id (int): Unique migration run identifier
+        timeout (int): Lock timeout in seconds
+
+    Returns:
+        bool: True if migration run lock was acquired, False otherwise
+    """
+    lock_key = _get_lock_key(scope_type, scope_key)
+    return cache.add(lock_key, migration_run_id, MIGRATION_LOCK_TIMEOUT)
+
+
+def _release_lock(scope_type: ScopeType, scope_key: str) -> None:
+    """Release a migration lock.
+
+    Args:
+        scope_type (ScopeType): Type of scope ('course' or 'org')
+        scope_key (str): Identifier for the scope
+    """
+    lock_key = _get_lock_key(scope_type, scope_key)
+    cache.delete(lock_key)
 
 
 def migrate_policy_between_enforcers(
@@ -185,6 +230,142 @@ def _validate_migration_input(course_id_list, org_id):
         )
 
 
+def _run_scoped_migration(
+    migration_type: MigrationType,
+    course_id_list: list[str] | None,
+    org_id: str | None,
+    delete_after_migration: bool,
+    process_scope_fn: Callable[[ScopeType, str], tuple[list, list]],
+) -> tuple[list, list]:
+    """Orchestrate a migration over a set of scopes with per-scope locking and tracking.
+
+    For each scope, creates a ``AuthzCourseAuthoringMigrationRun``, acquires a distributed lock,
+    and delegates the work to ``process_scope_fn``. Scopes whose lock cannot be acquired are
+    marked SKIPPED.
+
+    Args:
+        migration_type (MigrationType): Direction of the migration (forward or rollback).
+        course_id_list (list[str] | None): List of course IDs to migrate individually.
+            Mutually exclusive with ``org_id``.
+        org_id (str | None): Organization ID to migrate as a single org-scoped run.
+            Mutually exclusive with ``course_id_list``.
+        delete_after_migration (bool): Whether to delete successfully migrated entries after migration.
+        process_scope_fn (Callable[[ScopeType, str], tuple[list, list]]): Callable that
+            receives ``(scope_type, scope_key)`` and returns a ``(errors, successes)``
+            tuple of ``RoleAssignmentData`` lists.
+
+    Returns:
+        A tuple of ``(errors, successes)`` aggregated across all processed scopes, where
+        each element is a list of ``RoleAssignmentData`` instances.
+    """
+    scopes_to_process = (
+        [(ScopeType.COURSE, course_id) for course_id in course_id_list] if course_id_list else [(ScopeType.ORG, org_id)]
+    )
+
+    all_errors = []
+    all_successes = []
+
+    for scope_type, scope_key in scopes_to_process:
+        metadata = {
+            "course_id": scope_key if scope_type == ScopeType.COURSE else None,
+            "org_id": org_id if scope_type == ScopeType.ORG else None,
+            "delete_after": delete_after_migration,
+        }
+        migration_run = AuthzCourseAuthoringMigrationRun.create_pending(migration_type, scope_type, scope_key, metadata)
+
+        if not _acquire_lock(scope_type, scope_key, migration_run.id):
+            logger.warning(f"Migration already in progress for {scope_type}:{scope_key}.")
+            migration_run.mark_skipped(reason="locked")
+            continue
+
+        migration_run.mark_running()
+
+        errors, successes = process_scope_fn(scope_type, scope_key)
+        all_errors.extend(errors)
+        all_successes.extend(successes)
+
+        migration_run.mark_completed(metadata_updates={"success_count": len(successes), "error_count": len(errors)})
+        _release_lock(scope_type, scope_key)
+
+    return all_errors, all_successes
+
+
+def _process_forward_permissions(
+    legacy_permissions: list,
+    course_access_role_model: Any,
+    delete_after_migration: bool,
+) -> tuple[list, list]:
+    """Process a batch of legacy course role permissions and assign them in the Casbin-based model.
+
+    For each permission, resolves the equivalent Casbin role, determines the scope
+    (course or org), and calls ``assign_role_to_user_in_scope``. Permissions with
+    unknown roles or missing scope data are collected as errors without raising.
+    If ``delete_after_migration`` is ``True``, successfully migrated records are
+    deleted from the legacy ``CourseAccessRole`` table.
+
+    Args:
+        legacy_permissions (list): ``CourseAccessRole`` instances to migrate.
+        course_access_role_model (Any): The ``CourseAccessRole`` Django model class,
+            used to delete records after successful migration.
+        delete_after_migration (bool): If ``True``, deletes each successfully migrated
+            record from the legacy table.
+
+    Returns:
+        tuple[list, list]: ``(errors, successes)`` — two lists of ``CourseAccessRole``
+            instances. ``errors`` contains records that could not be migrated (unknown
+            role, missing scope, or failed assignment); ``successes`` contains those
+            that were migrated and, if requested, deleted.
+    """
+    permissions_with_errors = []
+    permissions_with_no_errors = []
+
+    for permission in legacy_permissions:
+        role = LEGACY_COURSE_ROLE_EQUIVALENCES.get(permission.role)
+
+        if role is None:
+            logger.error(f"Unknown access level: {permission.role} for User: {permission.user}")
+            permissions_with_errors.append(permission)
+            continue
+
+        if permission.course_id:
+            scope_external_key = str(permission.course_id)
+        elif permission.org:
+            scope_external_key = OrgCourseOverviewGlobData.build_external_key(permission.org)
+        else:
+            logger.error(
+                f"Permission for User: {permission.user.username} has neither course_id nor org defined, skipping."
+            )
+            permissions_with_errors.append(permission)
+            continue
+
+        logger.info(
+            f"Migrating permission for User: {permission.user.username} to Role: {role} in Scope: {scope_external_key}"
+        )
+
+        is_user_added = assign_role_to_user_in_scope(
+            user_external_key=permission.user.username,
+            role_external_key=role,
+            scope_external_key=scope_external_key,
+        )
+
+        if not is_user_added:
+            logger.error(
+                f"Failed to migrate permission for User: {permission.user.username} "
+                f"to Role: {role} in Scope: {scope_external_key}"
+            )
+            permissions_with_errors.append(permission)
+            continue
+
+        permissions_with_no_errors.append(permission)
+
+    if delete_after_migration:
+        course_access_role_model.objects.filter(id__in=[p.id for p in permissions_with_no_errors]).delete()
+        logger.info(f"Deleted {len(permissions_with_no_errors)} legacy permissions after successful migration.")
+        logger.info(f"Retained {len(permissions_with_errors)} legacy permissions that had errors during migration.")
+
+    return permissions_with_errors, permissions_with_no_errors
+
+
 def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_list, org_id, delete_after_migration):
     """
     Migrate legacy course role data to the new Casbin-based authorization model.
@@ -209,6 +390,10 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     - course_id blank, org set: org-level glob scope (e.g. "course-v1:OpenedX+*").
     - both set: course_id takes precedence as the more specific scope.
 
+    When course_id_list is provided, one MigrationRun record is created per course ID so that each
+    course is tracked, locked, and completed independently. When only org_id is provided, a single
+    org-scoped MigrationRun is created instead.
+
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
     is intended to run within a Django migration context, where direct model imports can cause issues.
     param course_id_list: Optional list of course IDs to filter the migration.
@@ -217,145 +402,81 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     """
     _validate_migration_input(course_id_list, org_id)
 
-    course_access_role_filter = {
-        "course_id__startswith": "course-v1:",
-    }
+    course_access_role_filter = {}
 
     if org_id:
         course_access_role_filter["org"] = org_id
-
-    if course_id_list and not org_id:
+    elif course_id_list:
         # Only filter by course_id if org_id is not provided,
         # otherwise we will filter by org_id which is more efficient
         course_access_role_filter["course_id__in"] = course_id_list
 
-    legacy_permissions = (
+    legacy_permissions = list(
         course_access_role_model.objects.filter(**course_access_role_filter).select_related("user").all()
     )
 
-    # List to keep track of any permissions that could not be migrated
-    permissions_with_errors = []
-    permissions_with_no_errors = []
+    def process_scope(scope_type: ScopeType, scope_key: str) -> tuple[list, list]:
+        """
+        Select the appropriate permission slice for the given scope
+        and delegate to ``_process_forward_permissions``.
 
-    for permission in legacy_permissions:
-        # Migrate the permission to the new model
-
-        role = LEGACY_COURSE_ROLE_EQUIVALENCES.get(permission.role)
-        if role is None:
-            # This should not happen as there are no more access_levels defined
-            # in CourseAccessRole, log and skip
-            logger.error(f"Unknown access level: {permission.role} for User: {permission.user}")
-            permissions_with_errors.append(permission)
-            continue
-
-        if permission.course_id:
-            scope_external_key = str(permission.course_id)
-        elif permission.org:
-            scope_external_key = OrgCourseOverviewGlobData.build_external_key(permission.org)
+        For course scopes, only permissions whose ``course_id`` matches ``scope_key`` are processed.
+        For org scopes, the full ``legacy_permissions`` list is used.
+        """
+        if scope_type == ScopeType.COURSE:
+            scope_permissions = [perm for perm in legacy_permissions if str(perm.course_id) == scope_key]
         else:
-            # This should not happen as either course_id or org should be defined for each permission, log and skip
-            logger.error(
-                f"Permission for User: {permission.user.username} has neither course_id nor org defined, skipping."
-            )
-            permissions_with_errors.append(permission)
-            continue
-
-        # Permission applied to individual user
-        logger.info(
-            f"Migrating permission for User: {permission.user.username} "
-            f"to Role: {role} in Scope: {scope_external_key}"
+            scope_permissions = legacy_permissions
+        return _process_forward_permissions(
+            legacy_permissions=scope_permissions,
+            course_access_role_model=course_access_role_model,
+            delete_after_migration=delete_after_migration,
         )
 
-        is_user_added = assign_role_to_user_in_scope(
-            user_external_key=permission.user.username,
-            role_external_key=role,
-            scope_external_key=scope_external_key,
-        )
-
-        if not is_user_added:
-            logger.error(
-                f"Failed to migrate permission for User: {permission.user.username} "
-                f"to Role: {role} in Scope: {scope_external_key} "
-                "user may already have this permission assigned"
-            )
-            permissions_with_errors.append(permission)
-            continue
-
-        permissions_with_no_errors.append(permission)
-
-    if delete_after_migration:
-        # Only delete permissions that were successfully migrated to avoid data loss.
-        course_access_role_model.objects.filter(id__in=[p.id for p in permissions_with_no_errors]).delete()
-        logger.info(f"Deleted {len(permissions_with_no_errors)} legacy permissions after successful migration.")
-        logger.info(f"Retained {len(permissions_with_errors)} legacy permissions that had errors during migration.")
-
-    return permissions_with_errors, permissions_with_no_errors
-
-
-def migrate_authz_to_legacy_course_roles(
-    course_access_role_model, user_subject_model, course_id_list, org_id, delete_after_migration
-):
-    """
-    Migrate permissions from the new Casbin-based authorization model back to the legacy CourseAccessRole model.
-    This function reads permissions from the Casbin enforcer and creates equivalent entries in the
-    CourseAccessRole model.
-
-    This is essentially the reverse of migrate_legacy_course_roles_to_authz and is intended
-    for rollback purposes in case of migration issues.
-
-    To build each CourseAccessRole entry, the function needs:
-    - A user: resolved from role assignments in scopes linked to courses.
-    - A scope: a CourseOverviewData or OrgCourseOverviewGlobData instance, optionally filtered by course_id or org_id.
-    - A role: a role external key that maps to a legacy role in COURSE_ROLE_EQUIVALENCES.
-
-    param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
-    is intended to run within a Django migration context, where direct model imports can cause issues.
-    param user_subject_model: It should be the UserSubject model. This is passed in because the function
-    is intended to run within a Django migration context, where direct model imports can cause issues.
-    param course_id_list: Optional list of course IDs to filter the migration.
-    param org_id: Optional organization ID to filter the migration.
-    param delete_after_migration: Whether to unassign successfully migrated permissions
-    from the new model after migration.
-    """
-    _validate_migration_input(course_id_list, org_id)
-
-    role_assignments = get_all_role_assignments_per_scope_type(
-        scope_types=[CourseOverviewData, OrgCourseOverviewGlobData]
+    return _run_scoped_migration(
+        migration_type=MigrationType.FORWARD,
+        course_id_list=course_id_list,
+        org_id=org_id,
+        delete_after_migration=delete_after_migration,
+        process_scope_fn=process_scope,
     )
 
-    # Two cases here:
-    # 1. org_id provided: filter by org — includes org-level glob and course-level scopes for that org.
-    # 2. only course_id_list provided: filter by course_id — org-level glob scopes are excluded (no course_id).
-    if org_id:
-        role_assignments = [
-            role_assignment
-            for role_assignment in role_assignments
-            if role_assignment.scope.org == org_id
-        ]
 
-    if course_id_list and not org_id:
-        role_assignments = [
-            role_assignment
-            for role_assignment in role_assignments
-            if role_assignment.scope.course_id in course_id_list
-        ]
+def _process_rollback_assignments(
+    role_assignments: list[RoleAssignmentData],
+    users_by_username: dict[str, AbstractUser],
+    course_access_role_model: Any,
+    delete_after_migration: bool,
+) -> tuple[list, list]:
+    """Recreate legacy CourseAccessRole entries from a list of openedx-authz role assignments.
 
+    For each assignment, resolves the corresponding user and role, then calls ``get_or_create``
+    on the legacy model to avoid duplicates. Course-scoped assignments populate both ``org``
+    and ``course_id``; org-scoped assignments populate only ``org``. Any assignment with an
+    unsupported scope type is logged and collected as an error.
+
+    If ``delete_after_migration`` is True, successfully migrated assignments are unassigned
+    from the new AuthZ model after all entries have been recreated.
+
+    Args:
+        role_assignments: List of openedx-authz role assignments to roll back.
+        users_by_username: Mapping of username to User instance, used to resolve the
+            user FK for each CourseAccessRole entry.
+        course_access_role_model: The ``CourseAccessRole`` Django model. Passed explicitly
+            to avoid import issues in Django migration contexts.
+        delete_after_migration: If True, unassigns each successfully migrated assignment
+            from the new AuthZ model after recreating its legacy entry.
+
+    Returns:
+        A tuple of ``(errors, successes)``, where each element is a list of
+        ``RoleAssignmentData`` instances. ``errors`` contains assignments that could not
+        be migrated; ``successes`` contains those that were migrated successfully.
+    """
     roles_with_errors = []
     roles_with_no_errors = []
     unassignments = defaultdict(list)
 
-    user_external_keys = {assignment.subject.external_key for assignment in role_assignments}
-    users_by_username = {
-        subject.user.username: subject.user
-        for subject in user_subject_model.objects.filter(
-            user__username__in=user_external_keys
-        ).select_related("user")
-    }
-
     for role_assignment in role_assignments:
-
-        # Per valid role assignment, create corresponding CourseAccessRole entry
-        # depending on whether the scope is course-level or org-level glob
         try:
             user_external_key = role_assignment.subject.external_key
             role_external_key = role_assignment.roles[0].external_key
@@ -400,8 +521,6 @@ def migrate_authz_to_legacy_course_roles(
             )
             roles_with_errors.append(role_assignment)
 
-    # Once the loop is done, we can log summary of unassignments
-    # and perform batch unassignment if delete_after_migration is True
     if delete_after_migration:
         total_unassignments = sum(len(users) for users in unassignments.values())
         logger.info(f"Total of {total_unassignments} role assignments unassigned after successful rollback migration.")
@@ -417,3 +536,92 @@ def migrate_authz_to_legacy_course_roles(
             )
 
     return roles_with_errors, roles_with_no_errors
+
+
+def migrate_authz_to_legacy_course_roles(
+    course_access_role_model, user_subject_model, course_id_list, org_id, delete_after_migration
+):
+    """
+    Migrate permissions from the new Casbin-based authorization model back to the legacy CourseAccessRole model.
+    This function reads permissions from the Casbin enforcer and creates equivalent entries in the
+    CourseAccessRole model.
+
+    This is essentially the reverse of migrate_legacy_course_roles_to_authz and is intended
+    for rollback purposes in case of migration issues.
+
+    To build each CourseAccessRole entry, the function needs:
+    - A user: resolved from role assignments in scopes linked to courses.
+    - A scope: a CourseOverviewData or OrgCourseOverviewGlobData instance, optionally filtered by course_id or org_id.
+    - A role: a role external key that maps to a legacy role in COURSE_ROLE_EQUIVALENCES.
+
+    When course_id_list is provided, one MigrationRun record is created per course ID so that each
+    course is tracked, locked, and completed independently. When only org_id is provided, a single
+    org-scoped MigrationRun is created instead.
+
+    param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
+    is intended to run within a Django migration context, where direct model imports can cause issues.
+    param user_subject_model: It should be the UserSubject model. This is passed in because the function
+    is intended to run within a Django migration context, where direct model imports can cause issues.
+    param course_id_list: Optional list of course IDs to filter the migration.
+    param org_id: Optional organization ID to filter the migration.
+    param delete_after_migration: Whether to unassign successfully migrated permissions
+    from the new model after migration.
+    """
+    _validate_migration_input(course_id_list, org_id)
+
+    role_assignments = get_all_role_assignments_per_scope_type(
+        scope_types=[CourseOverviewData, OrgCourseOverviewGlobData]
+    )
+
+    user_external_keys = set()
+    assignments_by_course = defaultdict(list)
+    filtered_assignments = []
+
+    for role_assignment in role_assignments:
+        # If org_id is provided, skip assignments that don't belong to the target org
+        # including org-level glob and course-level assignments
+        if org_id and role_assignment.scope.org != org_id:
+            continue
+        # Otherwise, keep the assignment
+        filtered_assignments.append(role_assignment)
+
+        # collect usernames for the DB query below
+        user_external_keys.add(role_assignment.subject.external_key)
+
+        # Only course-level assignments are grouped by course_id
+        if isinstance(role_assignment.scope, CourseOverviewData):
+            assignments_by_course[role_assignment.scope.course_id].append(role_assignment)
+
+    users_by_username = {
+        subject.user.username: subject.user
+        for subject in user_subject_model.objects.filter(
+            user__username__in=user_external_keys,
+        ).select_related("user")
+    }
+
+    def process_scope(scope_type: ScopeType, scope_key: str) -> tuple[list, list]:
+        """
+        Select the appropriate assignment slice for the given scope
+        and delegate to ``_process_rollback_assignments``.
+
+        For course scopes, only assignments belonging to that specific course are processed.
+        For org scopes, the full ``filtered_assignments`` list is used.
+        """
+        if scope_type == ScopeType.COURSE:
+            scope_assignments = assignments_by_course[scope_key]
+        else:
+            scope_assignments = filtered_assignments
+        return _process_rollback_assignments(
+            role_assignments=scope_assignments,
+            users_by_username=users_by_username,
+            course_access_role_model=course_access_role_model,
+            delete_after_migration=delete_after_migration,
+        )
+
+    return _run_scoped_migration(
+        migration_type=MigrationType.ROLLBACK,
+        course_id_list=course_id_list,
+        org_id=org_id,
+        delete_after_migration=delete_after_migration,
+        process_scope_fn=process_scope,
+    )

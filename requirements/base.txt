@@ -64,6 +64,8 @@ drf-yasg==1.21.11
     # via edx-api-doc-tools
 edx-api-doc-tools==2.1.2
     # via -r requirements/base.in
+edx-ccx-keys==2.0.2
+    # via -r requirements/base.in
 edx-django-utils==8.0.1
     # via
     #   -r requirements/base.in
@@ -75,6 +77,7 @@ edx-drf-extensions==10.6.0
 edx-opaque-keys==3.0.0
     # via
     #   -r requirements/base.in
+    #   edx-ccx-keys
     #   edx-drf-extensions
     #   edx-organizations
 edx-organizations==7.3.0
@@ -115,6 +118,8 @@ semantic-version==2.10.0
     # via edx-drf-extensions
 simpleeval==1.0.3
     # via pycasbin
+six==1.17.0
+    # via edx-ccx-keys
 sqlparse==0.5.3
     # via django
 stevedore==5.5.0

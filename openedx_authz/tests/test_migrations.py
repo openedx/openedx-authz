@@ -196,6 +196,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             "org": self.org,
             "course_id": self.course_id,
         }
+        self.invalid_course = f"ccx-v1:{self.org}+{OBJECT_PREFIX}+2026_01+ccx@2"
         self.course_overview = CourseOverview.objects.create(
             id=self.course_id, org=self.org, display_name=f"{OBJECT_PREFIX} Course"
         )
@@ -884,11 +885,32 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             )
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_authz_to_legacy_course_roles_with_invalid_courses(self):
+        with self.assertRaises(ValueError):
+            migrate_authz_to_legacy_course_roles(
+                CourseAccessRole,
+                UserSubject,
+                course_id_list=[self.invalid_course],
+                org_id=None,
+                delete_after_migration=True,
+            )
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_legacy_course_roles_to_authz_with_no_org_and_courses(self):
         # Migrate from legacy CourseAccessRole to new Casbin-based model
         with self.assertRaises(ValueError):
             migrate_legacy_course_roles_to_authz(
                 CourseAccessRole, course_id_list=None, org_id=None, delete_after_migration=True
+            )
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_legacy_course_roles_to_authz_with_invalid_courses(self):
+        with self.assertRaises(ValueError):
+            migrate_legacy_course_roles_to_authz(
+                CourseAccessRole,
+                course_id_list=[self.invalid_course],
+                org_id=None,
+                delete_after_migration=True,
             )
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)

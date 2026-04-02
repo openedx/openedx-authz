@@ -119,6 +119,8 @@ drf-yasg==1.21.11
     #   edx-api-doc-tools
 edx-api-doc-tools==2.1.2
     # via -r requirements/test.txt
+edx-ccx-keys==2.0.2
+    # via -r requirements/test.txt
 edx-django-utils==8.0.1
     # via
     #   -r requirements/test.txt
@@ -130,6 +132,7 @@ edx-drf-extensions==10.6.0
 edx-opaque-keys==3.0.0
     # via
     #   -r requirements/test.txt
+    #   edx-ccx-keys
     #   edx-drf-extensions
     #   edx-organizations
 edx-organizations==7.3.0
@@ -292,6 +295,10 @@ simpleeval==1.0.3
     # via
     #   -r requirements/test.txt
     #   pycasbin
+six==1.17.0
+    # via
+    #   -r requirements/test.txt
+    #   edx-ccx-keys
 snowballstemmer==3.0.1
     # via sphinx
 soupsieve==2.8

@@ -169,6 +169,22 @@ def migrate_legacy_permissions(ContentLibraryPermission):
     return permissions_with_errors
 
 
+def _validate_migration_input(course_id_list, org_id):
+    """
+    Validate the common inputs for the migration functions.
+    """
+    if not course_id_list and not org_id:
+        raise ValueError(
+            "At least one of course_id_list or org_id must be provided to limit the scope of the migration."
+        )
+
+    if course_id_list and any([course_key for course_key in course_id_list if not course_key.startswith("course-v1:")]):
+        raise ValueError(
+            "Only full course keys (e.g., 'course-v1:org+course+run') are supported in the course_id_list."
+            " Other course types such as CCX are not supported."
+        )
+
+
 def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_list, org_id, delete_after_migration):
     """
     Migrate legacy course role data to the new Casbin-based authorization model.
@@ -194,10 +210,8 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     param org_id: Optional organization ID to filter the migration.
     param delete_after_migration: Whether to delete successfully migrated legacy permissions after migration.
     """
-    if not course_id_list and not org_id:
-        raise ValueError(
-            "At least one of course_id_list or org_id must be provided to limit the scope of the migration."
-        )
+    _validate_migration_input(course_id_list, org_id)
+
     course_access_role_filter = {
         "course_id__startswith": "course-v1:",
     }
@@ -280,10 +294,7 @@ def migrate_authz_to_legacy_course_roles(
     param delete_after_migration: Whether to unassign successfully migrated permissions
     from the new model after migration.
     """
-    if not course_id_list and not org_id:
-        raise ValueError(
-            "At least one of course_id_list or org_id must be provided to limit the scope of the rollback migration."
-        )
+    _validate_migration_input(course_id_list, org_id)
 
     # 1. Get all users with course-related permissions in the new model by filtering
     # UserSubjects that are linked to CourseScopes with a valid course overview.

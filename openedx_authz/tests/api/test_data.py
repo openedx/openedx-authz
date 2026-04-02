@@ -8,6 +8,7 @@ from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import (
     ActionData,
+    CCXCourseOverviewData,
     ContentLibraryData,
     CourseOverviewData,
     OrgContentLibraryGlobData,
@@ -257,6 +258,8 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(ScopeData.scope_registry["lib"], ContentLibraryData)
         self.assertIn("course-v1", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
+        self.assertIn("ccx-v1", ScopeData.scope_registry)
+        self.assertIs(ScopeData.scope_registry["ccx-v1"], CCXCourseOverviewData)
 
         # Glob registries for organization-level scopes
         self.assertIn("lib", ScopeMeta.glob_registry)
@@ -265,6 +268,7 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(ScopeMeta.glob_registry["course-v1"], OrgCourseOverviewGlobData)
 
     @data(
+        ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX*", OrgContentLibraryGlobData),
@@ -285,6 +289,7 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(instance.namespaced_key, namespaced_key)
 
     @data(
+        ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX:*", OrgContentLibraryGlobData),
@@ -297,6 +302,8 @@ class TestScopeMetaClass(TestCase):
         """Test get_subclass_by_namespaced_key returns correct subclass.
 
         Expected Result:
+            - 'ccx-v1^...' returns CCXCourseOverviewData
+            - 'course-v1^...' returns CourseOverviewData
             - 'lib^...' returns ContentLibraryData
             - 'global^...' returns ScopeData
             - 'unknown^...' returns ScopeData (fallback)
@@ -306,6 +313,7 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(subclass, expected_class)
 
     @data(
+        ("ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
         ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:DemoX:*", OrgContentLibraryGlobData),
@@ -326,6 +334,11 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(subclass, expected_class)
 
     @data(
+        ("ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", True, CCXCourseOverviewData),
+        ("ccx:OpenedX+DemoX+DemoCourse+ccx@1", False, CCXCourseOverviewData),
+        ("ccx-v2:OpenedX+DemoX+DemoCourse+ccx@1", False, CCXCourseOverviewData),
+        ("ccx-v1-OpenedX+DemoX+DemoCourse+ccx@1", False, CCXCourseOverviewData),
+        ("ccx-v1-OpenedX+DemoX+DemoCourse+ccx", False, CCXCourseOverviewData),
         ("course-v1:WGU+CS002+2025_T1", True, CourseOverviewData),
         ("course:WGU+CS002+2025_T1", False, CourseOverviewData),
         ("course-v2:WGU+CS002+2025_T1", False, CourseOverviewData),

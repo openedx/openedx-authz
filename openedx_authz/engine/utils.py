@@ -178,7 +178,7 @@ def _validate_migration_input(course_id_list, org_id):
             "At least one of course_id_list or org_id must be provided to limit the scope of the migration."
         )
 
-    if course_id_list and any([course_key for course_key in course_id_list if not course_key.startswith("course-v1:")]):
+    if course_id_list and any(not course_key.startswith("course-v1:") for course_key in course_id_list):
         raise ValueError(
             "Only full course keys (e.g., 'course-v1:org+course+run') are supported in the course_id_list."
             " Other course types such as CCX are not supported."

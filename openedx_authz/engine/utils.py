@@ -258,7 +258,8 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
         if not is_user_added:
             logger.error(
                 f"Failed to migrate permission for User: {permission.user.username} "
-                f"to Role: {role} in Scope: {permission.course_id}"
+                f"to Role: {role} in Scope: {permission.course_id} "
+                "user may already have this permission assigned"
             )
             permissions_with_errors.append(permission)
             continue

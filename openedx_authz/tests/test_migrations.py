@@ -942,6 +942,51 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(kwargs["delete_after_migration"], True)
 
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")
+    def test_authz_migrate_course_authoring_command_mixed_success(self, mock_migrate):
+        """
+        Verify that the authz_migrate_course_authoring command outputs without errors
+        for mixed success operations.
+        """
+
+        mock_migrate.return_value = (
+            ["course-v1:fail"],
+            [self.course_id],
+        )  # Return one success and one failure
+
+        call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
+        mock_migrate.assert_called_once()
+
+        # Return only one success
+        mock_migrate.reset_mock()
+        mock_migrate.return_value = (
+            [],
+            [self.course_id],
+        )
+
+        call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
+        mock_migrate.assert_called_once()
+
+        # Return only one failure
+        mock_migrate.reset_mock()
+        mock_migrate.return_value = (
+            [self.course_id],
+            [],
+        )
+
+        call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
+        mock_migrate.assert_called_once()
+
+        # Return only no successes or failures
+        mock_migrate.reset_mock()
+        mock_migrate.return_value = (
+            [],
+            [],
+        )
+        call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
+        mock_migrate.assert_called_once()
+
     @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
     @patch("openedx_authz.management.commands.authz_rollback_course_authoring.migrate_authz_to_legacy_course_roles")
     def test_authz_rollback_course_authoring_command(self, mock_rollback):
@@ -971,6 +1016,52 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         call_kwargs = mock_rollback.call_args_list[0][1]
 
         self.assertEqual(call_kwargs["delete_after_migration"], True)
+
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.CourseAccessRole", CourseAccessRole)
+    @patch("openedx_authz.management.commands.authz_rollback_course_authoring.migrate_authz_to_legacy_course_roles")
+    def test_authz_rollback_course_authoring_command_mixed_success(self, mock_rollback):
+        """
+        Verify that the authz_rollback_course_authoring command does not error in
+        mixed success operations.
+        """
+
+        # Return one success and one failure
+        mock_rollback.return_value = (
+            ["course-v1:fail"],
+            [self.course_id],
+        )
+        call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
+        mock_rollback.assert_called_once()
+
+        # Return only one success
+        mock_rollback.reset_mock()
+        mock_rollback.return_value = (
+            [],
+            [self.course_id],
+        )
+
+        call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
+        mock_rollback.assert_called_once()
+
+        # Return only one failure
+        mock_rollback.reset_mock()
+        mock_rollback.return_value = (
+            [self.course_id],
+            [],
+        )
+
+        call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
+        mock_rollback.assert_called_once()
+
+        # Return only no successes or failures
+        mock_rollback.reset_mock()
+        mock_rollback.return_value = (
+            [],
+            [],
+        )
+
+        call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
+        mock_rollback.assert_called_once()
 
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.CourseAccessRole", CourseAccessRole)
     @patch("openedx_authz.management.commands.authz_migrate_course_authoring.migrate_legacy_course_roles_to_authz")

@@ -181,7 +181,7 @@ COURSE_BETA_TESTER_PERMISSIONS = [
 COURSE_BETA_TESTER = RoleData(external_key="course_beta_tester", permissions=COURSE_BETA_TESTER_PERMISSIONS)
 
 # This is a known LMS-only permission, but doesn't actually grant anything yet.
-# 
+#
 # It is intended to be handled in the Willow time frame.
 CCX_COACH_PERMISSIONS = []
 CCX_COACH = RoleData(external_key="ccx_coach", permissions=CCX_COACH_PERMISSIONS)

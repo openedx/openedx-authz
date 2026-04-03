@@ -838,8 +838,8 @@ class OrgCourseOverviewGlobData(OrgGlobData):
 
     NAMESPACE: ClassVar[str] = "course-v1"
     ID_SEPARATOR: ClassVar[str] = "+"
-    
-    
+
+
 class CCXCourseOverviewData(CourseOverviewData):
     """CCX course scope for authorization in the Open edX platform.
 

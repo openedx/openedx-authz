@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from casbin import Enforcer
 
-from openedx_authz.api.data import CourseOverviewData
+from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
@@ -204,6 +204,11 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     - user: subject
     - role: role
 
+    The scope assigned per row depends on which fields are set:
+    - course_id set: course-level scope (e.g. "course-v1:OpenedX+CS101+2024").
+    - course_id blank, org set: org-level glob scope (e.g. "course-v1:OpenedX+*").
+    - both set: course_id takes precedence as the more specific scope.
+
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
     is intended to run within a Django migration context, where direct model imports can cause issues.
     param course_id_list: Optional list of course IDs to filter the migration.
@@ -211,10 +216,8 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     param delete_after_migration: Whether to delete successfully migrated legacy permissions after migration.
     """
     _validate_migration_input(course_id_list, org_id)
-
-    course_access_role_filter = {
-        "course_id__startswith": "course-v1:",
-    }
+W
+    course_access_role_filter = {}
 
     if org_id:
         course_access_role_filter["org"] = org_id
@@ -243,16 +246,28 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
             permissions_with_errors.append(permission)
             continue
 
+        if permission.course_id:
+            scope_external_key = str(permission.course_id)
+        elif permission.org:
+            scope_external_key = OrgCourseOverviewGlobData.build_external_key(permission.org)
+        else:
+            # This should not happen as either course_id or org should be defined for each permission, log and skip
+            logger.error(
+                f"Permission for User: {permission.user.username} has neither course_id nor org defined, skipping."
+            )
+            permissions_with_errors.append(permission)
+            continue
+
         # Permission applied to individual user
         logger.info(
             f"Migrating permission for User: {permission.user.username} "
-            f"to Role: {role} in Scope: {permission.course_id}"
+            f"to Role: {role} in Scope: {scope_external_key}"
         )
 
         is_user_added = assign_role_to_user_in_scope(
             user_external_key=permission.user.username,
             role_external_key=role,
-            scope_external_key=str(permission.course_id),
+            scope_external_key=scope_external_key,
         )
 
         if not is_user_added:

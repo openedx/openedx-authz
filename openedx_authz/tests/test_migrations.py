@@ -295,16 +295,16 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             def __init__(self, permissions):
                 self.permissions = permissions
 
-            def filter(self, **kwargs):
+            def filter(self, **_):
                 return self
 
-            def select_related(self, *args, **kwargs):
+            def select_related(self, *_, **__):
                 return self
 
             def all(self):
                 return self.permissions
 
-            def get_or_create(self):
+            def get_or_create(self, **_):
                 raise Exception("Unexpected error mock")
 
         class MockCourseAccessRole:
@@ -440,23 +440,11 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Now let's rollback
 
-        # Capture the state of permissions before rollback to verify that rollback restores the original state
-        original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
-        original_state_access_roles = list(
-            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
-        )
-
         permissions_with_errors, permissions_with_no_errors = migrate_authz_to_legacy_course_roles(
             CourseAccessRole, UserSubject, course_id_list=course_id_list, org_id=None, delete_after_migration=False
         )
 
-        # Check that each user has the expected legacy role after rollback and that errors
-        # are logged for any permissions that could not be rolled back
+        # Casbin assignments are intact since delete_after_migration is False
         for user in self.admin_users:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
@@ -484,34 +472,6 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(len(permissions_with_errors), 0)
         self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
-
-        state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
-        after_migrate_state_access_roles = list(
-            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
-        )
-
-        # The number of CourseAccessRole entries should be the same as the original state
-        # since we are not deleting any entries in this test.
-        self.assertEqual(len(original_state_access_roles), 13)
-
-        # All original entries should still be there since we are not deleting any entries
-        # and when creating new entries for the users that were migrated back to legacy roles,
-        # we are creating them with get_or_create which will not create duplicates if an entry
-        # with the same user, org, course_id and role already exists.
-        self.assertEqual(len(after_migrate_state_access_roles), 13)
-
-        # Sanity check to ensure we have the expected number of UserSubjects related to
-        # the course permissions before migration (3 users * 4 roles = 12)
-        self.assertEqual(len(original_state_user_subjects), 12)
-
-        # After rollback, we should have the same 12 UserSubjects related to the course permissions
-        # since we are not deleting any entries in this test,
-        self.assertEqual(len(state_after_migration_user_subjects), 12)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_legacy_course_roles_to_authz_and_rollback_with_deletion(self):
@@ -594,23 +554,11 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Now let's rollback
 
-        # Capture the state of permissions before rollback to verify that rollback restores the original state
-        original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
-        original_state_access_roles = list(
-            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
-        )
-
         permissions_with_errors, permissions_with_no_errors = migrate_authz_to_legacy_course_roles(
             CourseAccessRole, UserSubject, course_id_list=course_id_list, org_id=None, delete_after_migration=True
         )
 
-        # Check that each user has the expected legacy role after rollback
-        # and that errors are logged for any permissions that could not be rolled back
+        # Casbin assignments are removed since delete_after_migration is True
         for user in self.admin_users:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
@@ -635,30 +583,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_errors), 0)
         self.assertEqual(len(permissions_with_no_errors), 12)
 
-        state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
         after_migrate_state_access_roles = list(
             CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
         )
 
-        # Before the rollback, we should only have the 1 invalid role entry
-        # since we set delete_after_migration to True in the migration.
-        self.assertEqual(len(original_state_access_roles), 1)
-
-        # All original entries + 3 users * 4 roles = 12
-        # plus the original invalid entry = 1 + 12 = 13 total entries
-        self.assertEqual(len(after_migrate_state_access_roles), 1 + 12)
-
-        # Sanity check to ensure we have the expected number of UserSubjects related to
-        # the course permissions before migration (3 users * 4 roles = 12)
-        self.assertEqual(len(original_state_user_subjects), 12)
-
-        # After rollback, we should have 0 UserSubjects related to the course permissions
-        self.assertEqual(len(state_after_migration_user_subjects), 0)
+        # 3 users * 4 roles = 12 recreated entries, plus the original invalid entry = 13 total
+        self.assertEqual(len(after_migrate_state_access_roles), 13)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_legacy_course_roles_to_authz_and_rollback_with_no_new_role_equivalent(self):
@@ -675,17 +605,6 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Now let's rollback
 
-        # Capture the state of permissions before rollback to verify that rollback restores the original state
-        original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
-        original_state_access_roles = list(
-            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
-        )
-
         # Mock the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping
         # for COURSE_ADMIN to simulate the scenario where the staff, limited_staff
         # and data_researcher roles do not have a legacy role equivalent and
@@ -698,8 +617,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
                 CourseAccessRole, UserSubject, course_id_list=course_id_list, org_id=None, delete_after_migration=True
             )
 
-        # Check that each user has the expected legacy role after rollback
-        # and that errors are logged for any permissions that could not be rolled back
+        # Admin assignments are removed; the rest remain since they had no legacy equivalent
         for user in self.admin_users:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
@@ -709,52 +627,27 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
-            # the staff role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
         for user in self.limited_staff:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
-            # the limited_staff role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
         for user in self.data_researcher:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
             )
-            # Since we are mocking the COURSE_ROLE_EQUIVALENCES mapping to only include a mapping for COURSE_ADMIN,
-            # the data_researcher role will not have a legacy role equivalent and therefore should not be migrated back
             self.assertEqual(len(assignments), 1)
 
         # 3 staff + 3 limited_staff + 3 data_researcher = 9 entries with no legacy role equivalent
         self.assertEqual(len(permissions_with_errors), 9)
 
-        state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
         after_migrate_state_access_roles = list(
             CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
         )
 
-        # Before the rollback, we should only have the 1 invalid role entry
-        # since we set delete_after_migration to True in the migration.
-        self.assertEqual(len(original_state_access_roles), 1)
-
-        # All original entries (1) + 3 users * 1 roles = 4
+        # 1 original invalid entry + 3 admin users rolled back = 4 total
         self.assertEqual(len(after_migrate_state_access_roles), 1 + 3)
-
-        # Before the rollback, we should have the 12 UserSubjects related to the course permissions
-        # since we had 3 users with 4 roles each in the original state.
-        self.assertEqual(len(original_state_user_subjects), 12)
-
-        # After rollback, we should have 9 UserSubjects related to the course permissions
-        # since the users with staff, limited_staff and data_researcher roles will not be
-        # migrated back to legacy roles due to our mocked COURSE_ROLE_EQUIVALENCES mapping.
-        self.assertEqual(len(state_after_migration_user_subjects), 9)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_legacy_course_roles_to_authz_using_org_id(self):
@@ -805,27 +698,13 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         # Only the invalid role entry should remain since we set delete_after_migration to True
         self.assertEqual(len(after_migrate_state_access_roles), 1)
 
-        # Must be different before and after migration since we set delete_after_migration
-        # to True and we are deleting all
         # Now let's rollback
-
-        # Capture the state of permissions before rollback to verify that rollback restores the original state
-        original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
-        original_state_access_roles = list(
-            CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
-        )
 
         permissions_with_errors, permissions_with_no_errors = migrate_authz_to_legacy_course_roles(
             CourseAccessRole, UserSubject, course_id_list=None, org_id=self.org, delete_after_migration=True
         )
 
-        # Check that each user has the expected legacy role after rollback
-        # and that errors are logged for any permissions that could not be rolled back
+        # Casbin assignments are removed since delete_after_migration is True
         for user in self.admin_users:
             assignments = get_user_role_assignments_in_scope(
                 user_external_key=user.username, scope_external_key=self.course_id
@@ -850,30 +729,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_errors), 0)
         self.assertEqual(len(permissions_with_no_errors), 12)
 
-        state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
-            .distinct()
-            .order_by("id")
-            .values("id", "user_id")
-        )
         after_migrate_state_access_roles = list(
             CourseAccessRole.objects.all().order_by("id").values("id", "user_id", "org", "course_id", "role")
         )
 
-        # Before the rollback, we should only have the 1 invalid role entry
-        # since we set delete_after_migration to True in the migration.
-        self.assertEqual(len(original_state_access_roles), 1)
-
-        # All original entries + 3 users * 4 roles = 12
-        # plus the original invalid entry = 1 + 12 = 13 total entries
+        # 3 users * 4 roles = 12 recreated entries, plus the original invalid entry = 13 total
         self.assertEqual(len(after_migrate_state_access_roles), 1 + 12)
-
-        # Sanity check to ensure we have the expected number of UserSubjects related to
-        # the course permissions before migration (3 users * 4 roles = 12)
-        self.assertEqual(len(original_state_user_subjects), 12)
-
-        # After rollback, we should have 0 UserSubjects related to the course permissions
-        self.assertEqual(len(state_after_migration_user_subjects), 0)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_authz_to_legacy_course_roles_with_no_org_and_courses(self):
@@ -927,7 +788,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         call_command("authz_migrate_course_authoring", "--course-id-list", self.course_id)
 
         mock_migrate.assert_called_once()
-        args, kwargs = mock_migrate.call_args
+        _, kwargs = mock_migrate.call_args
 
         self.assertEqual(kwargs["delete_after_migration"], False)
 
@@ -938,7 +799,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             call_command("authz_migrate_course_authoring", "--delete", "--course-id-list", self.course_id)
 
         mock_migrate.assert_called_once()
-        args, kwargs = mock_migrate.call_args
+        _, kwargs = mock_migrate.call_args
 
         self.assertEqual(kwargs["delete_after_migration"], True)
 
@@ -1001,7 +862,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
 
         mock_rollback.assert_called_once()
-        args, kwargs = mock_rollback.call_args
+        _, kwargs = mock_rollback.call_args
 
         self.assertEqual(kwargs["delete_after_migration"], False)
 

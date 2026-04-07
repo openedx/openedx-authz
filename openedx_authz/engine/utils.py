@@ -360,9 +360,8 @@ def migrate_authz_to_legacy_course_roles(
                 "role": COURSE_ROLE_EQUIVALENCES[role_external_key],
             }
 
-            # Here we prioritize course_id over org for scope since course-level scope is more specific
-            # and also both are not needed to create a valid CourseAccessRole entry
             if isinstance(role_assignment.scope, CourseOverviewData):
+                course_access_role_kwargs["org"] = role_assignment.scope.org
                 course_access_role_kwargs["course_id"] = scope_external_key
             elif isinstance(role_assignment.scope, OrgCourseOverviewGlobData):
                 course_access_role_kwargs["org"] = role_assignment.scope.org

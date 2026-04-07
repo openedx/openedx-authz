@@ -876,7 +876,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         call_command("authz_rollback_course_authoring", "--course-id-list", self.course_id)
 
         mock_rollback.assert_called_once()
-        _, kwargs = mock_rollback.call_args
+        args, kwargs = mock_rollback.call_args
 
         self.assertEqual(kwargs["delete_after_migration"], False)
 

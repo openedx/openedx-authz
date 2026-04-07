@@ -10,7 +10,11 @@ import logging
 import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
-from rest_framework import status
+from django.utils.decorators import method_decorator
+from edx_api_doc_tools import schema_for
+from organizations.models import Organization
+from organizations.serializers import OrganizationSerializer
+from rest_framework import filters, generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -26,7 +30,7 @@ from openedx_authz.rest_api.utils import (
     sort_users,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import DynamicScopePermission
+from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
@@ -449,3 +453,85 @@ class RoleListView(APIView):
         paginated_response_data = paginator.paginate_queryset(response_data, request)
         serialized_data = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
         return paginator.get_paginated_response(serialized_data.data)
+
+
+@view_auth_classes()
+@method_decorator(
+    authz_permissions(
+        [
+            permissions.VIEW_LIBRARY_TEAM.identifier,
+            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+        ]
+    ),
+    name="get",
+)
+@schema_for(
+    "get",
+    parameters=[
+        apidocs.query_parameter("search", str, description="Filter orgs by name or short_name"),
+        apidocs.query_parameter("page", int, description="Page number for pagination"),
+        apidocs.query_parameter("page_size", int, description="Number of items per page"),
+    ],
+    responses={
+        status.HTTP_200_OK: OrganizationSerializer(many=True),
+        status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+    },
+)
+class AdminConsoleOrgsAPIView(generics.ListAPIView):
+    """
+    API view for listing orgs
+    This API is used on the filters functionality on the Admin Console.
+
+    **Endpoints**
+
+    - GET: Retrieve all organizations
+
+    **Query Parameters**
+
+    - search (Optional): Search term to filter organizations by name or short name
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+
+    **Response Format**
+
+    Returns a paginated list of organization objects, each containing:
+
+    - id: The organization's ID
+    - name: The organization's name
+    - short_name: The organization's short name
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+
+    **Example Request**
+
+    GET /api/authz/v1/orgs/?search=edx&page=1&page_size=10
+
+    **Example Response**::
+
+        {
+            "count": 1,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "id": 1,
+                    "created": "2026-04-02T19:30:36.779095Z",
+                    "modified": "2026-04-02T19:30:36.779095Z",
+                    "name": "OpenedX",
+                    "short_name": "OpenedX",
+                    "description": "",
+                    "logo": null,
+                    "active": true
+                }
+            ]
+        }
+    """
+
+    queryset = Organization.objects.filter(active=True).order_by("name")
+    serializer_class = OrganizationSerializer
+    pagination_class = AuthZAPIViewPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name", "short_name"]
+    permission_classes = [AnyScopePermission]

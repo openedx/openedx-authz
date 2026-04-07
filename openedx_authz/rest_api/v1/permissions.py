@@ -259,6 +259,29 @@ class MethodPermissionMixin:
         return True
 
 
+class AnyScopePermission(MethodPermissionMixin, BasePermission):
+    """Permission handler for endpoints that are not tied to a specific scope.
+
+    Grants access if the user has at least one of the required permissions in any scope.
+    """
+
+    def has_permission(self, request, view) -> bool:
+        """Check if the user has any of the required permissions across all scopes.
+
+        Superusers and staff are automatically granted access. For other users,
+        grants access if the user has at least one required permission in any scope.
+
+        Returns:
+            bool: True if the user has at least one required permission in any scope.
+        """
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+        required = self.get_required_permissions(request, view)
+        if not required:
+            return False
+        return any(api.get_scopes_for_user_and_permission(request.user.username, permission) for permission in required)
+
+
 class ContentLibraryPermission(MethodPermissionMixin, BaseScopePermission):
     """Permission handler for content library scopes.
 

@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from organizations.models import Organization
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -851,6 +852,200 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
         self.assertEqual(len(response.data["completed"]), 1)
+
+
+@ddt
+class TestAdminConsoleOrgsAPIView(ViewTestMixin):
+    """Test suite for AdminConsoleOrgsAPIView."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Assign a course role to regular_9 for COURSES_VIEW_COURSE_TEAM permission tests."""
+        super().setUpClass()
+        cls._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_9",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                },
+            ]
+        )
+
+    @classmethod
+    def setUpTestData(cls):
+        """Create Organization fixtures."""
+        super().setUpTestData()
+
+        Organization.objects.bulk_create(
+            [
+                Organization(name="Alpha University", short_name="AlphaU"),
+                Organization(name="Beta Institute", short_name="BetaI"),
+                Organization(name="Gamma College", short_name="GammaC"),
+            ]
+        )
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.url = reverse("openedx_authz:orgs-list")
+
+    def test_get_orgs_returns_all(self):
+        """Test that all orgs are returned when no search param is provided.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns all 3 orgs
+        """
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(len(response.data["results"]), 3)
+
+    @data(
+        # Match by name
+        ("Alpha", 1),
+        ("university", 1),
+        # Match by short_name
+        ("BetaI", 1),
+        ("gamma", 1),
+        # Partial match across multiple orgs
+        ("a", 3),
+        # No match
+        ("nonexistent", 0),
+    )
+    @unpack
+    def test_get_orgs_search(self, search_term: str, expected_count: int):
+        """Test filtering orgs by name or short_name via the search param.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns only orgs matching the search term
+        """
+        response = self.client.get(self.url, {"search": search_term})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], expected_count)
+        self.assertEqual(len(response.data["results"]), expected_count)
+
+    @data(
+        ({}, 3, False),
+        ({"page": 1, "page_size": 2}, 2, True),
+        ({"page": 2, "page_size": 2}, 1, False),
+        ({"page": 1, "page_size": 3}, 3, False),
+    )
+    @unpack
+    def test_get_orgs_pagination(self, query_params: dict, expected_count: int, has_next: bool):
+        """Test pagination of org results.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns correct page size and next link
+        """
+        response = self.client.get(self.url, query_params)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), expected_count)
+        if has_next:
+            self.assertIsNotNone(response.data["next"])
+        else:
+            self.assertIsNone(response.data["next"])
+
+    def test_get_orgs_response_shape(self):
+        """Test that each org result contains the expected fields.
+
+        Expected result:
+            - Each result has id, name, and short_name fields
+        """
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result = response.data["results"][0]
+        self.assertIn("id", result)
+        self.assertIn("name", result)
+        self.assertIn("short_name", result)
+
+    def test_get_orgs_excludes_inactive(self):
+        """Test that inactive orgs are not returned.
+
+        Expected result:
+            - Returns 200 OK status
+            - Inactive orgs are excluded from results
+        """
+        Organization.objects.create(name="Inactive Org", short_name="InactiveO", active=False)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+        result_names = [org["name"] for org in response.data["results"]]
+        self.assertNotIn("Inactive Org", result_names)
+
+    @data(
+        # Only VIEW_LIBRARY_TEAM (library_user role in a lib scope)
+        ("regular_1", status.HTTP_200_OK),
+        # Only COURSES_VIEW_COURSE_TEAM (course_staff role in a course scope)
+        ("regular_9", status.HTTP_200_OK),
+        # No relevant permissions
+        ("regular_10", status.HTTP_403_FORBIDDEN),
+        # Superuser
+        ("admin_1", status.HTTP_200_OK),
+    )
+    @unpack
+    def test_get_orgs_permissions(self, username: str, expected_status: int):
+        """Test access control for AdminConsoleOrgsAPIView.
+
+        Test cases:
+            - User with only VIEW_LIBRARY_TEAM (via library role): allowed
+            - User with only COURSES_VIEW_COURSE_TEAM (via course role): allowed
+            - User with neither permission: forbidden
+            - Superuser/staff: allowed
+
+        Expected result:
+            - Returns appropriate status code based on user permissions
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, expected_status)
+
+    def test_get_orgs_user_with_both_permissions_allowed(self):
+        """Test that a user with both VIEW_LIBRARY_TEAM and COURSES_VIEW_COURSE_TEAM can access the endpoint.
+
+        Expected result:
+            - Returns 200 OK status
+        """
+        # regular_1 has library_user (VIEW_LIBRARY_TEAM); assign a course role too
+        self._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_1",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                },
+            ]
+        )
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_orgs_unauthenticated(self):
+        """Test that unauthenticated requests are rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED status
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @ddt

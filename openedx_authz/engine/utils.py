@@ -303,8 +303,7 @@ def migrate_authz_to_legacy_course_roles(
 
     To build each CourseAccessRole entry, the function needs:
     - A user: resolved from role assignments in scopes linked to courses.
-    - A scope: either a CourseOverviewData (course-level) or OrgCourseOverviewGlobData (org-level glob),
-      filtered by course_id or org_id if provided.
+    - A scope: a CourseOverviewData or OrgCourseOverviewGlobData instance, optionally filtered by course_id or org_id.
     - A role: a role external key that maps to a legacy role in COURSE_ROLE_EQUIVALENCES.
 
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function

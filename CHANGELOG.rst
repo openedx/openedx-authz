@@ -14,6 +14,10 @@ Change Log
 Unreleased
 **********
 
+1.3.0 2026-04-08
+****************
+
+* Add stub CCX_COACH role/ CCXCourseOverviewData scope to prevent errors when working with CCX courses.
 * Add ADR for global scope support for role assignments.
 
 1.2.0 - 2026-03-30

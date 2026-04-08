@@ -317,8 +317,10 @@ def migrate_authz_to_legacy_course_roles(
     """
     _validate_migration_input(course_id_list, org_id)
 
-    # CourseOverviewData and OrgCourseOverviewGlobData share the same namespace,
-    # so filtering by CourseOverviewData captures both course-level and org-level glob assignments.
+    # CourseOverviewData and OrgCourseOverviewGlobData share the same NAMESPACE ("course-v1"),
+    # and get_all_role_assignments_per_scope_type matches by NAMESPACE. Passing CourseOverviewData
+    # therefore captures both course-level and org-level glob assignments. The exact scope type
+    # is narrowed per-assignment via isinstance checks in the loop below.
     role_assignments = get_all_role_assignments_per_scope_type(scope_type=CourseOverviewData)
 
     # Two cases here:
@@ -343,6 +345,14 @@ def migrate_authz_to_legacy_course_roles(
     roles_with_no_errors = []
     unassignments = defaultdict(list)
 
+    user_external_keys = {assignment.subject.external_key for assignment in role_assignments}
+    users_by_username = {
+        subject.user.username: subject.user
+        for subject in user_subject_model.objects.filter(
+            user__username__in=user_external_keys
+        ).select_related("user")
+    }
+
     for role_assignment in role_assignments:
 
         # Per valid role assignment, create corresponding CourseAccessRole entry
@@ -353,7 +363,7 @@ def migrate_authz_to_legacy_course_roles(
             scope_external_key = role_assignment.scope.external_key
 
             course_access_role_kwargs = {
-                "user": user_subject_model.objects.get(user__username=user_external_key).user,
+                "user": users_by_username[user_external_key],
                 "role": COURSE_ROLE_EQUIVALENCES[role_external_key],
             }
 
@@ -363,6 +373,8 @@ def migrate_authz_to_legacy_course_roles(
             elif isinstance(role_assignment.scope, OrgCourseOverviewGlobData):
                 course_access_role_kwargs["org"] = role_assignment.scope.org
             else:
+                # This would only happen for course roles assigned instance-wide
+                # which is not yet supported
                 logger.error(
                     f"Unexpected scope type: {type(role_assignment.scope)} for RoleAssignment with "
                     f"scope: {scope_external_key}, user: {user_external_key} and role: {role_external_key}, skipping."

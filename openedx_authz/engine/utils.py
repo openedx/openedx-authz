@@ -348,6 +348,7 @@ def migrate_authz_to_legacy_course_roles(
     for role_assignment in role_assignments:
 
         # Per valid role assignment, create corresponding CourseAccessRole entry
+        # depending on whether the scope is course-level or org-level glob
         try:
             user_external_key = role_assignment.subject.external_key
             role_external_key = role_assignment.roles[0].external_key
@@ -365,12 +366,13 @@ def migrate_authz_to_legacy_course_roles(
                 course_access_role_kwargs["org"] = role_assignment.scope.org
             else:
                 logger.error(
-                    f"Unexpected scope type: {type(role_assignment.scope)} for RoleAssignment with scope: {scope_external_key}"
+                    f"Unexpected scope type: {type(role_assignment.scope)} for RoleAssignment with "
+                    f"scope: {scope_external_key}, user: {user_external_key} and role: {role_external_key}, skipping."
                 )
                 roles_with_errors.append(role_assignment)
                 continue
 
-            course_access_role_model.objects.create(**course_access_role_kwargs)
+            course_access_role_model.objects.get_or_create(**course_access_role_kwargs)
             roles_with_no_errors.append(role_assignment)
 
             logger.info(

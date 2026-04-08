@@ -77,7 +77,7 @@ class Command(BaseCommand):
                 if errors and success:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Rollback completed with {len(errors)} errors and {len(success)} roles migrated."
+                            f"Rollback completed with {len(errors)} errors and {len(success)} roles rolled back."
                         )
                     )
                 elif errors:
@@ -90,7 +90,7 @@ class Command(BaseCommand):
                     self.stdout.write(
                         self.style.ERROR(
                             "No roles found for the given scope, course could already be rolled back, "
-                            "or there coule be a an error in the course_id_list / org_id."
+                            "or there could be an error in the course_id_list / org_id."
                         )
                     )
 

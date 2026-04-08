@@ -843,7 +843,7 @@ class OrgCourseOverviewGlobData(OrgGlobData):
 class CCXCourseOverviewData(CourseOverviewData):
     """CCX course scope for authorization in the Open edX platform.
 
-    Inherits from CourseOverviewData as CCXs are coursees, just in a different namespace.
+    Inherits from CourseOverviewData as CCXs are courses, just in a different namespace.
 
     Attributes:
         NAMESPACE: 'ccx-v1' for course scopes.
@@ -853,7 +853,7 @@ class CCXCourseOverviewData(CourseOverviewData):
         course_id: Property alias for external_key.
 
     Examples:
-        >>> course = CourseOverviewData(external_key='ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1')
+        >>> course = CCXCourseOverviewData(external_key='ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1')
         >>> course.namespaced_key
         'ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1'
         >>> course.course_id

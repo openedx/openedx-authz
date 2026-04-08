@@ -86,7 +86,7 @@ class Command(BaseCommand):
                     self.stdout.write(
                         self.style.ERROR(
                             "No legacy roles found for the given scope, course could already be migrated, "
-                            "or there coule be a an error in the course_id_list / org_id."
+                            "or there could be an error in the course_id_list / org_id."
                         )
                     )
 

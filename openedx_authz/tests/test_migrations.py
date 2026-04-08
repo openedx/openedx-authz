@@ -7,6 +7,7 @@ from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 
+from openedx_authz.api.data import OrgCourseOverviewGlobData
 from openedx_authz.api.users import batch_unassign_role_from_users, get_user_role_assignments_in_scope
 from openedx_authz.constants.roles import (
     COURSE_ADMIN,
@@ -1114,3 +1115,60 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(len(errors), 0)
         self.assertEqual(len(successes), 12)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_org_level_scope_creates_org_glob_assignment(self):
+        """A CourseAccessRole with org set and blank course_id maps to an OrgCourseOverviewGlobData scope.
+
+        Expected result:
+            User has a COURSE_ADMIN assignment under the org-level glob scope.
+        """
+        org_short_name_new = f"{OBJECT_PREFIX}org2"
+        Organization.objects.create(name=f"{OBJECT_PREFIX}org2_full", short_name=org_short_name_new)
+        user = User.objects.create_user(
+            username=f"org_user_{OBJECT_PREFIX}", email=f"org_user_{OBJECT_PREFIX}@example.com"
+        )
+        CourseAccessRole.objects.create(user=user, org=org_short_name_new, course_id="", role="instructor")
+
+        _, _ = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        org_scope = OrgCourseOverviewGlobData.build_external_key(org_short_name_new)
+        assignments = get_user_role_assignments_in_scope(
+            user_external_key=user.username, scope_external_key=org_scope
+        )
+        self.assertEqual(len(assignments), 1)
+        self.assertEqual(assignments[0].roles[0], COURSE_ADMIN)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_rollback_org_level_scope_creates_org_only_course_access_role(self):
+        """Rollback of an OrgCourseOverviewGlobData assignment recreates a CourseAccessRole with org only.
+
+        Expected result:
+            The recreated entry has org set and course_id is None (org-wide, not course-specific).
+        """
+        org_short_name_new = f"{OBJECT_PREFIX}org2"
+        Organization.objects.create(name=f"{OBJECT_PREFIX}org2_full", short_name=org_short_name_new)
+        user = User.objects.create_user(
+            username=f"org_user_{OBJECT_PREFIX}", email=f"org_user_{OBJECT_PREFIX}@example.com"
+        )
+        CourseAccessRole.objects.create(user=user, org=org_short_name_new, course_id="", role="instructor")
+
+        migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(successes), 1)
+
+        recreated = CourseAccessRole.objects.filter(user=user, org=org_short_name_new).first()
+        self.assertIsNotNone(recreated)
+        self.assertEqual(recreated.org, org_short_name_new)
+        self.assertIsNone(recreated.course_id)

@@ -322,9 +322,8 @@ def migrate_authz_to_legacy_course_roles(
     role_assignments = get_all_role_assignments_per_scope_type(scope_type=CourseOverviewData)
 
     # Two cases here:
-    # 1. If org_id is provided, we filter by org_id which will include both org-level glob scopes and course-level scopes linked to that org
-    # 2. If only course_id_list is provided, we filter by course_id which will include only course-level scopes linked to those course_ids since
-    # org-level glob scopes don't have course_id in their scope object
+    # 1. org_id provided: filter by org — includes org-level glob and course-level scopes for that org.
+    # 2. only course_id_list provided: filter by course_id — org-level glob scopes are excluded (no course_id).
     if org_id:
         role_assignments = [
             role_assignment
@@ -383,7 +382,7 @@ def migrate_authz_to_legacy_course_roles(
             if delete_after_migration:
                 unassignments[(role_external_key, scope_external_key)].append(user_external_key)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(
                 f"Error rolling back RoleAssignment for User: {role_assignment.subject.external_key} "
                 f"in Role: {role_assignment.roles[0].external_key} and Scope: {role_assignment.scope.external_key}: {e}"

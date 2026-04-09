@@ -317,11 +317,9 @@ def migrate_authz_to_legacy_course_roles(
     """
     _validate_migration_input(course_id_list, org_id)
 
-    # CourseOverviewData and OrgCourseOverviewGlobData share the same NAMESPACE ("course-v1"),
-    # and get_all_role_assignments_per_scope_type matches by NAMESPACE. Passing CourseOverviewData
-    # therefore captures both course-level and org-level glob assignments. The exact scope type
-    # is narrowed per-assignment via isinstance checks in the loop below.
-    role_assignments = get_all_role_assignments_per_scope_type(scope_type=CourseOverviewData)
+    role_assignments = get_all_role_assignments_per_scope_type(
+        scope_types=[CourseOverviewData, OrgCourseOverviewGlobData]
+    )
 
     # Two cases here:
     # 1. org_id provided: filter by org — includes org-level glob and course-level scopes for that org.

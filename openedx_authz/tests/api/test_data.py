@@ -404,6 +404,10 @@ class TestScopeMetaClass(TestCase):
                 def exists(self) -> bool:
                     return False
 
+                @classmethod
+                def get_admin_view_permission(cls):
+                    raise NotImplementedError("Not implemented for TempScope")
+
             # Metaclass should have recreated the registries on the class
             self.assertTrue(hasattr(TempScope, "scope_registry"))
             self.assertTrue(hasattr(TempScope, "glob_registry"))

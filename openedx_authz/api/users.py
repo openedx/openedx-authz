@@ -11,10 +11,6 @@ with the role management system, which uses namespaced subjects
 
 from openedx_authz.api.data import (
     ActionData,
-    ContentLibraryData,
-    CourseOverviewData,
-    OrgContentLibraryGlobData,
-    OrgCourseOverviewGlobData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
@@ -39,7 +35,6 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
-from openedx_authz.constants.permissions import COURSES_MANAGE_COURSE_TEAM, MANAGE_LIBRARY_TEAM
 
 __all__ = [
     "assign_role_to_user_in_scope",
@@ -224,11 +219,8 @@ def _filter_allowed_assignments(
     for assignment in assignments:
         permission = None
 
-        # For CourseOverviewData and ContentLibraryData, check for the view permission
-        if isinstance(assignment.scope, (CourseOverviewData, OrgCourseOverviewGlobData)):
-            permission = COURSES_MANAGE_COURSE_TEAM.identifier
-        elif isinstance(assignment.scope, (ContentLibraryData, OrgContentLibraryGlobData)):
-            permission = MANAGE_LIBRARY_TEAM.identifier
+        # Get the permission needed to view the specific scope in the admin console
+        permission = assignment.scope.get_admin_view_permission().identifier
 
         if permission and is_user_allowed(
             user_external_key=user_external_key,

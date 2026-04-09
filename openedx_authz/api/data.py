@@ -6,7 +6,7 @@ import re
 from abc import abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, ClassVar, Literal, Type
+from typing import Any, ClassVar, Type
 
 from attrs import define
 from opaque_keys import InvalidKeyError
@@ -14,6 +14,8 @@ from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 from organizations.models import Organization
 
+from openedx_authz.constants.permissions import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
+from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, ActionData, AuthzBaseClass, AuthZData, PermissionData
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
 ContentLibrary = get_content_library_model()
@@ -21,6 +23,8 @@ CourseOverview = get_course_overview_model()
 
 __all__ = [
     "ActionData",
+    "AuthZData",
+    "AuthzBaseClass",
     "ContentLibraryData",
     "CourseOverviewData",
     "GroupingPolicyIndex",
@@ -36,7 +40,6 @@ __all__ = [
     "UserData",
 ]
 
-AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
@@ -84,65 +87,6 @@ class PolicyIndex(Enum):
     SCOPE = 2
     EFFECT = 3
     # The rest of the fields are optional and can be ignored for now
-
-
-class AuthzBaseClass:
-    """Base class for all authz classes.
-
-    Attributes:
-        SEPARATOR: The separator between the namespace and the identifier (default: '^').
-        NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role', 'act', 'lib').
-    """
-
-    SEPARATOR: ClassVar[str] = AUTHZ_POLICY_ATTRIBUTES_SEPARATOR
-    NAMESPACE: ClassVar[str] = None
-
-
-@define
-class AuthZData(AuthzBaseClass):
-    """Base class for all authz data classes.
-
-    Attributes:
-        NAMESPACE: The namespace prefix for the data type (e.g., 'user', 'role', 'act', 'lib').
-        SEPARATOR: The separator between the namespace and the identifier (default: '^').
-        external_key: The ID for the object outside of the authz system (e.g., 'john_doe' for a user,
-            'instructor' for a role, 'lib:DemoX:CSPROB' for a content library).
-        namespaced_key: The ID for the object within the authz system, combining namespace and external_key
-            (e.g., 'user^john_doe', 'role^instructor', 'lib^lib:DemoX:CSPROB').
-
-    Examples:
-        >>> user = UserData(external_key='john_doe')
-        >>> user.namespaced_key
-        'user^john_doe'
-        >>> role = RoleData(namespaced_key='role^instructor')
-        >>> role.external_key
-        'instructor'
-    """
-
-    external_key: str = ""
-    namespaced_key: str = ""
-
-    def __attrs_post_init__(self):
-        """Post-initialization processing for attributes.
-
-        This method ensures that either external_key or namespaced_key is provided,
-        and derives the other attribute based on the NAMESPACE and SEPARATOR.
-        """
-        if not self.NAMESPACE:
-            # No namespace defined, nothing to do
-            return
-
-        if not self.external_key and not self.namespaced_key:
-            raise ValueError("Either external_key or namespaced_key must be provided.")
-
-        # Case 1: Initialized with external_key only, derive namespaced_key
-        if not self.namespaced_key:
-            self.namespaced_key = f"{self.NAMESPACE}{self.SEPARATOR}{self.external_key}"
-
-        # Case 2: Initialized with namespaced_key only, derive external_key. Assume valid format for
-        # namespaced_key at this point.
-        if not self.external_key:
-            self.external_key = self.namespaced_key.split(self.SEPARATOR, 1)[1]
 
 
 class ScopeMeta(type):
@@ -397,6 +341,20 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         """
         return True
 
+    @classmethod
+    @abstractmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        This method should be implemented on every ScopeData subclass to define
+        which permission to check against when a user tries to see assignations
+        related to this scope in the Admin Console.
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
+
     @abstractmethod
     def get_object(self) -> Any | None:
         """Retrieve the underlying domain object that this scope represents.
@@ -493,6 +451,15 @@ class ContentLibraryData(ScopeData):
             return True
         except InvalidKeyError:
             return False
+
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return VIEW_LIBRARY_TEAM
 
     def get_object(self) -> ContentLibrary | None:
         """Retrieve the ContentLibrary instance associated with this scope.
@@ -607,6 +574,15 @@ class CourseOverviewData(ScopeData):
         except InvalidKeyError:
             return False
 
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return COURSES_VIEW_COURSE_TEAM
+
     def get_object(self) -> CourseOverview | None:
         """Retrieve the CourseOverview instance associated with this scope.
 
@@ -711,6 +687,15 @@ class OrgGlobData(ScopeData):
         return True
 
     @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
+
+    @classmethod
     def get_org(cls, external_key: str) -> str | None:
         """Extract the organization identifier from the glob pattern.
 
@@ -799,6 +784,15 @@ class OrgContentLibraryGlobData(OrgGlobData):
     NAMESPACE: ClassVar[str] = "lib"
     ID_SEPARATOR: ClassVar[str] = ":"
 
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return VIEW_LIBRARY_TEAM
+
 
 @define
 class OrgCourseOverviewGlobData(OrgGlobData):
@@ -838,6 +832,15 @@ class OrgCourseOverviewGlobData(OrgGlobData):
 
     NAMESPACE: ClassVar[str] = "course-v1"
     ID_SEPARATOR: ClassVar[str] = "+"
+
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return COURSES_VIEW_COURSE_TEAM
 
 
 class CCXCourseOverviewData(CourseOverviewData):
@@ -992,117 +995,6 @@ class UserData(SubjectData):
     def __repr__(self):
         """Developer friendly string representation of the user."""
         return self.namespaced_key
-
-
-@define
-class ActionData(AuthZData):
-    """An action represents an operation that can be performed in the authorization system.
-
-    Actions are the operations that can be allowed or denied in authorization policies.
-
-    Attributes:
-        NAMESPACE: 'act' for actions.
-        external_key: The action identifier (e.g., 'content_libraries.view_library').
-        namespaced_key: The action identifier with namespace (e.g., 'act^content_libraries.view_library').
-        name: Property that returns a human-readable action name (e.g., 'Content Libraries > View Library').
-
-    Examples:
-        >>> action = ActionData(external_key='content_libraries.delete_library')
-        >>> action.namespaced_key
-        'act^content_libraries.delete_library'
-        >>> action.name
-        'Content Libraries > Delete Library'
-    """
-
-    NAMESPACE: ClassVar[str] = "act"
-
-    @property
-    def name(self) -> str:
-        """The human-readable name of the action (e.g., 'Content Libraries > Delete Library').
-
-        This property transforms the external_key into a human-readable display name
-        by replacing dots with ' > ' and capitalizing each word.
-
-        Returns:
-            str: The human-readable action name (e.g., 'Content Libraries > Delete Library').
-        """
-        parts = self.external_key.split(".")
-        return " > ".join(part.replace("_", " ").title() for part in parts)
-
-    def __str__(self):
-        """Human readable string representation of the action."""
-        return self.name
-
-    def __repr__(self):
-        """Developer friendly string representation of the action."""
-        return self.namespaced_key
-
-
-@define
-class PermissionData:
-    """A permission combines an action with an effect (allow or deny).
-
-    Permissions define whether a specific action should be allowed or denied.
-    They are typically associated with roles in the authorization system.
-
-    Attributes:
-        action: The action being permitted or denied (ActionData instance).
-        effect: The effect of the permission, either 'allow' or 'deny' (default: 'allow').
-
-    Examples:
-        >>> read_action = ActionData(external_key='read')
-        >>> permission = PermissionData(action=read_action, effect='allow')
-        >>> str(permission)
-        'Read - allow'
-        >>> write_action = ActionData(external_key='write')
-        >>> deny_perm = PermissionData(action=write_action, effect='deny')
-        >>> str(deny_perm)
-        'Write - deny'
-    """
-
-    action: ActionData = None
-    effect: Literal["allow", "deny"] = "allow"
-
-    @property
-    def identifier(self) -> str:
-        """Get the permission identifier.
-
-        Returns:
-            str: The permission identifier (e.g., 'content_libraries.delete_library').
-        """
-        return self.action.external_key
-
-    def __eq__(self, other: "PermissionData") -> bool:
-        """Compare permissions based on their action identifier.
-
-        Two PermissionData instances are considered equal if they have the same action's
-        external_key and effect.
-
-        Args:
-            other: Another PermissionData instance or any object.
-
-        Returns:
-            bool: True if the actions match, False otherwise.
-
-        Example:
-            >>> perm1 = PermissionData(action=ActionData(external_key='view'), effect='allow')
-            >>> perm2 = PermissionData(action=ActionData(external_key='view'), effect='allow')
-            >>> perm1 == perm2  # True - same action and effect
-            True
-            >>> perm1 in [perm2]  # Uses __eq__
-            True
-        """
-        if self.action is None or other.action is None:
-            return False
-        return self.action.external_key == other.action.external_key and self.effect == other.effect
-
-    def __str__(self):
-        """Human readable string representation of the permission and its effect."""
-        return f"{self.action} - {self.effect}"
-
-    def __repr__(self):
-        """Developer friendly string representation of the permission."""
-        return f"{self.action.namespaced_key} => {self.effect}"
 
 
 @define(eq=False)

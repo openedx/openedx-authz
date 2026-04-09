@@ -54,6 +54,17 @@ def filter_user_assignments(
 ) -> list[UserAssignments]:
     """
     Filter user assignments by orgs or scopes.
+
+    Returns a list of users that have at least one assignment matching the filters,
+    with only the matching assignments for each matching user.
+
+    Args:
+        users_with_assignments (list[UserAssignments]): The list of users with their role assignments.
+        by (UserAssignmentsFilter): The filter type (by orgs or scopes).
+        values (list[str]): The list of orgs or scopes to filter by.
+
+    Returns:
+        list[UserAssignments]: The filtered list of users with their role assignments.
     """
     if not values:
         return users_with_assignments
@@ -62,7 +73,7 @@ def filter_user_assignments(
         if by == UserAssignmentsFilter.SCOPES:
             return assignment.scope.external_key
         elif by == UserAssignmentsFilter.ORGS:
-            return assignment.scope.org
+            return getattr(assignment.scope, "org", None)
         else:
             raise ValueError(f"Invalid filter: '{by}'. Must be one of {[f.value for f in UserAssignmentsFilter]}")
 

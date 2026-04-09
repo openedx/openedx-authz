@@ -1065,10 +1065,10 @@ class TestTeamMembersAPIView(ViewTestMixin):
     (admin_1..3 are staff/superuser; regular_1..8 are plain users)
 
     Visibility via filter_allowed_assignments:
-        - Staff/superuser: sees all 11 users (is_admin_or_superuser_check grants MANAGE_LIBRARY_TEAM on lib scopes)
-        - regular_5 (library_admin in Org3:LIB3): MANAGE_LIBRARY_TEAM granted → sees Org3 members (5)
-        - regular_1 (library_user in Org1:LIB1): no MANAGE_LIBRARY_TEAM → sees 0
-        - regular_3 (library_user in Org2:LIB2): no MANAGE_LIBRARY_TEAM → sees 0
+        - Staff/superuser: sees all 11 users (is_admin_or_superuser_check grants VIEW_LIBRARY_TEAM on lib scopes)
+        - regular_1 (library_user in Org1:LIB1): VIEW_LIBRARY_TEAM granted → sees Org1 members (3)
+        - regular_3 (library_user in Org2:LIB2): VIEW_LIBRARY_TEAM granted → sees Org2 members (3)
+        - regular_6 (library_author in Org3:LIB3): VIEW_LIBRARY_TEAM granted → sees Org3 members (5)
         - regular_9 (no assignments): sees 0 users
     """
 
@@ -1091,24 +1091,23 @@ class TestTeamMembersAPIView(ViewTestMixin):
     @data(
         # Staff/superuser sees all users across all scopes
         ("admin_1", 11),
-        # regular_5 has LIBRARY_ADMIN in lib:Org3:LIB3 (MANAGE_LIBRARY_TEAM granted) → sees only Org3 members
-        ("regular_5", 5),
-        # regular_1 has LIBRARY_USER in lib:Org1:LIB1 (no MANAGE_LIBRARY_TEAM) → sees nothing
-        ("regular_1", 0),
-        # regular_3 has LIBRARY_USER in lib:Org2:LIB2 (no MANAGE_LIBRARY_TEAM) → sees nothing
-        ("regular_3", 0),
+        # regular_1 has LIBRARY_USER in lib:Org1:LIB1 (VIEW_LIBRARY_TEAM granted) → sees only Org1 members
+        ("regular_1", 3),
+        # regular_3 has LIBRARY_USER in lib:Org2:LIB2 (VIEW_LIBRARY_TEAM granted) → sees only Org2 members
+        ("regular_3", 3),
+        # regular_6 has LIBRARY_AUTHOR in lib:Org3:LIB3 (VIEW_LIBRARY_TEAM granted) → sees only Org3 members
+        ("regular_6", 5),
         # regular_9 has no assignments → sees nothing
         ("regular_9", 0),
     )
     @unpack
     def test_visibility_limited_to_accessible_scopes(self, username: str, expected_count: int):
-        """Calling user only sees assignments for scopes it has MANAGE_*_TEAM access to.
+        """Calling user only sees assignments for scopes it has VIEW_*_TEAM access to.
 
         Expected result:
             - Staff/superuser sees all users across all scopes.
-            - Regular users only see members of scopes they can manage the team for.
-            - Users without MANAGE_*_TEAM permission see no results.
-
+            - Regular users only see members of scopes they have VIEW_*_TEAM permission for.
+            - Users with no assignments see no results.
         """
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)

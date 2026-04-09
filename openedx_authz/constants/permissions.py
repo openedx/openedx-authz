@@ -2,7 +2,7 @@
 Default permission constants.
 """
 
-from openedx_authz.api.data import ActionData, PermissionData
+from openedx_authz.data import ActionData, PermissionData
 
 # Content Library Permissions
 

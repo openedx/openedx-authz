@@ -14,6 +14,11 @@ Change Log
 Unreleased
 **********
 
+1.4.0 - 2026-04-09
+******************
+
+* Add ``orgs/`` endpoint to list and search orgs, with pagination, as required for filters in the Admin Console.
+
 1.3.0 2026-04-08
 ****************
 

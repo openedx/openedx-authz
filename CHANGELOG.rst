@@ -14,13 +14,32 @@ Change Log
 Unreleased
 **********
 
+1.5.0 - 2026-04-09
+******************
+
+Added
+=====
+
+* Add ``users/`` endpoint to fetch all team members, with optional filters for orgs, scopes, search by username user full name or email, sorting and pagination.
+
+Fixed
+=====
+
+* Fix enforcer ``is_admin_or_superuser_check`` that was not taking into account Org glob scopes.
+
 1.4.0 - 2026-04-09
 ******************
+
+Added
+=====
 
 * Add ``orgs/`` endpoint to list and search orgs, with pagination, as required for filters in the Admin Console.
 
 1.3.0 2026-04-08
 ****************
+
+Added
+=====
 
 * Add stub CCX_COACH role/ CCXCourseOverviewData scope to prevent errors when working with CCX courses.
 * Add ADR for global scope support for role assignments.

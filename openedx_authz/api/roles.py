@@ -31,6 +31,9 @@ __all__ = [
     "batch_unassign_role_from_subjects_in_scope",
     "get_all_roles_in_scope",
     "get_all_roles_names",
+    "get_subject_role_assignments_in_scope",
+    "get_subject_role_assignments_for_role_in_scope",
+    "get_all_subject_role_assignments",
     "get_all_subject_role_assignments_in_scope",
     "get_permissions_for_active_roles_in_scope",
     "get_permissions_for_roles",
@@ -267,6 +270,29 @@ def batch_unassign_role_from_subjects_in_scope(subjects: list[SubjectData], role
     """
     for subject in subjects:
         unassign_role_from_subject_in_scope(subject, role, scope)
+
+
+def get_all_subject_role_assignments() -> list[RoleAssignmentData]:
+    """Get all the roles for every subject across all scopes.
+
+    Returns:
+        list[RoleAssignmentData]: A list of role assignments for the subject.
+    """
+    enforcer = AuthzEnforcer.get_enforcer()
+    role_assignments = []
+    for policy in enforcer.get_grouping_policy():
+        subject = SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value])
+        role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
+        role.permissions = get_permissions_for_single_role(role)
+
+        role_assignments.append(
+            RoleAssignmentData(
+                subject=subject,
+                roles=[role],
+                scope=ScopeData(namespaced_key=policy[GroupingPolicyIndex.SCOPE.value]),
+            )
+        )
+    return role_assignments
 
 
 def get_subject_role_assignments(subject: SubjectData) -> list[RoleAssignmentData]:

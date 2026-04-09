@@ -16,7 +16,13 @@ from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
 from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, ContentLibraryData, CourseOverviewData
+from openedx_authz.api.data import (
+    GLOBAL_SCOPE_WILDCARD,
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
+)
 from openedx_authz.constants import roles
 from openedx_authz.constants.permissions import (
     COURSES_CREATE_FILES,
@@ -29,6 +35,7 @@ from openedx_authz.tests.test_utils import (
     make_action_key,
     make_course_assignment,
     make_course_case,
+    make_course_key,
     make_library_assignment,
     make_library_case,
     make_library_key,
@@ -668,6 +675,16 @@ class OrgGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
+def make_org_library_glob_key(key: str) -> str:
+    """Create a namespaced org-level library glob key (e.g., 'lib^lib:DemoX:*')."""
+    return f"{OrgContentLibraryGlobData.NAMESPACE}{OrgContentLibraryGlobData.SEPARATOR}{key}"
+
+
+def make_org_course_glob_key(key: str) -> str:
+    """Create a namespaced org-level course glob key (e.g., 'course-v1^course-v1:DemoX+*')."""
+    return f"{OrgCourseOverviewGlobData.NAMESPACE}{OrgCourseOverviewGlobData.SEPARATOR}{key}"
+
+
 @pytest.mark.django_db
 @ddt
 class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
@@ -750,6 +767,133 @@ class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
         Expected result:
             - Staff and superusers can perform any action on any ContentLibrary scope
             - Regular users are denied access without role assignments
+        """
+        request = {"subject": subject, "action": action, "scope": scope, "expected_result": expected_result}
+        self._test_enforcement(self.POLICY, request)
+
+
+@pytest.mark.django_db
+@ddt
+class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
+    """
+    Tests for is_admin_or_superuser_check across all supported scope types.
+
+    Verifies that staff and superuser flags grant access for every scope type
+    listed in SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK, and that regular users and
+    unsupported scope types are correctly denied.
+    """
+
+    POLICY = []
+
+    def setUp(self) -> None:
+        """Set up staff, superuser, and regular user."""
+        super().setUp()
+        User.objects.create_user(username="staff_user", email="staff@example.com", password="test", is_staff=True)
+        User.objects.create_superuser(username="superuser", email="super@example.com", password="test")
+        User.objects.create_user(username="regular_user", email="regular@example.com", password="test")
+
+    @data(
+        # ContentLibraryData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:TestOrg:TestLib"),
+            False,
+        ),
+        # CourseOverviewData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:TestOrg+TestCourse+2024"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:TestOrg+TestCourse+2024"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:TestOrg+TestCourse+2024"),
+            False,
+        ),
+        # OrgContentLibraryGlobData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("content_libraries.view_library"),
+            make_org_library_glob_key("lib:TestOrg:*"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("content_libraries.view_library"),
+            make_org_library_glob_key("lib:TestOrg:*"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("content_libraries.view_library"),
+            make_org_library_glob_key("lib:TestOrg:*"),
+            False,
+        ),
+        # OrgCourseOverviewGlobData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("courses.view_course"),
+            make_org_course_glob_key("course-v1:TestOrg+*"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("courses.view_course"),
+            make_org_course_glob_key("course-v1:TestOrg+*"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("courses.view_course"),
+            make_org_course_glob_key("course-v1:TestOrg+*"),
+            False,
+        ),
+        # Unsupported scope type - no one is granted access via this matcher
+        (make_user_key("staff_user"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
+        (make_user_key("superuser"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
+    )
+    @unpack
+    def test_is_admin_or_superuser_check(
+        self,
+        subject: str,
+        action: str,
+        scope: str,
+        expected_result: bool,
+    ):
+        """Test is_admin_or_superuser_check grants access to staff/superusers for all supported scopes.
+
+        Verifies that:
+        - Staff users are always allowed for ContentLibraryData, CourseOverviewData,
+          OrgContentLibraryGlobData, and OrgCourseOverviewGlobData scopes.
+        - Superusers are always allowed for the same scopes.
+        - Regular users are denied when they have no role assignments.
+        - Unsupported scope types (e.g., org) are denied even for staff/superusers.
+
+        Expected result:
+            - staff_user and superuser: True for all four supported scope types.
+            - regular_user: False for all scope types (no role assignments).
+            - staff_user and superuser: False for unsupported scope types.
         """
         request = {"subject": subject, "action": action, "scope": scope, "expected_result": expected_result}
         self._test_enforcement(self.POLICY, request)

@@ -15,6 +15,18 @@ class CommaSeparatedListField(serializers.CharField):
         return ",".join(value).lower()
 
 
+class CaseSensitiveCommaSeparatedListField(serializers.CharField):
+    """Serializer for a comma-separated list of strings, case-sensitive."""
+
+    def to_internal_value(self, data):
+        """Convert string separated by commas to list of unique items preserving order"""
+        return list(dict.fromkeys(item.strip() for item in data.split(",") if item.strip()))
+
+    def to_representation(self, value):
+        """Convert list to string separated by commas"""
+        return ",".join(value)
+
+
 class LowercaseCharField(serializers.CharField):
     """Serializer for a lowercase string."""
 

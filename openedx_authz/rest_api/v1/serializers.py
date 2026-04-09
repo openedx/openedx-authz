@@ -4,9 +4,14 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from openedx_authz import api
+from openedx_authz.api.data import UserAssignments
 from openedx_authz.rest_api.data import SortField, SortOrder
 from openedx_authz.rest_api.utils import get_generic_scope
-from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
+from openedx_authz.rest_api.v1.fields import (
+    CaseSensitiveCommaSeparatedListField,
+    CommaSeparatedListField,
+    LowercaseCharField,
+)
 
 User = get_user_model()
 
@@ -203,3 +208,54 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
     def get_roles(self, obj: api.RoleAssignmentData) -> list[str]:
         """Get the roles for the given role assignment."""
         return [role.external_key for role in obj.roles]
+
+
+class ListTeamMembersSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Serializer for listing team members.
+    This serializer is TeamMembersAPIView, which is used in the Admin Console.
+    In this content, a team member is anyone with studio access.
+    """
+
+    scopes = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    sort_by = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortField],
+        default=SortField.USERNAME,
+    )
+    order = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortOrder],
+        default=SortOrder.ASC,
+    )
+    search = LowercaseCharField(required=False, default=None)
+
+
+class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Serializer for team members.
+    This serializer is APIs used by the Admin Console.
+    In this content, a team member is anyone with studio access.
+    """
+
+    username = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    assignation_count = serializers.SerializerMethodField()
+
+    def get_username(self, obj: UserAssignments) -> str:
+        """Get the username for the given role assignment."""
+        return getattr(obj.user, "username", "") if obj.user else ""
+
+    def get_full_name(self, obj: UserAssignments) -> str:
+        """Get the full name for the given role assignment."""
+        return obj.user.get_full_name() if obj.user else ""
+
+    def get_email(self, obj: UserAssignments) -> str:
+        """Get the email for the given role assignment."""
+        return getattr(obj.user, "email", "") if obj.user else ""
+
+    def get_assignation_count(self, obj: UserAssignments) -> int:
+        """Get the assignation count for the given role assignment."""
+        return len(obj.assignments)

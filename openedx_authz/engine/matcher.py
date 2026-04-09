@@ -3,8 +3,15 @@
 from django.contrib.auth import get_user_model
 from edx_django_utils.cache import RequestCache
 
-from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, ScopeData, UserData
-from openedx_authz.rest_api.utils import get_user_by_username_or_email
+from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
+    ScopeData,
+    UserData,
+)
+from openedx_authz.utils import get_user_by_username_or_email
 
 User = get_user_model()
 
@@ -12,6 +19,8 @@ User = get_user_model()
 SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
     (ContentLibraryData.NAMESPACE, ContentLibraryData),
     (CourseOverviewData.NAMESPACE, CourseOverviewData),
+    (OrgContentLibraryGlobData.NAMESPACE, OrgContentLibraryGlobData),
+    (OrgCourseOverviewGlobData.NAMESPACE, OrgCourseOverviewGlobData),
 }
 
 

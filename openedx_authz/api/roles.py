@@ -556,20 +556,21 @@ def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
     return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)
 
 
-def get_all_role_assignments_per_scope_type(scope_type: type[ScopeData]) -> list[RoleAssignmentData]:
-    """Get all role assignments for a specific scope type.
+def get_all_role_assignments_per_scope_type(scope_types: list[type[ScopeData]]) -> list[RoleAssignmentData]:
+    """Get all role assignments matching any of the given scope types.
 
     Loads all grouping policies from the enforcer and filters in Python. Casbin policies
     store full scope keys (e.g., 'course-v1^course-v1:Org+Course+Run'), so there is no
     way to query by scope type directly so the filtering must happen here.
 
     Args:
-        scope_type: A ScopeData subclass (not an instance) used to match by NAMESPACE.
+        scope_types: A list of ScopeData subclasses (not instances). Assignments matching
+            any of the given types are returned.
 
     Returns:
-        list[RoleAssignmentData]: All assignments whose scope matches the given scope type.
+        list[RoleAssignmentData]: All assignments whose scope is an instance of any of the given scope types.
     """
     return [
         role_assignment for role_assignment in get_role_assignments()
-        if role_assignment.scope.NAMESPACE == scope_type.NAMESPACE
+        if isinstance(role_assignment.scope, tuple(scope_types))
     ]

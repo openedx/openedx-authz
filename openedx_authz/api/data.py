@@ -840,6 +840,30 @@ class OrgCourseOverviewGlobData(OrgGlobData):
     ID_SEPARATOR: ClassVar[str] = "+"
 
 
+class CCXCourseOverviewData(CourseOverviewData):
+    """CCX course scope for authorization in the Open edX platform.
+
+    Inherits from CourseOverviewData as CCXs are courses, just in a different namespace.
+
+    Attributes:
+        NAMESPACE: 'ccx-v1' for course scopes.
+        external_key: The course identifier (e.g., 'ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1').
+            Must be a valid CourseKey format.
+        namespaced_key: The course identifier with namespace (e.g., 'ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1').
+        course_id: Property alias for external_key.
+
+    Examples:
+        >>> course = CCXCourseOverviewData(external_key='ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1')
+        >>> course.namespaced_key
+        'ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1'
+        >>> course.course_id
+        'ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1'
+
+    """
+
+    NAMESPACE: ClassVar[str] = "ccx-v1"
+
+
 class SubjectMeta(type):
     """Metaclass for SubjectData to handle dynamic subclass instantiation based on namespace."""
 

@@ -15,7 +15,7 @@ astroid==4.0.3
     #   pylint-celery
 attrs==25.3.0
     # via -r requirements/quality.txt
-build==1.4.0
+build==1.4.2
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools
@@ -140,6 +140,8 @@ drf-yasg==1.21.11
     #   edx-api-doc-tools
 edx-api-doc-tools==2.1.2
     # via -r requirements/quality.txt
+edx-ccx-keys==2.0.2
+    # via -r requirements/quality.txt
 edx-django-utils==8.0.1
     # via
     #   -r requirements/quality.txt
@@ -155,6 +157,7 @@ edx-lint==5.6.0
 edx-opaque-keys==3.0.0
     # via
     #   -r requirements/quality.txt
+    #   edx-ccx-keys
     #   edx-drf-extensions
     #   edx-organizations
 edx-organizations==7.3.0
@@ -338,6 +341,7 @@ simpleeval==1.0.3
 six==1.17.0
     # via
     #   -r requirements/quality.txt
+    #   edx-ccx-keys
     #   edx-lint
 snowballstemmer==3.0.1
     # via

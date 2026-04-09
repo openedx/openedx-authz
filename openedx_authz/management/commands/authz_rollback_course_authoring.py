@@ -74,11 +74,24 @@ class Command(BaseCommand):
                     delete_after_migration=delete_after_migration,  # control deletion here
                 )
 
-                if errors:
+                if errors and success:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Rollback completed with {len(errors)} errors and {len(success)} roles rolled back."
+                        )
+                    )
+                elif errors:
                     self.stdout.write(self.style.ERROR(f"Rollback completed with {len(errors)} errors."))
-                else:
+                elif success:
                     self.stdout.write(
                         self.style.SUCCESS(f"Rollback completed successfully with {len(success)} roles rolled back.")
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.ERROR(
+                            "No roles found for the given scope, course could already be rolled back, "
+                            "or there could be an error in the course_id_list / org_id."
+                        )
                     )
 
                 if delete_after_migration:

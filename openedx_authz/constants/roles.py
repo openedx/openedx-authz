@@ -180,6 +180,13 @@ COURSE_BETA_TESTER_PERMISSIONS = [
 
 COURSE_BETA_TESTER = RoleData(external_key="course_beta_tester", permissions=COURSE_BETA_TESTER_PERMISSIONS)
 
+# This is a known LMS-only permission, but doesn't actually grant anything yet.
+#
+# It is intended to be handled in the Willow time frame.
+CCX_COACH_PERMISSIONS = []
+CCX_COACH = RoleData(external_key="ccx_coach", permissions=CCX_COACH_PERMISSIONS)
+
+
 # Map of legacy course role names to their equivalent new roles
 # This mapping must be unique in both directions, since it may be used as a reverse lookup (value → key).
 # If multiple keys share the same value, it will lead to collisions.
@@ -189,4 +196,5 @@ LEGACY_COURSE_ROLE_EQUIVALENCES = {
     "limited_staff": COURSE_LIMITED_STAFF.external_key,
     "data_researcher": COURSE_DATA_RESEARCHER.external_key,
     "beta_testers": COURSE_BETA_TESTER.external_key,
+    "ccx_coach": CCX_COACH.external_key,
 }

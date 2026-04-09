@@ -8,6 +8,7 @@ attrs                       # Classes without boilerplate
 pycasbin                    # Authorization library for implementing access control models
 casbin-django-orm-adapter   # Adapter for Django ORM for Casbin
 edx-opaque-keys             # Opaque keys for resource identification
+edx-ccx-keys                # CCX keys for Custom Course identification
 edx-api-doc-tools           # Tools for API documentation
 edx-django-utils            # Used for RequestCache
 edx-drf-extensions          # Extensions for Django Rest Framework used by Open edX

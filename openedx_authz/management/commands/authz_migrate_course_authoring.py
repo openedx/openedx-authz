@@ -70,11 +70,24 @@ class Command(BaseCommand):
                     delete_after_migration=delete_after_migration,
                 )
 
-                if errors:
+                if errors and success:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Migration completed with {len(errors)} errors and {len(success)} roles migrated."
+                        )
+                    )
+                elif errors:
                     self.stdout.write(self.style.ERROR(f"Migration completed with {len(errors)} errors."))
-                else:
+                elif success:
                     self.stdout.write(
                         self.style.SUCCESS(f"Migration completed successfully with {len(success)} roles migrated.")
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.ERROR(
+                            "No legacy roles found for the given scope, course could already be migrated, "
+                            "or there could be an error in the course_id_list / org_id."
+                        )
                     )
 
                 if delete_after_migration:

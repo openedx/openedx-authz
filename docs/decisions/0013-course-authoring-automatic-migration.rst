@@ -27,8 +27,8 @@ The current manual approach presents the following risks:
   command, the permission data in both systems will diverge.
 - **No status tracking**: There is no visibility into whether a migration is in progress,
   completed, or failed.
-- **No concurrency protection**: Multiple concurrent flag changes can trigger overlapping
-  migrations, leading to race conditions and data corruption.
+- **No concurrency protection**: Nothing prevents operators from running the migration command
+  multiple times simultaneously, which can lead to race conditions and data corruption.
 - **No user feedback**: Operators have no way to know the result of a migration without
   inspecting logs manually.
 

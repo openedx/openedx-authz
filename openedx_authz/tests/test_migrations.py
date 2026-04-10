@@ -430,7 +430,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             self.assertEqual(assignments[0].roles[0], COURSE_DATA_RESEARCHER)
 
         self.assertEqual(len(permissions_with_errors), 1)
-        self.assertEqual(permissions_with_errors[0].user.username, self.error_user.username)
+        self.assertEqual(permissions_with_errors[0].subject, self.error_user.username)
         self.assertEqual(permissions_with_errors[0].role, "invalid-legacy-role")
 
         self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
@@ -581,7 +581,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             self.assertEqual(len(assignments), 1)
             self.assertEqual(assignments[0].roles[0], COURSE_DATA_RESEARCHER)
         self.assertEqual(len(permissions_with_errors), 1)
-        self.assertEqual(permissions_with_errors[0].user.username, self.error_user.username)
+        self.assertEqual(permissions_with_errors[0].subject, self.error_user.username)
         self.assertEqual(permissions_with_errors[0].role, "invalid-legacy-role")
         self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
 
@@ -798,7 +798,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             self.assertEqual(len(assignments), 1)
             self.assertEqual(assignments[0].roles[0], COURSE_DATA_RESEARCHER)
         self.assertEqual(len(permissions_with_errors), 1)
-        self.assertEqual(permissions_with_errors[0].user.username, self.error_user.username)
+        self.assertEqual(permissions_with_errors[0].subject, self.error_user.username)
         self.assertEqual(permissions_with_errors[0].role, "invalid-legacy-role")
         self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
 
@@ -1172,7 +1172,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(len(errors), 1)
         self.assertEqual(len(successes), 0)
-        self.assertEqual(errors[0].user.username, "testuser")
+        self.assertEqual(errors[0].subject, "testuser")
 
     @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
     def test_migrate_legacy_course_roles_to_authz_instance_wide_role_is_error(self):
@@ -1206,7 +1206,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(len(errors), 1)
         self.assertEqual(len(successes), 0)
-        self.assertEqual(errors[0].user.username, "instance_user")
+        self.assertEqual(errors[0].subject, "instance_user")
         self.assertTrue(any("instance_user" in msg for msg in log.output))
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
@@ -1366,7 +1366,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             CourseAccessRole, UserSubject, course_id_list=None, org_id=self.org, delete_after_migration=False
         )
 
-        migrated_users = {assignment.subject.external_key for assignment in successes}
+        migrated_users = {assignment.subject for assignment in successes}
         # glob assignment for self.org is included
         self.assertIn(user_glob.username, migrated_users)
         # assignment from the other org is excluded
@@ -1405,7 +1405,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             CourseAccessRole, UserSubject, course_id_list=[self.course_id], org_id=None, delete_after_migration=False
         )
 
-        migrated_users = {assignment.subject.external_key for assignment in successes}
+        migrated_users = {assignment.subject for assignment in successes}
         # org-level glob is excluded even though it belongs to the same org
         self.assertNotIn(user_glob.username, migrated_users)
         # course not in the list is excluded

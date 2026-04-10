@@ -105,7 +105,7 @@ def sort_assignments(
 
     Args:
         assignments (list[dict]): The assignments to sort.
-        sort_by (SortField, optional): The field to sort by. Defaults to AssignmentSortField.ROLE.
+        sort_by (AssignmentSortField, optional): The field to sort by. Defaults to AssignmentSortField.ROLE.
         order (SortOrder, optional): The order to sort by. Defaults to SortOrder.ASC.
 
     Raises:

@@ -9,6 +9,7 @@ import logging
 
 import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
+from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.utils.decorators import method_decorator
 from edx_api_doc_tools import schema_for
@@ -532,12 +533,15 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
         }
     """
 
-    queryset = Organization.objects.filter(active=True).order_by("name")
     serializer_class = OrganizationSerializer
     pagination_class = AuthZAPIViewPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "short_name"]
     permission_classes = [AnyScopePermission]
+
+    def get_queryset(self) -> QuerySet:
+        """Return active organizations ordered by name."""
+        return Organization.objects.filter(active=True).order_by("name")
 
 
 @view_auth_classes()

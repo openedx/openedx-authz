@@ -10,6 +10,7 @@ with the role management system, which uses namespaced subjects
 """
 
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 from openedx_authz.api.data import (
     ActionData,
@@ -256,11 +257,14 @@ def get_all_user_role_assignments_in_scope(
 
 
 def _filter_allowed_assignments(
-    user_external_key: str, assignments: list[RoleAssignmentData]
+    assignments: list[RoleAssignmentData], user_external_key: str = None
 ) -> list[RoleAssignmentData]:
     """
     Filter the given role assignments to only include those that the user has permission to view.
     """
+    if not user_external_key:
+        # If no user is specified, return all assignments
+        return assignments
     allowed_assignments: list[RoleAssignmentData] = []
     for assignment in assignments:
         permission = None
@@ -425,20 +429,18 @@ def get_superadmin_assignments(user_external_keys: list[str] | None = None) -> l
     Returns:
         list[SuperAdminAssignmentData]: The superadmin data
     """
-    # Retrieve user data to check if they are a superusers
-    if user_external_keys is None:
-        requested_users = User.objects.filter(is_active=True)
-    else:
-        requested_users = User.objects.filter(username__in=user_external_keys, is_active=True)
+    superadmin_filter = Q(is_active=True) & (Q(is_staff=True) | Q(is_superuser=True))
+    if user_external_keys is not None:
+        superadmin_filter &= Q(username__in=user_external_keys)
+    requested_users = User.objects.filter(superadmin_filter)
 
     superadmin_assignments: list[SuperAdminAssignmentData] = []
     for requested_user in requested_users:
-        if requested_user.is_staff or requested_user.is_superuser:
-            superadmin_assignments.append(
-                SuperAdminAssignmentData(
-                    subject=UserData(external_key=requested_user.username),
-                    is_staff=requested_user.is_staff,
-                    is_superuser=requested_user.is_superuser,
-                )
+        superadmin_assignments.append(
+            SuperAdminAssignmentData(
+                subject=UserData(external_key=requested_user.username),
+                is_staff=requested_user.is_staff,
+                is_superuser=requested_user.is_superuser,
             )
+        )
     return superadmin_assignments

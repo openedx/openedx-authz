@@ -338,7 +338,7 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
             case api.SuperAdminAssignmentData():
                 return "*"
             case api.RoleAssignmentData():
-                return getattr(obj.scope, "org", None)
+                return getattr(obj.scope, "org", "")
 
     def get_scope(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:
         """Get the scope for the given role assignment."""

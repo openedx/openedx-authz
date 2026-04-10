@@ -20,7 +20,7 @@ Unreleased
 Added
 =====
 
-* Add the ``/api/authz/v1/users/<username>/assignments`` endpoint to get a list of role assignations for a user.
+* Add the ``/api/authz/v1/users/<username>/assignments/`` endpoint to get a list of role assignations for a user.
 
 1.7.0 - 2026-04-14
 ******************

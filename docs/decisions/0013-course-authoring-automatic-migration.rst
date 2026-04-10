@@ -18,8 +18,8 @@ Currently, migrations between both systems are performed manually using Django m
 - ``authz_rollback_course_authoring`` (rollback migration)
 
 In `ADR 0011`_ and `ADR 0010`_ it was established that migration must occur automatically when
-the feature flag ``authz.enable_course_authoring`` changes state, but they deferred the definition of
-the specific mechanism. This ADR addresses that gap.
+the feature flag ``authz.enable_course_authoring`` changes state, but the definition of
+the specific mechanism was deferred. This ADR addresses that gap.
 
 The current manual approach presents the following risks:
 
@@ -70,7 +70,7 @@ To address this, the automatic migration mechanism will be **guarded by a Django
 
 .. code:: python
 
-    ENABLE_AUTOMATIC_COURSE_AUTHORING_MIGRATION = False
+    ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION = False
 
 This setting:
 
@@ -123,7 +123,7 @@ A new model is introduced to track the lifecycle of each migration operation:
 
 .. code:: python
 
-    class CourseAuthoringMigrationRun(models.Model):
+    class AuthzCourseAuthoringMigrationRun(models.Model):
         migration_type = models.CharField(max_length=20)  # forward / rollback
         scope_type = models.CharField(max_length=20)  # course / org
         scope_key = models.CharField(max_length=255)
@@ -169,8 +169,8 @@ migration runs at a time for the same scope.
 2. The ``pre_save`` signal handler detects the state transition.
 3. A Celery task is dispatched asynchronously.
 4. The task calls the utility function, which acquires the lock, creates and updates the
-   ``CourseAuthoringMigrationRun`` record, and executes the migration.
-5. The operator can check the migration status via Django Admin on the ``CourseAuthoringMigrationRun``
+   ``AuthzCourseAuthoringMigrationRun`` record, and executes the migration.
+5. The operator can check the migration status via Django Admin on the ``AuthzCourseAuthoringMigrationRun``
    model.
 
 Consequences

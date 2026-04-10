@@ -7,6 +7,8 @@ for the Open edX AuthZ system using Casbin.
 import logging
 from collections import defaultdict
 
+from django.db.models import Q
+
 from casbin import Enforcer
 
 from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
@@ -228,7 +230,10 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
         course_access_role_filter["course_id__in"] = course_id_list
 
     legacy_permissions = (
-        course_access_role_model.objects.filter(**course_access_role_filter).select_related("user").all()
+        course_access_role_model.objects.filter(**course_access_role_filter)
+        .filter(Q(course_id="") | Q(course_id__startswith=CourseOverviewData.NAMESPACE))
+        .select_related("user")
+        .all()
     )
 
     # List to keep track of any permissions that could not be migrated

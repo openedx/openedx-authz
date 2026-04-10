@@ -51,16 +51,16 @@ __all__ = [
     "get_user_role_assignments",
     "get_user_role_assignments_in_scope",
     "get_user_role_assignments_for_role_in_scope",
-    "get_user_role_assignments_for_user_filtered",
     "get_user_role_assignments_filtered",
     "get_all_user_role_assignments_in_scope",
     "get_visible_role_assignments_for_user",
+    "get_visible_specific_user_role_assignments_for_user",
     "is_user_allowed",
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
     "unassign_all_roles_from_user",
     "validate_users",
-    "get_superadmins",
+    "get_superadmin_assignments",
 ]
 
 
@@ -178,7 +178,7 @@ def get_user_role_assignments_for_role_in_scope(
     )
 
 
-def get_user_role_assignments_for_user_filtered(
+def get_visible_specific_user_role_assignments_for_user(
     user_external_key: str,
     orgs: list[str] = None,
     roles: list[str] = None,
@@ -413,7 +413,7 @@ def validate_users(user_identifiers: list[str]) -> tuple[list[str], list[str]]:
     return valid_users, invalid_users
 
 
-def get_superadmins(user_external_keys: list[str] | None = None) -> list[SuperAdminAssignmentData]:
+def get_superadmin_assignments(user_external_keys: list[str] | None = None) -> list[SuperAdminAssignmentData]:
     """Returns all superadmins as SuperAdminAssignmentData.
 
     A superadmin is a User with a Django staff or superuser role.

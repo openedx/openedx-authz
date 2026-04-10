@@ -2,7 +2,6 @@
 
 from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
-    RoleAssignmentData,
     ScopeData,
 )
 from openedx_authz.rest_api.data import AssignmentSortField, SearchField, SortField, SortOrder
@@ -97,15 +96,15 @@ def filter_users(users: list[dict], search: str | None, roles: list[str] | None)
 
 
 def sort_assignments(
-    assignments: list[RoleAssignmentData],
+    assignments: list[dict],
     sort_by: AssignmentSortField = AssignmentSortField.ROLE,
     order: SortOrder = SortOrder.ASC,
-) -> list[RoleAssignmentData]:
+) -> list[dict]:
     """
     Sort role assignments by a given field and order.
 
     Args:
-        assignments (list[RoleAssignmentData]): The assignments to sort.
+        assignments (list[dict]): The assignments to sort.
         sort_by (SortField, optional): The field to sort by. Defaults to AssignmentSortField.ROLE.
         order (SortOrder, optional): The order to sort by. Defaults to SortOrder.ASC.
 
@@ -114,7 +113,7 @@ def sort_assignments(
         ValueError: If the sort order is invalid.
 
     Returns:
-        list[RoleAssignmentData]: The sorted assignments.
+        list[dict]: The sorted assignments.
     """
     if sort_by not in AssignmentSortField.values():
         raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {AssignmentSortField.values()}")

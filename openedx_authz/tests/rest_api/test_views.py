@@ -1318,20 +1318,23 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         lib:Org3:LIB3 → admin_3 (library_admin), regular_5 (library_admin), regular_6 (library_author),
                         regular_7 (library_contributor), regular_8 (library_user)
 
-    URL: /authz/v1/users/<username>/assignments
+    URL: /api/authz/v1/users/<username>/assignments/
     Response fields per item: is_superadmin, role, org, scope, permission_count
 
     Superadmin entry:
-        admin_1..3 are staff/superusers. Querying any of them adds one entry
+        admin_1..3 are staff/superusers. Querying any of them always adds one
         SuperAdminAssignmentData entry: role="django.superuser" (or "django.staff"),
         org="*", scope="*", permission_count=None, is_superadmin=True.
         This entry is always included regardless of org/role filters, since those
         filters are applied only to the role assignments, not to the superadmin entry.
 
     Visibility via filter_allowed_assignments:
-        - Staff/superuser: sees all assignments for any user
-        - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 assignments
-        - regular_9 (no assignments): sees nothing for any user
+        - Staff/superuser: sees all role assignments for any user, plus the superadmin
+          entry when the target is a superadmin.
+        - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 role assignments,
+          plus the superadmin entry when the target is a superadmin.
+        - regular_9 (no assignments): sees no role assignments for any user, but still
+          sees the superadmin entry when the target is a superadmin.
     """
 
     def setUp(self):

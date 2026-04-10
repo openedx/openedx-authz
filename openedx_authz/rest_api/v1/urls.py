@@ -15,5 +15,7 @@ urlpatterns = [
     path("orgs/", views.AdminConsoleOrgsAPIView.as_view(), name="orgs-list"),
     path("users/", views.TeamMembersAPIView.as_view(), name="user-list"),
     path("users/validate/", views.UserValidationAPIView.as_view(), name="user-validation"),
-    path("users/<str:username>/assignments", views.TeamMemberAssignmentsAPIView.as_view(), name="user-assignment-list"),
+    path(
+        "users/<str:username>/assignments/", views.TeamMemberAssignmentsAPIView.as_view(), name="user-assignment-list"
+    ),
 ]

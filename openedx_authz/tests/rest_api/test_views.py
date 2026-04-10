@@ -1322,7 +1322,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     Response fields per item: is_superadmin, role, org, scope, permission_count
 
     Superadmin entry:
-        admin_1..3 are staff/superusers. Querying any of them always prepends one
+        admin_1..3 are staff/superusers. Querying any of them adds one entry
         SuperAdminAssignmentData entry: role="django.superuser" (or "django.staff"),
         org="*", scope="*", permission_count=None, is_superadmin=True.
         This entry is always included regardless of org/role filters, since those
@@ -1505,21 +1505,21 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     )
     @unpack
     def test_sorting(self, sort_by: str, order: str):
-        """Results can be sorted by role, org, or scope in asc/desc order.
+        """Results are sorted by role, org, or scope in asc/desc order.
 
-        Uses regular_3 and regular_4 who both have library_user in Org2:LIB2,
-        and admin_2 who also has library_user in Org2:LIB2 — but we need a user
-        with multiple assignments to verify ordering. Use admin_1 (staff) viewing
-        regular_5 who has a single assignment; sorting still returns 200 OK.
+        Uses admin_3, who has 2 items in the response: a superadmin entry
+        (role="django.superuser", org="*", scope="*") and a role assignment
+        (role="library_admin", org="Org3", scope="lib:Org3:LIB3"). With two
+        distinct values per field the sort order is non-trivial and verifiable.
 
         Expected result:
             - Returns 200 OK.
             - Results are ordered according to the requested field and direction.
         """
-        # admin_1 is staff so sees all assignments; regular_5 has 1 assignment
-        response = self.client.get(self._url("regular_5"), {"sort_by": sort_by, "order": order})
+        response = self.client.get(self._url("admin_3"), {"sort_by": sort_by, "order": order})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(response.data["results"]), 1)
         values = [item[sort_by] for item in response.data["results"]]
         expected = sorted(values, key=lambda v: (v or "").lower(), reverse=order == "desc")
         self.assertEqual(values, expected)

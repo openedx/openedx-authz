@@ -205,7 +205,7 @@ def get_visible_specific_user_role_assignments_for_user(
     )
     if orgs:
         # Filter by orgs
-        user_role_assignments = [a for a in user_role_assignments if a.scope.org in orgs]
+        user_role_assignments = [a for a in user_role_assignments if getattr(a.scope, "org", None) in orgs]
     if roles:
         # Filter by roles
         user_role_assignments = [
@@ -426,7 +426,11 @@ def get_superadmin_assignments(user_external_keys: list[str] | None = None) -> l
         list[SuperAdminAssignmentData]: The superadmin data
     """
     # Retrieve user data to check if they are a superusers
-    requested_users = User.objects.filter(username__in=user_external_keys, is_active=True)
+    if user_external_keys is None:
+        requested_users = User.objects.filter(is_active=True)
+    else:
+        requested_users = User.objects.filter(username__in=user_external_keys, is_active=True)
+
     superadmin_assignments: list[SuperAdminAssignmentData] = []
     for requested_user in requested_users:
         if requested_user.is_staff or requested_user.is_superuser:

@@ -8,7 +8,11 @@ from django.core.management import CommandError, call_command
 from django.test import TestCase
 
 from openedx_authz.api.data import OrgCourseOverviewGlobData
-from openedx_authz.api.users import batch_unassign_role_from_users, get_user_role_assignments_in_scope
+from openedx_authz.api.users import (
+    assign_role_to_user_in_scope,
+    batch_unassign_role_from_users,
+    get_user_role_assignments_in_scope,
+)
 from openedx_authz.constants.roles import (
     COURSE_ADMIN,
     COURSE_DATA_RESEARCHER,
@@ -1333,3 +1337,68 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertIsNotNone(recreated)
         self.assertEqual(recreated.org, org_short_name_new)
         self.assertIsNone(recreated.course_id)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_org_id_filter_includes_glob_and_excludes_other_orgs(self):
+        """Rolling back with org_id includes org-level glob scopes and excludes assignments from other orgs.
+
+        Expected result:
+            The user with a glob scope in self.org is in successes; the user with a course-level
+            assignment in a different org is not.
+        """
+        glob_scope = f"course-v1:{self.org}+*"
+        other_org_course_scope = f"course-v1:{OBJECT_PREFIX}filter_org2+FilterCourse+2024"
+
+        user_glob = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
+        )
+        user_other_org = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_org2_user", email=f"{OBJECT_PREFIX}filter_org2@example.com"
+        )
+        assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
+        assign_role_to_user_in_scope(user_other_org.username, COURSE_STAFF.external_key, other_org_course_scope)
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject, course_id_list=None, org_id=self.org, delete_after_migration=False
+        )
+
+        migrated_users = {assignment.subject.external_key for assignment in successes}
+        # glob assignment for self.org is included
+        self.assertIn(user_glob.username, migrated_users)
+        # assignment from the other org is excluded
+        self.assertNotIn(user_other_org.username, migrated_users)
+        self.assertEqual(len(errors), 0)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_course_id_list_filter_excludes_glob_and_other_courses(self):
+        """Rolling back with course_id_list excludes org-level glob scopes and assignments from other courses.
+
+        Expected result:
+            The user with a glob scope and the user with a course-level assignment not in the list
+            are both absent from successes.
+        """
+        glob_scope = f"course-v1:{self.org}+*"
+        other_course_scope = f"course-v1:{self.org}+FilterOtherCourse+2024"
+
+        user_glob = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
+        )
+        user_other_course = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_other_course_user", email=f"{OBJECT_PREFIX}filter_other@example.com"
+        )
+        assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
+        assign_role_to_user_in_scope(user_other_course.username, COURSE_STAFF.external_key, other_course_scope)
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject,
+            course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+        )
+
+        migrated_users = {assignment.subject.external_key for assignment in successes}
+        # org-level glob is excluded even though it belongs to the same org
+        self.assertNotIn(user_glob.username, migrated_users)
+        # course not in the list is excluded
+        self.assertNotIn(user_other_course.username, migrated_users)
+        self.assertEqual(len(errors), 0)

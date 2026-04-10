@@ -340,7 +340,8 @@ def migrate_authz_to_legacy_course_roles(
         role_assignments = [
             role_assignment
             for role_assignment in role_assignments
-            if role_assignment.scope.course_id in course_id_list
+            if isinstance(role_assignment.scope, CourseOverviewData) and
+            role_assignment.scope.course_id in course_id_list
         ]
 
     roles_with_errors = []

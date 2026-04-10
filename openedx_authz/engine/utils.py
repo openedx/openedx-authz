@@ -7,9 +7,8 @@ for the Open edX AuthZ system using Casbin.
 import logging
 from collections import defaultdict
 
-from django.db.models import Q
-
 from casbin import Enforcer
+from django.db.models import Q
 
 from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
 from openedx_authz.api.roles import get_all_role_assignments_per_scope_type

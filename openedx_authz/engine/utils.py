@@ -9,6 +9,7 @@ from collections import defaultdict
 
 from casbin import Enforcer
 from django.db.models import Q
+from opaque_keys.edx.django.models import CourseKeyField
 
 from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
 from openedx_authz.api.roles import get_all_role_assignments_per_scope_type
@@ -230,7 +231,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
 
     legacy_permissions = (
         course_access_role_model.objects.filter(**course_access_role_filter)
-        .filter(Q(course_id="") | Q(course_id__startswith=CourseOverviewData.NAMESPACE))
+        .filter(Q(course_id=CourseKeyField.Empty) | Q(course_id__startswith=CourseOverviewData.NAMESPACE))
         .select_related("user")
         .all()
     )
@@ -255,7 +256,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
         elif permission.org:
             scope_external_key = OrgCourseOverviewGlobData.build_external_key(permission.org)
         else:
-            # This should not happen as either course_id or org should be defined for each permission, log and skip
+            # Instance-wide roles (no course_id, no org) are not supported by this migration, log and skip.
             logger.error(
                 f"Permission for User: {permission.user.username} has neither course_id nor org defined, skipping."
             )

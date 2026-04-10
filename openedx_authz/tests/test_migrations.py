@@ -1,6 +1,6 @@
 """Unit Tests for openedx_authz migrations."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -278,11 +278,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         class MockPermission:
             """Mock class to simulate CourseAccessRole entries for testing the rollback migration."""
 
-            def __init__(self, user, role, course_id, id_in):
+            def __init__(self, user, role, course_id, id_in, *, org=""):
                 self.user = user
                 self.role = role
                 self.course_id = course_id
                 self.id = id_in
+                self.org = org
 
         class MockUser:
             """Mock class to simulate User objects for testing the rollback migration."""
@@ -296,7 +297,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             def __init__(self, permissions):
                 self.permissions = permissions
 
-            def filter(self, **kwargs):
+            def filter(self, *args, **kwargs):
                 return self
 
             def select_related(self, *args, **kwargs):
@@ -1169,6 +1170,41 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(successes), 0)
         self.assertEqual(errors[0].user.username, "testuser")
 
+    @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
+    def test_migrate_legacy_course_roles_to_authz_instance_wide_role_is_error(self):
+        """Instance-wide roles (no course_id and no org) are logged as errors and skipped.
+
+        Expected result:
+            A CourseAccessRole with both course_id and org blank is logged as an error and
+            returned in permissions_with_errors, but not migrated.
+        """
+        instance_wide_permission = MagicMock()
+        instance_wide_permission.user.username = "instance_user"
+        instance_wide_permission.role = "instructor"
+        instance_wide_permission.course_id = ""
+        instance_wide_permission.org = ""
+
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value = mock_qs
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.all.return_value = [instance_wide_permission]
+
+        mock_model = MagicMock()
+        mock_model.objects.filter.return_value = mock_qs
+
+        with self.assertLogs("openedx_authz.engine.utils", level="ERROR") as log:
+            errors, successes = migrate_legacy_course_roles_to_authz(
+                mock_model,
+                course_id_list=["course-v1:test"],
+                org_id=None,
+                delete_after_migration=False,
+            )
+
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(len(successes), 0)
+        self.assertEqual(errors[0].user.username, "instance_user")
+        self.assertTrue(any("instance_user" in msg for msg in log.output))
+
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_authz_to_legacy_course_roles_user_not_added(self):
         permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(
@@ -1279,7 +1315,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         user = User.objects.create_user(
             username=f"org_user_{OBJECT_PREFIX}", email=f"org_user_{OBJECT_PREFIX}@example.com"
         )
-        CourseAccessRole.objects.create(user=user, org=org_short_name_new, course_id="", role="instructor")
+        CourseAccessRole.objects.create(user=user, org=org_short_name_new, role="instructor")
 
         migrate_legacy_course_roles_to_authz(
             CourseAccessRole, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True

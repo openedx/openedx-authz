@@ -1344,10 +1344,11 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         Expected result:
             The user with a glob scope in self.org is in successes; the user with a course-level
-            assignment in a different org is not.
+            assignment in a different org and the user with a library assignment in self.org are not.
         """
         glob_scope = f"course-v1:{self.org}+*"
         other_org_course_scope = f"course-v1:{OBJECT_PREFIX}filter_org2+FilterCourse+2024"
+        lib_scope = f"lib:{self.org}:*"
 
         user_glob = User.objects.create_user(
             username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
@@ -1355,8 +1356,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         user_other_org = User.objects.create_user(
             username=f"{OBJECT_PREFIX}filter_org2_user", email=f"{OBJECT_PREFIX}filter_org2@example.com"
         )
+        user_lib = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_lib_user", email=f"{OBJECT_PREFIX}filter_lib@example.com"
+        )
         assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
         assign_role_to_user_in_scope(user_other_org.username, COURSE_STAFF.external_key, other_org_course_scope)
+        assign_role_to_user_in_scope(user_lib.username, LIBRARY_ADMIN.external_key, lib_scope)
         AuthzEnforcer.get_enforcer().load_policy()
 
         errors, successes = migrate_authz_to_legacy_course_roles(
@@ -1368,6 +1373,8 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertIn(user_glob.username, migrated_users)
         # assignment from the other org is excluded
         self.assertNotIn(user_other_org.username, migrated_users)
+        # library assignment in self.org is excluded — library scopes are not course scopes
+        self.assertNotIn(user_lib.username, migrated_users)
         self.assertEqual(len(errors), 0)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
@@ -1375,11 +1382,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         """Rolling back with course_id_list excludes org-level glob scopes and assignments from other courses.
 
         Expected result:
-            The user with a glob scope and the user with a course-level assignment not in the list
-            are both absent from successes.
+            The user with a glob scope, the user with a course-level assignment not in the list,
+            and the user with a library assignment are all absent from successes.
         """
         glob_scope = f"course-v1:{self.org}+*"
         other_course_scope = f"course-v1:{self.org}+FilterOtherCourse+2024"
+        lib_scope = f"lib:{self.org}:*"
 
         user_glob = User.objects.create_user(
             username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
@@ -1387,8 +1395,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         user_other_course = User.objects.create_user(
             username=f"{OBJECT_PREFIX}filter_other_course_user", email=f"{OBJECT_PREFIX}filter_other@example.com"
         )
+        user_lib = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_lib_user", email=f"{OBJECT_PREFIX}filter_lib@example.com"
+        )
         assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
         assign_role_to_user_in_scope(user_other_course.username, COURSE_STAFF.external_key, other_course_scope)
+        assign_role_to_user_in_scope(user_lib.username, LIBRARY_ADMIN.external_key, lib_scope)
         AuthzEnforcer.get_enforcer().load_policy()
 
         errors, successes = migrate_authz_to_legacy_course_roles(
@@ -1401,4 +1413,6 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertNotIn(user_glob.username, migrated_users)
         # course not in the list is excluded
         self.assertNotIn(user_other_course.username, migrated_users)
+        # library assignment in self.org is excluded — library scopes are not course scopes
+        self.assertNotIn(user_lib.username, migrated_users)
         self.assertEqual(len(errors), 0)

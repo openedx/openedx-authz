@@ -556,7 +556,7 @@ def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
     return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)
 
 
-def get_all_role_assignments_per_scope_type(scope_types: list[type[ScopeData]]) -> list[RoleAssignmentData]:
+def get_all_role_assignments_per_scope_type(scope_types: tuple[type[ScopeData], ...]) -> list[RoleAssignmentData]:
     """Get all role assignments matching any of the given scope types.
 
     Loads all grouping policies from the enforcer and filters in Python. Casbin policies
@@ -572,5 +572,5 @@ def get_all_role_assignments_per_scope_type(scope_types: list[type[ScopeData]]) 
     """
     return [
         role_assignment for role_assignment in get_role_assignments()
-        if isinstance(role_assignment.scope, tuple(scope_types))
+        if isinstance(role_assignment.scope, scope_types)
     ]

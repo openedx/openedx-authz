@@ -322,7 +322,7 @@ def migrate_authz_to_legacy_course_roles(
     _validate_migration_input(course_id_list, org_id)
 
     role_assignments = get_all_role_assignments_per_scope_type(
-        scope_types=[CourseOverviewData, OrgCourseOverviewGlobData]
+        scope_types=(CourseOverviewData, OrgCourseOverviewGlobData,)
     )
 
     # Two cases here:

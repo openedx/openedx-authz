@@ -2,12 +2,20 @@
 
 from ddt import data, ddt, unpack
 
-from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
+from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgCourseOverviewGlobData,
+    RoleAssignmentData,
+    RoleData,
+    UserData,
+)
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
     get_all_user_role_assignments_in_scope,
+    get_scopes_for_user_and_permission,
     get_user_role_assignments,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
@@ -423,6 +431,79 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             scope_external_key=scope,
         )
         self.assertFalse(has_permission_after)
+
+    @data(
+        # No filter → should return all scopes where user has permission
+        (
+            "alice",
+            permissions.DELETE_LIBRARY.identifier,
+            None,
+            {"lib:Org1:math_101"},
+        ),
+        # Filter only ContentLibraryData → should include library scopes only
+        (
+            "alice",
+            permissions.DELETE_LIBRARY.identifier,
+            (ContentLibraryData,),
+            {"lib:Org1:math_101"},
+        ),
+        # Filter excludes the scope type → should return empty
+        (
+            "alice",
+            permissions.COURSES_VIEW_COURSE.identifier,
+            (CourseOverviewData,),
+            set(),
+        ),
+        # Multiple scopes (same type)
+        (
+            "eve",
+            permissions.MANAGE_LIBRARY_TEAM.identifier,
+            (ContentLibraryData,),
+            {"lib:Org2:physics_401"},
+        ),
+        # Multiple scopes (different types) - filter to only one type
+        (
+            "eduardo",
+            permissions.COURSES_VIEW_COURSE.identifier,
+            (CourseOverviewData,),
+            {"course-v1:TestOrg+TestCourse+2024_T1"},
+        ),
+        (
+            "eduardo",
+            permissions.COURSES_VIEW_COURSE.identifier,
+            None,
+            {"course-v1:TestOrg+TestCourse+2024_T1", "course-v1:TestOrg+*"},
+        ),
+        (
+            "eduardo",
+            permissions.COURSES_VIEW_COURSE.identifier,
+            (OrgCourseOverviewGlobData,),
+            {"course-v1:TestOrg+*"},
+        ),
+    )
+    @unpack
+    def test_get_scopes_for_user_and_permission_with_filter(
+        self,
+        username,
+        action,
+        scope_filter,
+        expected_scopes,
+    ):
+        """Test filtering scopes by scope_classes_filter.
+
+        Expected result:
+            - When no filter is provided, all scopes are returned
+            - When a filter is provided, only matching scope types are returned
+            - When filter excludes scope types, result is empty
+        """
+        scopes = get_scopes_for_user_and_permission(
+            user_external_key=username,
+            action_external_key=action,
+            scope_classes_filter=scope_filter,
+        )
+
+        scope_keys = {scope.external_key for scope in scopes}
+        self.assertEqual(scope_keys, expected_scopes)
 
 
 @ddt

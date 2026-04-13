@@ -296,6 +296,22 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "role_name": roles.COURSE_STAFF.external_key,
                 "scope_name": "course-v1:TestOrg+TestCourse+2024_T3",
             },
+            # Edge case: same user, different role, different scopes using Org instead of course scope
+            {
+                "subject_name": "eduardo",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T1",
+            },
+            {
+                "subject_name": "eduardo",
+                "role_name": roles.COURSE_STAFF.external_key,
+                "scope_name": "course-v1:TestOrg+*",
+            },
+            {
+                "subject_name": "eduardo",
+                "role_name": roles.LIBRARY_AUTHOR.external_key,
+                "scope_name": "lib:Org4:art_301",
+            },
             # Mixed permission levels across libraries for comprehensive testing
             {
                 "subject_name": "maya",

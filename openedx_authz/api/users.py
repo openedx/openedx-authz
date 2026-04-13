@@ -311,22 +311,24 @@ def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str)
 
 
 def get_scopes_for_user_and_permission(
-    user_external_key: str,
-    action_external_key: str,
+    user_external_key: str, action_external_key: str, scope_classes_filter: tuple[type[ScopeData], ...] | None = None
 ) -> list[ScopeData]:
     """Get all scopes where a specific user is assigned a specific permission.
 
     Args:
         user_external_key (str): ID of the user (e.g., 'john_doe').
         action_external_key (str): The action to filter scopes (e.g., 'view', 'edit').
-
+        scope_classes_filter (tuple[type[ScopeData], ...] | None): Optional tuple of scope types to filter by.
     Returns:
         list[ScopeData]: A list of scopes where the user is assigned the specified permission.
     """
-    return get_scopes_for_subject_and_permission(
+    scopes_list = get_scopes_for_subject_and_permission(
         UserData(external_key=user_external_key),
         PermissionData(action=ActionData(external_key=action_external_key)),
     )
+    if scope_classes_filter:
+        scopes_list = [scope for scope in scopes_list if isinstance(scope, scope_classes_filter)]
+    return scopes_list
 
 
 def unassign_all_roles_from_user(user_external_key: str) -> bool:

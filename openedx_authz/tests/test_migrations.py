@@ -301,14 +301,14 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             def __init__(self, permissions):
                 self.permissions = permissions
 
+            def __iter__(self):
+                return iter(self.permissions)
+
             def filter(self, *args, **kwargs):
                 return self
 
             def select_related(self, *args, **kwargs):
                 return self
-
-            def all(self):
-                return self.permissions
 
             def get_or_create(self):
                 raise Exception("Unexpected error mock")
@@ -1191,7 +1191,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         mock_qs = MagicMock()
         mock_qs.filter.return_value = mock_qs
         mock_qs.select_related.return_value = mock_qs
-        mock_qs.all.return_value = [instance_wide_permission]
+        mock_qs.__iter__ = MagicMock(return_value=iter([instance_wide_permission]))
 
         mock_model = MagicMock()
         mock_model.objects.filter.return_value = mock_qs

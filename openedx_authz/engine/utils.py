@@ -233,7 +233,6 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
         course_access_role_model.objects.filter(**course_access_role_filter)
         .filter(Q(course_id=CourseKeyField.Empty) | Q(course_id__startswith=CourseOverviewData.NAMESPACE))
         .select_related("user")
-        .all()
     )
 
     # List to keep track of any permissions that could not be migrated

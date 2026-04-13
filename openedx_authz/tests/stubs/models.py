@@ -55,6 +55,18 @@ class ContentLibraryManager(models.Manager):
         return obj
 
 
+class LearningPackage(models.Model):
+    """Stub model representing a learning package for testing purposes.
+
+    .. no_pii:
+    """
+
+    title = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.title
+
+
 class ContentLibrary(models.Model):
     """Stub model representing a content library for testing purposes.
 
@@ -65,9 +77,15 @@ class ContentLibrary(models.Model):
     title = models.CharField(max_length=255, blank=True, null=True)
     slug = models.SlugField(allow_unicode=True)
     org = models.ForeignKey(Organization, on_delete=models.PROTECT, null=True)
+    learning_package = models.OneToOneField(LearningPackage, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = ContentLibraryManager()
+
+    @property
+    def library_key(self):
+        """Get the LibraryLocatorV2 opaque key for this library."""
+        return LibraryLocatorV2(org=self.org.short_name, slug=self.slug)
 
     def __str__(self):
         return str(self.locator)

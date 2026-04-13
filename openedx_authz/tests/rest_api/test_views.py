@@ -16,12 +16,21 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from openedx_authz import api
+from openedx_authz.api.data import (
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
+)
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
+from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
-from openedx_authz.rest_api.v1.views import UserValidationAPIView
+from openedx_authz.rest_api.v1.views import ScopesAPIView, UserValidationAPIView
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
+from openedx_authz.tests.stubs.models import LearningPackage
+
+ContentLibrary = get_content_library_model()
+CourseOverview = get_course_overview_model()
 
 User = get_user_model()
 
@@ -837,6 +846,652 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
         self.assertEqual(len(response.data["completed"]), 1)
+
+
+@ddt
+class TestScopesAPIView(ViewTestMixin):
+    """
+    Test suite for ScopesAPIView.
+
+    Setup summary (from ViewTestMixin.setUpClass):
+        lib:Org1:LIB1 → admin_1 (library_admin), regular_1 (library_user), regular_2 (library_user)
+        lib:Org2:LIB2 → admin_2 (library_user),  regular_3 (library_user),  regular_4 (library_user)
+        lib:Org3:LIB3 → admin_3 (library_admin), regular_5 (library_admin), regular_6 (library_author),
+                        regular_7 (library_contributor), regular_8 (library_user)
+
+    Courses and ContentLibrary objects are mocked via get_scopes_for_user_and_permission
+    and the queryset helper methods, since those models live in openedx-platform.
+    """
+
+    COURSE_ORG1 = "course-v1:Org1+COURSE1+2024"
+    COURSE_ORG2 = "course-v1:Org2+COURSE2+2024"
+    LIBRARY_ORG1 = "lib:Org1:LIB1"
+    LIBRARY_ORG2 = "lib:Org2:LIB2"
+
+    @classmethod
+    def setUpClass(cls):
+        """Assign course and library roles to test users."""
+        super().setUpClass()
+        cls._assign_roles_to_users(
+            [
+                # regular_9: can view course team on Org1 course
+                {
+                    "subject_name": "regular_9",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": cls.COURSE_ORG1,
+                },
+                # regular_10: can manage course team on Org2 course
+                {
+                    "subject_name": "regular_10",
+                    "role_name": roles.COURSE_ADMIN.external_key,
+                    "scope_name": cls.COURSE_ORG2,
+                },
+            ]
+        )
+
+    @classmethod
+    def setUpTestData(cls):
+        """Create Organization, CourseOverview and ContentLibrary fixtures."""
+        super().setUpTestData()
+
+        org1, _ = Organization.objects.get_or_create(name="Org1", short_name="Org1")
+        org2, _ = Organization.objects.get_or_create(name="Org2", short_name="Org2")
+        org3, _ = Organization.objects.get_or_create(name="Org3", short_name="Org3")
+
+        CourseOverview.objects.get_or_create(
+            id=cls.COURSE_ORG1, defaults={"org": "Org1", "display_name": "Course Org1"}
+        )
+        CourseOverview.objects.get_or_create(
+            id=cls.COURSE_ORG2, defaults={"org": "Org2", "display_name": "Course Org2"}
+        )
+
+        lp1, _ = LearningPackage.objects.get_or_create(title="Library Org1")
+        lp2, _ = LearningPackage.objects.get_or_create(title="Library Org2")
+        lp3, _ = LearningPackage.objects.get_or_create(title="Library Org3")
+
+        ContentLibrary.objects.get_or_create(
+            slug="LIB1",
+            org=org1,
+            defaults={"locator": "lib:Org1:LIB1", "title": "Library Org1", "learning_package": lp1},
+        )
+        ContentLibrary.objects.get_or_create(
+            slug="LIB2",
+            org=org2,
+            defaults={"locator": "lib:Org2:LIB2", "title": "Library Org2", "learning_package": lp2},
+        )
+        ContentLibrary.objects.get_or_create(
+            slug="LIB3",
+            org=org3,
+            defaults={"locator": "lib:Org3:LIB3", "title": "Library Org3", "learning_package": lp3},
+        )
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.url = reverse("openedx_authz:scope-list")
+
+        # Default combined result used by most tests.
+        self.fake_scopes = [
+            {
+                "scope_id": self.COURSE_ORG1,
+                "display_name_col": "Course Org1",
+                "org_name": "Org1",
+                "scope_type": "course",
+            },
+            {"scope_id": "LIB1", "display_name_col": "Library LIB1", "org_name": "Org1", "scope_type": "library"},
+            {
+                "scope_id": self.COURSE_ORG2,
+                "display_name_col": "Course Org2",
+                "org_name": "Org2",
+                "scope_type": "course",
+            },
+            {"scope_id": "LIB2", "display_name_col": "Library LIB2", "org_name": "Org2", "scope_type": "library"},
+        ]
+
+        # Patch _build_queryset so tests don't need real DB querysets.
+        self.build_qs_patcher = patch.object(
+            ScopesAPIView,
+            "_build_queryset",
+            return_value=self.fake_scopes,
+        )
+        self.build_qs_patcher.start()
+        self.addCleanup(self.build_qs_patcher.stop)
+
+    # ------------------------------------------------------------------ #
+    # Authentication                                                      #
+    # ------------------------------------------------------------------ #
+
+    def test_unauthenticated_returns_401(self):
+        """Unauthenticated requests are rejected."""
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # ------------------------------------------------------------------ #
+    # Response shape                                                      #
+    # ------------------------------------------------------------------ #
+
+    def test_response_shape(self):
+        """Each result contains external_key, display_name, and org fields."""
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in response.data["results"]:
+            self.assertIn("external_key", item)
+            self.assertIn("display_name", item)
+            self.assertIn("org", item)
+
+    # ------------------------------------------------------------------ #
+    # Sorted by org                                                       #
+    # ------------------------------------------------------------------ #
+
+    def test_results_sorted_by_org(self):
+        """Results are sorted by org_name across courses and libraries."""
+        # Stop only build_qs_patcher; libraries_qs_patcher stays active (uses stub-compatible field name).
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url)  # admin_1 is staff, sees all
+
+        self.build_qs_patcher.start()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        org_names = [item["org"]["short_name"] if item["org"] else "" for item in response.data["results"]]
+        self.assertEqual(org_names, sorted(org_names))
+
+    # ------------------------------------------------------------------ #
+    # type param                                                          #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ("course", "_get_courses_queryset", "_get_libraries_queryset"),
+        ("library", "_get_libraries_queryset", "_get_courses_queryset"),
+    )
+    @unpack
+    def test_type_param_calls_only_expected_queryset(self, scope_type, called_method, skipped_method):
+        """When type=course only courses are fetched; when type=library only libraries."""
+        self.build_qs_patcher.stop()
+        with (
+            patch.object(ScopesAPIView, called_method, return_value=[]) as mock_called,
+            patch.object(ScopesAPIView, skipped_method) as mock_skipped,
+            patch.object(ScopesAPIView, "_build_queryset", return_value=[]),
+        ):
+            response = self.client.get(self.url, {"scope_type": scope_type})
+        self.build_qs_patcher.start()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_called.assert_called_once()
+        mock_skipped.assert_not_called()
+
+    def test_type_param_invalid_returns_400(self):
+        """An invalid type value returns 400."""
+        response = self.client.get(self.url, {"scope_type": "invalid"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_type_param_absent_returns_both(self):
+        """When type is not specified, both courses and libraries are returned."""
+        self.build_qs_patcher.stop()
+        with (
+            patch.object(ScopesAPIView, "_get_courses_queryset", return_value=[]) as mock_courses,
+            patch.object(ScopesAPIView, "_get_libraries_queryset", return_value=[]) as mock_libraries,
+            patch.object(ScopesAPIView, "_build_queryset", return_value=[]),
+        ):
+            response = self.client.get(self.url)
+        self.build_qs_patcher.start()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_courses.assert_called_once()
+        mock_libraries.assert_called_once()
+
+    # ------------------------------------------------------------------ #
+    # Search                                                              #
+    # ------------------------------------------------------------------ #
+
+    def test_search_filters_by_display_name(self):
+        """search param filters results by display_name."""
+        # Search is applied pre-union inside get_queryset. Use real DB rows (staff user, type=course)
+        # to avoid the union so the queryset remains filterable.
+        self.build_qs_patcher.stop()
+
+        response_match = self.client.get(self.url, {"search": "Course Org1", "scope_type": "course"})
+        response_no_match = self.client.get(self.url, {"search": "nonexistent_xyz", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+
+        self.assertEqual(response_match.status_code, status.HTTP_200_OK)
+        self.assertEqual(response_match.data["count"], 1)
+        self.assertIn("Org1", response_match.data["results"][0]["display_name"])
+
+        self.assertEqual(response_no_match.status_code, status.HTTP_200_OK)
+        self.assertEqual(response_no_match.data["count"], 0)
+
+    # ------------------------------------------------------------------ #
+    # Pagination                                                          #
+    # ------------------------------------------------------------------ #
+
+    @data(
+        ({"page": 1, "page_size": 1}, 1, True),
+        ({"page": 2, "page_size": 1}, 1, True),
+        ({"page": 3, "page_size": 1}, 1, False),
+        ({"page": 1, "page_size": 3}, 3, False),
+    )
+    @unpack
+    def test_pagination(self, query_params: dict, expected_page_count: int, has_next: bool):
+        """Results are paginated correctly."""
+        mixed = [
+            {"scope_id": self.COURSE_ORG1, "display_name_col": "Course 1", "org_name": "Org1", "scope_type": "course"},
+            {"scope_id": "LIB1", "display_name_col": "Library 1", "org_name": "Org1", "scope_type": "library"},
+            {"scope_id": self.COURSE_ORG2, "display_name_col": "Course 2", "org_name": "Org2", "scope_type": "course"},
+        ]
+        self.build_qs_patcher.stop()
+        with patch.object(ScopesAPIView, "_build_queryset", return_value=mixed):
+            response = self.client.get(self.url, query_params)
+        self.build_qs_patcher.start()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(len(response.data["results"]), expected_page_count)
+        if has_next:
+            self.assertIsNotNone(response.data["next"])
+        else:
+            self.assertIsNone(response.data["next"])
+
+    # ------------------------------------------------------------------ #
+    # Staff / superuser bypass                                            #
+    # ------------------------------------------------------------------ #
+
+    def test_staff_sees_all_scopes_without_permission_check(self):
+        """Staff users bypass permission filtering and see all scopes."""
+        with patch("openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission") as mock_get_scopes:
+            response = self.client.get(self.url)  # admin_1 is staff
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_get_scopes.assert_not_called()
+
+    def test_non_staff_triggers_permission_check(self):
+        """Non-staff users go through get_scopes_for_user_and_permission."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[],
+        ) as mock_get_scopes:
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(mock_get_scopes.call_count, 2)  # once per scope type
+
+    # ------------------------------------------------------------------ #
+    # Permission filtering: view                                          #
+    # ------------------------------------------------------------------ #
+
+    def test_view_permission_filters_courses_for_non_staff(self):
+        """Non-staff user only sees courses they have VIEW_COURSE_TEAM permission for."""
+        # regular_9 has COURSE_STAFF on COURSE_ORG1 → VIEW_COURSE_TEAM granted
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_view_permission_filters_libraries_for_non_staff(self):
+        """Non-staff user only sees libraries they have VIEW_LIBRARY_TEAM permission for."""
+        # regular_1 has LIBRARY_USER on lib:Org1:LIB1 → VIEW_LIBRARY_TEAM granted
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG2, external_keys)
+        # Verify display_name is populated from the library title, not empty.
+        for item in response.data["results"]:
+            self.assertTrue(item["display_name"])
+
+    def test_library_display_name_populated_in_standalone_path(self):
+        """display_name is non-empty for libraries when type=library bypasses the union.
+
+        Regression test: without aliasing learning_package__title as display_name,
+        the standalone library queryset returns 'title' as the key and the serializer
+        silently produces empty strings since it only reads 'display_name'.
+        """
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(response.data["count"], 0)
+        for item in response.data["results"]:
+            self.assertTrue(item["display_name"])
+
+    # ------------------------------------------------------------------ #
+    # Permission filtering: manage                                        #
+    # ------------------------------------------------------------------ #
+
+    def test_manage_permission_filters_courses_for_non_staff(self):
+        """management_permission_only=true filters to courses with MANAGE_COURSE_TEAM only."""
+        # regular_10 has COURSE_ADMIN on COURSE_ORG2 → MANAGE_COURSE_TEAM granted
+        user = User.objects.get(username="regular_10")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "course", "management_permission_only": "true"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG2, external_keys)
+        self.assertNotIn(self.COURSE_ORG1, external_keys)
+
+    def test_manage_permission_filters_libraries_for_non_staff(self):
+        """management_permission_only=true filters to libraries with MANAGE_LIBRARY_TEAM only."""
+        # regular_5 has LIBRARY_ADMIN on lib:Org3:LIB3 → MANAGE_LIBRARY_TEAM granted
+        # regular_1 has LIBRARY_USER on lib:Org1:LIB1 → only VIEW, not MANAGE
+        user = User.objects.get(username="regular_5")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "library", "management_permission_only": "true"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn("lib:Org3:LIB3", external_keys)
+        self.assertNotIn(self.LIBRARY_ORG1, external_keys)
+
+    def test_empty_allowed_library_pairs_returns_no_libraries(self):
+        """When a non-staff user has no allowed libraries, no libraries are returned.
+
+        Regression test: an empty allowed_pairs set must not bypass the filter
+        and return all libraries (reduce with Q() default was a no-op).
+        """
+        # regular_9 has no library permissions, only a course role.
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_empty_allowed_course_ids_returns_no_courses(self):
+        """When a non-staff user has no allowed courses, no courses are returned.
+
+        Regression test: an empty allowed_ids/allowed_orgs set must not bypass the filter
+        and return all courses (empty Q() | empty Q() was a no-op).
+        """
+        # regular_1 has only library permissions, no course permissions.
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_library_only_user_sees_no_courses_in_mixed_listing(self):
+        """A user with only library permissions sees no courses in the default mixed listing.
+
+        Regression test: without the empty-set guard, a user with library access but no
+        course permissions would see all courses in the combined results.
+        """
+        # regular_1 has only library permissions, no course permissions.
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url)
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        scope_types = {item["external_key"].split(":")[0] for item in response.data["results"]}
+        self.assertNotIn("course-v1", scope_types)
+        self.assertIn("lib", scope_types)
+
+    def test_org_glob_scope_returns_all_org_libraries(self):
+        """A user with an org-level glob permission (lib:ORG:*) sees all libraries in that org."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        # Simulate get_scopes_for_user_and_permission returning an org-level glob.
+        glob_scope = OrgContentLibraryGlobData(external_key="lib:Org1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG2, external_keys)
+
+    def test_org_glob_scope_returns_all_org_courses(self):
+        """A user with an org-level glob permission (course-v1:ORG+*) sees all courses in that org."""
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        # Simulate get_scopes_for_user_and_permission returning an org-level glob.
+        glob_scope = OrgCourseOverviewGlobData(external_key="course-v1:Org1+*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_manage_permission_only_uses_manage_permission(self):
+        """management_permission_only=true calls get_admin_manage_permission, not get_admin_view_permission."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[],
+        ) as mock_get_scopes:
+            self.client.get(self.url, {"management_permission_only": "true"})
+
+        called_permissions = [call.args[1] for call in mock_get_scopes.call_args_list]
+        self.assertIn(permissions.MANAGE_LIBRARY_TEAM.identifier, called_permissions)
+        self.assertIn(permissions.COURSES_MANAGE_COURSE_TEAM.identifier, called_permissions)
+
+    def test_view_permission_only_uses_view_permission(self):
+        """management_permission_only=false (default) calls get_admin_view_permission."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[],
+        ) as mock_get_scopes:
+            self.client.get(self.url)
+
+        called_permissions = [call.args[1] for call in mock_get_scopes.call_args_list]
+        self.assertIn(permissions.VIEW_LIBRARY_TEAM.identifier, called_permissions)
+        self.assertIn(permissions.COURSES_VIEW_COURSE_TEAM.identifier, called_permissions)
+
+    # ------------------------------------------------------------------ #
+    # Org filter                                                          #
+    # ------------------------------------------------------------------ #
+
+    def test_org_filter_staff_courses(self):
+        """Staff user with org param sees only courses from that org."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in response.data["results"]:
+            self.assertIn("Org1", item["external_key"])
+        # Org2 course should not appear
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_org_filter_staff_libraries(self):
+        """Staff user with org param sees only libraries from that org."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG2, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG1, external_keys)
+
+    def test_org_filter_staff_no_match(self):
+        """Staff user with org param for a non-existent org gets empty results."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "NonExistentOrg", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_org_filter_non_staff_with_permission(self):
+        """Non-staff user with org param sees scopes only if they have permission for that org."""
+        # regular_1 has LIBRARY_USER on lib:Org1:LIB1 → VIEW_LIBRARY_TEAM granted
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+
+    def test_org_filter_non_staff_without_permission(self):
+        """Non-staff user with org param for an org they have no permission for gets empty results."""
+        # regular_1 has no permissions on Org2
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_org_filter_non_staff_courses(self):
+        """Non-staff user with org param sees only courses from that org if they have permission."""
+        # regular_9 has COURSE_STAFF on COURSE_ORG1 → VIEW_COURSE_TEAM granted
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+
+    def test_org_filter_non_staff_courses_no_permission(self):
+        """Non-staff user with org param for an org they have no course permission for gets empty results."""
+        # regular_9 has no course permissions on Org2
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_org_filter_with_glob_permission(self):
+        """Non-staff user with org glob permission and org filter sees only that org's scopes."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        glob_scope = OrgContentLibraryGlobData(external_key="lib:Org1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"org": "Org1", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG2, external_keys)
+
+    def test_org_filter_with_glob_permission_wrong_org(self):
+        """Non-staff user with org glob for Org1 but filtering by Org2 gets empty results."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        glob_scope = OrgContentLibraryGlobData(external_key="lib:Org1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_org_filter_absent_returns_all_permitted(self):
+        """When org param is absent, all permitted scopes are returned (existing behavior)."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Staff user sees all courses
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertIn(self.COURSE_ORG2, external_keys)
+
+    def test_org_filter_combined_with_search(self):
+        """Org filter works together with search filter."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"org": "Org1", "search": "Course", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
 
 
 @ddt

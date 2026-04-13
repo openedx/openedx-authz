@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.10.0 - 2026-04-16
+******************
+
+Added
+=====
+
+* Add ``scopes/`` endpoint to list all scopes (courses and libraries), sorted by org, with search and pagination support.
+
 1.9.0 - 2026-04-14
 ******************
 

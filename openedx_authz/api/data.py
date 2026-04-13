@@ -14,7 +14,12 @@ from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 from organizations.models import Organization
 
-from openedx_authz.constants.permissions import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
+from openedx_authz.constants.permissions import (
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE_TEAM,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY_TEAM,
+)
 from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, ActionData, AuthzBaseClass, AuthZData, PermissionData
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
@@ -357,6 +362,20 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         """
         raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
 
+    @classmethod
+    @abstractmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        This method should be implemented on every ScopeData subclass to define
+        which permission to check against when a user tries to manage assignations
+        related to this scope in the Admin Console.
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_manage_permission method.")
+
     @abstractmethod
     def get_object(self) -> Any | None:
         """Retrieve the underlying domain object that this scope represents.
@@ -462,6 +481,15 @@ class ContentLibraryData(ScopeData):
             PermissionData: The permission required to view this scope in the admin console.
         """
         return VIEW_LIBRARY_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return MANAGE_LIBRARY_TEAM
 
     def get_object(self) -> ContentLibrary | None:
         """Retrieve the ContentLibrary instance associated with this scope.
@@ -584,6 +612,15 @@ class CourseOverviewData(ScopeData):
             PermissionData: The permission required to view this scope in the admin console.
         """
         return COURSES_VIEW_COURSE_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return COURSES_MANAGE_COURSE_TEAM
 
     def get_object(self) -> CourseOverview | None:
         """Retrieve the CourseOverview instance associated with this scope.
@@ -716,6 +753,15 @@ class OrgGlobData(ScopeData):
         return f"{cls.NAMESPACE}{EXTERNAL_KEY_SEPARATOR}{org}{cls.ID_SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
 
     @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_manage_permission method.")
+
+    @classmethod
     def get_org(cls, external_key: str) -> str | None:
         """Extract the organization identifier from the glob pattern.
 
@@ -813,6 +859,15 @@ class OrgContentLibraryGlobData(OrgGlobData):
         """
         return VIEW_LIBRARY_TEAM
 
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return MANAGE_LIBRARY_TEAM
+
 
 @define
 class OrgCourseOverviewGlobData(OrgGlobData):
@@ -861,6 +916,15 @@ class OrgCourseOverviewGlobData(OrgGlobData):
             PermissionData: The permission required to view this scope in the admin console.
         """
         return COURSES_VIEW_COURSE_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return COURSES_MANAGE_COURSE_TEAM
 
 
 class CCXCourseOverviewData(CourseOverviewData):

@@ -24,7 +24,7 @@ bracex==2.6
     # via
     #   -r requirements/test.txt
     #   wcmatch
-build==1.4.2
+build==1.4.3
     # via -r requirements/doc.in
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/test.txt
@@ -283,7 +283,7 @@ restructuredtext-lint==2.0.2
     # via doc8
 rfc3986==2.0.0
     # via twine
-rich==14.3.3
+rich==15.0.0
     # via twine
 roman-numerals==4.1.0
     # via sphinx

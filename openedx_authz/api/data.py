@@ -1128,7 +1128,7 @@ class SuperAdminAssignmentData:
     staff/superuser and their access is not derived from a specific role assignment.
     """
 
-    subject: SubjectData = None
+    user: "User" = None
     is_staff: bool = False
     is_superuser: bool = False
 

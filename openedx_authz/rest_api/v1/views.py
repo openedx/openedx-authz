@@ -21,7 +21,10 @@ from rest_framework.views import APIView
 
 from openedx_authz import api
 from openedx_authz.api.data import RoleAssignmentData, SuperAdminAssignmentData
-from openedx_authz.api.users import get_superadmin_assignments, get_visible_specific_user_role_assignments_for_user
+from openedx_authz.api.users import (
+    get_superadmin_assignments,
+    get_visible_user_role_assignments_filtered_by_current_user,
+)
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
@@ -720,7 +723,7 @@ class TeamMemberAssignmentsAPIView(APIView):
         # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
         user_role_assignments += get_superadmin_assignments(user_external_keys=[username])
 
-        user_role_assignments += get_visible_specific_user_role_assignments_for_user(
+        user_role_assignments += get_visible_user_role_assignments_filtered_by_current_user(
             user_external_key=username,
             orgs=query_params.get("orgs"),
             roles=query_params.get("roles"),

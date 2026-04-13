@@ -34,6 +34,21 @@ class ActionMixin(serializers.Serializer):  # pylint: disable=abstract-method
     action = serializers.CharField(max_length=255)
 
 
+class OrderMixin(serializers.Serializer):  # pylint: disable=abstract-method
+    """Mixin providing ordering field functionality."""
+
+    sort_by = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortField],
+        default=SortField.USERNAME,
+    )
+    order = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortOrder],
+        default=SortOrder.ASC,
+    )
+
+
 class PermissionValidationSerializer(ActionMixin, ScopeMixin):  # pylint: disable=abstract-method
     """Serializer for permission validation request."""
 
@@ -111,20 +126,10 @@ class RemoveUsersFromRoleWithScopeSerializer(
     users = CommaSeparatedListField(allow_blank=False)
 
 
-class ListUsersInRoleWithScopeSerializer(ScopeMixin):  # pylint: disable=abstract-method
+class ListUsersInRoleWithScopeSerializer(ScopeMixin, OrderMixin):  # pylint: disable=abstract-method
     """Serializer for listing users in a role with a scope."""
 
     roles = CommaSeparatedListField(required=False, default=[])
-    sort_by = serializers.ChoiceField(
-        required=False,
-        choices=[(e.value, e.name) for e in SortField],
-        default=SortField.USERNAME,
-    )
-    order = serializers.ChoiceField(
-        required=False,
-        choices=[(e.value, e.name) for e in SortOrder],
-        default=SortOrder.ASC,
-    )
     search = LowercaseCharField(required=False, default=None)
 
 
@@ -210,7 +215,7 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         return [role.external_key for role in obj.roles]
 
 
-class ListTeamMembersSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+class ListTeamMembersSerializer(OrderMixin):  # pylint: disable=abstract-method
     """
     Serializer for listing team members.
     This serializer is TeamMembersAPIView, which is used in the Admin Console.
@@ -219,16 +224,6 @@ class ListTeamMembersSerializer(serializers.Serializer):  # pylint: disable=abst
 
     scopes = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
-    sort_by = serializers.ChoiceField(
-        required=False,
-        choices=[(e.value, e.name) for e in SortField],
-        default=SortField.USERNAME,
-    )
-    order = serializers.ChoiceField(
-        required=False,
-        choices=[(e.value, e.name) for e in SortOrder],
-        default=SortOrder.ASC,
-    )
     search = LowercaseCharField(required=False, default=None)
 
 
@@ -294,20 +289,16 @@ class UserValidationAPIViewResponseSerializer(serializers.Serializer):  # pylint
     summary = UserValidationSummarySerializer(help_text="Summary statistics for the validation operation")
 
 
-class ListTeamMemberAssignmentsSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+class ListTeamMemberAssignmentsSerializer(OrderMixin):  # pylint: disable=abstract-method
     """Serializer for listing team member assignments."""
 
     orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     roles = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    # Overriding sort_by from OrderMixin due to different choices and default value
     sort_by = serializers.ChoiceField(
         required=False,
         choices=[(e.value, e.name) for e in AssignmentSortField],
         default=AssignmentSortField.ROLE,
-    )
-    order = serializers.ChoiceField(
-        required=False,
-        choices=[(e.value, e.name) for e in SortOrder],
-        default=SortOrder.ASC,
     )
 
 

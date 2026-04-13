@@ -55,7 +55,7 @@ __all__ = [
     "get_user_role_assignments_filtered",
     "get_all_user_role_assignments_in_scope",
     "get_visible_role_assignments_for_user",
-    "get_visible_specific_user_role_assignments_for_user",
+    "get_visible_user_role_assignments_filtered_by_current_user",
     "is_user_allowed",
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
@@ -179,7 +179,7 @@ def get_user_role_assignments_for_role_in_scope(
     )
 
 
-def get_visible_specific_user_role_assignments_for_user(
+def get_visible_user_role_assignments_filtered_by_current_user(
     user_external_key: str,
     orgs: list[str] = None,
     roles: list[str] = None,
@@ -438,7 +438,7 @@ def get_superadmin_assignments(user_external_keys: list[str] | None = None) -> l
     for requested_user in requested_users:
         superadmin_assignments.append(
             SuperAdminAssignmentData(
-                subject=UserData(external_key=requested_user.username),
+                user=requested_user,
                 is_staff=requested_user.is_staff,
                 is_superuser=requested_user.is_superuser,
             )

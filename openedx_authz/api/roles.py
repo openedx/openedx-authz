@@ -13,6 +13,9 @@ from collections import defaultdict
 from crum import get_current_user
 from django.db import transaction
 
+from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
+from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
+
 from openedx_authz.api.data import (
     GroupingPolicyIndex,
     PermissionData,
@@ -25,8 +28,7 @@ from openedx_authz.api.data import (
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import ExtendedCasbinRule
-from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
-from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
+from openedx_authz.models.core import RoleAssignmentAudit
 
 __all__ = [
     "assign_role_to_subject_in_scope",
@@ -237,10 +239,10 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
     transaction.on_commit(
         lambda: ROLE_ASSIGNMENT_CREATED.send_event(
             role_assignment=RoleAssignmentEventData(
-                operation=RoleAssignmentEventData.OPERATIONS.created,
-                subject=subject,
-                role=role,
-                scope=scope,
+                operation=RoleAssignmentAudit.OPERATIONS.created,
+                subject=subject.namespaced_key,
+                role=role.namespaced_key,
+                scope=scope.namespaced_key,
                 actor=get_current_user()
             )
         )
@@ -288,10 +290,10 @@ def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, sc
         transaction.on_commit(
             lambda: ROLE_ASSIGNMENT_DELETED.send_event(
                 role_assignment=RoleAssignmentEventData(
-                    operation=RoleAssignmentEventData.OPERATIONS.deleted,
-                    subject=subject,
-                    role=role,
-                    scope=scope,
+                    operation=RoleAssignmentAudit.OPERATIONS.deleted,
+                    subject=subject.namespaced_key,
+                    role=role.namespaced_key,
+                    scope=scope.namespaced_key,
                     actor=get_current_user()
                 )
             )

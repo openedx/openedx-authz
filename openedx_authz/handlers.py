@@ -15,11 +15,15 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from waffle.models import Flag
 
+from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
+
 from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.engine.utils import run_course_authoring_migration
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule
 from openedx_authz.models.subjects import UserSubject
+from openedx_authz.api.users import unassign_all_roles_from_user
+from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit
 
 try:
     from common.djangoapps.student.models import CourseAccessRole
@@ -305,3 +309,33 @@ def trigger_course_authoring_migration(
         excluded_course_ids=excluded_course_ids,
         delete_after_migration=True,
     )
+
+
+@receiver(ROLE_ASSIGNMENT_CREATED)
+@receiver(ROLE_ASSIGNMENT_DELETED)
+def create_audit_record_on_role_assignment_change(sender, role_assignment, **kwargs):  # pylint: disable=unused-argument
+    """
+    Create an audit record when a role assignment is created or deleted.
+
+    This handler listens for both creation and deletion of role assignments and logs the changes
+    for auditing purposes.
+
+    Args:
+        sender: The signal class (ROLE_ASSIGNMENT_CREATED or ROLE_ASSIGNMENT_DELETED).
+        role_assignment: RoleAssignmentEventData carrying the operation, subject, role, scope, and actor.
+        **kwargs: Additional keyword arguments from the signal.
+    """
+    try:
+        RoleAssignmentAudit.objects.create(
+            operation=role_assignment.operation,
+            subject=role_assignment.subject,
+            role=role_assignment.role,
+            scope=role_assignment.scope,
+            actor=role_assignment.actor,
+            timestamp=kwargs["metadata"].time,
+        )
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Error creating audit record for role assignment change: %s",
+            exc,
+        )

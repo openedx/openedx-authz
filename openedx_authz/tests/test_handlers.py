@@ -29,6 +29,16 @@ from openedx_authz.tests.stubs.models import (
     WaffleFlagOrgOverrideModel,
 )
 
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
+from casbin_adapter.models import CasbinRule
+from django.test import TestCase
+from openedx_events.authz.data import RoleAssignmentData
+
+from openedx_authz.handlers import create_audit_record_on_role_assignment_change
+from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit, Scope, Subject
+
 AUTHZ_COURSE_AUTHORING_FLAG_NAME = "authz.enable_course_authoring"
 OTHER_WAFFLE_FLAG_NAME = "some.other.flag"
 
@@ -689,3 +699,86 @@ class TestGetMigrationType(TestCase):
 
         self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=False))
         self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=True))
+
+
+class TestCreateAuditRecordHandler(TestCase):
+    """Confirm the audit record handler creates RoleAssignmentAudit entries correctly."""
+
+    TIMESTAMP = datetime(2026, 4, 14, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _call_handler(self, role_assignment, timestamp=None):
+        """Invoke the handler directly with a mock metadata object."""
+        metadata = MagicMock()
+        metadata.time = timestamp or self.TIMESTAMP
+        create_audit_record_on_role_assignment_change(
+            sender=None,
+            role_assignment=role_assignment,
+            metadata=metadata,
+        )
+
+    def test_creates_audit_record_for_created_operation(self):
+        """Handler creates a RoleAssignmentAudit row with all fields set correctly.
+
+        Expected result:
+        - One RoleAssignmentAudit record exists with operation, subject, role, scope,
+          actor (None), and the event timestamp.
+        """
+        role_assignment = RoleAssignmentData(
+            operation=RoleAssignmentAudit.OPERATIONS.created,
+            subject="user^john_doe",
+            role="role^library_admin",
+            scope="lib^org1:lib1",
+        )
+
+        self._call_handler(role_assignment)
+
+        audit = RoleAssignmentAudit.objects.get()
+        self.assertEqual(audit.operation, RoleAssignmentAudit.OPERATIONS.created)
+        self.assertEqual(audit.subject, "user^john_doe")
+        self.assertEqual(audit.role, "role^library_admin")
+        self.assertEqual(audit.scope, "lib^org1:lib1")
+        self.assertIsNone(audit.actor)
+        self.assertEqual(audit.timestamp, self.TIMESTAMP)
+
+    def test_creates_audit_record_for_deleted_operation(self):
+        """Handler creates a RoleAssignmentAudit row with operation 'deleted'.
+
+        Expected result:
+        - One RoleAssignmentAudit record exists with operation 'deleted'.
+        """
+        role_assignment = RoleAssignmentData(
+            operation=RoleAssignmentAudit.OPERATIONS.deleted,
+            subject="user^john_doe",
+            role="role^library_admin",
+            scope="lib^org1:lib1",
+        )
+
+        self._call_handler(role_assignment)
+
+        audit = RoleAssignmentAudit.objects.get()
+        self.assertEqual(audit.operation, RoleAssignmentAudit.OPERATIONS.deleted)
+
+    def test_logs_exception_and_does_not_raise_when_creation_fails(self):
+        """Handler logs the error without re-raising when RoleAssignmentAudit.create fails.
+
+        Expected result:
+        - logger.exception is called once with a message containing 'Error creating audit record'.
+        - No RoleAssignmentAudit record is created.
+        """
+        role_assignment = RoleAssignmentData(
+            operation=RoleAssignmentAudit.OPERATIONS.created,
+            subject="user^john_doe",
+            role="role^library_admin",
+            scope="lib^org1:lib1",
+        )
+
+        with (
+            patch("openedx_authz.handlers.RoleAssignmentAudit.objects.create") as mock_create,
+            patch("openedx_authz.handlers.logger") as mock_logger,
+        ):
+            mock_create.side_effect = Exception("DB error")
+            self._call_handler(role_assignment)
+
+        mock_logger.exception.assert_called_once()
+        self.assertIn("Error creating audit record", mock_logger.exception.call_args[0][0])
+        self.assertEqual(RoleAssignmentAudit.objects.count(), 0)

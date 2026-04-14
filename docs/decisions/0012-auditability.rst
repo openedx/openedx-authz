@@ -99,6 +99,16 @@ Audit table
 ``RoleAssignmentAudit`` mirrors the event payload. Registered in Django admin, filterable by
 user, role, scope, actor, and timestamp.
 
+Subject, role, and scope are stored as plain namespaced key strings (e.g. ``user^alice``,
+``role^instructor``, ``lib^lib:Org1:lib1``). There are no FK references to live ``Subject``,
+``Scope``, or Casbin tables. Audit records survive the deletion of the underlying objects by
+design: the value of an audit log depends on its unconditional durability.
+
+Because there are no FK references, the namespace prefix embedded in each string is the only
+available signal for categorizing records by type. Admin filters (e.g. "content library",
+"course") rely on ``scope__startswith`` lookups against that prefix rather than relational
+joins.
+
 Developer extensibility
 -----------------------
 
@@ -169,6 +179,15 @@ Both flows
   in the authorization library.
 - ``RoleAssignmentAudit`` is not tamper-proof. Compliance-grade immutability is a
   later-phase concern.
+- Audit records are independent from live authorization state. Deleting a subject, scope, or
+  role does not remove its audit history. Records may reference identifiers that no longer
+  exist in the system.
+- ``actor`` is the exception: it is stored as a FK to the ``User`` model with ``SET_NULL``.
+  Deleting a user sets ``actor`` to ``None``, losing attribution for any audit records they
+  produced. This is an accepted trade-off: user deletion is rare in Open edX (the standard
+  path is retirement, which anonymizes rather than hard-deletes), and the FK enables direct
+  admin filtering by actor. If unconditional attribution durability is needed, ``actor``
+  should be changed to a plain string field.
 
 Alternatives Considered
 ***********************

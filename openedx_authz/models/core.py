@@ -5,12 +5,16 @@ that are not natively supported by Casbin, so as to avoid modifying the Casbin
 schema that focuses on the core authorization logic.
 """
 
-from typing import ClassVar
+from typing import ClassVar, NamedTuple
 
+from django.contrib.auth import get_user_model
 from django.db import models, transaction
 
+from openedx_authz.constants import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR
 from openedx_authz.engine.filter import Filter
 
+
+User = get_user_model()
 
 class BaseRegistryModel(models.Model):
     """Base model that supports automatic subclass registration.
@@ -231,3 +235,65 @@ class ExtendedCasbinRule(models.Model):
             )
 
         return extended_rule
+
+
+class RoleAssignmentAudit(models.Model):
+    """Model to audit role assignments and unassignments.
+
+    .. no_pii:
+
+    This model captures the history of role assignments and unassignments for subjects
+    within specific scopes. It can be used for auditing purposes to track changes in
+    role assignments over time.
+    """
+
+    class Operations(NamedTuple):
+        created: str = "created"
+        deleted: str = "deleted"
+
+    OPERATIONS = Operations()
+
+    operation = models.CharField(
+        max_length=20,
+        choices=[(op, op) for op in OPERATIONS],
+    )
+    subject = models.CharField(
+        max_length=255,
+        help_text="Namespaced key of the subject (e.g. 'user^john_doe').",
+    )
+    role = models.CharField(
+        max_length=255,
+        help_text="Namespaced key of the role (e.g. 'role^library_admin').",
+    )
+    scope = models.CharField(
+        max_length=255,
+        help_text="Namespaced key of the scope (e.g. 'course-v1^course-v1:org+course+run') or glob pattern.",
+    )
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="performed_role_assignment_audits",
+    )
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "Role Assignment Audit"
+        verbose_name_plural = "Role Assignment Audits"
+        ordering = ["-timestamp"]
+
+    @property
+    def subject_display(self) -> str:
+        """Subject key without the namespace prefix (e.g. ``john_doe`` for ``user^john_doe``)."""
+        return self.subject.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[-1]
+
+    @property
+    def role_display(self) -> str:
+        """Role name without the namespace prefix (e.g. ``library_admin`` for ``role^library_admin``)."""
+        return self.role.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[-1]
+
+    @property
+    def scope_display(self) -> str:
+        """Scope key without the namespace prefix (e.g. ``lib:Org1:lib1`` for ``lib^lib:Org1:lib1``)."""
+        return self.scope.split(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, 1)[-1]

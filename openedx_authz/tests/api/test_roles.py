@@ -6,12 +6,13 @@ roles and permissions within specific scopes.
 """
 
 from importlib.resources import files
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import casbin
 from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
+from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
 
 from openedx_authz.api.data import (
     ActionData,
@@ -51,6 +52,7 @@ from openedx_authz.constants.roles import (
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models.core import RoleAssignmentAudit
 
 
 def _mock_get_or_create_scope(scope_data):

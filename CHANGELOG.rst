@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.7.0 - 2026-04-14
+******************
+
+Added
+=====
+
+* Add ``users/validate`` endpoint for bulk validation of user identifiers (usernames or emails).
+
 1.6.0 - 2026-04-10
 ******************
 

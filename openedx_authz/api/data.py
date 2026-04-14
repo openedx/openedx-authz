@@ -696,6 +696,24 @@ class OrgGlobData(ScopeData):
         raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
 
     @classmethod
+    def build_external_key(cls, org: str) -> str:
+        """Build the external key for all resources within the given organization.
+
+        Args:
+            org (str): The organization identifier (e.g., ``DemoX``).
+
+        Returns:
+            str: The external key for the org-level glob (e.g., ``course-v1:DemoX+*``).
+
+        Examples:
+            >>> OrgCourseOverviewGlobData.build_external_key('DemoX')
+            'course-v1:DemoX+*'
+            >>> OrgContentLibraryGlobData.build_external_key('DemoX')
+            'lib:DemoX:*'
+        """
+        return f"{cls.NAMESPACE}{EXTERNAL_KEY_SEPARATOR}{org}{cls.ID_SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
+
+    @classmethod
     def get_org(cls, external_key: str) -> str | None:
         """Extract the organization identifier from the glob pattern.
 

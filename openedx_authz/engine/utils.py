@@ -8,13 +8,15 @@ import logging
 from collections import defaultdict
 
 from casbin import Enforcer
+from django.db.models import Q
+from opaque_keys.edx.django.models import CourseKeyField
 
-from openedx_authz.api.data import CourseOverviewData
+from openedx_authz.api.data import CourseOverviewData, OrgCourseOverviewGlobData
+from openedx_authz.api.roles import get_all_role_assignments_per_scope_type
 from openedx_authz.api.users import (
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
-    get_user_role_assignments,
 )
 from openedx_authz.constants.roles import (
     LEGACY_COURSE_ROLE_EQUIVALENCES,
@@ -204,6 +206,11 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     - user: subject
     - role: role
 
+    The scope assigned per row depends on which fields are set:
+    - course_id set: course-level scope (e.g. "course-v1:OpenedX+CS101+2024").
+    - course_id blank, org set: org-level glob scope (e.g. "course-v1:OpenedX+*").
+    - both set: course_id takes precedence as the more specific scope.
+
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
     is intended to run within a Django migration context, where direct model imports can cause issues.
     param course_id_list: Optional list of course IDs to filter the migration.
@@ -212,9 +219,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
     """
     _validate_migration_input(course_id_list, org_id)
 
-    course_access_role_filter = {
-        "course_id__startswith": "course-v1:",
-    }
+    course_access_role_filter = {}
 
     if org_id:
         course_access_role_filter["org"] = org_id
@@ -225,7 +230,9 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
         course_access_role_filter["course_id__in"] = course_id_list
 
     legacy_permissions = (
-        course_access_role_model.objects.filter(**course_access_role_filter).select_related("user").all()
+        course_access_role_model.objects.filter(**course_access_role_filter)
+        .filter(Q(course_id=CourseKeyField.Empty) | Q(course_id__startswith=CourseOverviewData.NAMESPACE))
+        .select_related("user")
     )
 
     # List to keep track of any permissions that could not be migrated
@@ -243,16 +250,28 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
             permissions_with_errors.append(permission)
             continue
 
+        if permission.course_id:
+            scope_external_key = str(permission.course_id)
+        elif permission.org:
+            scope_external_key = OrgCourseOverviewGlobData.build_external_key(permission.org)
+        else:
+            # Instance-wide roles (no course_id, no org) are not supported by this migration, log and skip.
+            logger.error(
+                f"Permission for User: {permission.user.username} has neither course_id nor org defined, skipping."
+            )
+            permissions_with_errors.append(permission)
+            continue
+
         # Permission applied to individual user
         logger.info(
             f"Migrating permission for User: {permission.user.username} "
-            f"to Role: {role} in Scope: {permission.course_id}"
+            f"to Role: {role} in Scope: {scope_external_key}"
         )
 
         is_user_added = assign_role_to_user_in_scope(
             user_external_key=permission.user.username,
             role_external_key=role,
-            scope_external_key=str(permission.course_id),
+            scope_external_key=scope_external_key,
         )
 
         if not is_user_added:
@@ -286,6 +305,11 @@ def migrate_authz_to_legacy_course_roles(
     This is essentially the reverse of migrate_legacy_course_roles_to_authz and is intended
     for rollback purposes in case of migration issues.
 
+    To build each CourseAccessRole entry, the function needs:
+    - A user: resolved from role assignments in scopes linked to courses.
+    - A scope: a CourseOverviewData or OrgCourseOverviewGlobData instance, optionally filtered by course_id or org_id.
+    - A role: a role external key that maps to a legacy role in COURSE_ROLE_EQUIVALENCES.
+
     param course_access_role_model: It should be the CourseAccessRole model. This is passed in because the function
     is intended to run within a Django migration context, where direct model imports can cause issues.
     param user_subject_model: It should be the UserSubject model. This is passed in because the function
@@ -297,70 +321,87 @@ def migrate_authz_to_legacy_course_roles(
     """
     _validate_migration_input(course_id_list, org_id)
 
-    # 1. Get all users with course-related permissions in the new model by filtering
-    # UserSubjects that are linked to CourseScopes with a valid course overview.
-    course_subject_filter = {
-        "casbin_rules__scope__coursescope__course_overview__isnull": False,
-    }
+    role_assignments = get_all_role_assignments_per_scope_type(
+        scope_types=(CourseOverviewData, OrgCourseOverviewGlobData,)
+    )
 
+    # Two cases here:
+    # 1. org_id provided: filter by org — includes org-level glob and course-level scopes for that org.
+    # 2. only course_id_list provided: filter by course_id — org-level glob scopes are excluded (no course_id).
     if org_id:
-        course_subject_filter["casbin_rules__scope__coursescope__course_overview__org"] = org_id
+        role_assignments = [
+            role_assignment
+            for role_assignment in role_assignments
+            if role_assignment.scope.org == org_id
+        ]
 
     if course_id_list and not org_id:
-        # Only filter by course_id if org_id is not provided,
-        # otherwise we will filter by org_id which is more efficient
-        course_subject_filter["casbin_rules__scope__coursescope__course_overview__id__in"] = course_id_list
-
-    course_subjects = user_subject_model.objects.filter(**course_subject_filter).select_related("user").distinct()
+        role_assignments = [
+            role_assignment
+            for role_assignment in role_assignments
+            if isinstance(role_assignment.scope, CourseOverviewData) and
+            role_assignment.scope.course_id in course_id_list
+        ]
 
     roles_with_errors = []
     roles_with_no_errors = []
     unassignments = defaultdict(list)
 
-    for course_subject in course_subjects:
-        user = course_subject.user
-        user_external_key = user.username
+    user_external_keys = {assignment.subject.external_key for assignment in role_assignments}
+    users_by_username = {
+        subject.user.username: subject.user
+        for subject in user_subject_model.objects.filter(
+            user__username__in=user_external_keys
+        ).select_related("user")
+    }
 
-        # 2. Get all role assignments for the user
-        role_assignments = get_user_role_assignments(user_external_key=user_external_key)
+    for role_assignment in role_assignments:
 
-        for assignment in role_assignments:
-            if not isinstance(assignment.scope, CourseOverviewData):
-                logger.error(f"Skipping role assignment for User: {user_external_key} due to missing course scope.")
+        # Per valid role assignment, create corresponding CourseAccessRole entry
+        # depending on whether the scope is course-level or org-level glob
+        try:
+            user_external_key = role_assignment.subject.external_key
+            role_external_key = role_assignment.roles[0].external_key
+            scope_external_key = role_assignment.scope.external_key
+
+            course_access_role_kwargs = {
+                "user": users_by_username[user_external_key],
+                "role": COURSE_ROLE_EQUIVALENCES[role_external_key],
+            }
+
+            if isinstance(role_assignment.scope, CourseOverviewData):
+                course_access_role_kwargs["org"] = role_assignment.scope.org
+                course_access_role_kwargs["course_id"] = scope_external_key
+            elif isinstance(role_assignment.scope, OrgCourseOverviewGlobData):
+                course_access_role_kwargs["org"] = role_assignment.scope.org
+            else:
+                # This would only happen for course roles assigned instance-wide
+                # which is not yet supported
+                logger.error(
+                    f"Unexpected scope type: {type(role_assignment.scope)} for RoleAssignment with "
+                    f"scope: {scope_external_key}, user: {user_external_key} and role: {role_external_key}, skipping."
+                )
+                roles_with_errors.append(role_assignment)
                 continue
 
-            scope = assignment.scope.external_key
+            course_access_role_model.objects.get_or_create(**course_access_role_kwargs)
+            roles_with_no_errors.append(role_assignment)
 
-            course_overview = assignment.scope.get_object()
+            logger.info(
+                f"Successfully rolled back RoleAssignment for User: {user_external_key} "
+                f"in Role: {role_external_key} and Scope: {scope_external_key} "
+                f"to legacy CourseAccessRole entry."
+            )
 
-            for role in assignment.roles:
-                legacy_role = COURSE_ROLE_EQUIVALENCES.get(role.external_key)
-                if legacy_role is None:
-                    logger.error(f"Unknown role: {role} for User: {user_external_key}")
-                    roles_with_errors.append((user_external_key, role.external_key, scope))
-                    continue
+            if delete_after_migration:
+                unassignments[(role_external_key, scope_external_key)].append(user_external_key)
 
-                try:
-                    # Create legacy CourseAccessRole entry
-                    course_access_role_model.objects.get_or_create(
-                        user=user,
-                        org=course_overview.org,
-                        course_id=scope,
-                        role=legacy_role,
-                    )
-                    roles_with_no_errors.append((user_external_key, role.external_key, scope))
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error(
-                        f"Error creating CourseAccessRole for User: "
-                        f"{user_external_key}, Role: {legacy_role}, Course: {scope}: {e}"
-                    )
-                    roles_with_errors.append((user_external_key, role.external_key, scope))
-                    continue
-
-                # If we successfully created the legacy role, we can add this role assignment
-                # to the unassignment list if delete_after_migration is True
-                if delete_after_migration:
-                    unassignments[(role.external_key, scope)].append(user_external_key)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(
+                f"Error rolling back RoleAssignment for User: {role_assignment.subject.external_key} "
+                f"in Role: {role_assignment.roles[0].external_key} and Scope: {role_assignment.scope.external_key}: {e}"
+            )
+            roles_with_errors.append(role_assignment)
 
     # Once the loop is done, we can log summary of unassignments
     # and perform batch unassignment if delete_after_migration is True

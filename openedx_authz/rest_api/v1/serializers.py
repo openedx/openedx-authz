@@ -160,7 +160,6 @@ class AddUsersToRoleWithScopeSerializer(
                 "Either 'scope' or 'scopes' must be provided."
             )
 
-        validated_scopes = []
         for scope_value in scopes_list:
             try:
                 scope_obj = api.ScopeData(external_key=scope_value)
@@ -179,10 +178,8 @@ class AddUsersToRoleWithScopeSerializer(
                     {"role": f"Role '{role_value}' does not exist in scope '{scope_value}'"}
                 )
 
-            validated_scopes.append(scope_value)
-
         validated_data.pop("scope", None)
-        validated_data["scopes"] = validated_scopes
+        validated_data["scopes"] = scopes_list
         return validated_data
 
 

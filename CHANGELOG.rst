@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.6.0 - 2026-04-10
+******************
+
+Added
+=====
+
+* Add org-wide support to migration commands for forward and backward migration of course authoring permissions.
+
 1.5.0 - 2026-04-09
 ******************
 

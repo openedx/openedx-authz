@@ -44,6 +44,7 @@ __all__ = [
     "get_subject_role_assignments",
     "get_subject_role_assignments_for_role_in_scope",
     "get_subject_role_assignments_in_scope",
+    "get_all_role_assignments_per_scope_type",
     "unassign_role_from_subject_in_scope",
     "unassign_subject_from_all_roles",
 ]
@@ -553,3 +554,23 @@ def unassign_subject_from_all_roles(subject: SubjectData) -> bool:
     """
     enforcer = AuthzEnforcer.get_enforcer()
     return enforcer.remove_filtered_grouping_policy(GroupingPolicyIndex.SUBJECT.value, subject.namespaced_key)
+
+
+def get_all_role_assignments_per_scope_type(scope_types: tuple[type[ScopeData], ...]) -> list[RoleAssignmentData]:
+    """Get all role assignments matching any of the given scope types.
+
+    Loads all grouping policies from the enforcer and filters in Python. Casbin policies
+    store full scope keys (e.g., 'course-v1^course-v1:Org+Course+Run'), so there is no
+    way to query by scope type directly so the filtering must happen here.
+
+    Args:
+        scope_types: A list of ScopeData subclasses (not instances). Assignments matching
+            any of the given types are returned.
+
+    Returns:
+        list[RoleAssignmentData]: All assignments whose scope is an instance of any of the given scope types.
+    """
+    return [
+        role_assignment for role_assignment in get_role_assignments()
+        if isinstance(role_assignment.scope, scope_types)
+    ]

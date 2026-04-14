@@ -1,13 +1,18 @@
 """Unit Tests for openedx_authz migrations."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 
-from openedx_authz.api.users import batch_unassign_role_from_users, get_user_role_assignments_in_scope
+from openedx_authz.api.data import OrgCourseOverviewGlobData
+from openedx_authz.api.users import (
+    assign_role_to_user_in_scope,
+    batch_unassign_role_from_users,
+    get_user_role_assignments_in_scope,
+)
 from openedx_authz.constants.roles import (
     COURSE_ADMIN,
     COURSE_DATA_RESEARCHER,
@@ -277,11 +282,12 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         class MockPermission:
             """Mock class to simulate CourseAccessRole entries for testing the rollback migration."""
 
-            def __init__(self, user, role, course_id, id_in):
+            def __init__(self, user, role, course_id, id_in, *, org=""):
                 self.user = user
                 self.role = role
                 self.course_id = course_id
                 self.id = id_in
+                self.org = org
 
         class MockUser:
             """Mock class to simulate User objects for testing the rollback migration."""
@@ -295,14 +301,14 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
             def __init__(self, permissions):
                 self.permissions = permissions
 
-            def filter(self, **kwargs):
+            def __iter__(self):
+                return iter(self.permissions)
+
+            def filter(self, *args, **kwargs):
                 return self
 
             def select_related(self, *args, **kwargs):
                 return self
-
-            def all(self):
-                return self.permissions
 
             def get_or_create(self):
                 raise Exception("Unexpected error mock")
@@ -1168,6 +1174,41 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(successes), 0)
         self.assertEqual(errors[0].user.username, "testuser")
 
+    @patch("openedx_authz.engine.utils.LEGACY_COURSE_ROLE_EQUIVALENCES", {"instructor": "instructor-role"})
+    def test_migrate_legacy_course_roles_to_authz_instance_wide_role_is_error(self):
+        """Instance-wide roles (no course_id and no org) are logged as errors and skipped.
+
+        Expected result:
+            A CourseAccessRole with both course_id and org blank is logged as an error and
+            returned in permissions_with_errors, but not migrated.
+        """
+        instance_wide_permission = MagicMock()
+        instance_wide_permission.user.username = "instance_user"
+        instance_wide_permission.role = "instructor"
+        instance_wide_permission.course_id = ""
+        instance_wide_permission.org = ""
+
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value = mock_qs
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.__iter__ = MagicMock(return_value=iter([instance_wide_permission]))
+
+        mock_model = MagicMock()
+        mock_model.objects.filter.return_value = mock_qs
+
+        with self.assertLogs("openedx_authz.engine.utils", level="ERROR") as log:
+            errors, successes = migrate_legacy_course_roles_to_authz(
+                mock_model,
+                course_id_list=["course-v1:test"],
+                org_id=None,
+                delete_after_migration=False,
+            )
+
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(len(successes), 0)
+        self.assertEqual(errors[0].user.username, "instance_user")
+        self.assertTrue(any("instance_user" in msg for msg in log.output))
+
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_authz_to_legacy_course_roles_user_not_added(self):
         permissions_with_errors, permissions_with_no_errors = migrate_legacy_course_roles_to_authz(
@@ -1239,3 +1280,139 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         self.assertEqual(len(errors), 0)
         self.assertEqual(len(successes), 12)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_org_level_scope_creates_org_glob_assignment(self):
+        """A CourseAccessRole with org set and blank course_id maps to an OrgCourseOverviewGlobData scope.
+
+        Expected result:
+            User has a COURSE_ADMIN assignment under the org-level glob scope.
+        """
+        org_short_name_new = f"{OBJECT_PREFIX}org2"
+        Organization.objects.create(name=f"{OBJECT_PREFIX}org2_full", short_name=org_short_name_new)
+        user = User.objects.create_user(
+            username=f"org_user_{OBJECT_PREFIX}", email=f"org_user_{OBJECT_PREFIX}@example.com"
+        )
+        CourseAccessRole.objects.create(user=user, org=org_short_name_new, course_id="", role="instructor")
+
+        _, _ = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        org_scope = OrgCourseOverviewGlobData.build_external_key(org_short_name_new)
+        assignments = get_user_role_assignments_in_scope(
+            user_external_key=user.username, scope_external_key=org_scope
+        )
+        self.assertEqual(len(assignments), 1)
+        self.assertEqual(assignments[0].roles[0], COURSE_ADMIN)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_rollback_org_level_scope_creates_org_only_course_access_role(self):
+        """Rollback of an OrgCourseOverviewGlobData assignment recreates a CourseAccessRole with org only.
+
+        Expected result:
+            The recreated entry has org set and course_id is None (org-wide, not course-specific).
+        """
+        org_short_name_new = f"{OBJECT_PREFIX}org2"
+        Organization.objects.create(name=f"{OBJECT_PREFIX}org2_full", short_name=org_short_name_new)
+        user = User.objects.create_user(
+            username=f"org_user_{OBJECT_PREFIX}", email=f"org_user_{OBJECT_PREFIX}@example.com"
+        )
+        CourseAccessRole.objects.create(user=user, org=org_short_name_new, role="instructor")
+
+        migrate_legacy_course_roles_to_authz(
+            CourseAccessRole, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject, course_id_list=None, org_id=org_short_name_new, delete_after_migration=True
+        )
+
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(successes), 1)
+
+        recreated = CourseAccessRole.objects.filter(user=user, org=org_short_name_new).first()
+        self.assertIsNotNone(recreated)
+        self.assertEqual(recreated.org, org_short_name_new)
+        self.assertIsNone(recreated.course_id)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_org_id_filter_includes_glob_and_excludes_other_orgs(self):
+        """Rolling back with org_id includes org-level glob scopes and excludes assignments from other orgs.
+
+        Expected result:
+            The user with a glob scope in self.org is in successes; the user with a course-level
+            assignment in a different org and the user with a library assignment in self.org are not.
+        """
+        glob_scope = f"course-v1:{self.org}+*"
+        other_org_course_scope = f"course-v1:{OBJECT_PREFIX}filter_org2+FilterCourse+2024"
+        lib_scope = f"lib:{self.org}:*"
+
+        user_glob = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
+        )
+        user_other_org = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_org2_user", email=f"{OBJECT_PREFIX}filter_org2@example.com"
+        )
+        user_lib = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_lib_user", email=f"{OBJECT_PREFIX}filter_lib@example.com"
+        )
+        assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
+        assign_role_to_user_in_scope(user_other_org.username, COURSE_STAFF.external_key, other_org_course_scope)
+        assign_role_to_user_in_scope(user_lib.username, LIBRARY_ADMIN.external_key, lib_scope)
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject, course_id_list=None, org_id=self.org, delete_after_migration=False
+        )
+
+        migrated_users = {assignment.subject.external_key for assignment in successes}
+        # glob assignment for self.org is included
+        self.assertIn(user_glob.username, migrated_users)
+        # assignment from the other org is excluded
+        self.assertNotIn(user_other_org.username, migrated_users)
+        # library assignment in self.org is excluded — library scopes are not course scopes
+        self.assertNotIn(user_lib.username, migrated_users)
+        self.assertEqual(len(errors), 0)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_course_id_list_filter_excludes_glob_and_other_courses(self):
+        """Rolling back with course_id_list excludes org-level glob scopes and assignments from other courses.
+
+        Expected result:
+            The user with a glob scope, the user with a course-level assignment not in the list,
+            and the user with a library assignment are all absent from successes.
+        """
+        glob_scope = f"course-v1:{self.org}+*"
+        other_course_scope = f"course-v1:{self.org}+FilterOtherCourse+2024"
+        lib_scope = f"lib:{self.org}:*"
+
+        user_glob = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_glob_user", email=f"{OBJECT_PREFIX}filter_glob@example.com"
+        )
+        user_other_course = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_other_course_user", email=f"{OBJECT_PREFIX}filter_other@example.com"
+        )
+        user_lib = User.objects.create_user(
+            username=f"{OBJECT_PREFIX}filter_lib_user", email=f"{OBJECT_PREFIX}filter_lib@example.com"
+        )
+        assign_role_to_user_in_scope(user_glob.username, COURSE_STAFF.external_key, glob_scope)
+        assign_role_to_user_in_scope(user_other_course.username, COURSE_STAFF.external_key, other_course_scope)
+        assign_role_to_user_in_scope(user_lib.username, LIBRARY_ADMIN.external_key, lib_scope)
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole, UserSubject,
+            course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+        )
+
+        migrated_users = {assignment.subject.external_key for assignment in successes}
+        # org-level glob is excluded even though it belongs to the same org
+        self.assertNotIn(user_glob.username, migrated_users)
+        # course not in the list is excluded
+        self.assertNotIn(user_other_course.username, migrated_users)
+        # library assignment in self.org is excluded — library scopes are not course scopes
+        self.assertNotIn(user_lib.username, migrated_users)
+        self.assertEqual(len(errors), 0)

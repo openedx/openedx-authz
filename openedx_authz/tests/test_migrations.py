@@ -1301,9 +1301,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         AuthzEnforcer.get_enforcer().load_policy()
 
         org_scope = OrgCourseOverviewGlobData.build_external_key(org_short_name_new)
-        assignments = get_user_role_assignments_in_scope(
-            user_external_key=user.username, scope_external_key=org_scope
-        )
+        assignments = get_user_role_assignments_in_scope(user_external_key=user.username, scope_external_key=org_scope)
         self.assertEqual(len(assignments), 1)
         self.assertEqual(assignments[0].roles[0], COURSE_ADMIN)
 
@@ -1404,8 +1402,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         AuthzEnforcer.get_enforcer().load_policy()
 
         errors, successes = migrate_authz_to_legacy_course_roles(
-            CourseAccessRole, UserSubject,
-            course_id_list=[self.course_id], org_id=None, delete_after_migration=False
+            CourseAccessRole, UserSubject, course_id_list=[self.course_id], org_id=None, delete_after_migration=False
         )
 
         migrated_users = {assignment.subject.external_key for assignment in successes}

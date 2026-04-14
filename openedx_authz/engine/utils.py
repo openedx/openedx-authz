@@ -264,8 +264,7 @@ def migrate_legacy_course_roles_to_authz(course_access_role_model, course_id_lis
 
         # Permission applied to individual user
         logger.info(
-            f"Migrating permission for User: {permission.user.username} "
-            f"to Role: {role} in Scope: {scope_external_key}"
+            f"Migrating permission for User: {permission.user.username} to Role: {role} in Scope: {scope_external_key}"
         )
 
         is_user_added = assign_role_to_user_in_scope(
@@ -322,7 +321,10 @@ def migrate_authz_to_legacy_course_roles(
     _validate_migration_input(course_id_list, org_id)
 
     role_assignments = get_all_role_assignments_per_scope_type(
-        scope_types=(CourseOverviewData, OrgCourseOverviewGlobData,)
+        scope_types=(
+            CourseOverviewData,
+            OrgCourseOverviewGlobData,
+        )
     )
 
     # Two cases here:
@@ -330,17 +332,15 @@ def migrate_authz_to_legacy_course_roles(
     # 2. only course_id_list provided: filter by course_id — org-level glob scopes are excluded (no course_id).
     if org_id:
         role_assignments = [
-            role_assignment
-            for role_assignment in role_assignments
-            if role_assignment.scope.org == org_id
+            role_assignment for role_assignment in role_assignments if role_assignment.scope.org == org_id
         ]
 
     if course_id_list and not org_id:
         role_assignments = [
             role_assignment
             for role_assignment in role_assignments
-            if isinstance(role_assignment.scope, CourseOverviewData) and
-            role_assignment.scope.course_id in course_id_list
+            if isinstance(role_assignment.scope, CourseOverviewData)
+            and role_assignment.scope.course_id in course_id_list
         ]
 
     roles_with_errors = []
@@ -350,13 +350,10 @@ def migrate_authz_to_legacy_course_roles(
     user_external_keys = {assignment.subject.external_key for assignment in role_assignments}
     users_by_username = {
         subject.user.username: subject.user
-        for subject in user_subject_model.objects.filter(
-            user__username__in=user_external_keys
-        ).select_related("user")
+        for subject in user_subject_model.objects.filter(user__username__in=user_external_keys).select_related("user")
     }
 
     for role_assignment in role_assignments:
-
         # Per valid role assignment, create corresponding CourseAccessRole entry
         # depending on whether the scope is course-level or org-level glob
         try:

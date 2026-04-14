@@ -400,7 +400,6 @@ def validate_users(user_identifiers: list[str]) -> tuple[list[str], list[str]]:
     Returns:
         tuple: (valid_users, invalid_users) lists
     """
-    User = get_user_model()
     valid_users = []
     invalid_users = []
 

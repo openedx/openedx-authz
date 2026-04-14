@@ -368,7 +368,7 @@ class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pyl
         return obj.user.email if obj.user else ""
 
 
-class ListAllTeamMembersAssignmentsSerializer(ListTeamMemberAssignmentsSerializer):  # pylint: disable=abstract-method
+class ListAssignmentsQuerySerializer(ListTeamMemberAssignmentsQuerySerializer):  # pylint: disable=abstract-method
     """Serializer for query params for the list all team member assignments endpoint."""
 
     search = LowercaseCharField(required=False, default=None)

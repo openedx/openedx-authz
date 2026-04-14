@@ -1089,31 +1089,34 @@ class TestTeamMembersAPIView(ViewTestMixin):
 
     @data(
         # Staff/superuser sees all users across all scopes
-        ("admin_1", 11),
+        ("admin_1", status.HTTP_200_OK, 11),
         # regular_1 has LIBRARY_USER in lib:Org1:LIB1 (VIEW_LIBRARY_TEAM granted) → sees only Org1 members
-        ("regular_1", 3),
+        ("regular_1", status.HTTP_200_OK, 3),
         # regular_3 has LIBRARY_USER in lib:Org2:LIB2 (VIEW_LIBRARY_TEAM granted) → sees only Org2 members
-        ("regular_3", 3),
+        ("regular_3", status.HTTP_200_OK, 3),
         # regular_6 has LIBRARY_AUTHOR in lib:Org3:LIB3 (VIEW_LIBRARY_TEAM granted) → sees only Org3 members
-        ("regular_6", 5),
-        # regular_9 has no assignments → sees nothing
-        ("regular_9", 0),
+        ("regular_6", status.HTTP_200_OK, 5),
+        # regular_9 has no assignments → 403 (AnyScopePermission requires at least one relevant permission)
+        ("regular_9", status.HTTP_403_FORBIDDEN, None),
     )
     @unpack
-    def test_visibility_limited_to_accessible_scopes(self, username: str, expected_count: int):
+    def test_visibility_limited_to_accessible_scopes(
+        self, username: str, expected_status: int, expected_count: int | None
+    ):
         """Calling user only sees assignments for scopes it has VIEW_*_TEAM access to.
 
         Expected result:
             - Staff/superuser sees all users across all scopes.
             - Regular users only see members of scopes they have VIEW_*_TEAM permission for.
-            - Users with no assignments see no results.
+            - Users with no relevant permissions get 403.
         """
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
 
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], expected_count)
+        self.assertEqual(response.status_code, expected_status)
+        if expected_count is not None:
+            self.assertEqual(response.data["count"], expected_count)
 
     def test_unauthenticated_returns_401(self):
         """Unauthenticated requests are rejected.
@@ -1333,8 +1336,8 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
           entry when the target is a superadmin.
         - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 role assignments,
           plus the superadmin entry when the target is a superadmin.
-        - regular_9 (no assignments): sees no role assignments for any user, but still
-          sees the superadmin entry when the target is a superadmin.
+        - regular_9 (no assignments): rejected with 403 by AnyScopePermission
+          (requires at least one VIEW_LIBRARY_TEAM or COURSES_VIEW_COURSE_TEAM permission).
     """
 
     def setUp(self):
@@ -1356,20 +1359,27 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
     @data(
         # Staff/superuser targets get 1 superadmin entry + their role assignment(s)
-        ("admin_1", "admin_1", 2),  # superadmin entry + library_admin in Org1
-        ("admin_1", "admin_2", 2),  # superadmin entry + library_user in Org2
-        ("admin_1", "admin_3", 2),  # superadmin entry + library_admin in Org3
+        ("admin_1", "admin_1", status.HTTP_200_OK, 2),  # superadmin entry + library_admin in Org1
+        ("admin_1", "admin_2", status.HTTP_200_OK, 2),  # superadmin entry + library_user in Org2
+        ("admin_1", "admin_3", status.HTTP_200_OK, 2),  # superadmin entry + library_admin in Org3
         # Regular user targets get only their role assignments (no superadmin entry)
-        ("admin_1", "regular_5", 1),
+        ("admin_1", "regular_5", status.HTTP_200_OK, 1),
         # The superadmin entry is always included for superadmin targets, visible to all callers
-        ("regular_1", "admin_1", 2),  # superadmin entry + library_admin in Org1 (visible via Org1 access)
+        (
+            "regular_1",
+            "admin_1",
+            status.HTTP_200_OK,
+            2,
+        ),  # superadmin entry + library_admin in Org1 (visible via Org1 access)
         # regular_1 cannot see admin_2's Org2 role assignment, but superadmin entry is still included
-        ("regular_1", "admin_2", 1),  # superadmin entry only
-        # regular_9 has no assignments but superadmin entry is still included for admin targets
-        ("regular_9", "admin_1", 1),  # superadmin entry only
+        ("regular_1", "admin_2", status.HTTP_200_OK, 1),  # superadmin entry only
+        # regular_9 has no assignments → 403 (AnyScopePermission requires at least one relevant permission)
+        ("regular_9", "admin_1", status.HTTP_403_FORBIDDEN, None),
     )
     @unpack
-    def test_visibility_limited_to_accessible_scopes(self, caller: str, target: str, expected_count: int):
+    def test_visibility_limited_to_accessible_scopes(
+        self, caller: str, target: str, expected_status: int, expected_count: int | None
+    ):
         """Calling user only sees role assignments for scopes it has view access to.
 
         The superadmin entry is always included when the target is a superadmin,
@@ -1379,13 +1389,15 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
             - Superadmin targets always include the superadmin entry.
             - Role assignments are filtered by the calling user's permissions.
             - Regular user targets return only their visible role assignments.
+            - Users with no relevant permissions get 403.
         """
         self.client.force_authenticate(user=User.objects.get(username=caller))
 
         response = self.client.get(self._url(target))
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], expected_count)
+        self.assertEqual(response.status_code, expected_status)
+        if expected_count is not None:
+            self.assertEqual(response.data["count"], expected_count)
 
     def test_unauthenticated_returns_401(self):
         """Unauthenticated requests are rejected.

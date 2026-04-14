@@ -45,7 +45,7 @@ from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
-    ListAllTeamMembersAssignmentsSerializer,
+    ListAssignmentsQuerySerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
     ListTeamMemberAssignmentsQuerySerializer,
@@ -496,6 +496,7 @@ class RoleListView(APIView):
     responses={
         status.HTTP_200_OK: OrganizationSerializer(many=True),
         status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
     },
 )
 class AdminConsoleOrgsAPIView(generics.ListAPIView):
@@ -625,6 +626,7 @@ class TeamMembersAPIView(APIView):
 
     pagination_class = AuthZAPIViewPagination
     filter_backends = [TeamMemberSearchFilter, TeamMemberOrderingFilter]
+    permission_classes = [AnyScopePermission]
 
     @apidocs.schema(
         parameters=[
@@ -639,8 +641,15 @@ class TeamMembersAPIView(APIView):
         responses={
             status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
         },
+    )
+    @authz_permissions(
+        [
+            permissions.VIEW_LIBRARY_TEAM.identifier,
+            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+        ]
     )
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all users that have at least one assignation according to the filtering fields."""
@@ -817,6 +826,7 @@ class TeamMemberAssignmentsAPIView(APIView):
 
     pagination_class = AuthZAPIViewPagination
     filter_backends = [TeamMemberAssignmentsOrderingFilter]
+    permission_classes = [AnyScopePermission]
 
     @apidocs.schema(
         parameters=[
@@ -837,7 +847,14 @@ class TeamMemberAssignmentsAPIView(APIView):
             status.HTTP_200_OK: TeamMemberAssignmentSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
         },
+    )
+    @authz_permissions(
+        [
+            permissions.VIEW_LIBRARY_TEAM.identifier,
+            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+        ]
     )
     def get(self, request: HttpRequest, username: str) -> Response:
         """Retrieve all user role assignments."""
@@ -965,7 +982,7 @@ class AssignmentsAPIView(APIView):
         responses={
             status.HTTP_200_OK: TeamMemberUserAssignmentSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
             status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
         },
     )
@@ -977,7 +994,7 @@ class AssignmentsAPIView(APIView):
     )
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all user role assignments."""
-        serializer = ListAllTeamMembersAssignmentsSerializer(data=request.query_params)
+        serializer = ListAssignmentsQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 

@@ -14,6 +14,20 @@ Change Log
 Unreleased
 **********
 
+1.9.0 - 2026-04-14
+******************
+
+Added
+=====
+
+* Add the ``/api/authz/v1/assignments/`` endpoint for listing all user role assignments, to be used in the admin console.
+
+Changed
+=======
+
+* Apply view team permissions to the user assignments and team members endpoints.
+* Align docstrings and API docs accordingly.
+
 1.8.0 - 2026-04-14
 ******************
 

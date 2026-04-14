@@ -249,12 +249,10 @@ Rejected Alternatives
 *********************
 
 **Using pre_save to trigger the migration**
-  A ``pre_save`` handler could detect the transition direction and execute the migration
-  before the flag change is written. This approach violates ACID principles: at the moment
-  ``pre_save`` fires, the new flag value has not yet been committed to the database. If the
-  subsequent ``save()`` were to fail (e.g., a validation error, a database constraint
-  violation, or a network issue), the migration would have already run against a state that
-  was never persisted, leaving the permission data inconsistent with the actual flag value.
+  The use of pre_save signals was discarded because they depend on a state transition
+  that has not yet been committed to the database. Operating before persistence assumes
+  a future-valid state that may not materialize. post_save was preferred to ensure
+  migration logic operates only on confirmed states.
 
 **Asynchronous execution via Celery**
   Given that automatic migration is scoped to course-level and organization-level

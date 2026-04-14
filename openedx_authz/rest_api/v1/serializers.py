@@ -259,3 +259,36 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
     def get_assignation_count(self, obj: UserAssignments) -> int:
         """Get the assignation count for the given role assignment."""
         return len(obj.assignments)
+
+
+class UserValidationAPIViewSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for validating user existence."""
+
+    users = serializers.ListField(
+        child=serializers.CharField(max_length=255), allow_empty=False, help_text="List of user identifiers to validate"
+    )
+
+    def validate_users(self, value) -> list[str]:
+        """Eliminate duplicates preserving order"""
+        return list(dict.fromkeys(value))
+
+
+class UserValidationSummarySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for user validation summary statistics."""
+
+    total = serializers.IntegerField(help_text="Total number of users validated")
+    valid_count = serializers.IntegerField(help_text="Number of valid users found")
+    invalid_count = serializers.IntegerField(help_text="Number of invalid users")
+
+
+class UserValidationAPIViewResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for user validation response."""
+
+    valid_users = serializers.ListField(
+        child=serializers.CharField(max_length=255), help_text="List of user identifiers that were found to be valid"
+    )
+    invalid_users = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        help_text="List of user identifiers that were not found or are invalid",
+    )
+    summary = UserValidationSummarySerializer(help_text="Summary statistics for the validation operation")

@@ -43,6 +43,8 @@ from openedx_authz.rest_api.v1.serializers import (
     RemoveUsersFromRoleWithScopeSerializer,
     TeamMemberSerializer,
     UserRoleAssignmentSerializer,
+    UserValidationAPIViewResponseSerializer,
+    UserValidationAPIViewSerializer,
 )
 from openedx_authz.utils import get_user_by_username_or_email
 
@@ -590,3 +592,86 @@ class TeamMembersAPIView(APIView):
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(team_members, request)
         return paginator.get_paginated_response(paginated_response_data)
+
+
+@view_auth_classes()
+class UserValidationAPIView(APIView):
+    """API view for validating that provided user identifiers correspond to existing users.
+
+    This view allows clients to verify that a list of user identifiers (usernames or emails)
+    correspond to valid users in the system. It is designed to support bulk validation of multiple
+    user identifiers in a single request, providing a convenient way to check the validity of users before
+    performing operations such as role assignments.
+
+    **Endpoints**
+    - POST: Validate that the provided list of usernames or emails correspond to existing users
+
+    **Request Format (POST)**
+    - users: List of user identifiers (username or email)
+
+    **Response Format (POST)**
+
+    Returns HTTP 200 OK with::
+
+        {
+            "valid_users": ["john_doe", "jane@example.com"],
+            "invalid_users": ["nonexistent_user"],
+            "summary": {
+                "total": 3,
+                "valid_count": 2,
+                "invalid_count": 1
+            }
+        }
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - Requires ``manage_library_team`` or ``manage_course_team`` permission in any scope.
+
+    **Example Request**
+
+    POST /api/authz/v1/users/validate/ ::
+
+        {
+            "users": ["john_doe", "jane@example.com", "nonexistent_user"]
+        }
+    """
+
+    permission_classes = [AnyScopePermission]
+
+    @apidocs.schema(
+        body=UserValidationAPIViewSerializer,
+        responses={
+            status.HTTP_200_OK: UserValidationAPIViewResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
+            status.HTTP_500_INTERNAL_SERVER_ERROR: "An unexpected error occurred while validating users",
+        },
+    )
+    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier, permissions.COURSES_MANAGE_COURSE_TEAM.identifier])
+    def post(self, request: HttpRequest) -> Response:
+        """Validates the provided usernames or emails correspond to existing users."""
+        request_serializer = UserValidationAPIViewSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
+        serialized_request_users = request_serializer.validated_data["users"]
+        try:
+            valid_users, invalid_users = api.validate_users(serialized_request_users)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error validating users: {e}")
+            return Response(
+                data={"message": "An error occurred while validating users"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        response_data = {
+            "valid_users": valid_users,
+            "invalid_users": invalid_users,
+            "summary": {
+                "total": len(serialized_request_users),
+                "valid_count": len(valid_users),
+                "invalid_count": len(invalid_users),
+            },
+        }
+        response_serializer = UserValidationAPIViewResponseSerializer(response_data)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

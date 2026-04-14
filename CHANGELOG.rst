@@ -14,12 +14,21 @@ Change Log
 Unreleased
 **********
 
+1.7.0 - 2026-04-14
+******************
+
+Added
+=====
+
+* Add ``users/validate`` endpoint for bulk validation of user identifiers (usernames or emails).
+
 1.6.0 - 2026-04-10
 ******************
 
 Added
 =====
 
+* Add ``users/validate`` endpoint for bulk validation of user identifiers (usernames or emails).
 * Add org-wide support to migration commands for forward and backward migration of course authoring permissions.
 
 1.5.0 - 2026-04-09

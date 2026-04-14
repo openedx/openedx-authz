@@ -45,7 +45,7 @@ from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
-    ListTeamMemberAssignmentsSerializer,
+    ListTeamMemberAssignmentsQuerySerializer,
     ListTeamMembersSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
@@ -837,7 +837,7 @@ class TeamMemberAssignmentsAPIView(APIView):
     )
     def get(self, request: HttpRequest, username: str) -> Response:
         """Retrieve all user role assignments."""
-        serializer = ListTeamMemberAssignmentsSerializer(data=request.query_params)
+        serializer = ListTeamMemberAssignmentsQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 

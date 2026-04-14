@@ -289,7 +289,7 @@ class UserValidationAPIViewResponseSerializer(serializers.Serializer):  # pylint
     summary = UserValidationSummarySerializer(help_text="Summary statistics for the validation operation")
 
 
-class ListTeamMemberAssignmentsSerializer(OrderMixin):  # pylint: disable=abstract-method
+class ListTeamMemberAssignmentsQuerySerializer(OrderMixin):  # pylint: disable=abstract-method
     """Serializer for listing team member assignments."""
 
     orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])

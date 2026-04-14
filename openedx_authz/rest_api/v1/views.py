@@ -560,9 +560,63 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
 @view_auth_classes()
 class TeamMembersAPIView(APIView):
     """
-    API view for listing users in relation to role assignments
-    This API is used in the Team Members section in Admin Console.
-    In this content, a team member is anyone with studio access.
+    API view for listing users in relation to role assignments.
+    This API is used in the Team Members section in the Admin Console.
+    In this context, a team member is anyone with studio access.
+
+    **Endpoints**
+
+    - GET: Retrieve all users that have at least one role assignment
+
+    **Query Parameters**
+
+    - scopes (Optional): Comma-separated list of scopes to filter by (e.g., 'lib:Org1:LIB1')
+    - orgs (Optional): Comma-separated list of orgs to filter by (e.g., 'Org1,Org2')
+    - search (Optional): Search term to filter users by username, full name, or email
+    - sort_by (Optional): Field to sort by. Options: username, full_name, email. Defaults to username
+    - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+
+    **Response Format**
+
+    Returns a paginated list of team member objects, each containing:
+
+    - username: The user's username
+    - full_name: The user's full name
+    - email: The user's email address
+    - assignation_count: The number of role assignments the user has
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - Results are filtered according to calling user's scope-level view permissions.
+
+    **Example Request**
+
+    GET /api/authz/v1/users/?orgs=Org1&search=john&sort_by=username&order=asc&page=1&page_size=10
+
+    **Example Response**::
+
+        {
+            "count": 2,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "username": "jane_doe",
+                    "full_name": "Jane Doe",
+                    "email": "jane_doe@example.com",
+                    "assignation_count": 3
+                },
+                {
+                    "username": "john_doe",
+                    "full_name": "John Doe",
+                    "email": "john_doe@example.com",
+                    "assignation_count": 1
+                }
+            ]
+        }
     """
 
     pagination_class = AuthZAPIViewPagination
@@ -691,7 +745,70 @@ class UserValidationAPIView(APIView):
 @view_auth_classes()
 class TeamMemberAssignmentsAPIView(APIView):
     """
-    API view for listing user role assignments
+    API view for listing role assignments for a specific user.
+    This API is used in the Team Member detail view in the Admin Console.
+
+    **Endpoints**
+
+    - GET: Retrieve all role assignments for a specific user
+
+    **URL Parameters**
+
+    - username (Required): The username of the user to retrieve assignments for
+
+    **Query Parameters**
+
+    - orgs (Optional): Comma-separated list of orgs to filter assignments by (e.g., 'Org1,Org2')
+    - roles (Optional): Comma-separated list of roles to filter assignments by (e.g., 'library_admin,library_user')
+    - sort_by (Optional): Field to sort by. Options: role, org, scope. Defaults to role
+    - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+
+    **Response Format**
+
+    Returns a paginated list of assignment objects, each containing:
+
+    - is_superadmin: Whether this entry denotes a superadmin (staff/superuser)
+    - role: The role name (e.g., 'library_admin', 'django.superuser')
+    - org: The org over which this role is applied ('*' for superadmins)
+    - scope: The scope over which this role is applied ('*' for superadmins)
+    - permission_count: The number of permissions that apply to this role (null for superadmins)
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - Results are filtered according to calling user's scope-level view permissions.
+    - Superadmin entries are always included when the target user is a staff/superuser.
+
+    **Example Request**
+
+    GET
+    /api/authz/v1/users/john_doe/assignments/?orgs=Org1&roles=library_admin&sort_by=role&order=asc&page=1&page_size=10
+
+    **Example Response**::
+
+        {
+            "count": 2,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "is_superadmin": true,
+                    "role": "django.superuser",
+                    "org": "*",
+                    "scope": "*",
+                    "permission_count": null
+                },
+                {
+                    "is_superadmin": false,
+                    "role": "library_admin",
+                    "org": "Org1",
+                    "scope": "lib:Org1:LIB1",
+                    "permission_count": 11
+                }
+            ]
+        }
     """
 
     pagination_class = AuthZAPIViewPagination
@@ -699,17 +816,23 @@ class TeamMemberAssignmentsAPIView(APIView):
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter("orgs", str, description="The orgs to query assignations for"),
-            apidocs.query_parameter("roles", str, description="The roles to query assignations for"),
-            apidocs.query_parameter("sort_by", str, description="The field to sort by"),
-            apidocs.query_parameter("order", str, description="The order to sort by"),
+            apidocs.query_parameter("orgs", str, description="Comma-separated list of orgs to filter assignments by"),
+            apidocs.query_parameter("roles", str, description="Comma-separated list of roles to filter assignments by"),
+            apidocs.query_parameter(
+                "sort_by",
+                str,
+                description="The field to sort by. Options: role, org, scope. Defaults to role",
+            ),
+            apidocs.query_parameter(
+                "order", str, description="The order to sort by. Options: asc, desc. Defaults to asc"
+            ),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
             apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
         responses={
             status.HTTP_200_OK: TeamMemberAssignmentSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
         },
     )
     def get(self, request: HttpRequest, username: str) -> Response:

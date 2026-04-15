@@ -237,6 +237,23 @@ class ExtendedCasbinRule(models.Model):
         return extended_rule
 
 
+class RoleAssignmentAuditQuerySet(models.QuerySet):
+    """QuerySet for RoleAssignmentAudit with scope-based filtering."""
+
+    def for_scope_namespace(self, namespace: str) -> "RoleAssignmentAuditQuerySet":
+        """Return records whose scope starts with the given namespace prefix.
+
+        Args:
+            namespace: The namespace to filter by (e.g. ``'lib'``, ``'course-v1'``).
+                Use the NAMESPACE class attribute from the corresponding ScopeData
+                subclass (e.g. ``ContentLibraryData.NAMESPACE``).
+
+        Returns:
+            Queryset filtered to records matching the scope type.
+        """
+        return self.filter(scope__startswith=f"{namespace}{AUTHZ_POLICY_ATTRIBUTES_SEPARATOR}")
+
+
 class RoleAssignmentAudit(models.Model):
     """Model to audit role assignments and unassignments.
 
@@ -246,6 +263,8 @@ class RoleAssignmentAudit(models.Model):
     within specific scopes. It can be used for auditing purposes to track changes in
     role assignments over time.
     """
+
+    objects = RoleAssignmentAuditQuerySet.as_manager()
 
     class Operations(NamedTuple):
         created: str = "created"

@@ -8,7 +8,6 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from openedx_authz.api.data import ContentLibraryData, CourseOverviewData
-from openedx_authz.constants import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR
 from openedx_authz.models import AuthzCourseAuthoringMigrationRun, ExtendedCasbinRule
 from openedx_authz.models.core import RoleAssignmentAudit
 
@@ -114,9 +113,7 @@ class ScopeTypeFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         """Filter the queryset by scope namespace prefix."""
         if self.value():
-            return queryset.filter(
-                scope__startswith=f"{self.value()}{AUTHZ_POLICY_ATTRIBUTES_SEPARATOR}"
-            )
+            return queryset.for_scope_namespace(self.value())
         return queryset
 
 

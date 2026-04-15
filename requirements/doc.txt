@@ -13,7 +13,9 @@ asgiref==3.11.1
     #   -r requirements/test.txt
     #   django
 attrs==26.1.0
-    # via -r requirements/test.txt
+    # via
+    #   -r requirements/test.txt
+    #   openedx-events
 babel==2.18.0
     # via
     #   pydata-sphinx-theme
@@ -75,6 +77,7 @@ django==5.2.13
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-organizations
+    #   openedx-events
 django-crum==0.7.9
     # via
     #   -r requirements/test.txt
@@ -124,23 +127,31 @@ drf-yasg==1.21.15
 edx-api-doc-tools==3.0.0
     # via -r requirements/test.txt
 edx-ccx-keys==2.0.2
-    # via -r requirements/test.txt
+    # via
+    #   -r requirements/test.txt
+    #   openedx-events
 edx-django-utils==8.0.1
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
+    #   openedx-events
 edx-drf-extensions==10.6.0
     # via
     #   -r requirements/test.txt
     #   edx-organizations
-edx-opaque-keys==4.0.0
+edx-opaque-keys[django]==4.0.0
     # via
     #   -r requirements/test.txt
     #   edx-ccx-keys
     #   edx-drf-extensions
     #   edx-organizations
+    #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/test.txt
+fastavro==1.12.1
+    # via
+    #   -r requirements/test.txt
+    #   openedx-events
 id==1.6.1
     # via twine
 idna==3.12

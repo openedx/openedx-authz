@@ -172,6 +172,9 @@ def trigger_course_authoring_migration(
         filter_kwargs["org"] = instance.org
         org_id = scope_key
         scope_type = ScopeType.ORG
+    else:
+        logger.error("Unsupported waffle flag instance: %s", instance)
+        return
 
     prev_record = sender.objects.filter(**filter_kwargs).exclude(id=instance.id).order_by("-change_date").first()
 

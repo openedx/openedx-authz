@@ -13,7 +13,6 @@ from django.db import models, transaction
 from openedx_authz.constants import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR
 from openedx_authz.engine.filter import Filter
 
-
 User = get_user_model()
 
 class BaseRegistryModel(models.Model):

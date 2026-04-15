@@ -12,7 +12,6 @@ from collections import defaultdict
 
 from crum import get_current_user
 from django.db import transaction
-
 from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
 

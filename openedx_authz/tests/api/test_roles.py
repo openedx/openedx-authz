@@ -13,7 +13,6 @@ from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
 
-
 from openedx_authz.api.data import (
     ActionData,
     ContentLibraryData,
@@ -52,7 +51,6 @@ from openedx_authz.constants.roles import (
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
-
 
 
 def _mock_get_or_create_scope(scope_data):

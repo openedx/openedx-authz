@@ -46,7 +46,10 @@ class Migration(migrations.Migration):
                 (
                     "scope",
                     models.CharField(
-                        help_text="Namespaced key of the scope (e.g. 'course-v1^course-v1:org+course+run') or glob pattern.",
+                        help_text=(
+                            "Namespaced key of the scope"
+                            " (e.g. 'course-v1^course-v1:org+course+run') or glob pattern."
+                        ),
                         max_length=255,
                     ),
                 ),
@@ -54,7 +57,10 @@ class Migration(migrations.Migration):
                     "actor",
                     models.CharField(
                         blank=True,
-                        help_text="Username of the user who performed the operation, or None for system-initiated actions.",
+                        help_text=(
+                            "Username of the user who performed the operation,"
+                            " or None for system-initiated actions."
+                        ),
                         max_length=150,
                         null=True,
                     ),

@@ -98,7 +98,8 @@ class ScopeTypeFilter(admin.SimpleListFilter):
     parameter_name = "scope_type"
 
     def lookups(self, request, model_admin):
-        """Return the available scope type choices.
+        """
+        Return the available scope type choices.
 
         Audit records are independent from live Casbin tables and scope objects:
         there are no FK references to filter on. The namespace prefix in the

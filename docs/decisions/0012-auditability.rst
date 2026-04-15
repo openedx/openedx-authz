@@ -14,8 +14,7 @@ The existing architecture (see `ADR 0005`_) introduced ``ExtendedCasbinRule``, w
 This is not an audit trail: there is no actor, no operation type, and no mechanism for
 downstream consumers to react to changes.
 
-As the framework is adopted across more Open edX services, operators and developers need
-answers the current system cannot provide:
+Operators and developers need answers the current system cannot provide:
 
 - Who assigned this role, and when?
 - Who removed a user's access, and was it intentional?
@@ -28,27 +27,14 @@ Auditability decomposes into three dimensions:
 2. **Explainability**: why was access granted or denied? (policy evaluation at check time)
 3. **Usage**: who used access? (resource access events, business operations)
 
-SpiceDB and OpenFGA version the entire authorization graph, enabling historical
-reconstruction. Keycloak uses event listeners on administrative actions. openedx-authz sits
-between these: a mutable policy store with no built-in audit layer.
+`SpiceDB`_ and `OpenFGA`_ track the full authorization graph as a versioned changelog,
+enabling historical reconstruction. Keycloak uses event listeners on administrative actions.
+openedx-authz sits between these: a mutable policy store with no built-in audit layer.
+(See `OEPM-Spike\: RBAC AuthZ Auditability`_ for the peer system analysis.)
 
-The pycasbin ecosystem has no audit plugin and no mechanism in the
-``casbin-django-orm-adapter`` for change tracking. ``WatcherEx`` provides rule-level hooks
-but carries no actor context and does not cover update operations.
-
-Two transitive dependencies already cover what is needed:
-
-- **django-crum** (``0.7.9``, via ``edx-django-utils``): ``get_current_user()`` from
-  thread-local. Returns ``None`` in non-request contexts, treated as a system actor.
-- **django-simple-history** (``3.11.0``, via ``edx-organizations``): model-level change
-  tracking with actor, timestamp, and before/after state. Not applied to any openedx-authz
-  model yet.
-
-The Auth0 FGA Logging API (October 2025) defines three acceptance criteria for this feature:
-
-- Who made a permission change? (attribution)
-- What did a user access or attempt? (explainability + usage)
-- Can logs be exported to external systems? (SIEM, Aspects)
+The pycasbin ecosystem has no audit plugin. Two transitive dependencies cover what is needed:
+``django-crum`` (via ``edx-django-utils``) for actor capture, and ``django-simple-history``
+(via ``edx-organizations``) for point-in-time state reconstruction.
 
 Decision
 ********
@@ -60,21 +46,19 @@ Three independent mechanisms, each answering a different question:
 - ``django-simple-history`` on ``ExtendedCasbinRule``: what was the full state at time T
   (future work)
 
-Attribution: Role Lifecycle Events and Audit Table
-==================================================
+See the `OEPM-Spike\: RBAC AuthZ Auditability`_ for the architecture diagram of the three
+flows.
+
+#. Attribution: Role Lifecycle Events and Audit Table
+=====================================================
 
 Emit an ``OpenedxPublicSignal`` from ``openedx_authz.api.roles`` after every successful role
-assignment or removal, via ``transaction.on_commit``. A Celery handler writes the event to
-``RoleAssignmentAudit``.
+assignment or removal, via ``transaction.on_commit``. A synchronous Django signal receiver
+writes the event to ``RoleAssignmentAudit`` in the same process.
 
 The handler is enabled by default. Operators with Aspects or a SIEM can disable it via a
 Django setting to avoid the redundant write. If the handler fails, the Casbin write and the
 event are unaffected.
-
-.. note::
-
-   Whether to write to the audit table in the same process (no Celery) or via a separate
-   task is an open question. Needs latency benchmarking before implementation.
 
 Event payload
 -------------
@@ -82,12 +66,11 @@ Event payload
 .. code:: python
 
     {
-        "operation": "ASSIGN" | "REMOVE",
-        "user":      "<namespaced subject key, e.g. user^alice>",
+        "operation": "created" | "deleted",
+        "subject":   "<namespaced subject key, e.g. user^alice>",
         "role":      "<namespaced role key, e.g. role^instructor>",
         "scope":     "<namespaced scope key, e.g. course-v1^course-v1:Org+Course+Run>",
-        "actor":     "<username of the caller, or None for system actor>",
-        "timestamp": "<ISO 8601 UTC datetime>",
+        "actor":     "<User object for the caller, or None for system actor>",
     }
 
 The actor is resolved from ``django_crum.get_current_user()`` at API call time. No callers
@@ -117,8 +100,8 @@ events (notifications, cache updates, analytics). Developers without an event bu
 the underlying Django signal directly. If an event bus is configured, events are forwarded to
 Aspects or external systems automatically.
 
-Explainability: Real-Time Decision Context
-==========================================
+#. Explainability: Real-Time Decision Context
+=============================================
 
 Expose ``enforce_ex()`` through the public Python API. It returns ``(result, explain_rule)``:
 the boolean decision and the matched policy rule. Callers get the exact rule that allowed or
@@ -134,6 +117,8 @@ options are available, both requiring a breaking change to ``is_user_allowed`` t
 
 - **Option A (event replay):** Replay ``ASSIGN``/``REMOVE`` events from ``RoleAssignmentAudit``
   up to T. No extra infrastructure; the data is already there once attribution is implemented.
+  The `Auth0 FGA Logging API`_ uses this same pattern: their logging API is an event store
+  that you replay to answer historical questions.
 - **Option B (snapshots):** Add ``HistoricalRecords()`` to ``ExtendedCasbinRule`` and use
   ``as_of(T)`` for the full rule state, including policy definitions. History collection must
   start before the target timestamp.
@@ -145,49 +130,47 @@ detect whether the model changed.
 Consequences
 ************
 
-Attribution
-===========
+#. **Operators get a filterable role assignment history in Django admin.** No external
+   tooling required.
 
-- Operators get a filterable role assignment history in Django admin. No external tooling
-  required.
-- Developers get a stable ``OpenedxPublicSignal`` extension point. First formally defined
-  event in openedx-authz.
-- Events are best-effort: if the audit write fails, the Casbin policy is still durable.
-  Consumers requiring guaranteed delivery must implement their own retry logic.
-- ``actor`` is nullable. Non-request contexts (management commands, background tasks) record
-  ``None``, logged as a system operation.
-- No new dependencies introduced.
-- Callers of ``openedx_authz.api.roles`` need no signature changes.
+#. **Developers get a stable** ``OpenedxPublicSignal`` **extension point.** First formally
+   defined event in openedx-authz. Callers of ``openedx_authz.api.roles`` need no signature
+   changes.
 
-Explainability
-==============
+#. **Events are best-effort.** If the audit write fails, the Casbin policy is still durable.
+   Consumers requiring guaranteed delivery must implement their own retry logic.
 
-- Developers can retrieve the matched policy rule at check time for "why was this denied?"
-  debugging.
-- The explanation is point-in-time only. Historical explainability is deferred.
-- Enforcement events are opt-in by design. Enabling them without an external consumer
-  produces events that are emitted and discarded.
-- No new dependencies introduced.
+#. **``actor`` is nullable.** Non-request contexts (management commands, background tasks)
+   record ``None``, logged as a system operation. ``actor`` is stored as a FK to ``User``
+   with ``SET_NULL``: deleting a user loses attribution for their audit records. This is
+   accepted because user deletion is rare in Open edX (retirement anonymizes rather than
+   hard-deletes), and the FK enables admin filtering by actor. If unconditional attribution
+   durability is needed, ``actor`` should be a plain string field instead.
 
-Both flows
-==========
+#. **Audit records are independent from live authorization state.** Deleting a subject,
+   scope, or role does not remove its audit history. Records may reference identifiers that
+   no longer exist.
 
-- ``RoleAssignmentAudit`` introduces a new migration. No existing table is modified.
-- The ``OpenedxPublicSignal`` schema is a public API surface. Field additions are
-  backward-compatible; removals and renames are breaking changes.
-- Usage auditing belongs at the application layer (Open edX tracking events, Aspects), not
-  in the authorization library.
-- ``RoleAssignmentAudit`` is not tamper-proof. Compliance-grade immutability is a
-  later-phase concern.
-- Audit records are independent from live authorization state. Deleting a subject, scope, or
-  role does not remove its audit history. Records may reference identifiers that no longer
-  exist in the system.
-- ``actor`` is the exception: it is stored as a FK to the ``User`` model with ``SET_NULL``.
-  Deleting a user sets ``actor`` to ``None``, losing attribution for any audit records they
-  produced. This is an accepted trade-off: user deletion is rare in Open edX (the standard
-  path is retirement, which anonymizes rather than hard-deletes), and the FK enables direct
-  admin filtering by actor. If unconditional attribution durability is needed, ``actor``
-  should be changed to a plain string field.
+#. **``RoleAssignmentAudit`` introduces a new migration.** No existing table is modified.
+
+#. **The** ``OpenedxPublicSignal`` **schema is a public API surface.** Field additions are
+   backward-compatible; removals and renames are breaking changes.
+
+#. **``RoleAssignmentAudit`` is not tamper-proof.** Compliance-grade immutability is a
+   later-phase concern.
+
+#. **No new dependencies introduced.** ``django-crum`` and ``django-simple-history`` are
+   already transitive dependencies.
+
+#. **Usage auditing belongs at the application layer** (Open edX tracking events, Aspects),
+   not in the authorization library.
+
+#. **Developers can retrieve the matched policy rule at check time** for "why was this
+   denied?" debugging. The explanation is point-in-time only; historical explainability is
+   deferred.
+
+#. **Enforcement events are opt-in by design.** Enabling them without an external consumer
+   produces events that are emitted and discarded.
 
 Alternatives Considered
 ***********************
@@ -197,44 +180,14 @@ Alternatives Considered
 
 Rejected for three reasons:
 
-- ``save_policy`` does bulk delete + bulk create and bypasses model signals. Any policy
-  reload creates a new snapshot. The ``history_date`` reflects when the table was written,
-  not when a role was assigned. Snapshot diffs cannot tell apart "Alice was assigned
-  instructor" from "policy reloaded, Alice already had the role."
-- Model signals are not fired for bulk operations, so writes through ``save_policy`` are not
-  captured at all.
+- ``save_policy`` (`casbin-django-orm-adapter adapter.py`_) uses ``QuerySet.delete()`` and
+  ``bulk_create``, both of which bypass model signals. History snapshots reflect when the
+  table was written, not when a role was assigned.
 - ``ExtendedCasbinRule`` fields (``ptype``, ``v0``--``v5``) are semi-opaque and require an
   interpretation layer. ``RoleAssignmentAudit`` translates at write time.
 
 ``django-simple-history`` remains the right tool for Option B (point-in-time state
 reconstruction), where it is a snapshot mechanism, not an operation log.
-
-Use Cases Addressed
-*******************
-
-+------------------------------------------------------------+---------------+
-| Description                                                | Flow          |
-+============================================================+===============+
-| Operator: who assigned a role to a user, and when?        | Attribution   |
-+------------------------------------------------------------+---------------+
-| Operator: who removed a role from a user, and when?       | Attribution   |
-+------------------------------------------------------------+---------------+
-| Operator: full role history for a given user              | Attribution   |
-+------------------------------------------------------------+---------------+
-| Operator: access control history for a given resource     | Attribution   |
-+------------------------------------------------------------+---------------+
-| Developer: hook into role lifecycle events from a plugin  | Attribution   |
-+------------------------------------------------------------+---------------+
-| Operator/Developer: query role assignment history via API | Attribution   |
-+------------------------------------------------------------+---------------+
-| Developer: understand why a permission check was denied   | Explainability|
-+------------------------------------------------------------+---------------+
-| Operator/Developer: inspect a user's current permissions  | Explainability|
-+------------------------------------------------------------+---------------+
-
-Deferred: resource access history / usage auditing; export to SIEM / Aspects (available as
-a side effect of the event signal once an event bus is configured, not a first-class
-deliverable of this ADR).
 
 References
 **********
@@ -246,12 +199,16 @@ References
 - `openedx-events documentation`_
 - `django-simple-history documentation`_
 - `django-crum documentation`_
-- OEPM-Spike: RBAC AuthZ Auditability
+- `OEPM-Spike: RBAC AuthZ Auditability`_
 
 .. _ADR 0002: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0002-authorization-model-foundation.rst
 .. _ADR 0004: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0004-technology-selection.rst
 .. _ADR 0005: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0005-architecture-and-data-modeling.rst
 .. _Auth0 FGA Logging API: https://auth0.com/blog/auth0-fga-logging-api-a-complete-audit-trail-for-authorization/
+.. _SpiceDB: https://github.com/authzed/spicedb
+.. _OpenFGA: https://openfga.dev/
 .. _openedx-events documentation: https://docs.openedx.org/projects/openedx-events/en/latest/
 .. _django-simple-history documentation: https://django-simple-history.readthedocs.io/
 .. _django-crum documentation: https://pypi.org/project/django-crum/
+.. _casbin-django-orm-adapter adapter.py: https://github.com/officialpycasbin/django-orm-adapter/blob/main/casbin_adapter/adapter.py
+.. _OEPM-Spike\: RBAC AuthZ Auditability: https://openedx.atlassian.net/wiki/spaces/OEPM/pages/6045859842/Spike+-+RBAC+AuthZ+-+Auditability

@@ -205,3 +205,22 @@ class CourseAccessRole(models.Model):
     # blank course_id implies org wide role
     course_id = CourseKeyField(max_length=255, db_index=True, blank=True)
     role = models.CharField(max_length=64, db_index=True)
+
+
+# Waffle flag models
+class WaffleFlagCourseOverrideModel(models.Model):
+    """Stub model representing a waffle flag course override for testing purposes."""
+
+    course_id = CourseKeyField(max_length=255, db_index=True)
+    waffle_flag = models.CharField(max_length=255, db_index=True, default="")
+    enabled = models.BooleanField(default=False)
+    change_date = models.DateTimeField(auto_now_add=True)
+
+
+class WaffleFlagOrgOverrideModel(models.Model):
+    """Stub model representing a waffle flag org override for testing purposes."""
+
+    org = models.CharField(max_length=64, db_index=True)
+    waffle_flag = models.CharField(max_length=255, db_index=True, default="")
+    enabled = models.BooleanField(default=False)
+    change_date = models.DateTimeField(auto_now_add=True)

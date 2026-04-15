@@ -3,6 +3,7 @@
 This test suite verifies the functionality of the authorization models including:
 - ExtendedCasbinRule model with metadata and relationships
 - Cascade deletion behavior across model hierarchies
+- AuthzCourseAuthoringMigrationRun (migration tracking and uniqueness on RUNNING inserts)
 
 These tests use the stub ContentLibrary model from openedx_authz.tests.stubs.models
 instead of the real ContentLibrary model, allowing them to run without the full
@@ -18,12 +19,19 @@ from uuid import UUID, uuid4
 
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.test import TestCase
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, UserData
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models.authz_migration import (
+    AuthzCourseAuthoringMigrationRun,
+    MigrationType,
+    ScopeType,
+    Status,
+)
 from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.stubs.models import ContentLibrary, CourseOverview
 
@@ -311,3 +319,114 @@ class TestPolicyCacheControlModel(TestCase):
         instance1.save()
         all_instances = PolicyCacheControl.objects.all()
         self.assertEqual(all_instances.count(), 1)
+
+
+class TestAuthzCourseAuthoringMigrationRun(TestCase):
+    """Tests for ``AuthzCourseAuthoringMigrationRun`` lifecycle and uniqueness rules."""
+
+    def setUp(self):
+        self.scope_key = "course-v1:TestOrg+AuthzMigrationRun+2024"
+
+    def test_create_running(self):
+        """``create_running`` stores RUNNING and optional metadata."""
+        meta = {"batch": 1}
+
+        run = AuthzCourseAuthoringMigrationRun.create_running(
+            MigrationType.FORWARD, ScopeType.COURSE, self.scope_key, metadata=meta
+        )
+
+        run.refresh_from_db()
+        self.assertEqual(run.migration_type, MigrationType.FORWARD)
+        self.assertEqual(run.scope_type, ScopeType.COURSE)
+        self.assertEqual(run.scope_key, self.scope_key)
+        self.assertEqual(run.status, Status.RUNNING)
+        self.assertEqual(run.metadata, meta)
+
+    def test_create_skipped_merges_skip_reason(self):
+        """``create_skipped`` records SKIPPED and documents why."""
+        run = AuthzCourseAuthoringMigrationRun.create_skipped(
+            MigrationType.ROLLBACK, ScopeType.ORG, "test_org", metadata={"note": "extra"}
+        )
+
+        self.assertEqual(run.status, Status.SKIPPED)
+        self.assertEqual(run.metadata["note"], "extra")
+        self.assertIn("skip_reason", run.metadata)
+
+    def test_str_representation(self):
+        """``__str__`` includes id, migration type, scope, and status."""
+        run = AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, self.scope_key)
+
+        text = str(run)
+        self.assertIn(str(run.id), text)
+        self.assertIn(MigrationType.FORWARD.value, text)
+        self.assertIn(self.scope_key, text)
+        self.assertIn(Status.RUNNING.value, text)
+
+    def test_second_running_insert_same_scope_raises_integrity_error(self):
+        """At most one RUNNING row per (scope_type, scope_key) on insert."""
+        AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, self.scope_key)
+
+        with self.assertRaises(IntegrityError):
+            AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, self.scope_key)
+
+    def test_running_allowed_after_previous_run_finished(self):
+        """A new RUNNING row is allowed once the prior run for that scope is no longer RUNNING."""
+        first = AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, self.scope_key)
+        first.mark_completed()
+
+        second = AuthzCourseAuthoringMigrationRun.create_running(
+            MigrationType.FORWARD, ScopeType.COURSE, self.scope_key
+        )
+
+        self.assertEqual(second.status, Status.RUNNING)
+        self.assertNotEqual(first.pk, second.pk)
+
+    def test_distinct_scope_type_allows_parallel_running_same_key_string(self):
+        """RUNNING uniqueness is per (scope_type, scope_key), not key alone."""
+        key = "same-key-string"
+
+        AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, key)
+        other = AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.ORG, key)
+
+        self.assertEqual(other.status, Status.RUNNING)
+
+    def test_mark_completed_and_partial_success_merge_metadata(self):
+        """Finalizers set status, ``completed_at``, and merge metadata."""
+        run = AuthzCourseAuthoringMigrationRun.create_running(
+            MigrationType.FORWARD, ScopeType.COURSE, self.scope_key, metadata={"a": 1}
+        )
+        run.mark_completed(metadata_updates={"success_count": 3})
+
+        run.refresh_from_db()
+        self.assertEqual(run.status, Status.COMPLETED)
+        self.assertIsNotNone(run.completed_at)
+        self.assertEqual(run.metadata["a"], 1)
+        self.assertEqual(run.metadata["success_count"], 3)
+
+        run2 = AuthzCourseAuthoringMigrationRun.create_running(MigrationType.ROLLBACK, ScopeType.ORG, "org_partial")
+        run2.mark_partial_success(metadata_updates={"error_count": 2})
+
+        run2.refresh_from_db()
+        self.assertEqual(run2.status, Status.PARTIAL_SUCCESS)
+        self.assertEqual(run2.metadata["error_count"], 2)
+
+    def test_mark_failed_with_and_without_exception(self):
+        """``mark_failed`` records FAILED, optional exception string is stored when provided."""
+        run = AuthzCourseAuthoringMigrationRun.create_running(
+            MigrationType.FORWARD, ScopeType.COURSE, f"{self.scope_key}_fail"
+        )
+        run.mark_failed(exception=ValueError("boom"))
+
+        run.refresh_from_db()
+        self.assertEqual(run.status, Status.FAILED)
+        self.assertEqual(run.metadata["error"], "boom")
+
+        run2 = AuthzCourseAuthoringMigrationRun.create_running(
+            MigrationType.FORWARD, ScopeType.COURSE, f"{self.scope_key}_fail2"
+        )
+        prior_meta = dict(run2.metadata)
+        run2.mark_failed()
+
+        run2.refresh_from_db()
+        self.assertEqual(run2.status, Status.FAILED)
+        self.assertEqual(run2.metadata, prior_meta)

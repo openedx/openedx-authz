@@ -70,11 +70,12 @@ Event payload
         "subject":   "<namespaced subject key, e.g. user^alice>",
         "role":      "<namespaced role key, e.g. role^instructor>",
         "scope":     "<namespaced scope key, e.g. course-v1^course-v1:Org+Course+Run>",
-        "actor":     "<User object for the caller, or None for system actor>",
+        "actor":     "<username of the caller, or None for system actor>",
     }
 
 The actor is resolved from ``django_crum.get_current_user()`` at API call time. No callers
-need to pass ``actor=`` explicitly.
+need to pass ``actor=`` explicitly. The username is stored as a plain string rather than a
+reference to the ``User`` record, so attribution is preserved even if the user is deleted.
 
 Audit table
 -----------
@@ -141,11 +142,11 @@ Consequences
    Consumers requiring guaranteed delivery must implement their own retry logic.
 
 #. **``actor`` is nullable.** Non-request contexts (management commands, background tasks)
-   record ``None``, logged as a system operation. ``actor`` is stored as a FK to ``User``
-   with ``SET_NULL``: deleting a user loses attribution for their audit records. This is
-   accepted because user deletion is rare in Open edX (retirement anonymizes rather than
-   hard-deletes), and the FK enables admin filtering by actor. If unconditional attribution
-   durability is needed, ``actor`` should be a plain string field instead.
+   record ``None``, logged as a system operation. ``actor`` is stored as a plain username
+   string rather than a FK to ``User``. Attribution is preserved unconditionally: deleting
+   or retiring a user does not affect existing audit records. This also avoids a dependency
+   on the ``User`` table from the audit log, keeping audit records fully independent from
+   live data.
 
 #. **Audit records are independent from live authorization state.** Deleting a subject,
    scope, or role does not remove its audit history. Records may reference identifiers that

@@ -288,12 +288,11 @@ class RoleAssignmentAudit(models.Model):
         max_length=255,
         help_text="Namespaced key of the scope (e.g. 'course-v1^course-v1:org+course+run') or glob pattern.",
     )
-    actor = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
+    actor = models.CharField(
+        max_length=150,
         null=True,
         blank=True,
-        related_name="performed_role_assignment_audits",
+        help_text="Username of the user who performed the operation, or None for system-initiated actions.",
     )
     timestamp = models.DateTimeField()
 

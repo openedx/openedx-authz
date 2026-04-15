@@ -243,7 +243,7 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
                 subject=subject.namespaced_key,
                 role=role.namespaced_key,
                 scope=scope.namespaced_key,
-                actor=get_current_user()
+                actor=getattr(get_current_user(), "username", None)
             )
         )
     )
@@ -294,7 +294,7 @@ def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, sc
                     subject=subject.namespaced_key,
                     role=role.namespaced_key,
                     scope=scope.namespaced_key,
-                    actor=get_current_user()
+                    actor=getattr(get_current_user(), "username", None)
                 )
             )
         )

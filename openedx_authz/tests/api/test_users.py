@@ -14,6 +14,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
+    get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
     unassign_all_roles_from_user,
     unassign_role_from_user,
@@ -570,3 +571,48 @@ class TestValidateUsersAPI(UserAssignmentsSetupMixin):
 
         self.assertEqual(valid_users, [])
         self.assertEqual(invalid_users, ["nonexistent_user"])
+
+
+class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAssignmentsSetupMixin):
+    """Test that get_visible_user_role_assignments_filtered_by_current_user excludes inactive users."""
+
+    def test_active_user_assignments_are_returned(self):
+        """Test that assignments for an active user are returned."""
+        User = get_user_model()
+        User.objects.create_user(username="alice", email="alice@example.com", is_active=True)
+
+        assignments = get_visible_user_role_assignments_filtered_by_current_user(
+            user_external_key="alice",
+        )
+
+        usernames = {a.subject.username for a in assignments}
+        self.assertIn("alice", usernames)
+
+    def test_inactive_user_assignments_are_excluded(self):
+        """Test that assignments for an inactive user are filtered out."""
+        User = get_user_model()
+        User.objects.create_user(username="alice", email="alice@example.com", is_active=False)
+
+        assignments = get_visible_user_role_assignments_filtered_by_current_user(
+            user_external_key="alice",
+        )
+
+        self.assertEqual(assignments, [])
+
+    def test_mixed_active_inactive_subjects_in_assignments(self):
+        """Test that only active users' assignments are returned when multiple subjects exist."""
+        User = get_user_model()
+        # eve has roles in lib:Org2:physics_401, lib:Org2:chemistry_501, lib:Org2:biology_601
+        # grace has a role in lib:Org1:math_advanced
+        User.objects.create_user(username="eve", email="eve@example.com", is_active=True)
+        User.objects.create_user(username="grace", email="grace@example.com", is_active=False)
+
+        eve_assignments = get_visible_user_role_assignments_filtered_by_current_user(
+            user_external_key="eve",
+        )
+        grace_assignments = get_visible_user_role_assignments_filtered_by_current_user(
+            user_external_key="grace",
+        )
+
+        self.assertGreater(len(eve_assignments), 0)
+        self.assertEqual(grace_assignments, [])

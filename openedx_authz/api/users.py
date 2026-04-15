@@ -204,6 +204,17 @@ def get_visible_user_role_assignments_filtered_by_current_user(
         user_external_key=allowed_for_user_external_key,
         assignments=user_role_assignments,
     )
+
+    # Only include assignments whose subject corresponds to an active user,
+    # consistent with get_superadmin_assignments which filters by is_active=True.
+    active_usernames = set(
+        User.objects.filter(
+            username__in=[a.subject.username for a in user_role_assignments],
+            is_active=True,
+        ).values_list("username", flat=True)
+    )
+    user_role_assignments = [a for a in user_role_assignments if a.subject.username in active_usernames]
+
     if orgs:
         # Filter by orgs
         user_role_assignments = [a for a in user_role_assignments if getattr(a.scope, "org", None) in orgs]

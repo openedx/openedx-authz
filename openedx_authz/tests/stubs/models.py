@@ -209,7 +209,10 @@ class CourseAccessRole(models.Model):
 
 # Waffle flag models
 class WaffleFlagCourseOverrideModel(models.Model):
-    """Stub model representing a waffle flag course override for testing purposes."""
+    """Stub model representing a waffle flag course override for testing purposes.
+
+    .. no_pii:
+    """
 
     course_id = CourseKeyField(max_length=255, db_index=True)
     waffle_flag = models.CharField(max_length=255, db_index=True, default="")
@@ -218,7 +221,10 @@ class WaffleFlagCourseOverrideModel(models.Model):
 
 
 class WaffleFlagOrgOverrideModel(models.Model):
-    """Stub model representing a waffle flag org override for testing purposes."""
+    """Stub model representing a waffle flag org override for testing purposes.
+
+    .. no_pii:
+    """
 
     org = models.CharField(max_length=64, db_index=True)
     waffle_flag = models.CharField(max_length=255, db_index=True, default="")

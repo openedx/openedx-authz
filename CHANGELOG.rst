@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.8.0 - 2026-04-14
+******************
+
+Added
+=====
+
+* Add the ``/api/authz/v1/users/<username>/assignments/`` endpoint to get a list of role assignations for a user.
+
 1.7.0 - 2026-04-14
 ******************
 

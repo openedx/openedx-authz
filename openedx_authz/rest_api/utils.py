@@ -4,7 +4,7 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
 )
-from openedx_authz.rest_api.data import SearchField, SortField, SortOrder
+from openedx_authz.rest_api.data import AssignmentSortField, SearchField, SortField, SortOrder
 
 
 def get_generic_scope(scope: ScopeData) -> ScopeData:
@@ -93,3 +93,37 @@ def filter_users(users: list[dict], search: str | None, roles: list[str] | None)
         filtered_users.append(user)
 
     return filtered_users
+
+
+def sort_assignments(
+    assignments: list[dict],
+    sort_by: AssignmentSortField = AssignmentSortField.ROLE,
+    order: SortOrder = SortOrder.ASC,
+) -> list[dict]:
+    """
+    Sort role assignments by a given field and order.
+
+    Args:
+        assignments (list[dict]): The assignments to sort.
+        sort_by (AssignmentSortField, optional): The field to sort by. Defaults to AssignmentSortField.ROLE.
+        order (SortOrder, optional): The order to sort by. Defaults to SortOrder.ASC.
+
+    Raises:
+        ValueError: If the sort field is invalid.
+        ValueError: If the sort order is invalid.
+
+    Returns:
+        list[dict]: The sorted assignments.
+    """
+    if sort_by not in AssignmentSortField.values():
+        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {AssignmentSortField.values()}")
+
+    if order not in SortOrder.values():
+        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
+
+    sorted_assignments = sorted(
+        assignments,
+        key=lambda assignment: (assignment.get(sort_by) or "").lower(),
+        reverse=order == SortOrder.DESC,
+    )
+    return sorted_assignments

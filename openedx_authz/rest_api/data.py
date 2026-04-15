@@ -20,6 +20,14 @@ class SortField(BaseEnum):
     EMAIL = "email"
 
 
+class AssignmentSortField(BaseEnum):
+    """Enum for the role assignment fields to sort by."""
+
+    ROLE = "role"
+    ORG = "org"
+    SCOPE = "scope"
+
+
 class SortOrder(BaseEnum):
     """Enum for the order to sort by."""
 

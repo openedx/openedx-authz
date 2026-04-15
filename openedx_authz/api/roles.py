@@ -571,6 +571,5 @@ def get_all_role_assignments_per_scope_type(scope_types: tuple[type[ScopeData], 
         list[RoleAssignmentData]: All assignments whose scope is an instance of any of the given scope types.
     """
     return [
-        role_assignment for role_assignment in get_role_assignments()
-        if isinstance(role_assignment.scope, scope_types)
+        role_assignment for role_assignment in get_role_assignments() if isinstance(role_assignment.scope, scope_types)
     ]

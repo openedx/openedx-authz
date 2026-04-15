@@ -26,7 +26,7 @@ from openedx_authz.constants.roles import (
     LIBRARY_AUTHOR,
     LIBRARY_USER,
 )
-from openedx_authz.models.migrations import AuthzCourseAuthoringMigrationRun, MigrationType, ScopeType
+from openedx_authz.models.authz_migration import AuthzCourseAuthoringMigrationRun, MigrationType, ScopeType
 
 logger = logging.getLogger(__name__)
 

@@ -161,10 +161,11 @@ Migration Outcome Semantics
 The ``status`` field reflects the precise outcome of each run. The possible values are:
 
 - ``running``: the migration is actively executing.
-- ``completed``: all records were migrated successfully.
+- ``completed``: all records were migrated successfully. The ``metadata`` field contains the
+  details about the successful migrations.
 - ``partial_success``: the migration process ran to completion, but one or more individual
   records failed and were skipped. The ``metadata`` field contains details about the
-  failures.
+  failures and successfully migrated records.
 - ``failed``: a critical error prevented the migration from completing (e.g., an unhandled
   exception or infrastructure problem). The ``metadata`` field contains the exception details.
 - ``skipped``: the migration was not attempted because another run for the same scope was

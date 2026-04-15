@@ -440,6 +440,7 @@ def migrate_authz_to_legacy_course_roles(
                 course_access_role_kwargs["course_id"] = scope_external_key
             elif isinstance(role_assignment.scope, OrgCourseOverviewGlobData):
                 course_access_role_kwargs["org"] = role_assignment.scope.org
+                course_access_role_kwargs["course_id"] = CourseKeyField.Empty
             else:
                 # This would only happen for course roles assigned instance-wide
                 # which is not yet supported

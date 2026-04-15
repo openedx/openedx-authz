@@ -639,7 +639,7 @@ class TeamMembersAPIView(APIView):
             apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
         responses={
-            status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
+            status.HTTP_200_OK: TeamMemberSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
             status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",

@@ -496,7 +496,7 @@ class RoleListView(APIView):
     responses={
         status.HTTP_200_OK: OrganizationSerializer(many=True),
         status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
-        status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
+        status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
     },
 )
 class AdminConsoleOrgsAPIView(generics.ListAPIView):
@@ -642,7 +642,7 @@ class TeamMembersAPIView(APIView):
             status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
-            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
         },
     )
     @authz_permissions(
@@ -847,7 +847,7 @@ class TeamMemberAssignmentsAPIView(APIView):
             status.HTTP_200_OK: TeamMemberAssignmentSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
-            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
         },
     )
     @authz_permissions(
@@ -983,7 +983,7 @@ class AssignmentsAPIView(APIView):
             status.HTTP_200_OK: TeamMemberUserAssignmentSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
-            status.HTTP_403_FORBIDDEN: "The user does not have the required permisisons",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
         },
     )
     @authz_permissions(

@@ -51,6 +51,6 @@ class UserAssignmentsOrderingFilter(BaseFilterBackend):
     """Sort user assignments by a given field and order."""
 
     def filter_queryset(self, request, queryset, view):
-        sort_by = request.query_params.get("sort_by", UserAssignmentSortField.ROLE)
+        sort_by = request.query_params.get("sort_by", UserAssignmentSortField.FULL_NAME)
         order = request.query_params.get("order", SortOrder.ASC)
         return sort_user_assignments(assignments=queryset, sort_by=sort_by, order=order)

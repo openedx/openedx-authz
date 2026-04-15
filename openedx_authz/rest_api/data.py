@@ -34,7 +34,7 @@ class UserAssignmentSortField(BaseEnum):
     ROLE = "role"
     ORG = "org"
     SCOPE = "scope"
-    NAME = "full_name"
+    FULL_NAME = "full_name"
     USERNAME = "username"
     EMAIL = "email"
 

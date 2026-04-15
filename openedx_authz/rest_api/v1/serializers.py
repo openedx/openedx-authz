@@ -377,5 +377,5 @@ class ListAssignmentsQuerySerializer(ListTeamMemberAssignmentsQuerySerializer): 
     sort_by = serializers.ChoiceField(
         required=False,
         choices=[(e.value, e.name) for e in UserAssignmentSortField],
-        default=UserAssignmentSortField.NAME,
+        default=UserAssignmentSortField.FULL_NAME,
     )

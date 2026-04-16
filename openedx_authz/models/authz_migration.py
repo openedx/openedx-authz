@@ -87,11 +87,6 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
         verbose_name = "Course Authoring Migration Run"
         verbose_name_plural = "Course Authoring Migration Runs"
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["scope_type", "scope_key"]),
-            models.Index(fields=["status"]),
-            models.Index(fields=["-created_at"]),
-        ]
 
     def save(self, *args, **kwargs) -> "AuthzCourseAuthoringMigrationRun":
         """Enforce at most one RUNNING record per (scope_type, scope_key).

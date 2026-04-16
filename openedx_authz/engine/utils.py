@@ -503,7 +503,7 @@ def run_course_authoring_migration(
     course_id_list=None,
     org_id=None,
     delete_after_migration=True,
-) -> None:
+) -> AuthzCourseAuthoringMigrationRun:
     """
     Orchestrate a course authoring role migration with concurrency protection and lifecycle tracking.
 
@@ -538,8 +538,7 @@ def run_course_authoring_migration(
         logger.warning(
             "Skipping %s migration for %s:%s — an active run already exists.", migration_type, scope_type, scope_key
         )
-        AuthzCourseAuthoringMigrationRun.create_skipped(migration_type, scope_type, scope_key)
-        return
+        return AuthzCourseAuthoringMigrationRun.create_skipped(migration_type, scope_type, scope_key)
 
     logger.info("Started %s migration run [%s] for %s:%s", migration_type, run.id, scope_type, scope_key)
 
@@ -559,8 +558,7 @@ def run_course_authoring_migration(
         logger.exception(
             "Unexpected error in migration run [%s] for %s:%s", run.id, scope_type, scope_key, exc_info=exc
         )
-        run.mark_failed(exception=exc)
-        return
+        return run.mark_failed(exception=exc)
 
     errors_by_reason: dict = defaultdict(list)
     for entry in errors:
@@ -586,6 +584,7 @@ def run_course_authoring_migration(
             len(successes),
             len(errors),
         )
+        return run
     else:
         run.mark_completed(metadata_updates=metadata_updates)
         logger.info(
@@ -596,3 +595,4 @@ def run_course_authoring_migration(
             scope_key,
             len(successes),
         )
+        return run

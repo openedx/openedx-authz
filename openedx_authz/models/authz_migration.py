@@ -93,7 +93,7 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
             models.Index(fields=["-created_at"]),
         ]
 
-    def save(self, *args, **kwargs) -> None:
+    def save(self, *args, **kwargs) -> "AuthzCourseAuthoringMigrationRun":
         """Enforce at most one RUNNING record per (scope_type, scope_key).
 
         MySQL does not support partial unique indexes, so this check is done at
@@ -112,6 +112,7 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
                         f"Duplicate RUNNING migration run for scope {self.scope_type}:{self.scope_key}"
                     )
         super().save(*args, **kwargs)
+        return self
 
     # pylint: disable=too-many-positional-arguments
     @classmethod
@@ -149,25 +150,25 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
         extra = {**(metadata or {}), "skip_reason": "A concurrent migration run is already active for this scope."}
         return cls._create(migration_type, scope_type, scope_key, Status.SKIPPED, extra)
 
-    def _finalize(self, status: str, metadata_updates: dict | None = None) -> None:
+    def _finalize(self, status: str, metadata_updates: dict | None = None) -> "AuthzCourseAuthoringMigrationRun":
         """Finalize the migration run."""
         self.status = status
         self.completed_at = timezone.now()
         if metadata_updates:
             self.metadata = {**(self.metadata or {}), **metadata_updates}
-        self.save(update_fields=["status", "completed_at", "updated_at", "metadata"])
+        return self.save(update_fields=["status", "completed_at", "updated_at", "metadata"])
 
-    def mark_partial_success(self, *, metadata_updates=None) -> None:
+    def mark_partial_success(self, *, metadata_updates=None) -> "AuthzCourseAuthoringMigrationRun":
         """Mark the migration run as partially successful."""
-        self._finalize(Status.PARTIAL_SUCCESS, metadata_updates)
+        return self._finalize(Status.PARTIAL_SUCCESS, metadata_updates)
 
-    def mark_completed(self, *, metadata_updates=None) -> None:
+    def mark_completed(self, *, metadata_updates=None) -> "AuthzCourseAuthoringMigrationRun":
         """Mark the migration run as completed."""
-        self._finalize(Status.COMPLETED, metadata_updates)
+        return self._finalize(Status.COMPLETED, metadata_updates)
 
-    def mark_failed(self, *, exception=None) -> None:
+    def mark_failed(self, *, exception=None) -> "AuthzCourseAuthoringMigrationRun":
         """Mark the migration run as failed."""
-        self._finalize(Status.FAILED, {"error": str(exception)} if exception is not None else None)
+        return self._finalize(Status.FAILED, {"error": str(exception)} if exception is not None else None)
 
     def __str__(self) -> str:
         """Return a string representation of the migration run."""

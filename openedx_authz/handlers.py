@@ -155,11 +155,11 @@ def trigger_course_authoring_migration(
         instance: The waffle flag instance that triggered the migration.
         scope_key (str): Course ID or organization name.
     """
-    if not settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION:
-        logger.info("ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION is set to False, skipping migration")
+    if instance.waffle_flag != AUTHZ_COURSE_AUTHORING_FLAG.name:
         return
 
-    if instance.waffle_flag != AUTHZ_COURSE_AUTHORING_FLAG.name:
+    if not settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION:
+        logger.info("ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION is set to False, skipping migration")
         return
 
     course_id_list, org_id, scope_type = None, None, None

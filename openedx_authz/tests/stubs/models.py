@@ -13,6 +13,26 @@ from opaque_keys.edx.locator import LibraryLocatorV2
 from organizations.models import Organization
 
 
+class UserProfile(models.Model):
+    """Stub model mimicking the Open edX UserProfile for testing purposes.
+
+    Provides the ``profile`` reverse relation that ``select_related('profile')``
+    expects on the User model, along with the ``name`` field used by serializers.
+
+    .. no_pii:
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    name = models.CharField(max_length=255, blank=True, default="")
+
+    def __str__(self):
+        return f"UserProfile({self.user.username})"
+
+
 class ContentLibraryManager(models.Manager):
     """Manager for ContentLibrary model with helper methods."""
 

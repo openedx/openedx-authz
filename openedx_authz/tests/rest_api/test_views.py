@@ -26,17 +26,6 @@ from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 User = get_user_model()
 
 
-def get_user_map_without_profile(usernames: list[str]) -> dict[str, User]:
-    """
-    Test version of ``get_user_map`` that doesn't use select_related('profile').
-
-    The generic Django User model doesn't have a profile relation,
-    so we override this in tests to avoid FieldError.
-    """
-    users = User.objects.filter(username__in=usernames)
-    return {user.username: user for user in users}
-
-
 class ViewTestMixin(BaseRolesTestCase):
     """Mixin providing common test utilities for view tests."""
 
@@ -322,11 +311,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         super().setUp()
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-user-list")
-        self.get_user_map_patcher = patch(
-            "openedx_authz.rest_api.v1.views.get_user_map",
-            side_effect=get_user_map_without_profile,
-        )
-        self.get_user_map_patcher.start()
 
     @data(
         # All users
@@ -1076,12 +1060,6 @@ class TestTeamMembersAPIView(ViewTestMixin):
         """Set up test fixtures."""
         super().setUp()
         self.url = reverse("openedx_authz:user-list")
-        self.get_user_map_patcher = patch(
-            "openedx_authz.api.utils.get_user_map",
-            side_effect=get_user_map_without_profile,
-        )
-        self.get_user_map_patcher.start()
-        self.addCleanup(self.get_user_map_patcher.stop)
 
     # -------------------------------------------------------------------- #
     # Visibility: calling user only sees assignments it has view access to #
@@ -1339,16 +1317,6 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         - regular_9 (no assignments): rejected with 403 by AnyScopePermission
           (requires at least one VIEW_LIBRARY_TEAM or COURSES_VIEW_COURSE_TEAM permission).
     """
-
-    def setUp(self):
-        """Set up test fixtures."""
-        super().setUp()
-        self.get_user_map_patcher = patch(
-            "openedx_authz.api.utils.get_user_map",
-            side_effect=get_user_map_without_profile,
-        )
-        self.get_user_map_patcher.start()
-        self.addCleanup(self.get_user_map_patcher.stop)
 
     def _url(self, username: str) -> str:
         return reverse("openedx_authz:user-assignment-list", kwargs={"username": username})
@@ -2102,12 +2070,6 @@ class TestAssignmentsAPIView(ViewTestMixin):
         """Set up test fixtures."""
         super().setUp()
         self.url = reverse("openedx_authz:assignment-list")
-        self.get_user_map_patcher = patch(
-            "openedx_authz.api.utils.get_user_map",
-            side_effect=get_user_map_without_profile,
-        )
-        self.get_user_map_patcher.start()
-        self.addCleanup(self.get_user_map_patcher.stop)
 
     # -------------------------------------------------------------------- #
     # Visibility: calling user only sees assignments it has view access to #
@@ -2585,6 +2547,44 @@ class TestAssignmentsAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
 
+    # ------------------------------------------------------------------ #
+    # Active user filtering                                              #
+    # ------------------------------------------------------------------ #
+
+    def test_inactive_users_excluded_from_results(self):
+        """Role assignments for inactive users are not included in results.
+
+        Deactivating a user (is_active=False) should remove their role assignments
+        from the response, even though the assignments still exist in the database.
+        Superadmin entries are also excluded for inactive staff/superusers.
+
+        Expected result:
+            - Returns 200 OK.
+            - The inactive user's assignments do not appear in the results.
+            - The total count decreases by the number of assignments the inactive user had.
+        """
+        # Baseline: admin_1 (staff) sees all 14 rows (3 superadmin + 11 role assignments)
+        baseline_response = self.client.get(self.url)
+        self.assertEqual(baseline_response.status_code, status.HTTP_200_OK)
+        baseline_count = baseline_response.data["count"]
+
+        # Deactivate regular_1, who has 1 role assignment in lib:Org1:LIB1
+        inactive_user = User.objects.get(username="regular_1")
+        inactive_user.is_active = False
+        inactive_user.save()
+        try:
+            response = self.client.get(self.url)
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # regular_1 had 1 role assignment → count should drop by 1
+            self.assertEqual(response.data["count"], baseline_count - 1)
+            # Confirm regular_1 is not in the results
+            usernames = {item["username"] for item in response.data["results"]}
+            self.assertNotIn("regular_1", usernames)
+        finally:
+            inactive_user.is_active = True
+            inactive_user.save()
+
 
 @ddt
 class TestAssignmentsAPIViewPermissions(ViewTestMixin):
@@ -2638,12 +2638,6 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
         """Set up test fixtures."""
         super().setUp()
         self.url = reverse("openedx_authz:assignment-list")
-        self.get_user_map_patcher = patch(
-            "openedx_authz.api.utils.get_user_map",
-            side_effect=get_user_map_without_profile,
-        )
-        self.get_user_map_patcher.start()
-        self.addCleanup(self.get_user_map_patcher.stop)
 
     # ------------------------------------------------------------------ #
     # Superadmin caller                                                  #

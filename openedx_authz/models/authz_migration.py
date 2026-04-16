@@ -100,8 +100,8 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
         the application level. select_for_update() is used to reduce (but not
         fully eliminate) the race-condition window on concurrent inserts.
         """
-        if self.status == Status.RUNNING and self.pk is None:
-            with transaction.atomic():
+        with transaction.atomic():
+            if self.status == Status.RUNNING and self.pk is None:
                 conflict = (
                     self.__class__.objects.select_for_update()
                     .filter(scope_type=self.scope_type, scope_key=self.scope_key, status=Status.RUNNING)
@@ -111,7 +111,7 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
                     raise IntegrityError(
                         f"Duplicate RUNNING migration run for scope {self.scope_type}:{self.scope_key}"
                     )
-        super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
         return self
 
     # pylint: disable=too-many-positional-arguments

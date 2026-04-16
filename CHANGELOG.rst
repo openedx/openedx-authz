@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.11.0 - 2026-04-13
+*******************
+
+Added
+=====
+
+* Add bulk scope support to ``PUT /api/authz/v1/roles/users/``: accept a ``scopes`` list field to assign a role across multiple scopes in a single request, while keeping backward compatibility with the existing single ``scope`` field.
+
 1.10.0 - 2026-04-16
 *******************
 
@@ -23,7 +31,7 @@ Added
 * Add ``scopes/`` endpoint to list all scopes (courses and libraries), sorted by org, with search and pagination support.
 
 1.9.0 - 2026-04-14
-******************
+*******************
 
 Added
 =====

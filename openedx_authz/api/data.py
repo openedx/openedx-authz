@@ -1139,7 +1139,7 @@ class UserAssignmentData(RoleAssignmentData):
     """Represents a user entry in a team member assignment list.
 
     Used alongside SuperAdminAssignmentData in serializer contexts where individual
-    assignment information is needed.
+    assignment along with its assigned user information is needed.
     """
 
     user: "User" | None = None
@@ -1147,7 +1147,12 @@ class UserAssignmentData(RoleAssignmentData):
 
 @define
 class UserAssignments:
-    """A user with their role assignments"""
+    """A user with their role assignments
+
+    Used in serializer context where a user is grouped with their assignments.
+
+    This is different to UserAssignmentData because here we are grouping multiple assignments to an individual user.
+    """
 
     user: "User"
     assignments: list[RoleAssignmentData]

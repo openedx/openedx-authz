@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.api.data import UserAssignments
-from openedx_authz.rest_api.data import AssignmentSortField, SortField, SortOrder
+from openedx_authz.rest_api.data import AssignmentSortField, SortField, SortOrder, UserAssignmentSortField
 from openedx_authz.rest_api.utils import get_generic_scope
 from openedx_authz.rest_api.v1.fields import (
     CaseSensitiveCommaSeparatedListField,
@@ -346,3 +346,36 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
                 return None
             case api.RoleAssignmentData():
                 return len(obj.roles[0].permissions) if obj.roles else 0
+
+
+class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pylint: disable=abstract-method
+    """Serializer for team member assignments with user information."""
+
+    full_name = serializers.SerializerMethodField()
+    username = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+
+    def get_full_name(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get user full name."""
+        return obj.user.get_full_name() if obj.user else ""
+
+    def get_username(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get username."""
+        return obj.user.username if obj.user else ""
+
+    def get_email(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Get user email."""
+        return obj.user.email if obj.user else ""
+
+
+class ListAssignmentsQuerySerializer(ListTeamMemberAssignmentsQuerySerializer):  # pylint: disable=abstract-method
+    """Serializer for query params for the list all team member assignments endpoint."""
+
+    search = LowercaseCharField(required=False, default=None)
+    scopes = CaseSensitiveCommaSeparatedListField(required=False, default=[])
+    # Overriding sort_by from OrderMixin due to different choices and default value
+    sort_by = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in UserAssignmentSortField],
+        default=UserAssignmentSortField.FULL_NAME,
+    )

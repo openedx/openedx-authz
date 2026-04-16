@@ -27,7 +27,7 @@ def get_user_map(usernames: list[str]) -> dict[str, User]:
         dict[str, User]: Dictionary mapping each username to its corresponding User object.
             Only users that exist in the database are included in the returned dictionary.
     """
-    users = User.objects.filter(username__in=usernames).select_related("profile")
+    users = User.objects.filter(username__in=usernames, is_active=True).select_related("profile")
     return {user.username: user for user in users}
 
 
@@ -74,6 +74,8 @@ def filter_user_assignments(
             return assignment.scope.external_key
         elif by == UserAssignmentsFilter.ORGS:
             return getattr(assignment.scope, "org", None)
+        elif by == UserAssignmentsFilter.ROLES:
+            return assignment.roles[0].external_key if assignment.roles else None
         else:
             raise ValueError(f"Invalid filter: '{by}'. Must be one of {[f.value for f in UserAssignmentsFilter]}")
 

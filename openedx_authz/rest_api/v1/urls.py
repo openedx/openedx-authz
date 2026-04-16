@@ -18,4 +18,5 @@ urlpatterns = [
     path(
         "users/<str:username>/assignments/", views.TeamMemberAssignmentsAPIView.as_view(), name="user-assignment-list"
     ),
+    path("assignments/", views.AssignmentsAPIView.as_view(), name="assignment-list"),
 ]

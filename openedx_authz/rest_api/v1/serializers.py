@@ -76,6 +76,32 @@ class PermissionValidationResponseSerializer(PermissionValidationSerializer):  #
 class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstract-method
     """Mixin providing role and scope validation logic."""
 
+    def _validate_scope_and_role(self, scope_value: str, role_value: str) -> None:
+        """Validate that a single scope exists and the role is defined in it.
+
+        Args:
+            scope_value: The scope string to validate.
+            role_value: The role string to validate against the scope.
+
+        Raises:
+            serializers.ValidationError: If the scope is not registered, doesn't exist,
+                or if the role is not defined in the scope.
+        """
+        try:
+            scope = api.ScopeData(external_key=scope_value)
+        except ValueError as exc:
+            raise serializers.ValidationError({"scope": str(exc)}) from exc
+
+        if not scope.exists():
+            raise serializers.ValidationError({"scope": f"Scope '{scope_value}' does not exist"})
+
+        role = api.RoleData(external_key=role_value)
+        generic_scope = get_generic_scope(scope)
+        role_definitions = api.get_role_definitions_in_scope(generic_scope)
+
+        if role not in role_definitions:
+            raise serializers.ValidationError({"role": f"Role '{role_value}' does not exist in scope '{scope_value}'"})
+
     def validate(self, attrs) -> dict:
         """Validate that the specified role and scope are valid and that the role exists in the scope.
 
@@ -95,28 +121,12 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
                 or if the role is not defined in the scope.
         """
         validated_data = super().validate(attrs)
-        scope_value = validated_data["scope"]
-        role_value = validated_data["role"]
-
-        try:
-            scope = api.ScopeData(external_key=scope_value)
-        except ValueError as exc:
-            raise serializers.ValidationError({"scope": str(exc)}) from exc
-
-        if not scope.exists():
-            raise serializers.ValidationError({"scope": f"Scope '{scope_value}' does not exist"})
-
-        role = api.RoleData(external_key=role_value)
-        generic_scope = get_generic_scope(scope)
-        role_definitions = api.get_role_definitions_in_scope(generic_scope)
-
-        if role not in role_definitions:
-            raise serializers.ValidationError({"role": f"Role '{role_value}' does not exist in scope '{scope_value}'"})
-
+        self._validate_scope_and_role(validated_data["scope"], validated_data["role"])
         return validated_data
 
 
 class AddUsersToRoleWithScopeSerializer(
+    RoleScopeValidationMixin,
     RoleMixin,
     ScopeMixin,
 ):  # pylint: disable=abstract-method
@@ -136,7 +146,7 @@ class AddUsersToRoleWithScopeSerializer(
     users = serializers.ListField(child=serializers.CharField(max_length=255), allow_empty=False)
 
     def validate_users(self, value) -> list[str]:
-        """Eliminate duplicates preserving order"""
+        """Eliminate duplicates preserving order."""
         return list(dict.fromkeys(value))
 
     def validate(self, attrs) -> dict:
@@ -144,7 +154,7 @@ class AddUsersToRoleWithScopeSerializer(
         scope exists in the registry, exists in the system, and supports the role.
         Returns validated data with a unified ``scopes`` list of strings.
         """
-        validated_data = super().validate(attrs)
+        validated_data = super(RoleScopeValidationMixin, self).validate(attrs)
         scope = validated_data.get("scope")
         scopes = validated_data.get("scopes")
         role_value = validated_data["role"]
@@ -161,22 +171,7 @@ class AddUsersToRoleWithScopeSerializer(
             )
 
         for scope_value in scopes_list:
-            try:
-                scope_obj = api.ScopeData(external_key=scope_value)
-            except ValueError as exc:
-                raise serializers.ValidationError({"scope": str(exc)}) from exc
-
-            if not scope_obj.exists():
-                raise serializers.ValidationError({"scope": f"Scope '{scope_value}' does not exist"})
-
-            role_obj = api.RoleData(external_key=role_value)
-            generic_scope = get_generic_scope(scope_obj)
-            role_definitions = api.get_role_definitions_in_scope(generic_scope)
-
-            if role_obj not in role_definitions:
-                raise serializers.ValidationError(
-                    {"role": f"Role '{role_value}' does not exist in scope '{scope_value}'"}
-                )
+            self._validate_scope_and_role(scope_value, role_value)
 
         validated_data.pop("scope", None)
         validated_data["scopes"] = scopes_list

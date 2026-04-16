@@ -543,6 +543,95 @@ class TestRoleUserAPIView(ViewTestMixin):
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
+        # Single scope in 'scopes' list - one user, success
+        (["admin_1"], ["lib:Org1:LIB3"], 1, 0),
+        # Single scope in 'scopes' list - multiple users, all success
+        (["admin_1", "regular_1"], ["lib:Org1:LIB3"], 2, 0),
+        # Two scopes - one user, success in both
+        (["admin_1"], ["lib:Org1:LIB3", "lib:Org2:LIB4"], 2, 0),
+        # Two scopes - two users, all succeed (2 scopes * 2 users = 4 completed)
+        (["admin_1", "regular_1"], ["lib:Org1:LIB3", "lib:Org2:LIB4"], 4, 0),
+        # Three scopes - one user, success in all
+        (["admin_1"], ["lib:Org1:LIB3", "lib:Org2:LIB4", "lib:Org3:LIB5"], 3, 0),
+    )
+    @unpack
+    def test_add_users_to_role_multi_scope_success(
+        self,
+        users: list[str],
+        scopes: list[str],
+        expected_completed: int,
+        expected_errors: int,
+    ):
+        """Test adding users to a role using the new 'scopes' list field.
+
+        Expected result:
+            - Returns 207 MULTI-STATUS
+            - Completed count equals len(users) * len(scopes) when all succeed
+            - Each completed entry contains a 'scope' field
+        """
+        role = roles.LIBRARY_ADMIN.external_key
+        request_data = {"role": role, "scopes": scopes, "users": users}
+
+        with patch.object(api.ContentLibraryData, "exists", return_value=True):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), expected_completed)
+        self.assertEqual(len(response.data["errors"]), expected_errors)
+        for entry in response.data["completed"]:
+            self.assertIn("scope", entry)
+            self.assertIn(entry["scope"], scopes)
+
+    def test_add_users_to_role_backward_compat_response_includes_scope(self):
+        """Test that the old single-'scope' payload still works and response includes scope.
+
+        Expected result:
+            - Returns 207 MULTI-STATUS
+            - Each completed entry contains a 'scope' field matching the requested scope
+        """
+        scope = "lib:Org1:LIB3"
+        request_data = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": scope,
+            "users": ["admin_1", "regular_1"],
+        }
+
+        with patch.object(api.ContentLibraryData, "exists", return_value=True):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 2)
+        for entry in response.data["completed"]:
+            self.assertIn("scope", entry)
+            self.assertEqual(entry["scope"], scope)
+
+    @data(
+        # Both 'scope' and 'scopes' provided
+        {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": "lib:Org1:LIB1",
+            "scopes": ["lib:Org2:LIB2"],
+            "users": ["admin_1"],
+        },
+        # 'scopes' as empty list
+        {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scopes": [],
+            "users": ["admin_1"],
+        },
+    )
+    def test_add_users_to_role_invalid_scopes_field(self, request_data: dict):
+        """Test that invalid combinations of scope/scopes fields return 400.
+
+        Expected result:
+            - Returns 400 BAD REQUEST status
+        """
+        with patch.object(DynamicScopePermission, "has_permission", return_value=True):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
         # Unauthenticated
         (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user

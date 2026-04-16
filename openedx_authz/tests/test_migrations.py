@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
 from django.test import TestCase
+from opaque_keys.edx.django.models import CourseKeyField
 
 from openedx_authz.api.data import OrgCourseOverviewGlobData
 from openedx_authz.api.users import (
@@ -16,6 +17,7 @@ from openedx_authz.api.users import (
 from openedx_authz.constants.roles import (
     COURSE_ADMIN,
     COURSE_DATA_RESEARCHER,
+    COURSE_EDITOR,
     COURSE_LIMITED_STAFF,
     COURSE_STAFF,
     LEGACY_COURSE_ROLE_EQUIVALENCES,
@@ -24,9 +26,18 @@ from openedx_authz.constants.roles import (
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import (
+    MigrationErrorReason,
+    MigrationMetadata,
     migrate_authz_to_legacy_course_roles,
     migrate_legacy_course_roles_to_authz,
     migrate_legacy_permissions,
+    run_course_authoring_migration,
+)
+from openedx_authz.models.authz_migration import (
+    AuthzCourseAuthoringMigrationRun,
+    MigrationType,
+    ScopeType,
+    Status,
 )
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
@@ -1413,3 +1424,339 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         # library assignment in self.org is excluded — library scopes are not course scopes
         self.assertNotIn(user_lib.username, migrated_users)
         self.assertEqual(len(errors), 0)
+
+
+class TestRunCourseAuthoringMigration(TestCase):
+    """Exercise ``run_course_authoring_migration`` lifecycle and outcomes using stub ``CourseAccessRole``."""
+
+    def setUp(self):
+        self.course_id = "course-v1:TestOrg+TestCourse+2024"
+        self.org_id = "TestOrg"
+
+    def test_skipped_when_another_run_is_already_running_for_scope(self):
+        """Second call for the same scope creates a SKIPPED run and returns without migrating."""
+        AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.COURSE, self.course_id)
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        self.assertTrue(
+            AuthzCourseAuthoringMigrationRun.objects.filter(scope_key=self.course_id, status=Status.SKIPPED).exists()
+        )
+        self.assertEqual(AuthzCourseAuthoringMigrationRun.objects.filter(scope_key=self.course_id).count(), 2)
+
+    def test_forward_completes_when_no_legacy_rows_match(self):
+        """No matching ``CourseAccessRole`` rows yields a completed run with zero successes."""
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.COMPLETED)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+        self.assertEqual(run.metadata.get("error_count"), 0)
+
+    def test_marks_failed_when_migration_input_invalid(self):
+        """``_validate_migration_input`` raises (e.g. non-course-v1 keys); orchestration marks FAILED."""
+        invalid_scope_key = "ccx-v1:Org+Course+Run"
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.COURSE,
+            scope_key=invalid_scope_key,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[invalid_scope_key],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=invalid_scope_key, status=Status.FAILED)
+        self.assertIn("error", run.metadata)
+
+    def test_forward_partial_success_when_legacy_role_unknown(self):
+        """Unknown legacy role strings are reported as errors; run ends PARTIAL_SUCCESS."""
+        user = User.objects.create_user(username="legacy_unknown_user", email="legacy_unknown_user@example.com")
+        CourseAccessRole.objects.create(
+            user=user, org=self.org_id, course_id=self.course_id, role="not_a_defined_legacy_role"
+        )
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertGreaterEqual(run.metadata.get("error_count"), 1)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+        self.assertIn(MigrationErrorReason.UNKNOWN_ROLE, run.metadata.get("errors"))
+
+    def test_rollback_completes_when_no_role_assignments(self):
+        """Rollback with no matching authz assignments finishes as COMPLETED with empty tallies."""
+        run_course_authoring_migration(
+            migration_type=MigrationType.ROLLBACK,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.COMPLETED)
+        self.assertEqual(run.metadata.get("error_count"), 0)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+
+    def test_rollback_partial_success_when_authz_role_unknown(self):
+        """Roles with no legacy ``CourseAccessRole`` mapping (e.g. ``course_editor``) → PARTIAL_SUCCESS."""
+        user = User.objects.create_user(username="rb_no_legacy_user", email="rb_no_legacy_user@example.com")
+        assign_role_to_user_in_scope(user.username, COURSE_EDITOR.external_key, self.course_id)
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.ROLLBACK,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertGreaterEqual(run.metadata.get("error_count", 0), 1)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+        self.assertIn(MigrationErrorReason.NO_LEGACY_EQUIVALENT, run.metadata.get("errors", {}))
+
+    def test_forward_partial_success_when_assignment_failed_on_duplicate(self):
+        """Second FORWARD over the same legacy row hits duplicate AuthZ assignment → ``ASSIGNMENT_FAILED``."""
+        user = User.objects.create_user(username="dup_assign_user", email="dup_assign_user@example.com")
+        CourseAccessRole.objects.create(user=user, org=self.org_id, course_id=self.course_id, role="staff")
+        common = {
+            "migration_type": MigrationType.FORWARD,
+            "scope_type": ScopeType.COURSE,
+            "scope_key": self.course_id,
+            "course_access_role_model": CourseAccessRole,
+            "user_subject_model": UserSubject,
+            "course_id_list": [self.course_id],
+            "org_id": None,
+            "delete_after_migration": False,
+        }
+
+        run_course_authoring_migration(**common)
+        run_obj = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.COMPLETED)
+        self.assertEqual(run_obj.metadata.get("success_count"), 1)
+
+        run_course_authoring_migration(**common)
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+        self.assertGreaterEqual(run.metadata.get("error_count"), 1)
+        self.assertIn(MigrationErrorReason.ASSIGNMENT_FAILED, run.metadata.get("errors", {}))
+
+    @patch("openedx_authz.engine.utils.migrate_legacy_course_roles_to_authz")
+    def test_forward_partial_success_when_no_scope(self, mock_migrate):
+        """``NO_SCOPE`` is surfaced when the migration body reports neither course nor org (orchestration path)."""
+        mock_migrate.return_value = (
+            [
+                MigrationMetadata(
+                    subject="no_scope_user",
+                    role="staff",
+                    reason=MigrationErrorReason.NO_SCOPE,
+                    details="neither course_id nor org",
+                )
+            ],
+            [],
+        )
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertIn(MigrationErrorReason.NO_SCOPE, run.metadata.get("errors", {}))
+
+    @patch("openedx_authz.engine.utils.migrate_authz_to_legacy_course_roles")
+    def test_rollback_partial_success_when_unexpected_scope_type(self, mock_migrate):
+        """``UNEXPECTED_SCOPE_TYPE`` from rollback migration is grouped in run metadata."""
+        mock_migrate.return_value = (
+            [
+                MigrationMetadata(
+                    subject="u",
+                    role="course_staff",
+                    scope=self.course_id,
+                    reason=MigrationErrorReason.UNEXPECTED_SCOPE_TYPE,
+                    details="UnexpectedScope",
+                )
+            ],
+            [],
+        )
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.ROLLBACK,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertIn(MigrationErrorReason.UNEXPECTED_SCOPE_TYPE, run.metadata.get("errors", {}))
+
+    @patch("openedx_authz.engine.utils.migrate_authz_to_legacy_course_roles")
+    def test_rollback_partial_success_when_unexpected_error(self, mock_migrate):
+        """Exceptions inside the rollback loop become ``UNEXPECTED_ERROR`` entries in metadata."""
+        mock_migrate.return_value = (
+            [
+                MigrationMetadata(
+                    subject="u",
+                    role=COURSE_STAFF.external_key,
+                    scope=self.course_id,
+                    reason=MigrationErrorReason.UNEXPECTED_ERROR,
+                    details="KeyError: 'missing'",
+                )
+            ],
+            [],
+        )
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.ROLLBACK,
+            scope_type=ScopeType.COURSE,
+            scope_key=self.course_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.course_id, status=Status.PARTIAL_SUCCESS)
+        self.assertIn(MigrationErrorReason.UNEXPECTED_ERROR, run.metadata.get("errors", {}))
+
+    def test_forward_completes_org_wide_legacy_when_org_id(self):
+        """FORWARD with ``org_id`` migrates org-level (no ``course_id``) legacy roles for that org."""
+        user = User.objects.create_user(username="rcam_org_fwd_user", email="rcam_org_fwd_user@example.com")
+        CourseAccessRole.objects.create(
+            user=user,
+            org=self.org_id,
+            course_id=CourseKeyField.Empty,
+            role="instructor",
+        )
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.ORG,
+            scope_key=self.org_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=None,
+            org_id=self.org_id,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.org_id, status=Status.COMPLETED)
+        self.assertEqual(run.metadata.get("success_count"), 1)
+        self.assertEqual(run.metadata.get("error_count"), 0)
+        self.assertListEqual(
+            run.metadata.get("successes"),
+            [
+                {
+                    "subject": user.username,
+                    "role": "instructor",
+                    "scope": OrgCourseOverviewGlobData.build_external_key(self.org_id),
+                }
+            ],
+        )
+
+    def test_forward_completes_when_no_legacy_rows_for_org_id(self):
+        """FORWARD with ``org_id`` and no matching ``CourseAccessRole`` rows finishes with zero tallies."""
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.ORG,
+            scope_key=self.org_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=None,
+            org_id=self.org_id,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.org_id, status=Status.COMPLETED)
+        self.assertEqual(run.metadata.get("success_count"), 0)
+        self.assertEqual(run.metadata.get("error_count"), 0)
+
+    def test_rollback_completes_org_glob_assignment_when_org_id(self):
+        """ROLLBACK with ``org_id`` processes org glob / course scopes for that organization."""
+        user = User.objects.create_user(username="rcam_org_rb_user", email="rcam_org_rb_user@example.com")
+        glob_scope = OrgCourseOverviewGlobData.build_external_key(self.org_id)
+        assign_role_to_user_in_scope(user.username, COURSE_STAFF.external_key, glob_scope)
+        AuthzEnforcer.get_enforcer().load_policy()
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.ROLLBACK,
+            scope_type=ScopeType.ORG,
+            scope_key=self.org_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=None,
+            org_id=self.org_id,
+            delete_after_migration=False,
+        )
+
+        run = AuthzCourseAuthoringMigrationRun.objects.get(scope_key=self.org_id, status=Status.COMPLETED)
+        self.assertGreaterEqual(run.metadata.get("success_count"), 1)
+        self.assertEqual(run.metadata.get("error_count"), 0)
+        self.assertListEqual(
+            run.metadata.get("successes"),
+            [{"subject": user.username, "role": COURSE_STAFF.external_key, "scope": glob_scope}],
+        )
+
+    def test_skipped_when_org_scope_run_already_running(self):
+        """Concurrent guard applies when ``scope_type`` is ORG and ``scope_key`` is the org id."""
+        AuthzCourseAuthoringMigrationRun.create_running(MigrationType.FORWARD, ScopeType.ORG, self.org_id)
+
+        run_course_authoring_migration(
+            migration_type=MigrationType.FORWARD,
+            scope_type=ScopeType.ORG,
+            scope_key=self.org_id,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=None,
+            org_id=self.org_id,
+            delete_after_migration=False,
+        )
+
+        self.assertTrue(
+            AuthzCourseAuthoringMigrationRun.objects.filter(scope_key=self.org_id, status=Status.SKIPPED).exists()
+        )
+        self.assertEqual(AuthzCourseAuthoringMigrationRun.objects.filter(scope_key=self.org_id).count(), 2)

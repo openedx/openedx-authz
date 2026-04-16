@@ -1,11 +1,19 @@
 """Serializers for the Open edX AuthZ REST API."""
 
 from django.contrib.auth import get_user_model
+from opaque_keys.edx.locator import LibraryLocatorV2
+from organizations.serializers import OrganizationSerializer
 from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.api.data import UserAssignments
-from openedx_authz.rest_api.data import AssignmentSortField, SortField, SortOrder, UserAssignmentSortField
+from openedx_authz.rest_api.data import (
+    AssignmentSortField,
+    ScopesTypeField,
+    SortField,
+    SortOrder,
+    UserAssignmentSortField,
+)
 from openedx_authz.rest_api.utils import get_generic_scope
 from openedx_authz.rest_api.v1.fields import (
     CaseSensitiveCommaSeparatedListField,
@@ -47,6 +55,12 @@ class OrderMixin(serializers.Serializer):  # pylint: disable=abstract-method
         choices=[(e.value, e.name) for e in SortOrder],
         default=SortOrder.ASC,
     )
+
+
+class OrgMixin(serializers.Serializer):  # pylint: disable=abstract-method
+    """Mixin providing org field functionality."""
+
+    org = serializers.CharField(required=False, max_length=255)
 
 
 class PermissionValidationSerializer(ActionMixin, ScopeMixin):  # pylint: disable=abstract-method
@@ -215,6 +229,16 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         return [role.external_key for role in obj.roles]
 
 
+class ListScopesQuerySerializer(OrgMixin):  # pylint: disable=abstract-method
+    """Serializer for validating query parameters in ScopesAPIView."""
+
+    management_permission_only = serializers.BooleanField(required=False, default=False)
+    scope_type = serializers.ChoiceField(
+        choices=[(e.value, e.name) for e in ScopesTypeField], required=False, default=None, allow_null=True
+    )
+    search = serializers.CharField(required=False, default="", allow_blank=True)
+
+
 class ListTeamMembersSerializer(OrderMixin):  # pylint: disable=abstract-method
     """
     Serializer for listing team members.
@@ -379,3 +403,28 @@ class ListAssignmentsQuerySerializer(ListTeamMemberAssignmentsQuerySerializer): 
         choices=[(e.value, e.name) for e in UserAssignmentSortField],
         default=UserAssignmentSortField.FULL_NAME,
     )
+
+
+class ScopeSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Serializer for scope.
+    """
+
+    external_key = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
+    org = serializers.SerializerMethodField()
+
+    def get_external_key(self, obj: dict) -> str:
+        """Get the external key for the given scope."""
+        if obj["scope_type"] == ScopesTypeField.LIBRARY:
+            return str(LibraryLocatorV2(org=obj["org_name"], slug=obj["scope_id"]))
+        return obj["scope_id"]
+
+    def get_display_name(self, obj: dict) -> str:
+        """Get the display name for the given scope."""
+        return str(obj.get("display_name_col") or "")
+
+    def get_org(self, obj: dict) -> dict | None:
+        """Get the org for the given scope."""
+        org = self.context.get("org_map", {}).get(obj["org_name"])
+        return OrganizationSerializer(org).data if org else None

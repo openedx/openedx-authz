@@ -6,10 +6,13 @@ permissions, roles, and user assignments within Open edX platform.
 """
 
 import logging
+import operator
+from functools import reduce
 
 import edx_api_doc_tools as apidocs
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet
+from django.db.models import CharField, Q, QuerySet, Value
+from django.db.models.functions import Cast
 from django.http import HttpRequest
 from django.utils.decorators import method_decorator
 from edx_api_doc_tools import schema_for
@@ -20,14 +23,24 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from openedx_authz import api
-from openedx_authz.api.data import RoleAssignmentData, SuperAdminAssignmentData, UserAssignmentData
+from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
+    RoleAssignmentData,
+    SuperAdminAssignmentData,
+    UserAssignmentData,
+)
 from openedx_authz.api.users import (
+    get_scopes_for_user_and_permission,
     get_superadmin_assignments,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
-from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
+from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
+from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, ScopesQuerySetFields, ScopesTypeField
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
     filter_users,
@@ -48,12 +61,14 @@ from openedx_authz.rest_api.v1.serializers import (
     ListAssignmentsQuerySerializer,
     ListRolesWithScopeResponseSerializer,
     ListRolesWithScopeSerializer,
+    ListScopesQuerySerializer,
     ListTeamMemberAssignmentsQuerySerializer,
     ListTeamMembersSerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
+    ScopeSerializer,
     TeamMemberAssignmentSerializer,
     TeamMemberSerializer,
     TeamMemberUserAssignmentSerializer,
@@ -66,6 +81,8 @@ from openedx_authz.utils import get_user_by_username_or_email
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+ContentLibrary = get_content_library_model()
+CourseOverview = get_course_overview_model()
 
 
 @view_auth_classes()
@@ -560,6 +577,315 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
     def get_queryset(self) -> QuerySet:
         """Return active organizations ordered by name."""
         return Organization.objects.filter(active=True).order_by("name")
+
+
+@view_auth_classes()
+@method_decorator(
+    authz_permissions(
+        [
+            permissions.VIEW_LIBRARY_TEAM.identifier,
+            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+        ]
+    ),
+    name="get",
+)
+@schema_for(
+    "get",
+    parameters=[
+        apidocs.query_parameter("search", str, description="Filter scopes by display name"),
+        apidocs.query_parameter("org", str, description="Filter scopes by org"),
+        apidocs.query_parameter("page", int, description="Page number for pagination"),
+        apidocs.query_parameter("page_size", int, description="Number of items per page"),
+        apidocs.query_parameter(
+            "management_permission_only",
+            bool,
+            description=(
+                "If true, returns only scopes to which the calling user has manage team permission, "
+                "otherwise, returns any scope to which the user has view team permission."
+            ),
+        ),
+        apidocs.query_parameter(
+            "scope_type",
+            str,
+            description="Filter by scope type. Either 'course' or 'library'. Returns both if not specified.",
+        ),
+    ],
+    responses={
+        status.HTTP_200_OK: ScopeSerializer(many=True),
+        status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
+        status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+        status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
+    },
+)
+class ScopesAPIView(generics.ListAPIView):
+    """
+    API view for listing scopes
+    This API is used on the filters and assign roles functionality on the Admin Console.
+
+    **Endpoints**
+
+    - GET: Retrieve all scopes
+
+    **Query Parameters**
+
+    - search (Optional): Search term to filter scopes by display name
+    - org (Optional): Filter scopes by org
+    - page (Optional): Page number for pagination
+    - page_size (Optional): Number of items per page
+    - scope_type (Optional): Filter scopes by type. Supported values are `course` and `library`.
+    - management_permission_only (Optional): Filter scopes either by only the ones to which the user has "manage team"
+        permissions (if true), or just "view team" permissions.
+
+    **Response Format**
+
+    Returns a paginated list of scope objects, each containing:
+
+    - external_key: The scope external key
+    - display_name: The scope's name
+    - org: The organization serialized object
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user with either a content library or course view team permission.
+
+    **Example Request**
+
+    GET /api/authz/v1/scopes/?search=edx&page=1&page_size=10
+
+    **Example Response**::
+
+        {
+            "count": 1,
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "external_key": "course-v1:OpenedX+DemoX+DemoCourse",
+                    "display_name": "Open edX Demo Course",
+                    "org": {
+                        "id": 1,
+                        "created": "2026-04-02T19:30:36.779095Z",
+                        "modified": "2026-04-02T19:30:36.779095Z",
+                        "name": "OpenedX",
+                        "short_name": "OpenedX",
+                        "description": "",
+                        "logo": null,
+                        "active": true
+                    }
+                },
+            ]
+        }
+    """
+
+    serializer_class = ScopeSerializer
+    pagination_class = AuthZAPIViewPagination
+    permission_classes = [AnyScopePermission]
+
+    # Priority for fields used for stable sorting (first has more priority)
+    ordering_priority = (
+        ScopesQuerySetFields.ORG_NAME,
+        ScopesQuerySetFields.SCOPE_TYPE,
+        ScopesQuerySetFields.DISPLAY_NAME_COL,
+        ScopesQuerySetFields.SCOPE_ID,
+    )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["org_map"] = Organization.objects.filter(active=True).in_bulk(field_name="short_name")
+        return context
+
+    def _get_courses_queryset(
+        self,
+        allowed_ids: set | None = None,
+        allowed_orgs: set | None = None,
+        search: str = "",
+        org: str = "",
+    ) -> QuerySet:
+        """Return a CourseOverview queryset projected to the unified scope shape.
+
+        If allowed_ids and/or allowed_orgs are provided, filter to matching courses.
+        If search is provided, filter by display_name.
+        If org is provided, filter by org short_name.
+        """
+        qs = CourseOverview.objects
+        if allowed_ids is not None or allowed_orgs is not None:
+            org_filter = Q(org__in=allowed_orgs) if allowed_orgs else Q()
+            id_filter = Q(id__in=allowed_ids) if allowed_ids else Q()
+            combined_filter = org_filter | id_filter
+            if not combined_filter:
+                qs = qs.none()
+            else:
+                qs = qs.filter(combined_filter)
+        if org:
+            qs = qs.filter(org=org)
+        if search:
+            qs = qs.filter(display_name__icontains=search)
+        return qs.annotate(
+            scope_id=Cast("id", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            display_name_col=Cast("display_name", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            org_name=Cast("org", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            scope_type=Value(ScopesTypeField.COURSE, output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+        ).values(
+            ScopesQuerySetFields.SCOPE_ID,
+            ScopesQuerySetFields.DISPLAY_NAME_COL,
+            ScopesQuerySetFields.ORG_NAME,
+            ScopesQuerySetFields.SCOPE_TYPE,
+        )
+
+    def _get_libraries_queryset(
+        self,
+        allowed_pairs: set | None = None,
+        allowed_orgs: set | None = None,
+        search: str = "",
+        org: str = "",
+    ) -> QuerySet:
+        """Return a ContentLibrary queryset projected to the unified scope shape.
+
+        If allowed_pairs and/or allowed_orgs are provided, filter to matching libraries.
+        If search is provided, filter by learning_package__title.
+        If org is provided, filter by org short_name.
+        """
+        qs = ContentLibrary.objects
+        if allowed_pairs is not None or allowed_orgs is not None:
+            org_filter = Q(org__short_name__in=allowed_orgs) if allowed_orgs else Q()
+            pair_filter = (
+                reduce(operator.or_, (Q(org__short_name=org, slug=slug) for org, slug in allowed_pairs))
+                if allowed_pairs
+                else Q()
+            )
+            combined = org_filter | pair_filter
+            if not combined:
+                qs = qs.none()
+            else:
+                qs = qs.filter(combined)
+        if org:
+            qs = qs.filter(org__short_name=org)
+        if search:
+            qs = qs.filter(learning_package__title__icontains=search)
+        return qs.annotate(
+            scope_id=Cast("slug", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            display_name_col=Cast("learning_package__title", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            org_name=Cast("org__short_name", output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+            scope_type=Value(ScopesTypeField.LIBRARY, output_field=CharField(db_collation="utf8mb4_unicode_ci")),
+        ).values(
+            ScopesQuerySetFields.SCOPE_ID,
+            ScopesQuerySetFields.DISPLAY_NAME_COL,
+            ScopesQuerySetFields.ORG_NAME,
+            ScopesQuerySetFields.SCOPE_TYPE,
+        )
+
+    @staticmethod
+    def _get_allowed_scope_queryset(
+        *,
+        username: str,
+        scope_cls: type,
+        glob_cls: type,
+        get_permission: callable,
+        queryset_builder: callable,
+        extract_ids: callable,
+        search: str = "",
+        org: str = "",
+    ) -> QuerySet:
+        """Resolve allowed scopes from Casbin and return a filtered queryset.
+
+        This helper encapsulates the shared pattern of:
+        1. Fetching allowed scopes for a user and permission.
+        2. Partitioning them into specific IDs vs org-level globs.
+        3. Delegating to the appropriate queryset builder.
+
+        Args:
+            username: The username to check permissions for.
+            scope_cls: The concrete scope data class (e.g., CourseOverviewData).
+            glob_cls: The org-level glob class (e.g., OrgCourseOverviewGlobData).
+            get_permission: Callable that returns the permission for a scope class.
+            queryset_builder: Callable that builds the filtered queryset (e.g., _get_courses_queryset).
+            extract_ids: Callable that extracts specific IDs from non-glob scopes.
+            search: Optional search term to filter by display name.
+            org: Optional org short_name to filter by.
+
+        Returns:
+            QuerySet: The filtered queryset projected to the unified scope shape.
+        """
+        allowed_scopes = get_scopes_for_user_and_permission(username, get_permission(scope_cls).identifier)
+        specific_scopes = [s for s in allowed_scopes if not isinstance(s, glob_cls)]
+        allowed_ids = extract_ids(specific_scopes)
+        allowed_orgs = {s.org for s in allowed_scopes if isinstance(s, glob_cls)}
+        return queryset_builder(allowed_ids, allowed_orgs, search=search, org=org)
+
+    def _build_queryset(self, courses_qs: QuerySet | None, libraries_qs: QuerySet | None) -> QuerySet:
+        """Union the provided querysets and sort deterministically.
+
+        Orders by org_name first (satisfying the 'ordered by org' requirement), then by
+        scope_type, display_name_col, and scope_id as tiebreakers to ensure stable pagination.
+        """
+        if courses_qs is not None and libraries_qs is not None:
+            return courses_qs.union(libraries_qs).order_by(*self.ordering_priority)
+        qs = courses_qs if courses_qs is not None else libraries_qs
+        return qs.order_by(*self.ordering_priority)
+
+    def get_queryset(self) -> QuerySet:
+        """Return scopes ordered by org, filtered by the user's permissions."""
+        user = self.request.user
+
+        # Validate and parse query parameters.
+        params_serializer = ListScopesQuerySerializer(data=self.request.query_params)
+        params_serializer.is_valid(raise_exception=True)
+        scope_type = params_serializer.validated_data["scope_type"]
+        search = params_serializer.validated_data["search"]
+        org = params_serializer.validated_data.get("org", "")
+
+        # Staff and superusers can see all scopes, skip permission filtering.
+        if user.is_staff or user.is_superuser:
+            return self._build_queryset(
+                courses_qs=(
+                    self._get_courses_queryset(search=search, org=org)
+                    if scope_type != ScopesTypeField.LIBRARY
+                    else None
+                ),
+                libraries_qs=(
+                    self._get_libraries_queryset(search=search, org=org)
+                    if scope_type != ScopesTypeField.COURSE
+                    else None
+                ),
+            )
+
+        management_only = params_serializer.validated_data["management_permission_only"]
+
+        # Determine which permission to check based on the query parameter.
+        def get_permission(scope_cls):
+            return scope_cls.get_admin_manage_permission() if management_only else scope_cls.get_admin_view_permission()
+
+        # Resolve allowed scopes from Casbin and build filtered querysets.
+        courses_qs = None
+        if scope_type != ScopesTypeField.LIBRARY:
+            courses_qs = self._get_allowed_scope_queryset(
+                username=user.username,
+                scope_cls=CourseOverviewData,
+                glob_cls=OrgCourseOverviewGlobData,
+                get_permission=get_permission,
+                queryset_builder=self._get_courses_queryset,
+                extract_ids=lambda scopes: {s.external_key for s in scopes},
+                search=search,
+                org=org,
+            )
+
+        libraries_qs = None
+        if scope_type != ScopesTypeField.COURSE:
+            libraries_qs = self._get_allowed_scope_queryset(
+                username=user.username,
+                scope_cls=ContentLibraryData,
+                glob_cls=OrgContentLibraryGlobData,
+                get_permission=get_permission,
+                queryset_builder=self._get_libraries_queryset,
+                extract_ids=lambda scopes: {
+                    (s.external_key.split(":")[1], s.external_key.split(":")[2]) for s in scopes
+                },
+                search=search,
+                org=org,
+            )
+
+        # Union the requested querysets and sort by org at the DB level.
+        return self._build_queryset(courses_qs, libraries_qs)
 
 
 @view_auth_classes()

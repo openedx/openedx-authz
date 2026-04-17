@@ -7,6 +7,7 @@ for the Open edX AuthZ system using Casbin.
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
+from enum import StrEnum, auto
 
 from casbin import Enforcer
 from django.db import IntegrityError, transaction
@@ -37,18 +38,21 @@ GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
 COURSE_ROLE_EQUIVALENCES = {v: k for k, v in LEGACY_COURSE_ROLE_EQUIVALENCES.items()}
 
 
-class MigrationErrorReason:
+class MigrationErrorReason(StrEnum):
     """String constants for categorising why a single role assignment failed during migration."""
 
     # Forward (legacy → authz) reasons
-    UNKNOWN_ROLE = "unknown_role"
-    NO_SCOPE = "no_scope"
-    ASSIGNMENT_FAILED = "assignment_failed"
+    UNKNOWN_ROLE = auto()
+    NO_SCOPE = auto()
+    ASSIGNMENT_FAILED = auto()
 
     # Rollback (authz → legacy) reasons
-    UNEXPECTED_SCOPE_TYPE = "unexpected_scope_type"
-    NO_LEGACY_EQUIVALENT = "no_legacy_equivalent"
-    UNEXPECTED_ERROR = "unexpected_error"
+    UNEXPECTED_SCOPE_TYPE = auto()
+    NO_LEGACY_EQUIVALENT = auto()
+    UNEXPECTED_ERROR = auto()
+
+    # Forward and rollback reasons
+    SKIPPED_FOR_FLAG_OVERRIDE = auto()
 
 
 @dataclass
@@ -69,7 +73,7 @@ class MigrationMetadata:
     subject: str
     role: str
     scope: str = field(default="")
-    reason: str = field(default="")
+    reason: MigrationErrorReason | None = field(default=None)
     details: str = field(default="")
 
     def to_dict(self) -> dict:

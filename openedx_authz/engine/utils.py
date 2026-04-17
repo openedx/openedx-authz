@@ -234,8 +234,13 @@ def _validate_migration_input(course_id_list, org_id):
         )
 
 
+# pylint: disable=too-many-statements
 def migrate_legacy_course_roles_to_authz(
-    course_access_role_model, course_id_list, org_id, delete_after_migration
+    course_access_role_model,
+    course_id_list,
+    org_id,
+    delete_after_migration,
+    excluded_course_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[MigrationMetadata], list[MigrationMetadata]]:
     """
     Migrate legacy course role data to the new Casbin-based authorization model.
@@ -265,6 +270,8 @@ def migrate_legacy_course_roles_to_authz(
     param course_id_list: Optional list of course IDs to filter the migration.
     param org_id: Optional organization ID to filter the migration.
     param delete_after_migration: Whether to delete successfully migrated legacy permissions after migration.
+    param excluded_course_ids: Course ids for which migration is skipped (course-level override
+        opposes the org-level transition)
     """
     _validate_migration_input(course_id_list, org_id)
 
@@ -299,6 +306,15 @@ def migrate_legacy_course_roles_to_authz(
             logger.error(f"Unknown access level: {permission.role} for User: {permission.user}")
             migration_metadata.reason = MigrationErrorReason.UNKNOWN_ROLE
             migration_metadata.details = f"Unknown access level: {permission.role} for User: {permission.user.username}"
+            permissions_with_errors.append(migration_metadata)
+            continue
+
+        if permission.course_id and str(permission.course_id) in excluded_course_ids:
+            migration_metadata.reason = MigrationErrorReason.SKIPPED_FOR_FLAG_OVERRIDE
+            migration_metadata.scope = str(permission.course_id)
+            migration_metadata.details = (
+                "Course-level authoring flag override opposes this organization-level transition"
+            )
             permissions_with_errors.append(migration_metadata)
             continue
 
@@ -353,9 +369,14 @@ def migrate_legacy_course_roles_to_authz(
     return permissions_with_errors, permissions_with_no_errors
 
 
-# pylint: disable=too-many-statements
+# pylint: disable=too-many-statements,too-many-positional-arguments
 def migrate_authz_to_legacy_course_roles(
-    course_access_role_model, user_subject_model, course_id_list, org_id, delete_after_migration
+    course_access_role_model,
+    user_subject_model,
+    course_id_list,
+    org_id,
+    delete_after_migration,
+    excluded_course_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[MigrationMetadata], list[MigrationMetadata]]:
     """
     Migrate permissions from the new Casbin-based authorization model back to the legacy CourseAccessRole model.
@@ -377,7 +398,9 @@ def migrate_authz_to_legacy_course_roles(
     param course_id_list: Optional list of course IDs to filter the migration.
     param org_id: Optional organization ID to filter the migration.
     param delete_after_migration: Whether to unassign successfully migrated permissions
-    from the new model after migration.
+        from the new model after migration.
+    param excluded_course_ids: Course ids for which rollback is skipped (course-level override
+        opposes the org-level transition)
     """
     _validate_migration_input(course_id_list, org_id)
 
@@ -422,6 +445,14 @@ def migrate_authz_to_legacy_course_roles(
             migration_metadata = MigrationMetadata(
                 subject=user_external_key, role=role_external_key, scope=scope_external_key
             )
+
+            if isinstance(role_assignment.scope, CourseOverviewData) and scope_external_key in excluded_course_ids:
+                migration_metadata.reason = MigrationErrorReason.SKIPPED_FOR_FLAG_OVERRIDE
+                migration_metadata.details = (
+                    "Course-level authoring flag override opposes this organization-level transition"
+                )
+                roles_with_errors.append(migration_metadata)
+                continue
 
             legacy_role = COURSE_ROLE_EQUIVALENCES.get(role_external_key)
             if legacy_role is None:
@@ -503,10 +534,11 @@ def run_course_authoring_migration(
     scope_type: ScopeType,
     scope_key: str,
     course_access_role_model,
-    user_subject_model=None,
-    course_id_list=None,
-    org_id=None,
-    delete_after_migration=True,
+    user_subject_model,
+    course_id_list: list[str] | None,
+    org_id: str | None,
+    excluded_course_ids: frozenset[str],
+    delete_after_migration: bool,
 ) -> AuthzCourseAuthoringMigrationRun:
     """
     Orchestrate a course authoring role migration with concurrency protection and lifecycle tracking.
@@ -533,6 +565,8 @@ def run_course_authoring_migration(
         user_subject_model: The ``UserSubject`` model class; required for ``ROLLBACK``, ignored otherwise.
         course_id_list (list[str] | None): Restrict migration to these course-v1 keys.
         org_id (str | None): Restrict migration to this org; takes precedence over ``course_id_list``.
+        excluded_course_ids (frozenset[str]): For org-scoped runs, course ids
+            whose course-level waffle override opposes the org transition
         delete_after_migration (bool): Remove successfully migrated entries from the source system.
     """
     try:
@@ -550,11 +584,20 @@ def run_course_authoring_migration(
         with transaction.atomic():
             if migration_type == MigrationType.FORWARD:
                 errors, successes = migrate_legacy_course_roles_to_authz(
-                    course_access_role_model, course_id_list, org_id, delete_after_migration
+                    course_access_role_model,
+                    course_id_list,
+                    org_id,
+                    delete_after_migration,
+                    excluded_course_ids,
                 )
             else:
                 errors, successes = migrate_authz_to_legacy_course_roles(
-                    course_access_role_model, user_subject_model, course_id_list, org_id, delete_after_migration
+                    course_access_role_model,
+                    user_subject_model,
+                    course_id_list,
+                    org_id,
+                    delete_after_migration,
+                    excluded_course_ids,
                 )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         # The inner atomic block is rolled back on exception; mark_failed() runs

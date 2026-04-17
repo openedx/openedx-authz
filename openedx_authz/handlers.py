@@ -138,6 +138,29 @@ if WaffleFlagOrgOverrideModel is not None:
     post_save.connect(handle_org_waffle_flag_change, sender=WaffleFlagOrgOverrideModel)
 
 
+def get_excluded_course_ids_for_org_migration(org_id: str, new_org_enabled: bool) -> frozenset[str]:
+    """
+    Collect course-level authoring flag overrides for an org that oppose the new org-level state.
+
+    When the org flag changes, we need to exclude course ids that have a course-level
+    authoring flag override that opposes the new org-level state.
+
+    Args:
+        org_id (str): Organization short name.
+        new_org_enabled (bool): Effective org flag value after the save.
+
+    Returns:
+        frozenset[str]: course ids excluded from org migration
+    """
+    # We only need to check the current set (active flags)
+    qs = WaffleFlagCourseOverrideModel.objects.current_set().filter(
+        enabled=not new_org_enabled,
+        waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG.name,
+        course_id__startswith=f"course-v1:{org_id}+",
+    )
+    return frozenset(map(str, qs.values_list("course_id", flat=True)))
+
+
 def trigger_course_authoring_migration(
     sender: type[WaffleFlagCourseOverrideModel | WaffleFlagOrgOverrideModel],
     instance: WaffleFlagCourseOverrideModel | WaffleFlagOrgOverrideModel,
@@ -184,6 +207,12 @@ def trigger_course_authoring_migration(
 
     migration_type = MigrationType.FORWARD if instance.enabled else MigrationType.ROLLBACK
 
+    excluded_course_ids = frozenset()
+    if isinstance(instance, WaffleFlagOrgOverrideModel):
+        excluded_course_ids = get_excluded_course_ids_for_org_migration(
+            org_id=scope_key, new_org_enabled=instance.enabled
+        )
+
     logger.info("Triggering %s migration for %s:%s due to waffle flag change", migration_type, scope_type, scope_key)
 
     run_course_authoring_migration(
@@ -194,4 +223,6 @@ def trigger_course_authoring_migration(
         user_subject_model=UserSubject,
         course_id_list=course_id_list,
         org_id=org_id,
+        excluded_course_ids=excluded_course_ids,
+        delete_after_migration=True,
     )

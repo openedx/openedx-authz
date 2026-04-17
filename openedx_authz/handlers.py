@@ -137,8 +137,13 @@ if WaffleFlagCourseOverrideModel is not None:
 if WaffleFlagOrgOverrideModel is not None:
     post_save.connect(handle_org_waffle_flag_change, sender=WaffleFlagOrgOverrideModel)
 
+# Match ``WaffleFlagCourseOverrideModel.OVERRIDE_CHOICES`` / ``override_value`` in edx-platform:
+# the flag is effectively forced on only when the row is enabled and ``override_choice`` is "on".
+WAFFLE_OVERRIDE_FORCE_ON = "on"
+WAFFLE_OVERRIDE_FORCE_OFF = "off"
 
-def get_excluded_course_ids_for_org_migration(org_id: str, new_org_enabled: bool) -> frozenset[str]:
+
+def get_excluded_course_ids_for_org_migration(org_id: str, reverse_choice: str) -> frozenset[str]:
     """
     Collect course-level authoring flag overrides for an org that oppose the new org-level state.
 
@@ -147,17 +152,20 @@ def get_excluded_course_ids_for_org_migration(org_id: str, new_org_enabled: bool
 
     Args:
         org_id (str): Organization short name.
-        new_org_enabled (bool): Effective org flag value after the save.
+        reverse_choice (str): The reverse choice of the org waffle flag.
 
     Returns:
         frozenset[str]: course ids excluded from org migration
     """
-    # We only need to check the current set (active flags)
-    qs = WaffleFlagCourseOverrideModel.objects.current_set().filter(
-        enabled=not new_org_enabled,
-        waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG.name,
-        course_id__startswith=f"course-v1:{org_id}+",
-    )
+    # We only need to check the current set (active flags). Opposing overrides are rows that
+    # force the opposite of the org transition (Force On vs Force Off), not merely inactive rows.
+    filter_kwargs = {
+        "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG.name,
+        "course_id__startswith": f"course-v1:{org_id}+",
+        "enabled": True,
+        "override_choice": reverse_choice,
+    }
+    qs = WaffleFlagCourseOverrideModel.objects.current_set().filter(**filter_kwargs)
     return frozenset(map(str, qs.values_list("course_id", flat=True)))
 
 
@@ -181,6 +189,10 @@ def trigger_course_authoring_migration(
     if instance.waffle_flag != AUTHZ_COURSE_AUTHORING_FLAG.name:
         return
 
+    if not instance.enabled:
+        logger.info("Waffle flag is disabled, skipping migration")
+        return
+
     if not settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION:
         logger.info("ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION is set to False, skipping migration")
         return
@@ -201,16 +213,22 @@ def trigger_course_authoring_migration(
 
     prev_record = sender.objects.filter(**filter_kwargs).exclude(id=instance.id).order_by("-change_date").first()
 
-    if prev_record and prev_record.enabled == instance.enabled:
-        logger.info("No change in waffle flag, skipping course migration")
+    if prev_record and prev_record.enabled and instance.override_choice == prev_record.override_choice:
+        logger.info("No change in waffle flag, skipping migration")
         return
 
-    migration_type = MigrationType.FORWARD if instance.enabled else MigrationType.ROLLBACK
+    if instance.override_choice == WAFFLE_OVERRIDE_FORCE_ON:
+        migration_type = MigrationType.FORWARD
+        reverse_choice = WAFFLE_OVERRIDE_FORCE_OFF
+    else:
+        migration_type = MigrationType.ROLLBACK
+        reverse_choice = WAFFLE_OVERRIDE_FORCE_ON
 
     excluded_course_ids = frozenset()
     if isinstance(instance, WaffleFlagOrgOverrideModel):
         excluded_course_ids = get_excluded_course_ids_for_org_migration(
-            org_id=scope_key, new_org_enabled=instance.enabled
+            org_id=scope_key,
+            reverse_choice=reverse_choice,
         )
 
     logger.info("Triggering %s migration for %s:%s due to waffle flag change", migration_type, scope_type, scope_key)

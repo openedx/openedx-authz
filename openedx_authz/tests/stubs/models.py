@@ -208,6 +208,13 @@ class CourseAccessRole(models.Model):
 
 
 # Waffle flag models
+class _WaffleStubManager(models.Manager):
+    """Minimal stand-in for ``ConfigurationModel`` managers exposing ``current_set()``."""
+
+    def current_set(self):
+        return self.get_queryset()
+
+
 class WaffleFlagCourseOverrideModel(models.Model):
     """Stub model representing a waffle flag course override for testing purposes.
 
@@ -217,7 +224,9 @@ class WaffleFlagCourseOverrideModel(models.Model):
     course_id = CourseKeyField(max_length=255, db_index=True)
     waffle_flag = models.CharField(max_length=255, db_index=True, default="")
     enabled = models.BooleanField(default=False)
+    override_choice = models.CharField(max_length=3, default="on")
     change_date = models.DateTimeField(auto_now_add=True)
+    objects = _WaffleStubManager()
 
 
 class WaffleFlagOrgOverrideModel(models.Model):
@@ -229,4 +238,6 @@ class WaffleFlagOrgOverrideModel(models.Model):
     org = models.CharField(max_length=64, db_index=True)
     waffle_flag = models.CharField(max_length=255, db_index=True, default="")
     enabled = models.BooleanField(default=False)
+    override_choice = models.CharField(max_length=3, default="on")
     change_date = models.DateTimeField(auto_now_add=True)
+    objects = _WaffleStubManager()

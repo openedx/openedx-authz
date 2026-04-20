@@ -68,6 +68,10 @@ class Migration(migrations.Migration):
                 "verbose_name": "Role Assignment Audit",
                 "verbose_name_plural": "Role Assignment Audits",
                 "ordering": ["-timestamp"],
+                "indexes": [
+                    models.Index(fields=["subject"], name="role_audit_subject_idx"),
+                    models.Index(fields=["scope"], name="role_audit_scope_idx"),
+                ],
             },
         ),
     ]

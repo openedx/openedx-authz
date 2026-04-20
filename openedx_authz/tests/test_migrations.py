@@ -902,6 +902,39 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(state_after_migration_user_subjects), 0)
 
     @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_legacy_course_roles_to_authz_skips_excluded_course_ids(self):
+        """Org-scoped migration skips course-level rows whose course_id is in excluded_course_ids."""
+        errors, successes = migrate_legacy_course_roles_to_authz(
+            CourseAccessRole,
+            course_id_list=None,
+            org_id=self.org,
+            delete_after_migration=False,
+            excluded_course_ids=frozenset({self.course_id}),
+        )
+
+        self.assertEqual(len(successes), 0)
+        self.assertEqual(len(errors), 13)
+
+        skipped = [entry for entry in errors if entry.reason == MigrationErrorReason.SKIPPED_FOR_FLAG_OVERRIDE]
+        self.assertEqual(len(skipped), 12)
+        for entry in skipped:
+            self.assertEqual(entry.scope, self.course_id)
+            self.assertEqual(
+                entry.details,
+                "Course-level authoring flag override opposes this organization-level transition",
+            )
+
+        unknown_role = [entry for entry in errors if entry.reason == MigrationErrorReason.UNKNOWN_ROLE]
+        self.assertEqual(len(unknown_role), 1)
+        self.assertEqual(unknown_role[0].subject, self.error_user.username)
+
+        for user in self.admin_users:
+            assignments = get_user_role_assignments_in_scope(
+                user_external_key=user.username, scope_external_key=self.course_id
+            )
+            self.assertEqual(len(assignments), 0)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
     def test_migrate_authz_to_legacy_course_roles_with_no_org_and_courses(self):
         # Migrate from legacy CourseAccessRole to new Casbin-based model
 
@@ -1248,6 +1281,35 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         # fail to migrate back to legacy roles due to our mock
         self.assertEqual(len(errors), 12)
         self.assertEqual(len(successes), 0)
+
+    @patch("openedx_authz.api.data.CourseOverview", CourseOverview)
+    def test_migrate_authz_to_legacy_course_roles_skips_excluded_course_ids(self):
+        """Course-level assignments whose scope is listed in excluded_course_ids are skipped."""
+        migrate_legacy_course_roles_to_authz(
+            CourseAccessRole,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+        )
+
+        errors, successes = migrate_authz_to_legacy_course_roles(
+            CourseAccessRole,
+            UserSubject,
+            course_id_list=[self.course_id],
+            org_id=None,
+            delete_after_migration=False,
+            excluded_course_ids=frozenset({self.course_id}),
+        )
+
+        self.assertEqual(len(successes), 0)
+        self.assertEqual(len(errors), 12)
+        for entry in errors:
+            self.assertEqual(entry.reason, MigrationErrorReason.SKIPPED_FOR_FLAG_OVERRIDE)
+            self.assertEqual(
+                entry.details,
+                "Course-level authoring flag override opposes this organization-level transition",
+            )
+            self.assertEqual(entry.scope, self.course_id)
 
     def create_library_env(self):
         """

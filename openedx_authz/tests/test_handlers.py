@@ -14,7 +14,11 @@ from casbin_adapter.models import CasbinRule
 from ddt import data, ddt, unpack
 from django.test import TestCase, override_settings
 
-from openedx_authz.handlers import trigger_course_authoring_migration
+from openedx_authz.handlers import (
+    WAFFLE_OVERRIDE_FORCE_OFF,
+    WAFFLE_OVERRIDE_FORCE_ON,
+    trigger_course_authoring_migration,
+)
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.models.subjects import UserSubject
@@ -255,43 +259,33 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     Course and org overrides use the stub ORM (creates and queries) where the handler touches the
     database. A class-level ``patch`` replaces ``run_course_authoring_migration`` so no full
     migration runs; tests that also patch ``logger`` receive that mock before ``mock_run``.
+
+    The handler matches production waffle semantics: migration direction follows ``override_choice``
+    (force on vs force off) while ``enabled`` gates whether any migration runs; org scope passes
+    ``excluded_course_ids`` for course-level overrides that oppose the org transition.
     """
 
-    @override_settings(ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION=False)
-    def test_skips_when_automatic_migration_setting_disabled(self, mock_run):
-        """When the setting is off, the handler returns before scheduling work."""
-        instance = WaffleFlagCourseOverrideModel(
-            course_id="course-v1:org+course+run",
-            waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG_NAME,
-            enabled=True,
-        )
-
-        trigger_course_authoring_migration(
-            sender=WaffleFlagCourseOverrideModel,
-            instance=instance,
-            scope_key=str(instance.course_id),
-        )
-
-        mock_run.assert_not_called()
+    COURSE_KEY = "course-v1:test_org+course+run_mm"
+    ORG_KEY = "test_org"
 
     @data(
         (
             WaffleFlagCourseOverrideModel,
             {
-                "course_id": "course-v1:org+course+run_mm",
+                "course_id": COURSE_KEY,
                 "waffle_flag": OTHER_WAFFLE_FLAG_NAME,
                 "enabled": True,
             },
-            "course-v1:org+course+run_mm",
+            COURSE_KEY,
         ),
         (
             WaffleFlagOrgOverrideModel,
             {
-                "org": "test_org_waffle_mm",
+                "org": ORG_KEY,
                 "waffle_flag": OTHER_WAFFLE_FLAG_NAME,
                 "enabled": True,
             },
-            "test_org_waffle_mm",
+            ORG_KEY,
         ),
     )
     @unpack
@@ -303,6 +297,82 @@ class TestTriggerCourseAuthoringMigration(TestCase):
 
         mock_run.assert_not_called()
 
+    @data(
+        (
+            WaffleFlagCourseOverrideModel,
+            {
+                "course_id": COURSE_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": False,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            COURSE_KEY,
+        ),
+        (
+            WaffleFlagOrgOverrideModel,
+            {
+                "org": ORG_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": False,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            ORG_KEY,
+        ),
+    )
+    @unpack
+    @patch("openedx_authz.handlers.logger")
+    def test_skips_when_waffle_row_disabled(
+        self,
+        sender_model,
+        instance_kwargs,
+        scope_key,
+        mock_logger,
+        mock_run,
+    ):  # pylint: disable=too-many-positional-arguments
+        """When the override row is not active, the handler exits before migration (course and org)."""
+        instance = sender_model(**instance_kwargs)
+
+        trigger_course_authoring_migration(sender_model, instance, scope_key)
+
+        mock_run.assert_not_called()
+        mock_logger.info.assert_called_once_with("Waffle flag is disabled, skipping migration")
+
+    @override_settings(ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION=False)
+    @data(
+        (
+            WaffleFlagCourseOverrideModel,
+            {
+                "course_id": COURSE_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+            },
+            COURSE_KEY,
+        ),
+        (
+            WaffleFlagOrgOverrideModel,
+            {
+                "org": ORG_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+            },
+            ORG_KEY,
+        ),
+    )
+    @unpack
+    @patch("openedx_authz.handlers.logger")
+    def test_skips_when_automatic_migration_setting_disabled(
+        self, sender_model, instance_kwargs, scope_key, mock_logger, mock_run
+    ):  # pylint: disable=too-many-positional-arguments
+        """When the setting is off, the handler returns before scheduling work (course and org)."""
+        instance = sender_model(**instance_kwargs)
+
+        trigger_course_authoring_migration(sender_model, instance, scope_key)
+
+        mock_run.assert_not_called()
+        mock_logger.info.assert_called_once_with(
+            "ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION is set to False, skipping migration"
+        )
+
     @patch("openedx_authz.handlers.logger")
     def test_logs_error_for_unsupported_instance_type(self, mock_logger, mock_run):
         """Instances that are neither course nor org overrides are rejected."""
@@ -311,75 +381,276 @@ class TestTriggerCourseAuthoringMigration(TestCase):
         trigger_course_authoring_migration(WaffleFlagCourseOverrideModel, unsupported, "ignored")
 
         mock_run.assert_not_called()
-        mock_logger.error.assert_called_once()
-        self.assertIn("Unsupported waffle flag instance", mock_logger.error.call_args[0][0])
+        mock_logger.error.assert_called_once_with("Unsupported waffle flag instance: %s", unsupported)
 
     @data(
-        (True, MigrationType.FORWARD),
-        (False, MigrationType.ROLLBACK),
+        (WAFFLE_OVERRIDE_FORCE_ON, MigrationType.FORWARD),
+        (WAFFLE_OVERRIDE_FORCE_OFF, MigrationType.ROLLBACK),
     )
     @unpack
-    def test_course_scope_migration_depends_on_enabled(self, enabled, expected_migration_type, mock_run):
-        """Course override runs forward migration when enabled and rollback when disabled."""
-        course_key = f"course-v1:test_org+handlers_course+{'on' if enabled else 'off'}"
+    def test_course_scope_migration_depends_on_override_choice(
+        self, override_choice, expected_migration_type, mock_run
+    ):
+        """Course override runs forward when forced on and rollback when forced off."""
         instance = WaffleFlagCourseOverrideModel.objects.create(
-            course_id=course_key,
+            course_id=self.COURSE_KEY,
             waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG_NAME,
-            enabled=enabled,
+            enabled=True,
+            override_choice=override_choice,
         )
 
-        trigger_course_authoring_migration(WaffleFlagCourseOverrideModel, instance, course_key)
+        trigger_course_authoring_migration(WaffleFlagCourseOverrideModel, instance, self.COURSE_KEY)
 
         mock_run.assert_called_once_with(
             migration_type=expected_migration_type,
             scope_type=ScopeType.COURSE,
-            scope_key=course_key,
+            scope_key=self.COURSE_KEY,
             course_access_role_model=CourseAccessRole,
             user_subject_model=UserSubject,
-            course_id_list=[course_key],
+            course_id_list=[self.COURSE_KEY],
             org_id=None,
+            excluded_course_ids=frozenset(),
+            delete_after_migration=True,
         )
 
     @data(
-        (True, MigrationType.FORWARD),
-        (False, MigrationType.ROLLBACK),
+        (WAFFLE_OVERRIDE_FORCE_ON, MigrationType.FORWARD),
+        (WAFFLE_OVERRIDE_FORCE_OFF, MigrationType.ROLLBACK),
     )
     @unpack
-    def test_org_scope_migration_depends_on_enabled(self, enabled, expected_migration_type, mock_run):
-        """Org override runs forward migration when enabled and rollback when disabled."""
-        org_name = f"test_org_handlers_{enabled}"
+    def test_org_scope_migration_depends_on_override_choice(self, override_choice, expected_migration_type, mock_run):
+        """Org override runs forward when forced on and rollback when forced off."""
         instance = WaffleFlagOrgOverrideModel.objects.create(
-            org=org_name,
+            org=self.ORG_KEY,
             waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG_NAME,
-            enabled=enabled,
+            enabled=True,
+            override_choice=override_choice,
         )
 
-        trigger_course_authoring_migration(WaffleFlagOrgOverrideModel, instance, org_name)
+        trigger_course_authoring_migration(WaffleFlagOrgOverrideModel, instance, self.ORG_KEY)
 
         mock_run.assert_called_once_with(
             migration_type=expected_migration_type,
             scope_type=ScopeType.ORG,
-            scope_key=org_name,
+            scope_key=self.ORG_KEY,
             course_access_role_model=CourseAccessRole,
             user_subject_model=UserSubject,
             course_id_list=None,
-            org_id=org_name,
+            org_id=self.ORG_KEY,
+            excluded_course_ids=frozenset(),
+            delete_after_migration=True,
         )
 
-    def test_skips_when_previous_record_has_same_enabled_state(self, mock_run):
-        """Repeated saves with the same enabled value do not trigger migration."""
-        course_id = "course-v1:test_org+tcam_noop+2024"
+    @data(
+        (
+            WAFFLE_OVERRIDE_FORCE_ON,
+            WAFFLE_OVERRIDE_FORCE_OFF,
+            MigrationType.FORWARD,
+        ),
+        (
+            WAFFLE_OVERRIDE_FORCE_OFF,
+            WAFFLE_OVERRIDE_FORCE_ON,
+            MigrationType.ROLLBACK,
+        ),
+    )
+    @unpack
+    def test_org_scope_passes_excluded_course_ids_when_course_overrides_oppose_org(
+        self, org_override_choice, course_override_choice, expected_migration_type, mock_run
+    ):
+        """Org migration excludes active course rows whose override opposes the org transition."""
         WaffleFlagCourseOverrideModel.objects.create(
-            course_id=course_id,
+            course_id=self.COURSE_KEY,
             waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG_NAME,
             enabled=True,
+            override_choice=course_override_choice,
         )
-        instance = WaffleFlagCourseOverrideModel.objects.create(
-            course_id=course_id,
+        instance = WaffleFlagOrgOverrideModel.objects.create(
+            org=self.ORG_KEY,
             waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG_NAME,
             enabled=True,
+            override_choice=org_override_choice,
         )
 
-        trigger_course_authoring_migration(WaffleFlagCourseOverrideModel, instance, course_id)
+        trigger_course_authoring_migration(WaffleFlagOrgOverrideModel, instance, self.ORG_KEY)
+
+        mock_run.assert_called_once_with(
+            migration_type=expected_migration_type,
+            scope_type=ScopeType.ORG,
+            scope_key=self.ORG_KEY,
+            course_access_role_model=CourseAccessRole,
+            user_subject_model=UserSubject,
+            course_id_list=None,
+            org_id=self.ORG_KEY,
+            excluded_course_ids=frozenset({str(self.COURSE_KEY)}),
+            delete_after_migration=True,
+        )
+
+    @data(
+        (
+            WaffleFlagCourseOverrideModel,
+            {
+                "course_id": COURSE_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            COURSE_KEY,
+        ),
+        (
+            WaffleFlagOrgOverrideModel,
+            {
+                "org": ORG_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            ORG_KEY,
+        ),
+    )
+    @unpack
+    @patch("openedx_authz.handlers.logger")
+    def test_skips_when_previous_enabled_record_has_same_override_choice(
+        self, sender_model, row_kwargs, scope_key, mock_logger, mock_run
+    ):  # pylint: disable=too-many-positional-arguments
+        """Repeated history rows with the same active override choice do not trigger migration."""
+        sender_model.objects.create(**row_kwargs)
+        instance = sender_model.objects.create(**row_kwargs)
+
+        trigger_course_authoring_migration(sender_model, instance, scope_key)
 
         mock_run.assert_not_called()
+        mock_logger.info.assert_called_once_with("No change in waffle flag, skipping migration")
+
+    @data(
+        (
+            WaffleFlagCourseOverrideModel,
+            {
+                "course_id": COURSE_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": False,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            {
+                "course_id": COURSE_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            COURSE_KEY,
+        ),
+        (
+            WaffleFlagOrgOverrideModel,
+            {
+                "org": ORG_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": False,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            {
+                "org": ORG_KEY,
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            ORG_KEY,
+        ),
+    )
+    @unpack
+    def test_runs_when_previous_record_disabled_even_if_same_override_choice(
+        self, sender_model, prev_kwargs, instance_kwargs, scope_key, mock_run
+    ):  # pylint: disable=too-many-positional-arguments
+        """If the prior row was inactive, a new active row still triggers migration (course and org)."""
+        sender_model.objects.create(**prev_kwargs)
+        instance = sender_model.objects.create(**instance_kwargs)
+
+        trigger_course_authoring_migration(sender_model, instance, scope_key)
+
+        common = {
+            "migration_type": MigrationType.FORWARD,
+            "scope_key": scope_key,
+            "course_access_role_model": CourseAccessRole,
+            "user_subject_model": UserSubject,
+            "excluded_course_ids": frozenset(),
+            "delete_after_migration": True,
+        }
+        if sender_model is WaffleFlagCourseOverrideModel:
+            mock_run.assert_called_once_with(
+                **common,
+                scope_type=ScopeType.COURSE,
+                course_id_list=[scope_key],
+                org_id=None,
+            )
+        else:
+            mock_run.assert_called_once_with(
+                **common,
+                scope_type=ScopeType.ORG,
+                course_id_list=None,
+                org_id=scope_key,
+            )
+
+    @data(
+        (
+            WaffleFlagCourseOverrideModel,
+            {
+                "course_id": "course-v1:test_org+tcam_override_change+1",
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            {
+                "course_id": "course-v1:test_org+tcam_override_change+1",
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_OFF,
+            },
+            "course-v1:test_org+tcam_override_change+1",
+        ),
+        (
+            WaffleFlagOrgOverrideModel,
+            {
+                "org": "test_org_tcam_override_change",
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_ON,
+            },
+            {
+                "org": "test_org_tcam_override_change",
+                "waffle_flag": AUTHZ_COURSE_AUTHORING_FLAG_NAME,
+                "enabled": True,
+                "override_choice": WAFFLE_OVERRIDE_FORCE_OFF,
+            },
+            "test_org_tcam_override_change",
+        ),
+    )
+    @unpack
+    def test_runs_when_previous_enabled_record_has_different_override_choice(
+        self, sender_model, prev_kwargs, instance_kwargs, scope_key, mock_run
+    ):  # pylint: disable=too-many-positional-arguments
+        """A new row that changes override choice from the last active row triggers migration (course and org)."""
+        sender_model.objects.create(**prev_kwargs)
+        instance = sender_model.objects.create(**instance_kwargs)
+
+        trigger_course_authoring_migration(sender_model, instance, scope_key)
+
+        common = {
+            "migration_type": MigrationType.ROLLBACK,
+            "scope_key": scope_key,
+            "course_access_role_model": CourseAccessRole,
+            "user_subject_model": UserSubject,
+            "excluded_course_ids": frozenset(),
+            "delete_after_migration": True,
+        }
+        if sender_model is WaffleFlagCourseOverrideModel:
+            mock_run.assert_called_once_with(
+                **common,
+                scope_type=ScopeType.COURSE,
+                course_id_list=[scope_key],
+                org_id=None,
+            )
+        else:
+            mock_run.assert_called_once_with(
+                **common,
+                scope_type=ScopeType.ORG,
+                course_id_list=None,
+                org_id=scope_key,
+            )

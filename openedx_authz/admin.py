@@ -122,11 +122,11 @@ class ScopeTypeFilter(admin.SimpleListFilter):
 class RoleAssignmentAuditAdmin(admin.ModelAdmin):
     """Read-only admin for the role assignment audit log."""
 
-    list_display = ("operation", "display_subject", "display_role", "display_scope", "actor", "timestamp")
+    list_display = ("operation", "display_subject", "display_role", "display_scope", "actor_id", "timestamp")
     list_filter = ("operation", ScopeTypeFilter)
     search_fields = ("subject", "role", "scope")
     date_hierarchy = "timestamp"
-    readonly_fields = ("operation", "subject", "role", "scope", "actor", "timestamp")
+    readonly_fields = ("operation", "subject", "role", "scope", "actor_id", "timestamp")
 
     @admin.display(description="subject")
     def display_subject(self, obj):

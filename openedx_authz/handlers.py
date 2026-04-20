@@ -331,7 +331,7 @@ def create_audit_record_on_role_assignment_change(sender, role_assignment, **kwa
             subject=role_assignment.subject,
             role=role_assignment.role,
             scope=role_assignment.scope,
-            actor=role_assignment.actor,
+            actor_id=role_assignment.actor_id,
             timestamp=kwargs["metadata"].time,
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught

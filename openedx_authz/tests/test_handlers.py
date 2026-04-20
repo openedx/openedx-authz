@@ -721,7 +721,7 @@ class TestCreateAuditRecordHandler(TestCase):
 
         Expected result:
         - One RoleAssignmentAudit record exists with operation, subject, role, scope,
-          actor (None), and the event timestamp.
+          actor_id (None), and the event timestamp.
         """
         role_assignment = RoleAssignmentData(
             operation=RoleAssignmentAudit.OPERATIONS.created,
@@ -737,7 +737,7 @@ class TestCreateAuditRecordHandler(TestCase):
         self.assertEqual(audit.subject, "user^john_doe")
         self.assertEqual(audit.role, "role^library_admin")
         self.assertEqual(audit.scope, "lib^org1:lib1")
-        self.assertIsNone(audit.actor)
+        self.assertIsNone(audit.actor_id)
         self.assertEqual(audit.timestamp, self.TIMESTAMP)
 
     def test_creates_audit_record_for_deleted_operation(self):

@@ -70,18 +70,17 @@ Event payload
         "subject":   "<namespaced subject key, e.g. user^alice>",
         "role":      "<namespaced role key, e.g. role^instructor>",
         "scope":     "<namespaced scope key, e.g. course-v1^course-v1:Org+Course+Run>",
-        "actor":     "<username of the caller, or None for system actor>",
+        "actor_id":  <database ID of the caller (int), or None for system actor>,
     }
 
 The actor is resolved from ``django_crum.get_current_user()`` at API call time. No callers
-need to pass ``actor=`` explicitly. The username is stored as a plain string rather than a
-reference to the ``User`` record, so attribution is preserved even if the user is deleted.
+need to pass ``actor_id=`` explicitly.
 
 Audit table
 -----------
 
 ``RoleAssignmentAudit`` mirrors the event payload. Registered in Django admin, filterable by
-user, role, scope, actor, and timestamp.
+user, role, scope, actor_id, and timestamp.
 
 Subject, role, and scope are stored as plain namespaced key strings (e.g. ``user^alice``,
 ``role^instructor``, ``lib^lib:Org1:lib1``). There are no FK references to live ``Subject``,
@@ -141,12 +140,11 @@ Consequences
 #. **Events are best-effort.** If the audit write fails, the Casbin policy is still durable.
    Consumers requiring guaranteed delivery must implement their own retry logic.
 
-#. **``actor`` is nullable.** Non-request contexts (management commands, background tasks)
-   record ``None``, logged as a system operation. ``actor`` is stored as a plain username
-   string rather than a FK to ``User``. Attribution is preserved unconditionally: deleting
-   or retiring a user does not affect existing audit records. This also avoids a dependency
-   on the ``User`` table from the audit log, keeping audit records fully independent from
-   live data.
+#. **``actor_id`` is nullable.** Non-request contexts (management commands, background tasks)
+   record ``None``, logged as a system operation. ``actor_id`` is stored as a plain integer
+   (the database ID of the caller) rather than a FK to ``User``. This avoids a dependency
+   on the ``User`` table and keeps audit records fully independent from live data. Attribution
+   is preserved unconditionally: deleting or retiring a user does not affect existing records.
 
 #. **Audit records are independent from live authorization state.** Deleting a subject,
    scope, or role does not remove its audit history. Records may reference identifiers that

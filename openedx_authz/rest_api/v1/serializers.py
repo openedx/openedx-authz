@@ -6,7 +6,7 @@ from organizations.serializers import OrganizationSerializer
 from rest_framework import serializers
 
 from openedx_authz import api
-from openedx_authz.api.data import UserAssignments
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, UserAssignments
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     ScopesTypeField,
@@ -95,6 +95,10 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
         if not scope.exists():
             raise serializers.ValidationError({"scope": f"Scope '{scope_value}' does not exist"})
 
+        # Special case for global wildcard
+        if scope_value == GLOBAL_SCOPE_WILDCARD:
+            return
+
         role = api.RoleData(external_key=role_value)
         generic_scope = get_generic_scope(scope)
         role_definitions = api.get_role_definitions_in_scope(generic_scope)
@@ -160,15 +164,11 @@ class AddUsersToRoleWithScopeSerializer(
         role_value = validated_data["role"]
 
         if scope and scopes is not None:
-            raise serializers.ValidationError(
-                "Provide either 'scope' or 'scopes', not both."
-            )
+            raise serializers.ValidationError("Provide either 'scope' or 'scopes', not both.")
 
         scopes_list = scopes if scopes is not None else ([scope] if scope else None)
         if not scopes_list:
-            raise serializers.ValidationError(
-                "Either 'scope' or 'scopes' must be provided."
-            )
+            raise serializers.ValidationError("Either 'scope' or 'scopes' must be provided.")
 
         for scope_value in scopes_list:
             self._validate_scope_and_role(scope_value, role_value)
@@ -401,6 +401,9 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
             case api.SuperAdminAssignmentData():
                 return "*"
             case api.RoleAssignmentData():
+                if obj.scope.external_key == GLOBAL_SCOPE_WILDCARD:
+                    # Special case for global wildcard scope
+                    return "*"
                 return getattr(obj.scope, "org", "")
 
     def get_scope(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:

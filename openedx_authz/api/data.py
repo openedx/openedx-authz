@@ -32,6 +32,7 @@ __all__ = [
     "AuthzBaseClass",
     "ContentLibraryData",
     "CourseOverviewData",
+    "GlobalWildcardScopeData",
     "GroupingPolicyIndex",
     "OrgCourseOverviewGlobData",
     "OrgGlobData",
@@ -154,11 +155,11 @@ class ScopeMeta(type):
 
         # When working with global scopes, we can't determine subclass with an external_key since
         # a global scope it's not attached to a specific resource type. So we only use * as
-        # an external_key to mean generic scope which maps to base ScopeData class.
+        # an external_key to mean the global wildcard scope which maps to GlobalWildcardScopeData.
         # The only remaining issue is that internally the namespace key used in policies will be
         # The global scope namespace (global^*), so we need to handle that case here.
         if kwargs.get("external_key") == GLOBAL_SCOPE_WILDCARD:
-            return super().__call__(*args, **kwargs)
+            return super(ScopeMeta, GlobalWildcardScopeData).__call__(*args, **kwargs)
 
         if "namespaced_key" in kwargs:
             scope_cls = cls.get_subclass_by_namespaced_key(kwargs["namespaced_key"])
@@ -249,6 +250,11 @@ class ScopeMeta(type):
             - This won't work for org scopes that don't have explicit namespace prefixes.
               TODO: Handle org scopes differently.
         """
+
+        # Special case: handle the global wildcard scope:
+        if external_key == "*":
+            return mcs.glob_registry.get("global")
+
         if EXTERNAL_KEY_SEPARATOR not in external_key:
             raise ValueError(f"Invalid external_key format: {external_key}")
 
@@ -288,7 +294,7 @@ class ScopeMeta(type):
 
         Examples:
             >>> ScopeMeta.get_all_namespaces()
-            {'global': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
+            {'global': GlobalWildcardScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
         """
         return mcs.scope_registry
 
@@ -326,8 +332,7 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
 
     # The 'global' namespace is used for scopes that aren't tied to a specific resource type.
     # This base class supports:
-    # 1. Global wildcard scopes (external_key='*') that apply across all resource types
-    # 2. Custom global scopes that don't map to specific domain objects (e.g., 'global:some_scope')
+    # - Custom scopes that don't map to specific domain objects (e.g., 'global:some_scope')
     # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
     NAMESPACE: ClassVar[str] = "global"
     IS_GLOB: ClassVar[bool] = False
@@ -398,6 +403,93 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
             bool: True if the scope exists, False otherwise.
         """
         raise NotImplementedError("Subclasses must implement exists method.")
+
+
+@define
+class GlobalWildcardScopeData(ScopeData):
+    """The global wildcard scope representing access across all scopes.
+
+    This scope is used when a role assignment should apply globally (i.e., not
+    tied to any specific resource). It corresponds to the ``global^*`` namespaced
+    key in Casbin policies.
+
+    The global wildcard scope always exists and does not map to a concrete domain
+    object. It is automatically instantiated by the ``ScopeMeta`` metaclass when
+    ``ScopeData(external_key='*')`` is called.
+
+    Attributes:
+        NAMESPACE (str): 'global'.
+        external_key (str): Always ``'*'``.
+        namespaced_key (str): Always ``'global^*'``.
+
+    Examples:
+        >>> scope = ScopeData(external_key='*')
+        >>> isinstance(scope, GlobalWildcardScopeData)
+        True
+        >>> scope.exists()
+        True
+        >>> scope.namespaced_key
+        'global^*'
+    """
+
+    # The 'global' namespace is used for scopes that aren't tied to a specific resource type.
+    # This class supports Global wildcard scopes (external_key='*') that apply across all resource types
+    NAMESPACE: ClassVar[str] = "global"
+    IS_GLOB: ClassVar[bool] = True
+
+    @classmethod
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for GlobalWildcardScopeData.
+
+        Only the wildcard ``'*'`` is accepted.
+
+        Args:
+            external_key: The external key to validate.
+
+        Returns:
+            bool: True if the key is ``'*'``, False otherwise.
+        """
+        return external_key == GLOBAL_SCOPE_WILDCARD
+
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """No admin view permission for the global scope.
+
+        Global scope assignments are managed exclusively by superadmins
+        at the REST API layer, so no granular permission is needed.
+
+        Returns:
+            None
+        """
+        return VIEW_LIBRARY_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """No admin manage permission for the global scope.
+
+        Global scope assignments are managed exclusively by superadmins
+        at the REST API layer, so no granular permission is needed.
+
+        Returns:
+            None
+        """
+        return None
+
+    def get_object(self) -> None:
+        """The global wildcard scope does not map to a concrete domain object.
+
+        Returns:
+            None: Always returns None.
+        """
+        return None
+
+    def exists(self) -> bool:
+        """The global wildcard scope always exists.
+
+        Returns:
+            bool: Always True.
+        """
+        return True
 
 
 @define
@@ -690,6 +782,9 @@ class OrgGlobData(ScopeData):
         - ``course-v1:DemoX+*`` (all courses in org ``DemoX``)
     """
 
+    # This NAMESPACE should be overriden by specific scope subclasses,
+    # Setting this here so it doesn't conflict with GlobalWildcardScopeData's 'global' namespace
+    NAMESPACE: ClassVar[str] = "orgglob"
     IS_GLOB: ClassVar[bool] = True
     ID_SEPARATOR: ClassVar[str]
     ORG_NAME_VALID_PATTERN: ClassVar[re.Pattern] = r"^[a-zA-Z0-9._-]*$"

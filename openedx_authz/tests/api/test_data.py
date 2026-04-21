@@ -11,6 +11,7 @@ from openedx_authz.api.data import (
     CCXCourseOverviewData,
     ContentLibraryData,
     CourseOverviewData,
+    GlobalWildcardScopeData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PermissionData,
@@ -249,7 +250,8 @@ class TestScopeMetaClass(TestCase):
         """Test that ScopeData and its subclasses are registered correctly.
 
         Expected Result:
-            - 'global' namespace maps to ScopeData class
+            - 'global' namespace maps to ScopeData class in scope_registry
+            - 'global' namespace maps to GlobalWildcardScopeData in glob_registry
             - 'lib' namespace maps to ContentLibraryData class
         """
         self.assertIn("global", ScopeData.scope_registry)
@@ -261,7 +263,9 @@ class TestScopeMetaClass(TestCase):
         self.assertIn("ccx-v1", ScopeData.scope_registry)
         self.assertIs(ScopeData.scope_registry["ccx-v1"], CCXCourseOverviewData)
 
-        # Glob registries for organization-level scopes
+        # Glob registries for organization-level scopes and global wildcard
+        self.assertIn("global", ScopeMeta.glob_registry)
+        self.assertIs(ScopeMeta.glob_registry["global"], GlobalWildcardScopeData)
         self.assertIn("lib", ScopeMeta.glob_registry)
         self.assertIs(ScopeMeta.glob_registry["lib"], OrgContentLibraryGlobData)
         self.assertIn("course-v1", ScopeMeta.glob_registry)
@@ -320,6 +324,7 @@ class TestScopeMetaClass(TestCase):
         ("course-v1:OpenedX+*", OrgCourseOverviewGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
+        ("*", GlobalWildcardScopeData),
     )
     @unpack
     def test_get_subclass_by_external_key(self, external_key, expected_class):
@@ -361,11 +366,11 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(result, expected_valid)
 
     @data(
-        "unknown:DemoX",
-        "unknown:DemoX:*",
+        "undefined:DemoX",
+        "undefined:DemoX:*",
     )
-    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self, external_key):
-        """Unknown namespace should raise ValueError, including wildcard keys."""
+    def test_get_subclass_by_external_key_undefined_scope_raises_value_error(self, external_key):
+        """Undefined namespace should raise ValueError, including wildcard keys."""
         with self.assertRaises(ValueError):
             ScopeMeta.get_subclass_by_external_key(external_key)
 
@@ -464,25 +469,28 @@ class TestScopeMetaClass(TestCase):
             SubjectData(external_key="")
 
     def test_scope_data_with_wildcard_external_key(self):
-        """Test that ScopeData instantiated with wildcard (*) returns base ScopeData.
+        """Test that ScopeData instantiated with wildcard (*) returns GlobalWildcardScopeData.
 
-        When using the global scope wildcard '*', the metaclass should return a base
-        ScopeData instance rather than attempting subclass determination.
+        When using the global scope wildcard '*', the metaclass should return a
+        GlobalWildcardScopeData instance rather than attempting subclass determination
+        from the external_key format.
 
         Expected Result:
-            - ScopeData(external_key='*') creates base ScopeData instance
+            - ScopeData(external_key='*') creates GlobalWildcardScopeData instance
             - namespaced_key is 'global^*'
-            - No subclass determination occurs
+            - exists() returns True
+            - get_object() returns None
         """
         scope = ScopeData(external_key="*")
 
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}*"
+        expected_namespaced = f"{GlobalWildcardScopeData.NAMESPACE}{GlobalWildcardScopeData.SEPARATOR}*"
 
         self.assertIsInstance(scope, ScopeData)
-        # Ensure it's exactly ScopeData, not a subclass
-        self.assertEqual(type(scope), ScopeData)
+        self.assertIsInstance(scope, GlobalWildcardScopeData)
         self.assertEqual(scope.external_key, "*")
         self.assertEqual(scope.namespaced_key, expected_namespaced)
+        self.assertTrue(scope.exists())
+        self.assertIsNone(scope.get_object())
 
 
 @ddt

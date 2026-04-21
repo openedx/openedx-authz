@@ -282,6 +282,28 @@ class AnyScopePermission(MethodPermissionMixin, BasePermission):
         return any(api.get_scopes_for_user_and_permission(request.user.username, permission) for permission in required)
 
 
+class GlobalScopePermission(BaseScopePermission):
+    """Permission handler for the global wildcard scope.
+
+    Only superadmins (``is_superuser`` or ``is_staff``) are allowed to assign roles to the
+    global scope (``*``). Staff members without superuser status are denied.
+
+    This class is automatically selected by ``DynamicScopePermission`` when
+    the request scope resolves to the ``global`` namespace.
+    """
+
+    NAMESPACE: ClassVar[str] = "global"
+    """``global`` for global wildcard scopes."""
+
+    def has_permission(self, request, view) -> bool:
+        """Allow only superusers to operate on the global scope.
+
+        Returns:
+            bool: True if the user is a superadmin, False otherwise.
+        """
+        return request.user.is_superuser or request.user.is_staff
+
+
 class ContentLibraryPermission(MethodPermissionMixin, BaseScopePermission):
     """Permission handler for content library scopes.
 

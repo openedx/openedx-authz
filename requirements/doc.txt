@@ -143,7 +143,7 @@ edx-organizations==8.0.0
     # via -r requirements/test.txt
 id==1.6.1
     # via twine
-idna==3.11
+idna==3.12
     # via
     #   -r requirements/test.txt
     #   requests
@@ -236,7 +236,7 @@ pyjwt[crypto]==2.12.1
     #   -r requirements/test.txt
     #   drf-jwt
     #   edx-drf-extensions
-pymongo==4.16.0
+pymongo==4.17.0
     # via
     #   -r requirements/test.txt
     #   edx-opaque-keys

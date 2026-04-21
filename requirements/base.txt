@@ -48,6 +48,7 @@ django-simple-history==3.11.0
     # via edx-organizations
 django-waffle==5.0.0
     # via
+    #   -r requirements/base.in
     #   edx-django-utils
     #   edx-drf-extensions
 djangorestframework==3.17.1
@@ -84,7 +85,7 @@ edx-opaque-keys==4.0.0
     #   edx-organizations
 edx-organizations==8.0.0
     # via -r requirements/base.in
-idna==3.11
+idna==3.12
     # via requests
 inflection==0.5.1
     # via drf-yasg
@@ -106,7 +107,7 @@ pyjwt[crypto]==2.12.1
     # via
     #   drf-jwt
     #   edx-drf-extensions
-pymongo==4.16.0
+pymongo==4.17.0
     # via edx-opaque-keys
 pynacl==1.6.2
     # via edx-django-utils

@@ -39,6 +39,7 @@ INSTALLED_APPS = (
     "openedx_authz.apps.OpenedxAuthzConfig",
     "openedx_authz.tests.stubs.apps.StubsConfig",
     "organizations",
+    "waffle",
 )
 
 MIDDLEWARE = [

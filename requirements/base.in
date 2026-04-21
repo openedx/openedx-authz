@@ -16,3 +16,4 @@ edx-organizations           # Organizations library for Open edX
 django-waffle               # Waffle library for feature flag management
 # TODO: pin to released version once MJG/authz-audit is merged and released
 git+https://github.com/openedx/openedx-events.git@MJG/authz-audit#egg=openedx-events
+django-crum                 # Current Request User Middleware for Django

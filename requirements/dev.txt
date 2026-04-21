@@ -213,11 +213,6 @@ mccabe==0.7.0
     #   pylint
 openedx-atlas==0.7.0
     # via -r requirements/quality.txt
-<<<<<<< HEAD
-=======
-openedx-events @ git+https://github.com/openedx/openedx-events.git@MJG/authz-audit
-    # via -r requirements/quality.txt
->>>>>>> f9b6043 (chore: run make upgrade after including openedx-events)
 packaging==26.1
     # via
     #   -r requirements/ci.txt

@@ -46,7 +46,9 @@ class Migration(migrations.Migration):
                 (
                     "scope",
                     models.CharField(
-                        help_text="Namespaced key of the scope (e.g. 'course-v1^course-v1:org+course+run') or glob pattern.",
+                        help_text=(
+                            "Namespaced key of the scope (e.g. 'course-v1^course-v1:org+course+run') or glob pattern."
+                        ),
                         max_length=255,
                     ),
                 ),
@@ -54,7 +56,9 @@ class Migration(migrations.Migration):
                     "actor_id",
                     models.IntegerField(
                         blank=True,
-                        help_text="Database ID of the user who performed the operation. Null for system-initiated actions.",
+                        help_text=(
+                            "Database ID of the user who performed the operation. Null for system-initiated actions."
+                        ),
                         null=True,
                     ),
                 ),

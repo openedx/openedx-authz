@@ -13,6 +13,7 @@ from casbin_adapter.models import CasbinRule
 from django.conf import settings
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+from waffle.models import Flag
 
 from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.engine.utils import run_course_authoring_migration
@@ -149,39 +150,61 @@ WAFFLE_OVERRIDE_FORCE_OFF = "off"
 WaffleOverrideRecord = Union[WaffleFlagCourseOverrideModel, WaffleFlagOrgOverrideModel]
 
 
+def get_effective_state(record: WaffleOverrideRecord | None, global_flag_enabled: bool) -> bool:
+    """
+    Determine the actual active state of the feature by evaluating the local override
+    against the global flag state.
+
+    Args:
+        record (WaffleOverrideRecord | None): The waffle flag record to evaluate.
+        global_flag_enabled (bool): The state of the global flag.
+
+    Returns:
+        bool: True if the feature is active, False otherwise.
+    """
+    # If there is no override, or the override is disabled, the state falls back to the global flag.
+    if not record or not record.enabled:
+        return global_flag_enabled
+
+    # If there is an active override, it dictates the state, ignoring the global flag.
+    if record.override_choice == WAFFLE_OVERRIDE_FORCE_ON:
+        return True
+    if record.override_choice == WAFFLE_OVERRIDE_FORCE_OFF:
+        return False
+
+    # Safety fallback (in case override_choice is corrupted or empty)
+    return global_flag_enabled
+
+
 def get_migration_type(
-    current_record: WaffleOverrideRecord, previous_record: WaffleOverrideRecord | None
+    current_record: WaffleOverrideRecord,
+    previous_record: WaffleOverrideRecord | None,
+    global_flag_enabled: bool,
 ) -> MigrationType | None:
     """
-    Determine the migration type by comparing the current and previous record states.
+    Determine the migration type by comparing the effective state before and after the transaction.
 
-    A FORWARD migration occurs when a flag transitions from disabled/not-forced
-    to enabled and forced-on. A ROLLBACK occurs when it transitions back.
+    This accounts for the global flag state, meaning a transition could be triggered by
+    removing a FORCE_OFF override when the global flag is ON.
 
     Args:
         current_record (WaffleOverrideRecord): The state of the record in the current transaction.
         previous_record (WaffleOverrideRecord | None): The state of the record prior to the current transaction.
+        global_flag_enabled (bool): The state of the global flag.
 
     Returns:
         MigrationType.FORWARD: If the flag is newly forced on.
         MigrationType.ROLLBACK: If the forced-on state is removed.
         None: If there is no effective change in the flag's behavior.
     """
-    # 1. Handle New Records (Creation)
-    if not previous_record:
-        is_active = current_record.enabled and current_record.override_choice == WAFFLE_OVERRIDE_FORCE_ON
-        return MigrationType.FORWARD if is_active else None
+    was_effectively_active = get_effective_state(previous_record, global_flag_enabled)
+    is_effectively_active = get_effective_state(current_record, global_flag_enabled)
 
-    # 2. Extract Effective States
-    # A flag is "effectively active" only if enabled AND set to FORCE_ON
-    was_effectively_active = previous_record.enabled and previous_record.override_choice == WAFFLE_OVERRIDE_FORCE_ON
-    is_effectively_active = current_record.enabled and current_record.override_choice == WAFFLE_OVERRIDE_FORCE_ON
-
-    # 3. Return None if state hasn't changed
+    # If the effective behavior hasn't changed, we don't need to do anything
     if is_effectively_active == was_effectively_active:
         return None
 
-    # 4. Determine Transition Type
+    # If it is now effectively active (and wasn't before), migrate forward. Otherwise, rollback.
     return MigrationType.FORWARD if is_effectively_active else MigrationType.ROLLBACK
 
 
@@ -254,9 +277,12 @@ def trigger_course_authoring_migration(
 
     prev_record = sender.objects.filter(**filter_kwargs).exclude(id=instance.id).order_by("-change_date").first()
 
-    migration_type = get_migration_type(instance, prev_record)
+    global_flag = Flag.objects.filter(name=AUTHZ_COURSE_AUTHORING_FLAG.name).first()
+    global_flag_enabled = bool(global_flag and global_flag.everyone)
+
+    migration_type = get_migration_type(instance, prev_record, global_flag_enabled)
     if migration_type is None:
-        logger.info("No change in waffle flag, skipping migration")
+        logger.info("No effective change in waffle flag behavior, skipping migration")
         return
 
     excluded_course_ids = frozenset()

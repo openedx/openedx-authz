@@ -152,8 +152,9 @@ WaffleOverrideRecord = Union[WaffleFlagCourseOverrideModel, WaffleFlagOrgOverrid
 
 def get_effective_state(record: WaffleOverrideRecord | None, global_flag_enabled: bool) -> bool:
     """
-    Determine the actual active state of the feature by evaluating the local override
-    against the global flag state.
+    Return whether the feature is effectively active for the override and global flag.
+
+    An enabled override forces on or off, otherwise the result follows the global flag.
 
     Args:
         record (WaffleOverrideRecord | None): The waffle flag record to evaluate.

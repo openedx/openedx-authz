@@ -367,7 +367,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
             )
         else:
             mock_run.assert_not_called()
-            mock_logger.info.assert_called_once_with("No change in waffle flag, skipping migration")
+            mock_logger.info.assert_called_once_with("No effective change in waffle flag behavior, skipping migration")
 
     @data(
         (WAFFLE_OVERRIDE_FORCE_ON, MigrationType.FORWARD, True),
@@ -402,7 +402,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
             )
         else:
             mock_run.assert_not_called()
-            mock_logger.info.assert_called_once_with("No change in waffle flag, skipping migration")
+            mock_logger.info.assert_called_once_with("No effective change in waffle flag behavior, skipping migration")
 
     def test_org_scope_passes_excluded_course_ids_when_course_overrides_oppose_org(self, mock_run):
         """Org forward migration excludes active course rows whose override opposes force-on."""
@@ -467,7 +467,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
         trigger_course_authoring_migration(sender_model, instance, scope_key)
 
         mock_run.assert_not_called()
-        mock_logger.info.assert_called_once_with("No change in waffle flag, skipping migration")
+        mock_logger.info.assert_called_once_with("No effective change in waffle flag behavior, skipping migration")
 
     @data(
         (
@@ -538,76 +538,154 @@ class TestTriggerCourseAuthoringMigration(TestCase):
 
 
 class TestGetMigrationType(TestCase):
-    """Tests for ``get_migration_type``."""
+    """Tests for ``get_migration_type`` (effective state includes ``global_flag_enabled``)."""
 
     def create_mock_record(self, enabled: bool, choice: str):
         """Helper to create a mock record object."""
         return SimpleNamespace(enabled=enabled, override_choice=choice)
 
-    def test_creation_new_record_enabled(self):
-        """Case: No previous record, current is enabled and forced on."""
+    def test_creation_new_record_enabled_global_off(self):
+        """No prior row: enabling FORCE_ON migrates forward when the global flag is off."""
         current = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(current, None)
+        result = get_migration_type(current, None, global_flag_enabled=False)
 
         self.assertEqual(result, MigrationType.FORWARD)
 
-    def test_creation_new_record_disabled(self):
-        """Case: No previous record, current is disabled."""
-        current = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
+    def test_creation_new_record_enabled_global_on(self):
+        """No prior row: FORCE_ON is already the effective state when global is on — no migration."""
+        current = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(current, None)
+        result = get_migration_type(current, None, global_flag_enabled=True)
 
         self.assertIsNone(result)
 
-    def test_no_change_stay_active(self):
-        """Case: Both records are enabled and forced on (No change)."""
+    def test_creation_new_record_disabled_matches_global(self):
+        """Disabled row defers to global, no previous row means same effective state as global."""
+        current = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
+
+        self.assertIsNone(get_migration_type(current, None, global_flag_enabled=False))
+        self.assertIsNone(get_migration_type(current, None, global_flag_enabled=True))
+
+    def test_no_change_stay_active_force_on(self):
+        """Both enabled FORCE_ON — effective stays on."""
         prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
         curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(curr, prev)
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=False))
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=True))
 
-        self.assertIsNone(result)
-
+    def test_no_change_stay_active_force_off(self):
+        """Both enabled FORCE_OFF — effective stays off."""
         prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
         curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
 
-        result = get_migration_type(curr, prev)
-
-        self.assertIsNone(result)
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=False))
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=True))
 
     def test_no_change_stay_inactive(self):
-        """Case: Both records are disabled (No change)."""
+        """Both rows disabled — both follow global, so no effective change."""
         prev = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
         curr = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(curr, prev)
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=False))
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=True))
 
-        self.assertIsNone(result)
-
-    def test_transition_to_forward(self):
-        """Case: Transition from disabled to enabled/forced on."""
+    def test_transition_disabled_to_enabled_force_on_global_off(self):
+        """Row becomes active FORCE_ON while global is off — effective off → on."""
         prev = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
         curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(curr, prev)
+        result = get_migration_type(curr, prev, global_flag_enabled=False)
 
         self.assertEqual(result, MigrationType.FORWARD)
 
-    def test_transition_to_rollback(self):
-        """Case: Transition from enabled/forced on to disabled."""
+    def test_transition_disabled_to_enabled_force_on_global_on(self):
+        """Previously inactive row followed global (on), turning FORCE_ON on stays on — no op."""
+        prev = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
+        curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
+
+        result = get_migration_type(curr, prev, global_flag_enabled=True)
+
+        self.assertIsNone(result)
+
+    def test_transition_enabled_force_on_to_disabled_global_off(self):
+        """FORCE_ON row disabled, global off — effective on → off (rollback)."""
         prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
         curr = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
 
-        result = get_migration_type(curr, prev)
+        result = get_migration_type(curr, prev, global_flag_enabled=False)
 
         self.assertEqual(result, MigrationType.ROLLBACK)
 
-    def test_change_choice_to_rollback(self):
-        """Case: Enabled remains True, but choice changes from forced to something else."""
+    def test_transition_enabled_force_on_to_disabled_global_on(self):
+        """FORCE_ON row disabled but global still on — effective stays on, no migration."""
+        prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
+        curr = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_ON)
+
+        result = get_migration_type(curr, prev, global_flag_enabled=True)
+
+        self.assertIsNone(result)
+
+    def test_change_choice_force_on_to_force_off(self):
+        """Enabled FORCE_ON → FORCE_OFF — effective on → off."""
         prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
         curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
 
-        result = get_migration_type(curr, prev)
+        self.assertEqual(
+            get_migration_type(curr, prev, global_flag_enabled=False),
+            MigrationType.ROLLBACK,
+        )
+        self.assertEqual(
+            get_migration_type(curr, prev, global_flag_enabled=True),
+            MigrationType.ROLLBACK,
+        )
+
+    def test_change_choice_force_off_to_force_on(self):
+        """Enabled FORCE_OFF → FORCE_ON — effective off → on."""
+        prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
+        curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_ON)
+
+        self.assertEqual(
+            get_migration_type(curr, prev, global_flag_enabled=False),
+            MigrationType.FORWARD,
+        )
+        self.assertEqual(
+            get_migration_type(curr, prev, global_flag_enabled=True),
+            MigrationType.FORWARD,
+        )
+
+    def test_remove_force_off_override_when_global_on(self):
+        """Deleting FORCE_OFF behavior by disabling row restores global on — forward migration."""
+        prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
+        curr = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_OFF)
+
+        result = get_migration_type(curr, prev, global_flag_enabled=True)
+
+        self.assertEqual(result, MigrationType.FORWARD)
+
+    def test_remove_force_off_override_when_global_off(self):
+        """Disabling FORCE_OFF row while global off — still off, no migration."""
+        prev = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
+        curr = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_OFF)
+
+        result = get_migration_type(curr, prev, global_flag_enabled=False)
+
+        self.assertIsNone(result)
+
+    def test_add_force_off_override_when_global_on(self):
+        """New active FORCE_OFF while global on — effective on → off."""
+        prev = self.create_mock_record(False, WAFFLE_OVERRIDE_FORCE_OFF)
+        curr = self.create_mock_record(True, WAFFLE_OVERRIDE_FORCE_OFF)
+
+        result = get_migration_type(curr, prev, global_flag_enabled=True)
 
         self.assertEqual(result, MigrationType.ROLLBACK)
+
+    def test_unknown_override_choice_follows_global(self):
+        """Non on/off choice falls back to global — toggling only matters vs that baseline."""
+        prev = self.create_mock_record(True, "unset")
+        curr = self.create_mock_record(True, "unset")
+
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=False))
+        self.assertIsNone(get_migration_type(curr, prev, global_flag_enabled=True))

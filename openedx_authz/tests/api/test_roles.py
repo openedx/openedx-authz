@@ -922,7 +922,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
     """
 
     @ddt_data(
-        (["mary", "john"], roles.LIBRARY_USER.external_key, "*", True),
+        (["mary", "john"], roles.LIBRARY_USER.external_key, "global:batch_test", True),
         (
             ["paul", "diana", "lila"],
             roles.LIBRARY_CONTRIBUTOR.external_key,

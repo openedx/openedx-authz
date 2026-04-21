@@ -366,11 +366,11 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(result, expected_valid)
 
     @data(
-        "undefined:DemoX",
-        "undefined:DemoX:*",
+        "unknown:DemoX",
+        "unknown:DemoX:*",
     )
-    def test_get_subclass_by_external_key_undefined_scope_raises_value_error(self, external_key):
-        """Undefined namespace should raise ValueError, including wildcard keys."""
+    def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self, external_key):
+        """Inknown namespace should raise ValueError, including wildcard keys."""
         with self.assertRaises(ValueError):
             ScopeMeta.get_subclass_by_external_key(external_key)
 

@@ -252,7 +252,7 @@ class ScopeMeta(type):
         """
 
         # Special case: handle the global wildcard scope:
-        if external_key == "*":
+        if external_key == GLOBAL_SCOPE_WILDCARD:
             return mcs.glob_registry.get("global")
 
         if EXTERNAL_KEY_SEPARATOR not in external_key:

@@ -90,7 +90,7 @@ inflection==0.5.1
     # via drf-yasg
 openedx-atlas==0.7.0
     # via -r requirements/base.in
-packaging==26.0
+packaging==26.1
     # via drf-yasg
 pillow==12.2.0
     # via edx-organizations

@@ -13,17 +13,14 @@ from casbin_adapter.models import CasbinRule
 from django.conf import settings
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
-from waffle.models import Flag
-
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
+from waffle.models import Flag
 
 from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.engine.utils import run_course_authoring_migration
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
-from openedx_authz.models.core import ExtendedCasbinRule
-from openedx_authz.models.subjects import UserSubject
-from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit
+from openedx_authz.models.subjects import UserSubject
 
 try:
     from common.djangoapps.student.models import CourseAccessRole

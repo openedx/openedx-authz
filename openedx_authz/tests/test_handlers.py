@@ -7,37 +7,30 @@ Also covers ``trigger_course_authoring_migration`` using stub waffle model class
 waffle models are not imported in the test environment).
 """
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from casbin_adapter.models import CasbinRule
 from ddt import data, ddt, unpack
 from django.test import TestCase, override_settings
+from openedx_events.authz.data import RoleAssignmentData
 
 from openedx_authz.handlers import (
     WAFFLE_OVERRIDE_FORCE_OFF,
     WAFFLE_OVERRIDE_FORCE_ON,
+    create_audit_record_on_role_assignment_change,
     get_migration_type,
     trigger_course_authoring_migration,
 )
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
-from openedx_authz.models.core import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit, Scope, Subject
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
     CourseAccessRole,
     WaffleFlagCourseOverrideModel,
     WaffleFlagOrgOverrideModel,
 )
-
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
-
-from casbin_adapter.models import CasbinRule
-from django.test import TestCase
-from openedx_events.authz.data import RoleAssignmentData
-
-from openedx_authz.handlers import create_audit_record_on_role_assignment_change
-from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit, Scope, Subject
 
 AUTHZ_COURSE_AUTHORING_FLAG_NAME = "authz.enable_course_authoring"
 OTHER_WAFFLE_FLAG_NAME = "some.other.flag"

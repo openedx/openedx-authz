@@ -355,31 +355,37 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
 
     @classmethod
     @abstractmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         This method should be implemented on every ScopeData subclass to define
-        which permission to check against when a user tries to see assignations
+        which permissions to check against when a user tries to see assignations
         related to this scope in the Admin Console.
 
+        The consumer uses OR logic: if the user has any one of the returned
+        permissions, access is granted. An empty list means access is denied.
+
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
+        raise NotImplementedError("Subclasses must implement get_admin_view_permissions method.")
 
     @classmethod
     @abstractmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         This method should be implemented on every ScopeData subclass to define
-        which permission to check against when a user tries to manage assignations
+        which permissions to check against when a user tries to manage assignations
         related to this scope in the Admin Console.
 
+        The consumer uses OR logic: if the user has any one of the returned
+        permissions, access is granted. An empty list means access is denied.
+
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        raise NotImplementedError("Subclasses must implement get_admin_manage_permission method.")
+        raise NotImplementedError("Subclasses must implement get_admin_manage_permissions method.")
 
     @abstractmethod
     def get_object(self) -> Any | None:
@@ -452,28 +458,28 @@ class GlobalWildcardScopeData(ScopeData):
         return external_key == GLOBAL_SCOPE_WILDCARD
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """No admin view permission for the global scope.
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view the global scope.
 
-        Global scope assignments are managed exclusively by superadmins
-        at the REST API layer, so no granular permission is needed.
+        Since the global scope spans all resource types, a user needs any one
+        of the scope-specific view permissions to be granted access.
 
         Returns:
-            None
+            list[PermissionData]: VIEW_LIBRARY_TEAM or COURSES_VIEW_COURSE_TEAM (OR logic).
         """
-        return VIEW_LIBRARY_TEAM
+        return [VIEW_LIBRARY_TEAM, COURSES_VIEW_COURSE_TEAM]
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """No admin manage permission for the global scope.
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """No manage permissions for the global scope.
 
-        Global scope assignments are managed exclusively by superadmins
-        at the REST API layer, so no granular permission is needed.
+        Global scope management is restricted to superadmins at the REST API
+        layer, so no granular permission grants access.
 
         Returns:
-            None
+            list[PermissionData]: Empty list — access is always denied via permissions.
         """
-        return None
+        return []
 
     def get_object(self) -> None:
         """The global wildcard scope does not map to a concrete domain object.
@@ -566,22 +572,22 @@ class ContentLibraryData(ScopeData):
             return False
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        return VIEW_LIBRARY_TEAM
+        return [VIEW_LIBRARY_TEAM]
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        return MANAGE_LIBRARY_TEAM
+        return [MANAGE_LIBRARY_TEAM]
 
     def get_object(self) -> ContentLibrary | None:
         """Retrieve the ContentLibrary instance associated with this scope.
@@ -697,22 +703,22 @@ class CourseOverviewData(ScopeData):
             return False
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        return COURSES_VIEW_COURSE_TEAM
+        return [COURSES_VIEW_COURSE_TEAM]
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        return COURSES_MANAGE_COURSE_TEAM
+        return [COURSES_MANAGE_COURSE_TEAM]
 
     def get_object(self) -> CourseOverview | None:
         """Retrieve the CourseOverview instance associated with this scope.
@@ -821,13 +827,13 @@ class OrgGlobData(ScopeData):
         return True
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
+        raise NotImplementedError("Subclasses must implement get_admin_view_permissions method.")
 
     @classmethod
     def build_external_key(cls, org: str) -> str:
@@ -848,13 +854,13 @@ class OrgGlobData(ScopeData):
         return f"{cls.NAMESPACE}{EXTERNAL_KEY_SEPARATOR}{org}{cls.ID_SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        raise NotImplementedError("Subclasses must implement get_admin_manage_permission method.")
+        raise NotImplementedError("Subclasses must implement get_admin_manage_permissions method.")
 
     @classmethod
     def get_org(cls, external_key: str) -> str | None:
@@ -946,22 +952,22 @@ class OrgContentLibraryGlobData(OrgGlobData):
     ID_SEPARATOR: ClassVar[str] = ":"
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        return VIEW_LIBRARY_TEAM
+        return [VIEW_LIBRARY_TEAM]
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        return MANAGE_LIBRARY_TEAM
+        return [MANAGE_LIBRARY_TEAM]
 
 
 @define
@@ -1004,22 +1010,22 @@ class OrgCourseOverviewGlobData(OrgGlobData):
     ID_SEPARATOR: ClassVar[str] = "+"
 
     @classmethod
-    def get_admin_view_permission(cls) -> PermissionData:
-        """Get the permission required to view this scope
+    def get_admin_view_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to view this scope.
 
         Returns:
-            PermissionData: The permission required to view this scope in the admin console.
+            list[PermissionData]: The permissions required to view this scope in the admin console.
         """
-        return COURSES_VIEW_COURSE_TEAM
+        return [COURSES_VIEW_COURSE_TEAM]
 
     @classmethod
-    def get_admin_manage_permission(cls) -> PermissionData:
-        """Get the permission required to manage this scope
+    def get_admin_manage_permissions(cls) -> list[PermissionData]:
+        """Get the permissions required to manage this scope.
 
         Returns:
-            PermissionData: The permission required to manage this scope in the admin console.
+            list[PermissionData]: The permissions required to manage this scope in the admin console.
         """
-        return COURSES_MANAGE_COURSE_TEAM
+        return [COURSES_MANAGE_COURSE_TEAM]
 
 
 class CCXCourseOverviewData(CourseOverviewData):

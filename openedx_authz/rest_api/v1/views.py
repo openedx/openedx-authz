@@ -781,7 +781,7 @@ class ScopesAPIView(generics.ListAPIView):
         username: str,
         scope_cls: type,
         glob_cls: type,
-        get_permission: callable,
+        get_permissions: callable,
         queryset_builder: callable,
         extract_ids: callable,
         search: str = "",
@@ -790,7 +790,7 @@ class ScopesAPIView(generics.ListAPIView):
         """Resolve allowed scopes from Casbin and return a filtered queryset.
 
         This helper encapsulates the shared pattern of:
-        1. Fetching allowed scopes for a user and permission.
+        1. Fetching allowed scopes for a user across any of the scope's permissions (OR logic).
         2. Partitioning them into specific IDs vs org-level globs.
         3. Delegating to the appropriate queryset builder.
 
@@ -798,7 +798,7 @@ class ScopesAPIView(generics.ListAPIView):
             username: The username to check permissions for.
             scope_cls: The concrete scope data class (e.g., CourseOverviewData).
             glob_cls: The org-level glob class (e.g., OrgCourseOverviewGlobData).
-            get_permission: Callable that returns the permission for a scope class.
+            get_permissions: Callable that returns a list of permissions for a scope class.
             queryset_builder: Callable that builds the filtered queryset (e.g., _get_courses_queryset).
             extract_ids: Callable that extracts specific IDs from non-glob scopes.
             search: Optional search term to filter by display name.
@@ -807,10 +807,19 @@ class ScopesAPIView(generics.ListAPIView):
         Returns:
             QuerySet: The filtered queryset projected to the unified scope shape.
         """
-        allowed_scopes = get_scopes_for_user_and_permission(username, get_permission(scope_cls).identifier)
-        specific_scopes = [s for s in allowed_scopes if not isinstance(s, glob_cls)]
+        # Collect allowed scopes across all permissions (OR logic)
+        all_allowed_scopes = []
+        seen = set()
+        for perm in get_permissions(scope_cls):
+            for scope in get_scopes_for_user_and_permission(username, perm.identifier):
+                key = scope.namespaced_key
+                if key not in seen:
+                    seen.add(key)
+                    all_allowed_scopes.append(scope)
+
+        specific_scopes = [s for s in all_allowed_scopes if not isinstance(s, glob_cls)]
         allowed_ids = extract_ids(specific_scopes)
-        allowed_orgs = {s.org for s in allowed_scopes if isinstance(s, glob_cls)}
+        allowed_orgs = {s.org for s in all_allowed_scopes if isinstance(s, glob_cls)}
         return queryset_builder(allowed_ids, allowed_orgs, search=search, org=org)
 
     def _build_queryset(self, courses_qs: QuerySet | None, libraries_qs: QuerySet | None) -> QuerySet:
@@ -852,9 +861,11 @@ class ScopesAPIView(generics.ListAPIView):
 
         management_only = params_serializer.validated_data["management_permission_only"]
 
-        # Determine which permission to check based on the query parameter.
-        def get_permission(scope_cls):
-            return scope_cls.get_admin_manage_permission() if management_only else scope_cls.get_admin_view_permission()
+        # Determine which permissions to check based on the query parameter.
+        def get_permissions(scope_cls):
+            return (
+                scope_cls.get_admin_manage_permissions() if management_only else scope_cls.get_admin_view_permissions()
+            )
 
         # Resolve allowed scopes from Casbin and build filtered querysets.
         courses_qs = None
@@ -863,7 +874,7 @@ class ScopesAPIView(generics.ListAPIView):
                 username=user.username,
                 scope_cls=CourseOverviewData,
                 glob_cls=OrgCourseOverviewGlobData,
-                get_permission=get_permission,
+                get_permissions=get_permissions,
                 queryset_builder=self._get_courses_queryset,
                 extract_ids=lambda scopes: {s.external_key for s in scopes},
                 search=search,
@@ -876,7 +887,7 @@ class ScopesAPIView(generics.ListAPIView):
                 username=user.username,
                 scope_cls=ContentLibraryData,
                 glob_cls=OrgContentLibraryGlobData,
-                get_permission=get_permission,
+                get_permissions=get_permissions,
                 queryset_builder=self._get_libraries_queryset,
                 extract_ids=lambda scopes: {
                     (s.external_key.split(":")[1], s.external_key.split(":")[2]) for s in scopes

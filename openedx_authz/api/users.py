@@ -272,21 +272,24 @@ def _filter_allowed_assignments(
 ) -> list[RoleAssignmentData]:
     """
     Filter the given role assignments to only include those that the user has permission to view.
+
+    Uses OR logic: if the user has any one of the scope's admin view permissions, the
+    assignment is included.
     """
     if not user_external_key:
         # If no user is specified, return all assignments
         return assignments
     allowed_assignments: list[RoleAssignmentData] = []
     for assignment in assignments:
-        permission = None
+        view_permissions = assignment.scope.get_admin_view_permissions()
 
-        # Get the permission needed to view the specific scope in the admin console
-        permission = assignment.scope.get_admin_view_permission().identifier
-
-        if permission and is_user_allowed(
-            user_external_key=user_external_key,
-            action_external_key=permission,
-            scope_external_key=assignment.scope.external_key,
+        if view_permissions and any(
+            is_user_allowed(
+                user_external_key=user_external_key,
+                action_external_key=perm.identifier,
+                scope_external_key=assignment.scope.external_key,
+            )
+            for perm in view_permissions
         ):
             allowed_assignments.append(assignment)
 

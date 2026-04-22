@@ -1605,7 +1605,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.assertNotIn(self.COURSE_ORG2, external_keys)
 
     def test_manage_permission_only_uses_manage_permission(self):
-        """management_permission_only=true calls get_admin_manage_permission, not get_admin_view_permission."""
+        """management_permission_only=true calls get_admin_manage_permissions, not get_admin_view_permissions."""
         user = User.objects.get(username="regular_1")
         self.client.force_authenticate(user=user)
 
@@ -1620,7 +1620,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.assertIn(permissions.COURSES_MANAGE_COURSE_TEAM.identifier, called_permissions)
 
     def test_view_permission_only_uses_view_permission(self):
-        """management_permission_only=false (default) calls get_admin_view_permission."""
+        """management_permission_only=false (default) calls get_admin_view_permissions."""
         user = User.objects.get(username="regular_1")
         self.client.force_authenticate(user=user)
 

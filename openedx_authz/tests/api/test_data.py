@@ -370,7 +370,7 @@ class TestScopeMetaClass(TestCase):
         "unknown:DemoX:*",
     )
     def test_get_subclass_by_external_key_unknown_scope_raises_value_error(self, external_key):
-        """Inknown namespace should raise ValueError, including wildcard keys."""
+        """Unknown namespace should raise ValueError, including wildcard keys."""
         with self.assertRaises(ValueError):
             ScopeMeta.get_subclass_by_external_key(external_key)
 
@@ -410,7 +410,7 @@ class TestScopeMetaClass(TestCase):
                     return False
 
                 @classmethod
-                def get_admin_view_permission(cls):
+                def get_admin_view_permissions(cls):
                     raise NotImplementedError("Not implemented for TempScope")
 
             # Metaclass should have recreated the registries on the class

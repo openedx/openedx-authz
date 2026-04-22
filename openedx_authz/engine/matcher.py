@@ -6,6 +6,7 @@ from edx_django_utils.cache import RequestCache
 from openedx_authz.api.data import (
     ContentLibraryData,
     CourseOverviewData,
+    GlobalWildcardScopeData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     ScopeData,
@@ -21,6 +22,7 @@ SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
     (CourseOverviewData.NAMESPACE, CourseOverviewData),
     (OrgContentLibraryGlobData.NAMESPACE, OrgContentLibraryGlobData),
     (OrgCourseOverviewGlobData.NAMESPACE, OrgCourseOverviewGlobData),
+    (GlobalWildcardScopeData.NAMESPACE, GlobalWildcardScopeData),
 }
 
 

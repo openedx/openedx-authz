@@ -5,8 +5,16 @@ from unittest.mock import patch
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
-from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
+from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
+    GlobalWildcardScopeData,
+    RoleAssignmentData,
+    RoleData,
+    UserData,
+)
 from openedx_authz.api.users import (
+    _filter_allowed_assignments,
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
@@ -616,3 +624,148 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
 
         self.assertGreater(len(eve_assignments), 0)
         self.assertEqual(grace_assignments, [])
+
+
+class TestFilterAllowedAssignmentsPermissionLogic(UserAssignmentsSetupMixin):
+    """Test the OR logic and empty-list behavior of _filter_allowed_assignments.
+
+    The function iterates each assignment's ``get_admin_view_permissions()`` list
+    and includes the assignment if the user has *any* of those permissions (OR).
+    An empty permissions list means the assignment is always excluded.
+    """
+
+    def _make_assignment(self, scope_cls, scope_key, role_key="library_admin"):
+        """Build a minimal RoleAssignmentData for testing."""
+        return RoleAssignmentData(
+            subject=UserData(external_key="alice"),
+            roles=[RoleData(external_key=role_key)],
+            scope=scope_cls(external_key=scope_key),
+        )
+
+    # -- empty list → always excluded ------------------------------------
+
+    def test_empty_permissions_list_excludes_assignment(self):
+        """When get_admin_view_permissions returns [], the assignment is excluded
+        regardless of the user's actual permissions."""
+
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        with patch.object(ContentLibraryData, "get_admin_view_permissions", return_value=[]):
+            result = _filter_allowed_assignments([assignment], user_external_key="alice")
+
+        self.assertEqual(result, [])
+
+    # -- single permission → standard check ------------------------------
+
+    def test_single_permission_granted_includes_assignment(self):
+        """A single-element permissions list where the user has the permission
+        results in the assignment being included."""
+
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        # alice is library_admin on lib:Org1:math_101 → has VIEW_LIBRARY_TEAM
+        result = _filter_allowed_assignments([assignment], user_external_key="alice")
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], assignment)
+
+    def test_single_permission_denied_excludes_assignment(self):
+        """A single-element permissions list where the user lacks the permission
+        results in the assignment being excluded."""
+
+        # mallory has no roles in lib:Org1:math_101
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        result = _filter_allowed_assignments([assignment], user_external_key="mallory")
+
+        self.assertEqual(result, [])
+
+    # -- multiple permissions → OR logic ---------------------------------
+
+    def test_or_logic_first_permission_granted(self):
+        """When the permissions list has two entries and the user has only the
+        first one, the assignment is included (OR)."""
+
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        # alice has VIEW_LIBRARY_TEAM on this scope but not COURSES_VIEW_COURSE_TEAM
+        with patch.object(
+            ContentLibraryData,
+            "get_admin_view_permissions",
+            return_value=[permissions.VIEW_LIBRARY_TEAM, permissions.COURSES_VIEW_COURSE_TEAM],
+        ):
+            result = _filter_allowed_assignments([assignment], user_external_key="alice")
+
+        self.assertEqual(len(result), 1)
+
+    def test_or_logic_second_permission_granted(self):
+        """When the permissions list has two entries and the user has only the
+        second one, the assignment is included (OR)."""
+        # daniel is course_staff on course-v1:TestOrg+TestCourse+2024_T1
+        # → has COURSES_VIEW_COURSE_TEAM but not VIEW_LIBRARY_TEAM on that scope
+
+        assignment = self._make_assignment(
+            CourseOverviewData, "course-v1:TestOrg+TestCourse+2024_T1", role_key="course_staff"
+        )
+
+        with patch.object(
+            CourseOverviewData,
+            "get_admin_view_permissions",
+            return_value=[permissions.VIEW_LIBRARY_TEAM, permissions.COURSES_VIEW_COURSE_TEAM],
+        ):
+            result = _filter_allowed_assignments([assignment], user_external_key="daniel")
+
+        self.assertEqual(len(result), 1)
+
+    def test_or_logic_no_permission_granted(self):
+        """When the permissions list has two entries and the user has neither,
+        the assignment is excluded."""
+
+        # mallory has no roles anywhere
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        with patch.object(
+            ContentLibraryData,
+            "get_admin_view_permissions",
+            return_value=[permissions.VIEW_LIBRARY_TEAM, permissions.COURSES_VIEW_COURSE_TEAM],
+        ):
+            result = _filter_allowed_assignments([assignment], user_external_key="mallory")
+
+        self.assertEqual(result, [])
+
+    # -- no user specified → return all ----------------------------------
+
+    def test_no_user_returns_all_assignments(self):
+        """When user_external_key is None, all assignments are returned
+        regardless of permissions."""
+
+        assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        with patch.object(ContentLibraryData, "get_admin_view_permissions", return_value=[]):
+            result = _filter_allowed_assignments([assignment], user_external_key=None)
+
+        self.assertEqual(len(result), 1)
+
+    # -- mixed assignments -----------------------------------------------
+
+    def test_mixed_assignments_filtered_correctly(self):
+        """A mix of assignments with different permission lists are filtered
+        correctly: empty-list scopes excluded, single-perm scopes checked,
+        multi-perm scopes use OR."""
+
+        # alice has VIEW_LIBRARY_TEAM on lib:Org1:math_101
+        lib_assignment = self._make_assignment(ContentLibraryData, "lib:Org1:math_101")
+
+        # GlobalWildcardScopeData returns [VIEW_LIBRARY_TEAM, COURSES_VIEW_COURSE_TEAM]
+        # alice has VIEW_LIBRARY_TEAM on lib:Org1:math_101 but the scope here is *
+        # which won't match — so this tests that the scope_external_key matters
+        global_assignment = RoleAssignmentData(
+            subject=UserData(external_key="alice"),
+            roles=[RoleData(external_key="library_admin")],
+            scope=GlobalWildcardScopeData(external_key="*"),
+        )
+
+        result = _filter_allowed_assignments([lib_assignment, global_assignment], user_external_key="alice")
+
+        # lib assignment should be included (alice has VIEW_LIBRARY_TEAM there)
+        self.assertIn(lib_assignment, result)

@@ -938,6 +938,213 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
 
 
 @ddt
+class TestRoleUserAPIViewGlobalWildcardScope(ViewTestMixin):
+    """Test suite for global wildcard scope (*) permission enforcement on role assignment endpoints.
+
+    Verifies that only superusers and staff can assign/unassign roles to the
+    global wildcard scope via the REST API.  Regular authenticated users must
+    receive 403 Forbidden.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("openedx_authz:role-user-list")
+
+    # -- helpers ----------------------------------------------------------
+
+    def _create_staff_only_user(self):
+        """Return a user with is_staff=True but is_superuser=False."""
+        user, _ = User.objects.get_or_create(
+            username="staff_only",
+            defaults={"email": "staff_only@example.com", "is_staff": True, "is_superuser": False},
+        )
+        return user
+
+    def _create_superuser(self):
+        """Return a user with is_superuser=True and is_staff=True."""
+        user, _ = User.objects.get_or_create(
+            username="superadmin",
+            defaults={"email": "superadmin@example.com", "is_staff": True, "is_superuser": True},
+        )
+        return user
+
+    def _put_global_scope(self, user):
+        """Issue a PUT to assign a role in the global wildcard scope."""
+        self.client.force_authenticate(user=user)
+        return self.client.put(
+            self.url,
+            data={
+                "role": roles.LIBRARY_ADMIN.external_key,
+                "scope": "*",
+                "users": ["regular_1"],
+            },
+            format="json",
+        )
+
+    def _delete_global_scope(self, user):
+        """Issue a DELETE to unassign a role from the global wildcard scope."""
+        self.client.force_authenticate(user=user)
+        query_params = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": "*",
+            "users": "regular_1",
+        }
+        return self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+    # -- PUT tests --------------------------------------------------------
+
+    def test_put_global_scope_allowed_for_superuser(self):
+        """Superusers can assign roles to the global wildcard scope."""
+        user = self._create_superuser()
+        with (
+            patch.object(api, "assign_role_to_user_in_scope", return_value=True),
+            patch.object(
+                api,
+                "get_role_definitions_in_scope",
+                return_value=[api.RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            ),
+        ):
+            response = self._put_global_scope(user)
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+
+    def test_put_global_scope_allowed_for_staff(self):
+        """Staff users can assign roles to the global wildcard scope.
+
+        DynamicScopePermission grants access to is_staff before dispatching
+        to the scope-specific permission class.
+        """
+        user = self._create_staff_only_user()
+        with (
+            patch.object(api, "assign_role_to_user_in_scope", return_value=True),
+            patch.object(
+                api,
+                "get_role_definitions_in_scope",
+                return_value=[api.RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            ),
+        ):
+            response = self._put_global_scope(user)
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+
+    def test_put_global_scope_denied_for_regular_user(self):
+        """Regular users without staff/superuser status are denied."""
+        self.client.force_authenticate(user=self.regular_user)
+        response = self.client.put(
+            self.url,
+            data={
+                "role": roles.LIBRARY_ADMIN.external_key,
+                "scope": "*",
+                "users": ["regular_2"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_put_global_scope_denied_for_unauthenticated(self):
+        """Unauthenticated requests are denied."""
+        self.client.force_authenticate(user=None)
+        response = self.client.put(
+            self.url,
+            data={
+                "role": roles.LIBRARY_ADMIN.external_key,
+                "scope": "*",
+                "users": ["regular_1"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # -- DELETE tests -----------------------------------------------------
+
+    def test_delete_global_scope_allowed_for_superuser(self):
+        """Superusers can unassign roles from the global wildcard scope."""
+        user = self._create_superuser()
+        with (
+            patch.object(api, "unassign_role_from_user", return_value=True),
+            patch.object(
+                api,
+                "get_role_definitions_in_scope",
+                return_value=[api.RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            ),
+        ):
+            response = self._delete_global_scope(user)
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+
+    def test_delete_global_scope_allowed_for_staff(self):
+        """Staff users can unassign roles from the global wildcard scope."""
+        user = self._create_staff_only_user()
+        with (
+            patch.object(api, "unassign_role_from_user", return_value=True),
+            patch.object(
+                api,
+                "get_role_definitions_in_scope",
+                return_value=[api.RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            ),
+        ):
+            response = self._delete_global_scope(user)
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+
+    def test_delete_global_scope_denied_for_regular_user(self):
+        """Regular users without staff/superuser status are denied."""
+        self.client.force_authenticate(user=self.regular_user)
+        query_params = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": "*",
+            "users": "regular_2",
+        }
+
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_global_scope_denied_for_unauthenticated(self):
+        """Unauthenticated requests are denied."""
+        self.client.force_authenticate(user=None)
+        query_params = {
+            "role": roles.LIBRARY_ADMIN.external_key,
+            "scope": "*",
+            "users": "regular_1",
+        }
+
+        response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # -- GET tests --------------------------------------------------------
+
+    def test_get_global_scope_denied_for_regular_user(self):
+        """Regular users cannot list role assignments for the global scope."""
+        self.client.force_authenticate(user=self.regular_user)
+
+        response = self.client.get(self.url, {"scope": "*"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_global_scope_allowed_for_superuser(self):
+        """Superusers can list role assignments for the global scope."""
+        user = self._create_superuser()
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url, {"scope": "*"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_global_scope_allowed_for_staff(self):
+        """Staff users can list role assignments for the global scope."""
+        user = self._create_staff_only_user()
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url, {"scope": "*"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@ddt
 class TestScopesAPIView(ViewTestMixin):
     """
     Test suite for ScopesAPIView.
@@ -1398,7 +1605,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.assertNotIn(self.COURSE_ORG2, external_keys)
 
     def test_manage_permission_only_uses_manage_permission(self):
-        """management_permission_only=true calls get_admin_manage_permission, not get_admin_view_permission."""
+        """management_permission_only=true calls get_admin_manage_permissions, not get_admin_view_permissions."""
         user = User.objects.get(username="regular_1")
         self.client.force_authenticate(user=user)
 
@@ -1413,7 +1620,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.assertIn(permissions.COURSES_MANAGE_COURSE_TEAM.identifier, called_permissions)
 
     def test_view_permission_only_uses_view_permission(self):
-        """management_permission_only=false (default) calls get_admin_view_permission."""
+        """management_permission_only=false (default) calls get_admin_view_permissions."""
         user = User.objects.get(username="regular_1")
         self.client.force_authenticate(user=user)
 

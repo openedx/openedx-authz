@@ -20,7 +20,7 @@ Unreleased
 Added
 =====
 
-* Add optional ``orgs`` query param to the ``PUT /api/authz/v1/scopes/`` endpoint, that supports filtering results by multiple orgs.
+* Add optional ``orgs`` query param to the ``GET /api/authz/v1/scopes/`` endpoint, that supports filtering results by multiple orgs.
 
 1.13.0 - 2026-04-22
 *******************

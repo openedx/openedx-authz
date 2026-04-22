@@ -14,6 +14,16 @@ Change Log
 Unreleased
 **********
 
+1.13.0 - 2026-04-22
+*******************
+
+Added
+=====
+
+* Add ``RoleAssignmentAudit`` model to record role assignment and removal events, including operation type, subject, role, scope, actor database ID, and timestamp.
+* Emit ``ROLE_ASSIGNMENT_CREATED`` and ``ROLE_ASSIGNMENT_DELETED`` Open edX public signal events via ``transaction.on_commit`` after every successful role assignment or removal.
+* Add Django admin for ``RoleAssignmentAudit`` with filters by operation type and scope type (course, content library), date hierarchy, and search by subject, role, and scope.
+
 1.12.0 - 2026-04-20
 *******************
 

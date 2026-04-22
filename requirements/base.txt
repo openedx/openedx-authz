@@ -7,12 +7,14 @@
 asgiref==3.11.1
     # via django
 attrs==26.1.0
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   openedx-events
 bracex==2.6
     # via wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
-certifi==2026.2.25
+certifi==2026.4.22
     # via requests
 cffi==2.0.0
     # via
@@ -20,7 +22,7 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.7
     # via requests
-click==8.3.2
+click==8.3.3
     # via edx-django-utils
 cryptography==46.0.7
     # via pyjwt
@@ -40,8 +42,11 @@ django==5.2.13
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-organizations
+    #   openedx-events
 django-crum==0.7.9
-    # via edx-django-utils
+    # via
+    #   -r requirements/base.in
+    #   edx-django-utils
 django-model-utils==5.0.0
     # via edx-organizations
 django-simple-history==3.11.0
@@ -68,28 +73,36 @@ drf-yasg==1.21.15
 edx-api-doc-tools==3.0.0
     # via -r requirements/base.in
 edx-ccx-keys==2.0.2
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   openedx-events
 edx-django-utils==8.0.1
     # via
     #   -r requirements/base.in
     #   edx-drf-extensions
+    #   openedx-events
 edx-drf-extensions==10.6.0
     # via
     #   -r requirements/base.in
     #   edx-organizations
-edx-opaque-keys==4.0.0
+edx-opaque-keys[django]==4.0.0
     # via
     #   -r requirements/base.in
     #   edx-ccx-keys
     #   edx-drf-extensions
     #   edx-organizations
+    #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/base.in
-idna==3.12
+fastavro==1.12.1
+    # via openedx-events
+idna==3.13
     # via requests
 inflection==0.5.1
     # via drf-yasg
 openedx-atlas==0.7.0
+    # via -r requirements/base.in
+openedx-events==11.2.0
     # via -r requirements/base.in
 packaging==26.1
     # via drf-yasg

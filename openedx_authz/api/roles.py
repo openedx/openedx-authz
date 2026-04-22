@@ -10,7 +10,10 @@ internally to manage the underlying policies and role assignments.
 
 from collections import defaultdict
 
+from crum import get_current_user
 from django.db import transaction
+from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
+from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
 
 from openedx_authz.api.data import (
     GroupingPolicyIndex,
@@ -24,6 +27,7 @@ from openedx_authz.api.data import (
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import ExtendedCasbinRule
+from openedx_authz.models.core import RoleAssignmentAudit
 
 __all__ = [
     "assign_role_to_subject_in_scope",
@@ -195,7 +199,11 @@ def get_all_roles_in_scope(scope: ScopeData) -> list[list[str]]:
 
 
 def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope: ScopeData) -> bool:
-    """Assign a role to a subject.
+    """Assign a role to a subject within a specific scope.
+
+    This function creates a role assignment by adding a grouping policy to the enforcer and
+    creating an ExtendedCasbinRule for auditing purposes. It also sends a ROLE_ASSIGNMENT_CREATED event
+    after the transaction commits.
 
     Args:
         subject: The ID of the subject.
@@ -225,6 +233,20 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
         if not extended_rule:
             raise Exception("Failed to create ExtendedCasbinRule for the assignment")
 
+    # .. event_implemented_name: ROLE_ASSIGNMENT_CREATED
+    # .. event_type: org.openedx.authz.role_assignment.created
+    transaction.on_commit(
+        lambda: ROLE_ASSIGNMENT_CREATED.send_event(
+            role_assignment=RoleAssignmentEventData(
+                operation=RoleAssignmentAudit.OPERATIONS.created,
+                subject=subject.namespaced_key,
+                role=role.namespaced_key,
+                scope=scope.namespaced_key,
+                actor_id=getattr(get_current_user(), "id", None),
+            )
+        )
+    )
+
     # Invalidate policy cache to ensure changes are picked up
     AuthzEnforcer.invalidate_policy_cache()
     return True
@@ -242,7 +264,11 @@ def batch_assign_role_to_subjects_in_scope(subjects: list[SubjectData], role: Ro
 
 
 def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, scope: ScopeData) -> bool:
-    """Unassign a role from a subject.
+    """Unassign a role from a subject within a specific scope.
+
+    This function removes a role assignment by deleting the corresponding grouping policy from the enforcer and
+    deleting the associated ExtendedCasbinRule for auditing purposes. It also sends a ROLE_ASSIGNMENT_DELETED event
+    after the transaction commits.
 
     Args:
         subject: The ID of the subject.
@@ -256,6 +282,22 @@ def unassign_role_from_subject_in_scope(subject: SubjectData, role: RoleData, sc
     success = enforcer.delete_roles_for_user_in_domain(
         subject.namespaced_key, role.namespaced_key, scope.namespaced_key
     )
+
+    # .. event_implemented_name: ROLE_ASSIGNMENT_DELETED
+    # .. event_type: org.openedx.authz.role_assignment.deleted
+    if success:
+        transaction.on_commit(
+            lambda: ROLE_ASSIGNMENT_DELETED.send_event(
+                role_assignment=RoleAssignmentEventData(
+                    operation=RoleAssignmentAudit.OPERATIONS.deleted,
+                    subject=subject.namespaced_key,
+                    role=role.namespaced_key,
+                    scope=scope.namespaced_key,
+                    actor_id=getattr(get_current_user(), "id", None),
+                )
+            )
+        )
+
     # Invalidate policy cache to ensure changes are picked up
     AuthzEnforcer.invalidate_policy_cache()
     return success

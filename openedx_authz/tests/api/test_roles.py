@@ -1327,6 +1327,40 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
         new_roles = {r.external_key for assignment in new_assignments for r in assignment.roles}
         self.assertIn("library_admin", new_roles)
 
+    def test_no_event_sent_when_role_already_assigned(self):
+        """No lifecycle event is emitted when the role assignment already exists.
+
+        Expected result:
+            - ``assign_role_to_subject_in_scope`` returns False.
+            - ``transaction.on_commit`` is not called.
+        """
+        subject = SubjectData(external_key="alice")
+        role = RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
+        scope = ScopeData(external_key="lib:Org1:math_101")
+
+        with patch("openedx_authz.api.roles.transaction.on_commit") as mock_on_commit:
+            result = assign_role_to_subject_in_scope(subject, role, scope)
+
+        self.assertFalse(result)
+        mock_on_commit.assert_not_called()
+
+    def test_no_event_sent_when_role_not_present_for_removal(self):
+        """No lifecycle event is emitted when the role to remove does not exist.
+
+        Expected result:
+            - ``unassign_role_from_subject_in_scope`` returns False.
+            - ``transaction.on_commit`` is not called.
+        """
+        subject = SubjectData(external_key="alice")
+        role = RoleData(external_key=roles.LIBRARY_USER.external_key)
+        scope = ScopeData(external_key="lib:Org1:math_101")
+
+        with patch("openedx_authz.api.roles.transaction.on_commit") as mock_on_commit:
+            result = unassign_role_from_subject_in_scope(subject, role, scope)
+
+        self.assertFalse(result)
+        mock_on_commit.assert_not_called()
+
 
 @ddt
 class TestFieldIndexAndValues(TestCase):

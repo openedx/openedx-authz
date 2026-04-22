@@ -14,7 +14,7 @@ bracex==2.6
     # via wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
-certifi==2026.2.25
+certifi==2026.4.22
     # via requests
 cffi==2.0.0
     # via
@@ -22,7 +22,7 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.7
     # via requests
-click==8.3.2
+click==8.3.3
     # via edx-django-utils
 cryptography==46.0.7
     # via pyjwt
@@ -94,18 +94,15 @@ edx-opaque-keys[django]==4.0.0
     #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/base.in
-idna==3.12
-    #   openedx-events
 fastavro==1.12.1
     # via openedx-events
-idna==3.11
+idna==3.13
     # via requests
 inflection==0.5.1
     # via drf-yasg
 openedx-atlas==0.7.0
     # via -r requirements/base.in
-packaging==26.1
-openedx-events @ git+https://github.com/openedx/openedx-events.git@MJG/authz-audit
+openedx-events==11.2.0
     # via -r requirements/base.in
 packaging==26.1
     # via drf-yasg

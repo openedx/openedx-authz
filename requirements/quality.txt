@@ -22,7 +22,7 @@ bracex==2.6
     #   wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/test.txt
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -r requirements/test.txt
     #   requests
@@ -35,7 +35,7 @@ charset-normalizer==3.4.7
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.3.2
+click==8.3.3
     # via
     #   -r requirements/test.txt
     #   click-log
@@ -140,7 +140,11 @@ edx-opaque-keys[django]==4.0.0
     #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/test.txt
-idna==3.12
+fastavro==1.12.1
+    # via
+    #   -r requirements/test.txt
+    #   openedx-events
+idna==3.13
     # via
     #   -r requirements/test.txt
     #   requests
@@ -166,11 +170,8 @@ mccabe==0.7.0
     # via pylint
 openedx-atlas==0.7.0
     # via -r requirements/test.txt
-<<<<<<< HEAD
-=======
-openedx-events @ git+https://github.com/openedx/openedx-events.git@MJG/authz-audit
+openedx-events==11.2.0
     # via -r requirements/test.txt
->>>>>>> f9b6043 (chore: run make upgrade after including openedx-events)
 packaging==26.1
     # via
     #   -r requirements/test.txt

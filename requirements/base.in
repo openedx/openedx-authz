@@ -14,6 +14,5 @@ edx-django-utils            # Used for RequestCache
 edx-drf-extensions          # Extensions for Django Rest Framework used by Open edX
 edx-organizations           # Organizations library for Open edX
 django-waffle               # Waffle library for feature flag management
-# TODO: pin to released version once MJG/authz-audit is merged and released
-git+https://github.com/openedx/openedx-events.git@MJG/authz-audit#egg=openedx-events
+openedx-events              # Open edX Events library for emitting events related to role assignment changes
 django-crum                 # Current Request User Middleware for Django

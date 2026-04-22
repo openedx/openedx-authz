@@ -31,7 +31,7 @@ cachetools==7.0.6
     #   tox
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/quality.txt
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -r requirements/quality.txt
     #   requests
@@ -46,7 +46,7 @@ charset-normalizer==3.4.7
     # via
     #   -r requirements/quality.txt
     #   requests
-click==8.3.2
+click==8.3.3
     # via
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
@@ -170,13 +170,17 @@ edx-opaque-keys[django]==4.0.0
     #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/quality.txt
+fastavro==1.12.1
+    # via
+    #   -r requirements/quality.txt
+    #   openedx-events
 filelock==3.29.0
     # via
     #   -r requirements/ci.txt
     #   python-discovery
     #   tox
     #   virtualenv
-idna==3.12
+idna==3.13
     # via
     #   -r requirements/quality.txt
     #   requests
@@ -212,6 +216,8 @@ mccabe==0.7.0
     #   -r requirements/quality.txt
     #   pylint
 openedx-atlas==0.7.0
+    # via -r requirements/quality.txt
+openedx-events==11.2.0
     # via -r requirements/quality.txt
 packaging==26.1
     # via
@@ -406,7 +412,7 @@ wcmatch==10.1
     # via
     #   -r requirements/quality.txt
     #   pycasbin
-wheel==0.46.3
+wheel==0.47.0
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools

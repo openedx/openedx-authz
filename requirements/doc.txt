@@ -30,7 +30,7 @@ build==1.4.3
     # via -r requirements/doc.in
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/test.txt
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -r requirements/test.txt
     #   requests
@@ -43,7 +43,7 @@ charset-normalizer==3.4.7
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.3.2
+click==8.3.3
     # via
     #   -r requirements/test.txt
     #   code-annotations
@@ -154,7 +154,7 @@ fastavro==1.12.1
     #   openedx-events
 id==1.6.1
     # via twine
-idna==3.12
+idna==3.13
     # via
     #   -r requirements/test.txt
     #   requests
@@ -200,6 +200,8 @@ more-itertools==11.0.2
 nh3==0.3.4
     # via readme-renderer
 openedx-atlas==0.7.0
+    # via -r requirements/test.txt
+openedx-events==11.2.0
     # via -r requirements/test.txt
 packaging==26.1
     # via

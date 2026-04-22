@@ -595,6 +595,9 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
     parameters=[
         apidocs.query_parameter("search", str, description="Filter scopes by display name"),
         apidocs.query_parameter("org", str, description="Filter scopes by org"),
+        apidocs.query_parameter(
+            "orgs", str, description="Filter scopes by multiple orgs (comma separated list of orgs)"
+        ),
         apidocs.query_parameter("page", int, description="Page number for pagination"),
         apidocs.query_parameter("page_size", int, description="Number of items per page"),
         apidocs.query_parameter(
@@ -631,6 +634,7 @@ class ScopesAPIView(generics.ListAPIView):
 
     - search (Optional): Search term to filter scopes by display name
     - org (Optional): Filter scopes by org
+    - orgs (Optional): Filter scopes by multiple orgs (comma separated list of orgs)
     - page (Optional): Page number for pagination
     - page_size (Optional): Number of items per page
     - scope_type (Optional): Filter scopes by type. Supported values are `course` and `library`.
@@ -700,7 +704,7 @@ class ScopesAPIView(generics.ListAPIView):
         allowed_ids: set | None = None,
         allowed_orgs: set | None = None,
         search: str = "",
-        org: str = "",
+        orgs: set[str] | None = None,
     ) -> QuerySet:
         """Return a CourseOverview queryset projected to the unified scope shape.
 
@@ -717,8 +721,8 @@ class ScopesAPIView(generics.ListAPIView):
                 qs = qs.none()
             else:
                 qs = qs.filter(combined_filter)
-        if org:
-            qs = qs.filter(org=org)
+        if orgs:
+            qs = qs.filter(org__in=orgs)
         if search:
             qs = qs.filter(display_name__icontains=search)
         return qs.annotate(
@@ -738,7 +742,7 @@ class ScopesAPIView(generics.ListAPIView):
         allowed_pairs: set | None = None,
         allowed_orgs: set | None = None,
         search: str = "",
-        org: str = "",
+        orgs: set[str] | None = None,
     ) -> QuerySet:
         """Return a ContentLibrary queryset projected to the unified scope shape.
 
@@ -759,8 +763,8 @@ class ScopesAPIView(generics.ListAPIView):
                 qs = qs.none()
             else:
                 qs = qs.filter(combined)
-        if org:
-            qs = qs.filter(org__short_name=org)
+        if orgs:
+            qs = qs.filter(org__short_name__in=orgs)
         if search:
             qs = qs.filter(learning_package__title__icontains=search)
         return qs.annotate(
@@ -785,7 +789,7 @@ class ScopesAPIView(generics.ListAPIView):
         queryset_builder: callable,
         extract_ids: callable,
         search: str = "",
-        org: str = "",
+        orgs: set[str] | None = None,
     ) -> QuerySet:
         """Resolve allowed scopes from Casbin and return a filtered queryset.
 
@@ -811,7 +815,7 @@ class ScopesAPIView(generics.ListAPIView):
         specific_scopes = [s for s in allowed_scopes if not isinstance(s, glob_cls)]
         allowed_ids = extract_ids(specific_scopes)
         allowed_orgs = {s.org for s in allowed_scopes if isinstance(s, glob_cls)}
-        return queryset_builder(allowed_ids, allowed_orgs, search=search, org=org)
+        return queryset_builder(allowed_ids, allowed_orgs, search=search, orgs=orgs)
 
     def _build_queryset(self, courses_qs: QuerySet | None, libraries_qs: QuerySet | None) -> QuerySet:
         """Union the provided querysets and sort deterministically.
@@ -834,17 +838,24 @@ class ScopesAPIView(generics.ListAPIView):
         scope_type = params_serializer.validated_data["scope_type"]
         search = params_serializer.validated_data["search"]
         org = params_serializer.validated_data.get("org", "")
+        orgs_param = params_serializer.validated_data.get("orgs", [])
+
+        orgs = set()
+        orgs.update(orgs_param)
+
+        if org:
+            orgs.add(org)
 
         # Staff and superusers can see all scopes, skip permission filtering.
         if user.is_staff or user.is_superuser:
             return self._build_queryset(
                 courses_qs=(
-                    self._get_courses_queryset(search=search, org=org)
+                    self._get_courses_queryset(search=search, orgs=orgs)
                     if scope_type != ScopesTypeField.LIBRARY
                     else None
                 ),
                 libraries_qs=(
-                    self._get_libraries_queryset(search=search, org=org)
+                    self._get_libraries_queryset(search=search, orgs=orgs)
                     if scope_type != ScopesTypeField.COURSE
                     else None
                 ),
@@ -867,7 +878,7 @@ class ScopesAPIView(generics.ListAPIView):
                 queryset_builder=self._get_courses_queryset,
                 extract_ids=lambda scopes: {s.external_key for s in scopes},
                 search=search,
-                org=org,
+                orgs=orgs,
             )
 
         libraries_qs = None
@@ -882,7 +893,7 @@ class ScopesAPIView(generics.ListAPIView):
                     (s.external_key.split(":")[1], s.external_key.split(":")[2]) for s in scopes
                 },
                 search=search,
-                org=org,
+                orgs=orgs,
             )
 
         # Union the requested querysets and sort by org at the DB level.

@@ -15,6 +15,7 @@ specific concepts and also importing too specific classes from the API to
 avoid circular dependencies.
 """
 
+from openedx_authz.models.authz_migration import *
 from openedx_authz.models.core import *
 from openedx_authz.models.scopes import *
 from openedx_authz.models.subjects import *

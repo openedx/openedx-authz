@@ -205,3 +205,39 @@ class CourseAccessRole(models.Model):
     # blank course_id implies org wide role
     course_id = CourseKeyField(max_length=255, db_index=True, blank=True)
     role = models.CharField(max_length=64, db_index=True)
+
+
+# Waffle flag models
+class _WaffleStubManager(models.Manager):
+    """Minimal stand-in for ``ConfigurationModel`` managers exposing ``current_set()``."""
+
+    def current_set(self):
+        return self.get_queryset()
+
+
+class WaffleFlagCourseOverrideModel(models.Model):
+    """Stub model representing a waffle flag course override for testing purposes.
+
+    .. no_pii:
+    """
+
+    course_id = CourseKeyField(max_length=255, db_index=True)
+    waffle_flag = models.CharField(max_length=255, db_index=True, default="")
+    enabled = models.BooleanField(default=False)
+    override_choice = models.CharField(max_length=3, default="on")
+    change_date = models.DateTimeField(auto_now_add=True)
+    objects = _WaffleStubManager()
+
+
+class WaffleFlagOrgOverrideModel(models.Model):
+    """Stub model representing a waffle flag org override for testing purposes.
+
+    .. no_pii:
+    """
+
+    org = models.CharField(max_length=64, db_index=True)
+    waffle_flag = models.CharField(max_length=255, db_index=True, default="")
+    enabled = models.BooleanField(default=False)
+    override_choice = models.CharField(max_length=3, default="on")
+    change_date = models.DateTimeField(auto_now_add=True)
+    objects = _WaffleStubManager()

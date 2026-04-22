@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.12.0 - 2026-04-20
+*******************
+
+Added
+=====
+
+* Add automatic course authoring migration mechanism triggered by the ``authz.enable_course_authoring`` waffle flag when it is toggled at course or organization scope.
+
 1.11.0 - 2026-04-16
 *******************
 

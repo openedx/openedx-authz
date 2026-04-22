@@ -1,10 +1,24 @@
 """Admin configuration for openedx_authz."""
 
+import json
+
 from casbin_adapter.models import CasbinRule
 from django import forms
 from django.contrib import admin
+from django.utils.html import format_html
 
-from openedx_authz.models import ExtendedCasbinRule
+from openedx_authz.models import AuthzCourseAuthoringMigrationRun, ExtendedCasbinRule
+
+
+def pretty_json(value) -> str:
+    """Return an indented JSON representation of a value."""
+    if value is None:
+        return "-"
+    try:
+        formatted = json.dumps(value, indent=2, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(value)
+    return format_html("<pre>{}</pre>", formatted)
 
 
 class CasbinRuleForm(forms.ModelForm):
@@ -48,3 +62,28 @@ class CasbinRuleAdmin(admin.ModelAdmin):
     # TODO: In a future, possibly we should only show an inline for the rules that
     # have an extended rule, and show the subject and scope information in detail.
     inlines = [ExtendedCasbinRuleInline]
+
+
+@admin.register(AuthzCourseAuthoringMigrationRun)
+class AuthzCourseAuthoringMigrationRunAdmin(admin.ModelAdmin):
+    """Admin for AuthzCourseAuthoringMigrationRun to display additional metadata."""
+
+    list_display = ("id", "scope_type", "scope_key", "migration_type", "status", "created_at", "updated_at")
+    search_fields = ("scope_type", "scope_key", "migration_type", "status")
+    list_filter = ("scope_type", "migration_type", "status")
+    readonly_fields = (
+        "scope_type",
+        "scope_key",
+        "migration_type",
+        "status",
+        "pretty_metadata",
+        "completed_at",
+        "created_at",
+        "updated_at",
+    )
+    fields = readonly_fields
+
+    @admin.display(description="Metadata")
+    def pretty_metadata(self, obj):
+        """Return formatted JSON for the metadata field."""
+        return pretty_json(obj.metadata)

@@ -160,15 +160,11 @@ class AddUsersToRoleWithScopeSerializer(
         role_value = validated_data["role"]
 
         if scope and scopes is not None:
-            raise serializers.ValidationError(
-                "Provide either 'scope' or 'scopes', not both."
-            )
+            raise serializers.ValidationError("Provide either 'scope' or 'scopes', not both.")
 
         scopes_list = scopes if scopes is not None else ([scope] if scope else None)
         if not scopes_list:
-            raise serializers.ValidationError(
-                "Either 'scope' or 'scopes' must be provided."
-            )
+            raise serializers.ValidationError("Either 'scope' or 'scopes' must be provided.")
 
         for scope_value in scopes_list:
             self._validate_scope_and_role(scope_value, role_value)
@@ -285,6 +281,7 @@ class ListScopesQuerySerializer(OrgMixin):  # pylint: disable=abstract-method
         choices=[(e.value, e.name) for e in ScopesTypeField], required=False, default=None, allow_null=True
     )
     search = serializers.CharField(required=False, default="", allow_blank=True)
+    orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
 
 
 class ListTeamMembersSerializer(OrderMixin):  # pylint: disable=abstract-method

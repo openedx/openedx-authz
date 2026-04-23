@@ -1582,6 +1582,174 @@ class TestScopesAPIView(ViewTestMixin):
         self.assertIn(self.COURSE_ORG1, external_keys)
         self.assertNotIn(self.COURSE_ORG2, external_keys)
 
+    # ------------------------------------------------------------------ #
+    # Orgs filter                                                          #
+    # ------------------------------------------------------------------ #
+
+    def test_orgs_filter_staff_courses(self):
+        """Staff user with orgs param sees only courses from that org."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in response.data["results"]:
+            self.assertIn("Org1", item["external_key"])
+        # Org2 course should not appear
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_orgs_filter_staff_libraries(self):
+        """Staff user with orgs param sees only libraries from that org."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG2, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG1, external_keys)
+
+    def test_orgs_filter_staff_no_match(self):
+        """Staff user with orgs param for a non-existent org gets empty results."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "NonExistentOrg", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_orgs_filter_non_staff_with_permission(self):
+        """Non-staff user with orgs param sees scopes only if they have permission for that org."""
+        # regular_1 has LIBRARY_USER on lib:Org1:LIB1 → VIEW_LIBRARY_TEAM granted
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+
+    def test_orgs_filter_non_staff_without_permission(self):
+        """Non-staff user with org param for an org they have no permission for gets empty results."""
+        # regular_1 has no permissions on Org2
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_orgs_filter_non_staff_courses(self):
+        """Non-staff user with orgs param sees only courses from that org if they have permission."""
+        # regular_9 has COURSE_STAFF on COURSE_ORG1 → VIEW_COURSE_TEAM granted
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+
+    def test_orgs_filter_non_staff_courses_no_permission(self):
+        """Non-staff user with orgs param for an org they have no course permission for gets empty results."""
+        # regular_9 has no course permissions on Org2
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_orgs_filter_with_glob_permission(self):
+        """Non-staff user with orgs glob permission and org filter sees only that org's scopes."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        glob_scope = OrgContentLibraryGlobData(external_key="lib:Org1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+        self.assertNotIn(self.LIBRARY_ORG2, external_keys)
+
+    def test_orgs_filter_with_glob_permission_wrong_org(self):
+        """Non-staff user with org glob for Org1 but filtering by Org2 gets empty results."""
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        glob_scope = OrgContentLibraryGlobData(external_key="lib:Org1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[glob_scope],
+        ):
+            response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_orgs_filter_combined_with_search(self):
+        """Orgs filter works together with search filter."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org1", "search": "Course", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_orgs_filter_combined_with_org(self):
+        """Orgs filter works together with the singluar org filter."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(
+            self.url, {"org": "Org2", "orgs": "Org1", "search": "Course", "scope_type": "course"}
+        )
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertIn(self.COURSE_ORG2, external_keys)
+
+    def test_orgs_filter_with_multiple_orgs(self):
+        """Orgs filter with multiple orgs returns scopes from both orgs."""
+        self.build_qs_patcher.stop()
+
+        response = self.client.get(self.url, {"orgs": "Org1,Org2", "search": "Course", "scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertIn(self.COURSE_ORG2, external_keys)
+
 
 @ddt
 class TestAdminConsoleOrgsAPIView(ViewTestMixin):

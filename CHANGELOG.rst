@@ -14,6 +14,18 @@ Change Log
 Unreleased
 **********
 
+1.15.0 - 2026-04-24
+*******************
+
+Performance
+===========
+
+* Add a per-request ``RequestCache`` to ``is_user_allowed`` to prevent redundant Casbin
+  enforcement calls when the same ``(user, action, scope)`` triple is checked multiple times
+  within a single HTTP request (e.g., once per object-tag during serialization).
+  The cache is automatically cleared whenever a role assignment changes via the user API
+  so that permission checks within the same request always reflect the current state.
+
 1.14.0 - 2026-04-22
 *******************
 

@@ -11,6 +11,7 @@ with the role management system, which uses namespaced subjects
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from edx_django_utils.cache import RequestCache
 
 from openedx_authz.api.data import (
     ActionData,
@@ -42,6 +43,10 @@ from openedx_authz.api.utils import filter_user_assignments, get_user_assignment
 from openedx_authz.utils import get_user_by_username_or_email
 
 User = get_user_model()
+
+# Cache namespace used by is_user_allowed. Cleared by role mutation functions so
+# that permission checks within the same request reflect the latest assignments.
+_IS_USER_ALLOWED_CACHE_NS = "rbac_is_user_allowed"
 
 
 __all__ = [
@@ -76,6 +81,7 @@ def assign_role_to_user_in_scope(user_external_key: str, role_external_key: str,
     Returns:
         bool: True if the role was assigned successfully, False otherwise.
     """
+    RequestCache(_IS_USER_ALLOWED_CACHE_NS).clear()
     return assign_role_to_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
@@ -91,6 +97,7 @@ def batch_assign_role_to_users_in_scope(users: list[str], role_external_key: str
         role_external_key (str): Name of the role to assign.
         scope (str): Scope in which to assign the role.
     """
+    RequestCache(_IS_USER_ALLOWED_CACHE_NS).clear()
     namespaced_users = [UserData(external_key=username) for username in users]
     batch_assign_role_to_subjects_in_scope(
         namespaced_users,
@@ -110,6 +117,7 @@ def unassign_role_from_user(user_external_key: str, role_external_key: str, scop
     Returns:
         bool: True if the role was unassigned successfully, False otherwise.
     """
+    RequestCache(_IS_USER_ALLOWED_CACHE_NS).clear()
     return unassign_role_from_subject_in_scope(
         UserData(external_key=user_external_key),
         RoleData(external_key=role_external_key),
@@ -125,6 +133,7 @@ def batch_unassign_role_from_users(users: list[str], role_external_key: str, sco
         role_external_key (str): Name of the role to unassign.
         scope (str): Scope in which to unassign the role.
     """
+    RequestCache(_IS_USER_ALLOWED_CACHE_NS).clear()
     namespaced_users = [UserData(external_key=user) for user in users]
     batch_unassign_role_from_subjects_in_scope(
         namespaced_users,
@@ -345,6 +354,11 @@ def is_user_allowed(
 ) -> bool:
     """Check if a user has a specific permission in a given scope.
 
+    Results are cached per-request (keyed by user, action, and scope) to avoid
+    repeated enforcement calls for the same arguments within a single request,
+    e.g. when permission checks are performed once per object-tag during
+    serialization.
+
     Args:
         user_external_key (str): ID of the user (e.g., 'john_doe').
         action_external_key (str): The action to check (e.g., 'view_course').
@@ -353,11 +367,20 @@ def is_user_allowed(
     Returns:
         bool: True if the user has the specified permission in the scope, False otherwise.
     """
-    return is_subject_allowed(
+    request_cache = RequestCache(_IS_USER_ALLOWED_CACHE_NS)
+    cache_key = f"{user_external_key}:{action_external_key}:{scope_external_key}"
+
+    cached_response = request_cache.get_cached_response(cache_key)
+    if cached_response.is_found:
+        return cached_response.value
+
+    result = is_subject_allowed(
         UserData(external_key=user_external_key),
         ActionData(external_key=action_external_key),
         ScopeData(external_key=scope_external_key),
     )
+    request_cache.set(cache_key, result)
+    return result
 
 
 def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str) -> list[UserData]:
@@ -405,6 +428,7 @@ def unassign_all_roles_from_user(user_external_key: str) -> bool:
     Returns:
         bool: True if any roles were removed, False otherwise.
     """
+    RequestCache(_IS_USER_ALLOWED_CACHE_NS).clear()
     return unassign_subject_from_all_roles(UserData(external_key=user_external_key))
 
 

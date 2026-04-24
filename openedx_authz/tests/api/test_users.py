@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from edx_django_utils.cache import RequestCache
 
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
@@ -519,6 +520,60 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             scope_external_key=scope_name,
         )
         self.assertEqual(result, expected_result)
+
+
+class TestIsUserAllowedRequestCache(UserAssignmentsSetupMixin):
+    """Test that is_user_allowed uses a per-request cache to avoid redundant enforcement calls."""
+
+    def setUp(self):
+        super().setUp()
+        # Clear the request cache before each test so results don't bleed across tests.
+        RequestCache.clear_all_namespaces()
+
+    def test_cache_hit_on_repeated_call(self):
+        """Repeated calls with identical arguments should only invoke the enforcer once."""
+        username = "alice"
+        action = permissions.DELETE_LIBRARY.identifier
+        scope = "lib:Org1:math_101"
+
+        with patch("openedx_authz.api.users.is_subject_allowed") as mock_enforce:
+            mock_enforce.return_value = True
+            first = is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key=scope)
+            second = is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key=scope)
+
+        self.assertTrue(first)
+        self.assertEqual(first, second)
+        # The underlying enforcement should have been invoked only once; the second call is served from cache.
+        self.assertEqual(mock_enforce.call_count, 1)
+
+    def test_cache_miss_on_different_scope(self):
+        """Different scope arguments must produce independent cache entries."""
+        username = "alice"
+        action = permissions.DELETE_LIBRARY.identifier
+
+        with patch("openedx_authz.api.users.is_subject_allowed") as mock_enforce:
+            mock_enforce.return_value = True
+            is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_101")
+            is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_advanced")
+
+        # Each distinct scope key is a separate cache entry → two enforcer calls.
+        self.assertEqual(mock_enforce.call_count, 2)
+
+    def test_cache_cleared_after_role_mutation(self):
+        """The cache must be invalidated when a role assignment changes within the same request."""
+        username = "alice"
+        action = permissions.DELETE_LIBRARY.identifier
+        scope = "lib:Org1:math_101"
+
+        # alice has the permission before unassignment
+        before = is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key=scope)
+        self.assertTrue(before)
+
+        # Unassigning roles should clear the cache so the next call goes to the enforcer.
+        unassign_all_roles_from_user(user_external_key=username)
+
+        after = is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key=scope)
+        self.assertFalse(after)
 
 
 @ddt

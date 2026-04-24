@@ -553,8 +553,12 @@ class TestIsUserAllowedRequestCache(UserAssignmentsSetupMixin):
 
         with patch("openedx_authz.api.users.is_subject_allowed") as mock_enforce:
             mock_enforce.return_value = True
-            is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_101")
-            is_user_allowed(user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_advanced")
+            is_user_allowed(
+                user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_101"
+            )
+            is_user_allowed(
+                user_external_key=username, action_external_key=action, scope_external_key="lib:Org1:math_advanced"
+            )
 
         # Each distinct scope key is a separate cache entry → two enforcer calls.
         self.assertEqual(mock_enforce.call_count, 2)

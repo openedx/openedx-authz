@@ -81,6 +81,7 @@ p, role^course_auditor, act^courses.view_grading_settings, course-v1^*, allow
 p, role^course_auditor, act^courses.view_checklists, course-v1^*, allow
 p, role^course_auditor, act^courses.view_course_team, course-v1^*, allow
 p, role^course_auditor, act^courses.view_schedule_and_details, course-v1^*, allow
+p, role^course_auditor, act^courses.view_advanced_settings, course-v1^*, allow
 
 # Course Editor Role Policies
 p, role^course_editor, act^courses.view_course, course-v1^*, allow
@@ -101,6 +102,7 @@ p, role^course_editor, act^courses.edit_grading_settings, course-v1^*, allow
 p, role^course_editor, act^courses.manage_group_configurations, course-v1^*, allow
 p, role^course_editor, act^courses.edit_details, course-v1^*, allow
 p, role^course_editor, act^courses.manage_tags, course-v1^*, allow
+p, role^course_editor, act^courses.manage_advanced_settings, course-v1^*, allow
 
 # Course Staff Role Policies
 p, role^course_staff, act^courses.legacy_staff_role_permissions, course-v1^*, allow

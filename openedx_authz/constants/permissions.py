@@ -168,6 +168,11 @@ COURSES_MANAGE_ADVANCED_SETTINGS = PermissionData(
     effect="allow",
 )
 
+COURSES_VIEW_ADVANCED_SETTINGS = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_advanced_settings"),
+    effect="allow",
+)
+
 COURSES_MANAGE_CERTIFICATES = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_certificates"),
     effect="allow",

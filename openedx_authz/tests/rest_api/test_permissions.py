@@ -61,6 +61,26 @@ class TestGetScopeValueScopesFallback(TestCase):
         self.assertEqual(self.perm.get_scope_value(request), "lib:Org:A")
 
 
+class TestGetScopeNamespaceMixedScopes(TestCase):
+    """Test that get_scope_namespace enforces namespace homogeneity for bulk scopes."""
+
+    def setUp(self):
+        self.perm = BaseScopePermission()
+
+    def test_mixed_namespaces_raises_value_error(self):
+        """Passing scopes from different namespaces in a single bulk request raises ValueError."""
+        request = _make_request(data={"scopes": ["lib:Org:A", "course-v1:Org1+C1+2024"]})
+        with self.assertRaises(ValueError):
+            self.perm.get_scope_namespace(request)
+
+    def test_homogeneous_namespaces_does_not_raise(self):
+        """Passing scopes that all share the same namespace does not raise."""
+        request = _make_request(data={"scopes": ["lib:Org:A", "lib:Org:B"]})
+        # Should not raise — just verify it completes without error
+        namespace = self.perm.get_scope_namespace(request)
+        self.assertEqual(namespace, "lib")
+
+
 class TestDynamicScopePermissionBulkScopes(TestCase):
     """Test bulk-scopes path in DynamicScopePermission.has_permission."""
 

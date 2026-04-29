@@ -59,6 +59,11 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
 
+        When a ``scopes`` list is provided, returns only the first element.
+        This is intentional: bulk requests are expected to be homogeneous
+        (all scopes must share the same namespace). Actual per-scope permission
+        validation for bulk requests is handled in ``DynamicScopePermission``.
+
         Args:
             request: The Django REST framework request object.
 
@@ -92,6 +97,12 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             >>> permission.get_scope_namespace(request)
             'global'
         """
+        scopes_list = request.data.get("scopes")
+        if scopes_list and isinstance(scopes_list, list):
+            if not self._scopes_have_homogeneous_namespaces(scopes_list):
+                raise ValueError(
+                    f"Mixed scope namespaces in bulk request are not allowed: {scopes_list}"
+                )
         scope_value = self.get_scope_value(request)
         if not scope_value:
             return self.NAMESPACE
@@ -99,6 +110,22 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             return api.ScopeData(external_key=scope_value).NAMESPACE
         except ValueError:
             return self.NAMESPACE
+
+    def _scopes_have_homogeneous_namespaces(self, scopes_list: list[str]) -> bool:
+        """Check that all scopes in the list share the same namespace.
+
+        Args:
+            scopes_list: List of scope values to check.
+        Returns:
+            bool: True if all scopes share the same namespace, False otherwise.
+        """
+        namespaces = set()
+        for scope in scopes_list:
+            try:
+                namespaces.add(api.ScopeData(external_key=scope).NAMESPACE)
+            except ValueError:
+                pass
+        return len(namespaces) <= 1
 
     def has_permission(self, request, view) -> bool:
         """Fallback permission check (deny by default).
@@ -146,6 +173,9 @@ class DynamicScopePermission(BaseScopePermission):
 
     Note:
         Superusers and staff members always have permission regardless of scope.
+        Bulk requests (``scopes`` list) must be homogeneous — all scopes must share
+        the same namespace (e.g., all ``course-v1:`` or all ``lib:``). Mixed namespaces
+        will raise a ``ValueError`` during namespace resolution.
     """
 
     NAMESPACE: ClassVar[None] = None

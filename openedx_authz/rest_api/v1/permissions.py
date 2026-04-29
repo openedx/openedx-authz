@@ -65,7 +65,12 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
         Returns:
             str | None: The scope value if found (e.g., 'lib:DemoX:CSPROB'), or None if not present.
         """
-        return request.data.get("scope") or request.query_params.get("scope")
+        scope = request.data.get("scope") or request.query_params.get("scope")
+        if not scope:
+            scopes = request.data.get("scopes")
+            if scopes and isinstance(scopes, list):
+                scope = scopes[0]
+        return scope
 
     def get_scope_namespace(self, request) -> str:
         """Derive the namespace from the request scope value.
@@ -175,6 +180,10 @@ class DynamicScopePermission(BaseScopePermission):
         users, the permission check is delegated to the permission class registered
         for the request's scope namespace.
 
+        For bulk PUT requests that carry a ``scopes`` list, every scope in the list
+        must pass at least one of the required permissions (OR logic per permission,
+        AND logic across scopes).
+
         Examples:
             >>> # Regular user gets scope-specific check
             >>> request.data = {"scope": "lib:DemoX:CSPROB"}
@@ -182,6 +191,15 @@ class DynamicScopePermission(BaseScopePermission):
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
+        scopes_list = request.data.get("scopes")
+        if scopes_list and isinstance(scopes_list, list):
+            perm_instance = self._get_permission_instance(request)  # namespace resolved from scopes[0]
+            if not isinstance(perm_instance, MethodPermissionMixin):
+                return False
+            required = perm_instance.get_required_permissions(request, view)
+            if not required:
+                return False
+            return all(perm_instance.validate_permissions(request, required, sv) for sv in scopes_list)
         return self._get_permission_instance(request).has_permission(request, view)
 
     def has_object_permission(self, request, view, obj) -> bool:
@@ -240,23 +258,19 @@ class MethodPermissionMixin:
         return []
 
     def validate_permissions(self, request, permissions: list[str], scope_value: str) -> bool:
-        """Validate that the user has all required permissions for the scope.
+        """Validate that the user has at least one of the required permissions for the scope.
 
         Args:
             request: The Django REST framework request object.
-            permissions: List of permission identifiers to check.
+            permissions: List of permission identifiers to check (OR logic — any one suffices).
             scope_value: The scope to check permissions against.
 
         Returns:
-            bool: True if user has all required permissions, False otherwise.
+            bool: True if user has at least one required permission, False otherwise.
         """
         if not permissions:
             return False
-
-        for permission in permissions:
-            if not api.is_user_allowed(request.user.username, permission, scope_value):
-                return False
-        return True
+        return any(api.is_user_allowed(request.user.username, permission, scope_value) for permission in permissions)
 
 
 class AnyScopePermission(MethodPermissionMixin, BasePermission):
@@ -280,6 +294,21 @@ class AnyScopePermission(MethodPermissionMixin, BasePermission):
         if not required:
             return False
         return any(api.get_scopes_for_user_and_permission(request.user.username, permission) for permission in required)
+
+
+class CoursePermission(MethodPermissionMixin, BaseScopePermission):
+    """Permission handler for course scopes (namespace ``course-v1``)."""
+
+    NAMESPACE: ClassVar[str] = "course-v1"
+
+    def has_permission(self, request, view) -> bool:
+        scope_value = self.get_scope_value(request)
+        if not scope_value:
+            return False
+        permissions = self.get_required_permissions(request, view)
+        if permissions:
+            return self.validate_permissions(request, permissions, scope_value)
+        return True
 
 
 class ContentLibraryPermission(MethodPermissionMixin, BaseScopePermission):

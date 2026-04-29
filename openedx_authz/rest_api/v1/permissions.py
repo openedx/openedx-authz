@@ -327,11 +327,27 @@ class AnyScopePermission(MethodPermissionMixin, BasePermission):
 
 
 class CoursePermission(MethodPermissionMixin, BaseScopePermission):
-    """Permission handler for course scopes (namespace ``course-v1``)."""
+    """Permission handler for course scopes.
+
+    This class implements permission checks specific to course operations.
+    It uses the authz API to verify whether a user has the necessary permissions
+    to perform actions on course team members or course resources.
+    """
 
     NAMESPACE: ClassVar[str] = "course-v1"
+    """``course-v1`` for course scopes."""
 
     def has_permission(self, request, view) -> bool:
+        """Check if the user has permission to perform the requested action.
+
+        First checks if the view method has @authz_permissions decorator.
+        If present, validates all required permissions. If not present,
+        allows access by default.
+
+        Returns:
+            bool: True if the user has the required permission, False otherwise.
+                Also returns False if no scope value is provided in the request.
+        """
         scope_value = self.get_scope_value(request)
         if not scope_value:
             return False

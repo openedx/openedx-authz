@@ -59,13 +59,23 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
     def get_scope_value(self, request) -> str | None:
         """Extract the scope value from the request.
 
+        When a ``scopes`` list is provided, returns only the first element.
+        This is intentional: bulk requests are expected to be homogeneous
+        (all scopes must share the same namespace). Actual per-scope permission
+        validation for bulk requests is handled in ``DynamicScopePermission``.
+
         Args:
             request: The Django REST framework request object.
 
         Returns:
             str | None: The scope value if found (e.g., 'lib:DemoX:CSPROB'), or None if not present.
         """
-        return request.data.get("scope") or request.query_params.get("scope")
+        scope = request.data.get("scope") or request.query_params.get("scope")
+        if not scope:
+            scopes = request.data.get("scopes")
+            if scopes and isinstance(scopes, list):
+                scope = scopes[0]
+        return scope
 
     def get_scope_namespace(self, request) -> str:
         """Derive the namespace from the request scope value.
@@ -87,6 +97,12 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             >>> permission.get_scope_namespace(request)
             'global'
         """
+        scopes_list = request.data.get("scopes")
+        if scopes_list and isinstance(scopes_list, list):
+            if not self._scopes_have_homogeneous_namespaces(scopes_list):
+                raise ValueError(
+                    f"Mixed scope namespaces in bulk request are not allowed: {scopes_list}"
+                )
         scope_value = self.get_scope_value(request)
         if not scope_value:
             return self.NAMESPACE
@@ -94,6 +110,22 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
             return api.ScopeData(external_key=scope_value).NAMESPACE
         except ValueError:
             return self.NAMESPACE
+
+    def _scopes_have_homogeneous_namespaces(self, scopes_list: list[str]) -> bool:
+        """Check that all scopes in the list share the same namespace.
+
+        Args:
+            scopes_list: List of scope values to check.
+        Returns:
+            bool: True if all scopes share the same namespace, False otherwise.
+        """
+        namespaces = set()
+        for scope in scopes_list:
+            try:
+                namespaces.add(api.ScopeData(external_key=scope).NAMESPACE)
+            except ValueError:
+                pass
+        return len(namespaces) <= 1
 
     def has_permission(self, request, view) -> bool:
         """Fallback permission check (deny by default).
@@ -141,6 +173,9 @@ class DynamicScopePermission(BaseScopePermission):
 
     Note:
         Superusers and staff members always have permission regardless of scope.
+        Bulk requests (``scopes`` list) must be homogeneous — all scopes must share
+        the same namespace (e.g., all ``course-v1:`` or all ``lib:``). Mixed namespaces
+        will raise a ``ValueError`` during namespace resolution.
     """
 
     NAMESPACE: ClassVar[None] = None
@@ -168,12 +203,46 @@ class DynamicScopePermission(BaseScopePermission):
         perm_class = PermissionMeta.get_permission_class(scope_namespace)
         return perm_class()
 
+    def _has_bulk_permission(self, request, view, scopes_list: list[str]) -> bool:
+        """Check permissions for a bulk request carrying multiple scopes.
+
+        Bulk operations are only supported for endpoints decorated with
+        ``@authz_permissions``. A handler that does not use the decorator (i.e. does
+        not mix in ``MethodPermissionMixin``) has no declared permissions to evaluate
+        per-scope, so bulk access is denied outright.
+
+        Every scope in ``scopes_list`` must pass at least one of the required
+        permissions declared by the decorator (OR logic per permission, AND logic
+        across scopes).
+
+        Args:
+            request: The Django REST framework request object.
+            view: The view being accessed.
+            scopes_list: The list of scope values from ``request.data["scopes"]``.
+
+        Returns:
+            bool: True only if every scope passes at least one required permission.
+        """
+        perm_instance = self._get_permission_instance(request)  # namespace resolved from scopes[0]
+        # Bulk without @authz_permissions decorator is not supported: there are no
+        # per-method permissions to iterate over, so we cannot safely grant access.
+        if not isinstance(perm_instance, MethodPermissionMixin):
+            return False
+        required = perm_instance.get_required_permissions(request, view)
+        if not required:
+            return False
+        return all(perm_instance.validate_permissions(request, required, sv) for sv in scopes_list)
+
     def has_permission(self, request, view) -> bool:
         """Delegate permission check to the appropriate scope-specific permission class.
 
         Superusers and staff members are automatically granted permission. For other
         users, the permission check is delegated to the permission class registered
         for the request's scope namespace.
+
+        For bulk requests that carry a ``scopes`` list, delegates to
+        ``_has_bulk_permission``: every scope must pass at least one of the required
+        permissions (OR logic per permission, AND logic across scopes).
 
         Examples:
             >>> # Regular user gets scope-specific check
@@ -182,6 +251,9 @@ class DynamicScopePermission(BaseScopePermission):
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
+        scopes_list = request.data.get("scopes")
+        if scopes_list and isinstance(scopes_list, list):
+            return self._has_bulk_permission(request, view, scopes_list)
         return self._get_permission_instance(request).has_permission(request, view)
 
     def has_object_permission(self, request, view, obj) -> bool:
@@ -240,23 +312,19 @@ class MethodPermissionMixin:
         return []
 
     def validate_permissions(self, request, permissions: list[str], scope_value: str) -> bool:
-        """Validate that the user has all required permissions for the scope.
+        """Validate that the user has at least one of the required permissions for the scope.
 
         Args:
             request: The Django REST framework request object.
-            permissions: List of permission identifiers to check.
+            permissions: List of permission identifiers to check (OR logic — any one suffices).
             scope_value: The scope to check permissions against.
 
         Returns:
-            bool: True if user has all required permissions, False otherwise.
+            bool: True if user has at least one required permission, False otherwise.
         """
         if not permissions:
             return False
-
-        for permission in permissions:
-            if not api.is_user_allowed(request.user.username, permission, scope_value):
-                return False
-        return True
+        return any(api.is_user_allowed(request.user.username, permission, scope_value) for permission in permissions)
 
 
 class AnyScopePermission(MethodPermissionMixin, BasePermission):
@@ -280,6 +348,37 @@ class AnyScopePermission(MethodPermissionMixin, BasePermission):
         if not required:
             return False
         return any(api.get_scopes_for_user_and_permission(request.user.username, permission) for permission in required)
+
+
+class CoursePermission(MethodPermissionMixin, BaseScopePermission):
+    """Permission handler for course scopes.
+
+    This class implements permission checks specific to course operations.
+    It uses the authz API to verify whether a user has the necessary permissions
+    to perform actions on course team members or course resources.
+    """
+
+    NAMESPACE: ClassVar[str] = "course-v1"
+    """``course-v1`` for course scopes."""
+
+    def has_permission(self, request, view) -> bool:
+        """Check if the user has permission to perform the requested action.
+
+        First checks if the view method has @authz_permissions decorator.
+        If present, validates all required permissions. If not present,
+        allows access by default.
+
+        Returns:
+            bool: True if the user has the required permission, False otherwise.
+                Also returns False if no scope value is provided in the request.
+        """
+        scope_value = self.get_scope_value(request)
+        if not scope_value:
+            return False
+        permissions = self.get_required_permissions(request, view)
+        if permissions:
+            return self.validate_permissions(request, permissions, scope_value)
+        return True
 
 
 class ContentLibraryPermission(MethodPermissionMixin, BaseScopePermission):

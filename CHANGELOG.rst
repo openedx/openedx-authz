@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.15.0 - 2026-04-30
+*******************
+
+Added
+=====
+
+* Add support for course permission in Authz REST APIs (#274)
+
 1.14.0 - 2026-04-22
 *******************
 

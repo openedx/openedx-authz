@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 
 from openedx_authz import api
 from openedx_authz.api.data import (
+    CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
 )
@@ -33,6 +34,9 @@ ContentLibrary = get_content_library_model()
 CourseOverview = get_course_overview_model()
 
 User = get_user_model()
+
+COURSE_SCOPE_ORG1 = "course-v1:Org1+COURSE1+2024"
+COURSE_ORG1_GLOB = OrgCourseOverviewGlobData.build_external_key(CourseOverviewData(external_key=COURSE_SCOPE_ORG1).org)
 
 
 class ViewTestMixin(BaseRolesTestCase):
@@ -142,11 +146,21 @@ class ViewTestMixin(BaseRolesTestCase):
                 user.save()
 
     @classmethod
+    def create_course_users(cls):
+        """Create course users (plain, non-staff)."""
+        users = ["course_admin", "course_editor", "course_auditor", "course_admin_org"]
+        for username in users:
+            User.objects.get_or_create(
+                username=username, defaults={"email": f"{username}@example.com"}
+            )
+
+    @classmethod
     def setUpTestData(cls):
         """Set up test fixtures once for the entire test class."""
         super().setUpTestData()
         cls.create_admin_users(quantity=3)
         cls.create_regular_users(quantity=10)
+        cls.create_course_users()
 
     def setUp(self):
         """Set up test fixtures."""
@@ -315,6 +329,29 @@ class TestPermissionValidationMeView(ViewTestMixin):
 class TestRoleUserAPIView(ViewTestMixin):
     """Test suite for RoleUserAPIView."""
 
+    _COURSE_ASSIGNMENTS = [
+            {
+                "subject_name": "course_admin",
+                "role_name": roles.COURSE_ADMIN.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_editor",
+                "role_name": roles.COURSE_EDITOR.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_auditor",
+                "role_name": roles.COURSE_AUDITOR.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._assign_roles_to_users(assignments=cls._COURSE_ASSIGNMENTS)
+
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
@@ -418,6 +455,36 @@ class TestRoleUserAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
 
         response = self.client.get(self.url, {"scope": "lib:Org1:LIB1"})
+
+        self.assertEqual(response.status_code, status_code)
+
+    # --- Course scope equivalents ---
+
+    @data(
+        # Unauthenticated
+        (None, status.HTTP_401_UNAUTHORIZED),
+        # Django superuser always passes
+        ("admin_1", status.HTTP_200_OK),
+        # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
+        ("course_admin", status.HTTP_200_OK),
+        # course_editor has COURSES_VIEW_COURSE_TEAM
+        ("course_editor", status.HTTP_200_OK),
+        # course_auditor has COURSES_VIEW_COURSE_TEAM
+        ("course_auditor", status.HTTP_200_OK),
+        # Library-only user has no course permission
+        ("regular_1", status.HTTP_403_FORBIDDEN),
+    )
+    @unpack
+    def test_get_users_by_scope_course_permissions(self, username: str, status_code: int):
+        """Mirror of test_get_users_by_scope_permissions for course scopes.
+
+        Expected result:
+            - Returns appropriate status code based on course-scope permissions.
+        """
+        user = User.objects.filter(username=username).first()
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url, {"scope": COURSE_SCOPE_ORG1})
 
         self.assertEqual(response.status_code, status_code)
 
@@ -661,6 +728,42 @@ class TestRoleUserAPIView(ViewTestMixin):
 
             self.assertEqual(response.status_code, status_code)
 
+    # --- Course scope equivalents ---
+
+    @data(
+        # Unauthenticated
+        (None, status.HTTP_401_UNAUTHORIZED),
+        # Django superuser always passes
+        ("admin_1", status.HTTP_207_MULTI_STATUS),
+        # course_admin has COURSES_MANAGE_COURSE_TEAM
+        ("course_admin", status.HTTP_207_MULTI_STATUS),
+        # course_editor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
+        ("course_editor", status.HTTP_403_FORBIDDEN),
+        # course_auditor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
+        ("course_auditor", status.HTTP_403_FORBIDDEN),
+        # Library-only user has no course permission
+        ("regular_1", status.HTTP_403_FORBIDDEN),
+    )
+    @unpack
+    def test_add_users_to_role_course_permissions(self, username: str, status_code: int):
+        """Mirror of test_add_users_to_role_permissions for course scopes.
+
+        Expected result:
+            - Returns appropriate status code based on course-scope permissions.
+        """
+        request_data = {
+            "role": roles.COURSE_ADMIN.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": ["regular_2"],
+        }
+        user = User.objects.filter(username=username).first()
+        self.client.force_authenticate(user=user)
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status_code)
+
     @data(
         # With username -----------------------------
         # Single user - success (admin user)
@@ -798,6 +901,42 @@ class TestRoleUserAPIView(ViewTestMixin):
             response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
             self.assertEqual(response.status_code, status_code)
+
+    # --- Course scope equivalents ---
+
+    @data(
+        # Unauthenticated
+        (None, status.HTTP_401_UNAUTHORIZED),
+        # Django superuser always passes
+        ("admin_1", status.HTTP_207_MULTI_STATUS),
+        # course_admin has COURSES_MANAGE_COURSE_TEAM
+        ("course_admin", status.HTTP_207_MULTI_STATUS),
+        # course_editor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
+        ("course_editor", status.HTTP_403_FORBIDDEN),
+        # course_auditor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
+        ("course_auditor", status.HTTP_403_FORBIDDEN),
+        # Library-only user has no course permission
+        ("regular_1", status.HTTP_403_FORBIDDEN),
+    )
+    @unpack
+    def test_remove_users_from_role_course_permissions(self, username: str, status_code: int):
+        """Mirror of test_remove_users_from_role_permissions for course scopes.
+
+        Expected result:
+            - Returns appropriate status code based on course-scope permissions.
+        """
+        query_params = {
+            "role": roles.COURSE_ADMIN.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": "regular_2",
+        }
+        user = User.objects.filter(username=username).first()
+        self.client.force_authenticate(user=user)
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True):
+            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status_code)
 
 
 @ddt
@@ -952,7 +1091,7 @@ class TestScopesAPIView(ViewTestMixin):
     and the queryset helper methods, since those models live in openedx-platform.
     """
 
-    COURSE_ORG1 = "course-v1:Org1+COURSE1+2024"
+    COURSE_ORG1 = COURSE_SCOPE_ORG1
     COURSE_ORG2 = "course-v1:Org2+COURSE2+2024"
     LIBRARY_ORG1 = "lib:Org1:LIB1"
     LIBRARY_ORG2 = "lib:Org2:LIB2"
@@ -1384,7 +1523,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.build_qs_patcher.stop()
 
         # Simulate get_scopes_for_user_and_permission returning an org-level glob.
-        glob_scope = OrgCourseOverviewGlobData(external_key="course-v1:Org1+*")
+        glob_scope = OrgCourseOverviewGlobData(external_key=COURSE_ORG1_GLOB)
         with patch(
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
@@ -1764,7 +1903,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
                 {
                     "subject_name": "regular_9",
                     "role_name": roles.COURSE_STAFF.external_key,
-                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                    "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
         )
@@ -1922,7 +2061,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
                 {
                     "subject_name": "regular_1",
                     "role_name": roles.COURSE_STAFF.external_key,
-                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                    "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
         )
@@ -2509,6 +2648,29 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 class TestRoleListView(ViewTestMixin):
     """Test suite for RoleListView."""
 
+    _COURSE_ASSIGNMENTS = [
+            {
+                "subject_name": "course_admin",
+                "role_name": roles.COURSE_ADMIN.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_editor",
+                "role_name": roles.COURSE_EDITOR.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_auditor",
+                "role_name": roles.COURSE_AUDITOR.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._assign_roles_to_users(assignments=cls._COURSE_ASSIGNMENTS)
+
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
@@ -2643,6 +2805,34 @@ class TestRoleListView(ViewTestMixin):
         if status_code == status.HTTP_200_OK:
             self.assertIn("results", response.data)
             self.assertIn("count", response.data)
+
+    # --- Course scope equivalents ---
+
+    @data(
+        # Unauthenticated
+        (None, status.HTTP_401_UNAUTHORIZED),
+        # Django superuser always passes
+        ("admin_1", status.HTTP_200_OK),
+        # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
+        ("course_admin", status.HTTP_200_OK),
+        # course_auditor has COURSES_VIEW_COURSE_TEAM
+        ("course_auditor", status.HTTP_200_OK),
+        # Library-only user has no course permission
+        ("regular_9", status.HTTP_403_FORBIDDEN),
+    )
+    @unpack
+    def test_get_roles_course_permissions(self, username: str, status_code: int):
+        """Mirror of test_get_roles_permissions for course scopes.
+
+        Expected result:
+            - Returns appropriate status code based on course-scope permissions.
+        """
+        user = User.objects.filter(username=username).first()
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url, {"scope": COURSE_SCOPE_ORG1})
+
+        self.assertEqual(response.status_code, status_code)
 
 
 @ddt
@@ -3536,12 +3726,12 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
                 {
                     "subject_name": "regular_9",
                     "role_name": roles.COURSE_STAFF.external_key,
-                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                    "scope_name": COURSE_SCOPE_ORG1,
                 },
                 {
                     "subject_name": "regular_10",
                     "role_name": roles.COURSE_AUDITOR.external_key,
-                    "scope_name": "course-v1:Org1+COURSE1+2024",
+                    "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
         )
@@ -3720,7 +3910,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
                 {
                     "subject_name": "regular_10",
                     "role_name": roles.COURSE_STAFF.external_key,
-                    "scope_name": "course-v1:Org1+*",
+                    "scope_name": COURSE_ORG1_GLOB,
                 },
             ]
         )
@@ -3838,3 +4028,100 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
         scope_types = {item["scope"].split(":")[0] for item in non_superadmin_items}
         self.assertIn("lib", scope_types)
         self.assertIn("course-v1", scope_types)
+
+
+@ddt
+class TestBulkPutScopesAllLogic(ViewTestMixin):
+    """Test that DynamicScopePermission enforces AND logic across scopes in bulk PUT.
+
+    validate_permissions uses OR logic (any permission suffices per scope), but
+    DynamicScopePermission wraps that with all(...for sv in scopes_list), meaning
+    the user must pass the permission check for EVERY scope in the list.
+
+    Two users illustrate the difference between specific-scope and org-level permissions:
+      - course_admin: COURSE_ADMIN on COURSE_SCOPE_ORG1 only (specific course).
+      - course_admin_org: COURSE_ADMIN on COURSE_ORG1_GLOB (all courses in Org1).
+    """
+
+    ANOTHER_COURSE_SCOPE = "course-v1:Org2+COURSE2+2024"
+    _COURSE_ASSIGNMENTS = [
+            {
+                "subject_name": "course_admin",
+                "role_name": roles.COURSE_ADMIN.external_key,
+                "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_admin_org",
+                "role_name": roles.COURSE_ADMIN.external_key,
+                "scope_name": COURSE_ORG1_GLOB,
+            },
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.get(username="course_admin")
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("openedx_authz:role-user-list")
+        self._assign_roles_to_users(assignments=self._COURSE_ASSIGNMENTS)
+
+    def _put_course(self, scopes):
+        request_data = {"role": roles.COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), \
+             patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True):
+            return self.client.put(self.url, data=request_data, format="json")
+
+    def _put_lib(self, scopes):
+        request_data = {"role": roles.LIBRARY_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
+        with patch.object(api.ContentLibraryData, "exists", return_value=True):
+            return self.client.put(self.url, data=request_data, format="json")
+
+    def test_all_scopes_permitted_succeeds(self):
+        """course_admin has permission on their specific scope → 207."""
+        response = self._put_course([COURSE_SCOPE_ORG1])
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+
+    def test_one_scope_not_permitted_denied(self):
+        """User lacks permission on one of the scopes → 403.
+
+        course_admin has no role on ANOTHER_COURSE_SCOPE, so the all() check must
+        fail even though they pass for COURSE_SCOPE_ORG1.
+        """
+        response = self._put_course([COURSE_SCOPE_ORG1, self.ANOTHER_COURSE_SCOPE])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_course_user_cannot_add_library_roles(self):
+        """A course-only user is denied when trying to assign library roles.
+
+        course_admin has no library permissions at all, so a bulk PUT targeting
+        a library scope must be denied regardless of the OR logic inside
+        validate_permissions.
+        """
+        response = self._put_lib(["lib:Org1:LIB1"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        # course_admin has COURSE_ADMIN on the specific course only.
+        # Passes for the exact scope, but fails for the org-level glob or any combo including it.
+        ("course_admin", [COURSE_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("course_admin", [COURSE_ORG1_GLOB], status.HTTP_403_FORBIDDEN),
+        ("course_admin", [COURSE_SCOPE_ORG1, COURSE_ORG1_GLOB], status.HTTP_403_FORBIDDEN),
+        # course_admin_org has COURSE_ADMIN on the org-level glob.
+        # Via Casbin glob matching, this covers both the glob itself and any specific course within the org.
+        ("course_admin_org", [COURSE_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_org", [COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_org", [COURSE_SCOPE_ORG1, COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+    )
+    @unpack
+    def test_scope_permission_vs_org_permission(self, username, scopes, expected_status):
+        """A user with a specific-scope role and one with an org-level role behave differently
+        when bulk PUT includes the org-level glob alongside specific scopes.
+
+        course_admin (specific scope) fails on any scope list that includes the org glob,
+        because they have no permission at that level.
+        course_admin_org (org-level glob) passes for both the glob and any specific course
+        within that org, thanks to Casbin's glob matching.
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+        response = self._put_course(scopes)
+        self.assertEqual(response.status_code, expected_status)

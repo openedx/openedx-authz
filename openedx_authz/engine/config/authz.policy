@@ -92,6 +92,7 @@ p, role^course_editor, act^courses.view_grading_settings, course-v1^*, allow
 p, role^course_editor, act^courses.view_checklists, course-v1^*, allow
 p, role^course_editor, act^courses.view_course_team, course-v1^*, allow
 p, role^course_editor, act^courses.view_schedule_and_details, course-v1^*, allow
+p, role^course_editor, act^courses.view_advanced_settings, course-v1^*, allow
 p, role^course_editor, act^courses.edit_course_content, course-v1^*, allow
 p, role^course_editor, act^courses.manage_library_updates, course-v1^*, allow
 p, role^course_editor, act^courses.manage_course_updates, course-v1^*, allow

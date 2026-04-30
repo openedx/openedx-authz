@@ -26,6 +26,8 @@ from openedx_authz.api.data import (
 from openedx_authz.constants import roles
 from openedx_authz.constants.permissions import (
     COURSES_CREATE_FILES,
+    COURSES_MANAGE_ADVANCED_SETTINGS,
+    COURSES_VIEW_ADVANCED_SETTINGS,
     COURSES_VIEW_COURSE,
     MANAGE_LIBRARY_TEAM,
     VIEW_LIBRARY,
@@ -897,3 +899,56 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
         """
         request = {"subject": subject, "action": action, "scope": scope, "expected_result": expected_result}
         self._test_enforcement(self.POLICY, request)
+
+
+@ddt
+class AdvancedSettingsPermissionsTests(CasbinEnforcementTestCase):
+    """
+    Tests for advanced settings permissions for course_auditor and course_editor roles.
+
+    Verifies the two-tier access model:
+    - course_auditor: VIEW only (read-only access)
+    - course_editor: both VIEW and MANAGE (full access)
+    """
+
+    COURSE = "course-v1:TestOrg+TestCourse+2024_T1"
+
+    POLICIES = [
+        make_policy(
+            roles.COURSE_AUDITOR.external_key,
+            COURSES_VIEW_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+        make_policy(
+            roles.COURSE_EDITOR.external_key,
+            COURSES_VIEW_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+        make_policy(
+            roles.COURSE_EDITOR.external_key,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+    ]
+
+    ASSIGNMENTS = [
+        make_course_assignment("auditor", roles.COURSE_AUDITOR.external_key, COURSE),
+        make_course_assignment("editor", roles.COURSE_EDITOR.external_key, COURSE),
+    ]
+
+    CASES = [
+        # course_auditor: view allowed, manage denied
+        make_course_case("auditor", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, True),
+        make_course_case("auditor", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, False),
+        # course_editor: both view and manage allowed
+        make_course_case("editor", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, True),
+        make_course_case("editor", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, True),
+        # unassigned user: both denied
+        make_course_case("other", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, False),
+        make_course_case("other", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, False),
+    ]
+
+    @data(*CASES)
+    def test_advanced_settings_enforcement(self, request: AuthRequest):
+        """Test that advanced settings permissions are enforced correctly per role."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)

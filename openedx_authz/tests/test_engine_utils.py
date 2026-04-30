@@ -79,7 +79,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             - The file contains 116 regular policies (p rules)
             - Policy content matches expected file content
         """
-        expected_policy_count = 116
+        expected_policy_count = 119
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -216,8 +216,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         self.assertEqual(
             len(self.target_enforcer.get_policy()),
-            116,
-            "Should have 116 regular policies from file",
+            119,
+            "Should have 119 regular policies from file",
         )
         self.assertEqual(
             len(self.target_enforcer.get_grouping_policy()),
@@ -250,8 +250,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
             len(target_policies),
-            116,
-            "Should have 116 policies total, with no duplicates",
+            119,
+            "Should have 119 policies total, with no duplicates",
         )
 
         duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
@@ -346,7 +346,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 117, "Should have 116 file policies + 1 custom policy")
+        self.assertEqual(len(target_policies), 120, "Should have 119 file policies + 1 custom policy")
         self.assertIn(custom_policy, target_policies, "Custom database policy should be preserved")
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
@@ -382,4 +382,4 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 116, "All 116 policies from file should be loaded")
+        self.assertEqual(len(target_policies), 119, "All 119 policies from file should be loaded")

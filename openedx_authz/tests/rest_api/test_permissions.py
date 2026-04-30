@@ -2,10 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
+import ddt
 from django.test import TestCase
 
 from openedx_authz.rest_api.v1.permissions import (
     BaseScopePermission,
+    ContentLibraryPermission,
     CoursePermission,
     DynamicScopePermission,
 )
@@ -114,6 +116,58 @@ class TestDynamicScopePermissionBulkScopes(TestCase):
         self.assertFalse(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
 
 
+@ddt.ddt
+class TestDynamicScopePermissionBulkScopesMixed(TestCase):
+    """Test DynamicScopePermission bulk-scopes behaviour when mixing specific and org-level scopes.
+
+    Parameterized over lib (lib:Org:A / lib:Org:*) and course-v1 (course-v1:Org1+C1+2024 / course-v1:Org1+*)
+    namespaces to verify that the AND-logic holds regardless of whether a scope targets a specific
+    resource or an entire org.
+    """
+
+    def setUp(self):
+        self.perm = DynamicScopePermission()
+
+    def test_mixed_namespaces_raises_value_error(self):
+        """Mixing lib and course-v1 scopes in the same bulk request raises ValueError."""
+        request = _make_request(data={"scopes": ["lib:Org:A", "course-v1:Org1+C1+2024"]})
+        with self.assertRaises(ValueError):
+            self.perm.has_permission(request, _make_view(required_permissions=["p"]))
+
+    @ddt.data(
+        (["lib:Org:A", "lib:Org:*"], "get"),
+        (["course-v1:Org1+C1+2024", "course-v1:Org1+*"], "get"),
+    )
+    @ddt.unpack
+    @patch("openedx_authz.api.is_user_allowed", return_value=True)
+    def test_specific_and_org_scope_both_pass_returns_true(self, scopes, method, _):
+        """When the user has permission on both the specific scope and the org-level scope, access is granted."""
+        request = _make_request(data={"scopes": scopes}, method=method.upper())
+        self.assertTrue(self.perm.has_permission(request, _make_view(method=method, required_permissions=["p"])))
+
+    @ddt.data(
+        (["lib:Org:A", "lib:Org:*"], "get"),
+        (["course-v1:Org1+C1+2024", "course-v1:Org1+*"], "get"),
+    )
+    @ddt.unpack
+    @patch("openedx_authz.api.is_user_allowed", side_effect=[True, False])
+    def test_specific_passes_org_fails_returns_false(self, scopes, method, _):
+        """When the user has permission on the specific scope but not the org-level scope, access is denied."""
+        request = _make_request(data={"scopes": scopes}, method=method.upper())
+        self.assertFalse(self.perm.has_permission(request, _make_view(method=method, required_permissions=["p"])))
+
+    @ddt.data(
+        (["lib:Org:A", "lib:Org:*"], "get"),
+        (["course-v1:Org1+C1+2024", "course-v1:Org1+*"], "get"),
+    )
+    @ddt.unpack
+    @patch("openedx_authz.api.is_user_allowed", side_effect=[False, True])
+    def test_specific_fails_org_passes_returns_false(self, scopes, method, _):
+        """When the user has permission on the org-level scope but not the specific scope, access is denied."""
+        request = _make_request(data={"scopes": scopes}, method=method.upper())
+        self.assertFalse(self.perm.has_permission(request, _make_view(method=method, required_permissions=["p"])))
+
+
 class TestCoursePermission(TestCase):
     """Test CoursePermission class."""
 
@@ -140,4 +194,57 @@ class TestCoursePermission(TestCase):
     def test_scope_with_permission_denied(self, _):
         """When the user lacks the required permission on the course scope, access is denied."""
         request = _make_request(data={"scope": "course-v1:Org1+C1+2024"}, method="GET")
+        self.assertFalse(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=True)
+    def test_org_scope_allowed(self, _):
+        """An org-level course scope ('course-v1:Org1+*') grants access when the user has the required permission."""
+        request = _make_request(data={"scope": "course-v1:Org1+*"}, method="GET")
+        self.assertTrue(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=False)
+    def test_org_scope_denied(self, _):
+        """An org-level course scope ('course-v1:Org1+*') denies access when the user lacks the required permission."""
+        request = _make_request(data={"scope": "course-v1:Org1+*"}, method="GET")
+        self.assertFalse(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+
+class TestContentLibraryPermission(TestCase):
+    """Test ContentLibraryPermission class."""
+
+    def setUp(self):
+        self.perm = ContentLibraryPermission()
+
+    def test_no_scope_returns_false(self):
+        """A request without any scope value is always rejected — there is nothing to authorize against."""
+        self.assertFalse(self.perm.has_permission(_make_request(), _make_view(required_permissions=["p"])))
+
+    def test_scope_no_decorator_returns_true(self):
+        """When a scope is present but the view method has no @authz_permissions decorator,
+        the endpoint is considered open and access is granted."""
+        request = _make_request(data={"scope": "lib:Org1:A"})
+        self.assertTrue(self.perm.has_permission(request, _make_view(required_permissions=None)))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=True)
+    def test_scope_with_permission_allowed(self, _):
+        """When the user has the required permission on the given library scope, access is granted."""
+        request = _make_request(data={"scope": "lib:Org1:A"}, method="GET")
+        self.assertTrue(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=False)
+    def test_scope_with_permission_denied(self, _):
+        """When the user lacks the required permission on the library scope, access is denied."""
+        request = _make_request(data={"scope": "lib:Org1:A"}, method="GET")
+        self.assertFalse(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=True)
+    def test_org_scope_allowed(self, _):
+        """An org-level lib scope ('lib:Org1:*') grants access when the user has the required permission."""
+        request = _make_request(data={"scope": "lib:Org1:*"}, method="GET")
+        self.assertTrue(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))
+
+    @patch("openedx_authz.api.is_user_allowed", return_value=False)
+    def test_org_scope_denied(self, _):
+        """An org-level lib scope ('lib:Org1:*') denies access when the user lacks the required permission."""
+        request = _make_request(data={"scope": "lib:Org1:*"}, method="GET")
         self.assertFalse(self.perm.has_permission(request, _make_view(method="get", required_permissions=["p"])))

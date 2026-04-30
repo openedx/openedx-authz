@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 
 from openedx_authz import api
 from openedx_authz.api.data import (
+    CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
 )
@@ -35,6 +36,7 @@ CourseOverview = get_course_overview_model()
 User = get_user_model()
 
 COURSE_SCOPE_ORG1 = "course-v1:Org1+COURSE1+2024"
+COURSE_ORG1_GLOB = OrgCourseOverviewGlobData.build_external_key(CourseOverviewData(external_key=COURSE_SCOPE_ORG1).org)
 
 
 class ViewTestMixin(BaseRolesTestCase):
@@ -146,7 +148,7 @@ class ViewTestMixin(BaseRolesTestCase):
     @classmethod
     def create_course_users(cls):
         """Create course users (plain, non-staff)."""
-        users = ["course_admin", "course_editor", "course_auditor"]
+        users = ["course_admin", "course_editor", "course_auditor", "course_admin_org"]
         for username in users:
             User.objects.get_or_create(
                 username=username, defaults={"email": f"{username}@example.com"}
@@ -1521,7 +1523,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.build_qs_patcher.stop()
 
         # Simulate get_scopes_for_user_and_permission returning an org-level glob.
-        glob_scope = OrgCourseOverviewGlobData(external_key="course-v1:Org1+*")
+        glob_scope = OrgCourseOverviewGlobData(external_key=COURSE_ORG1_GLOB)
         with patch(
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
@@ -3908,7 +3910,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
                 {
                     "subject_name": "regular_10",
                     "role_name": roles.COURSE_STAFF.external_key,
-                    "scope_name": "course-v1:Org1+*",
+                    "scope_name": COURSE_ORG1_GLOB,
                 },
             ]
         )
@@ -4028,6 +4030,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
         self.assertIn("course-v1", scope_types)
 
 
+@ddt
 class TestBulkPutScopesAllLogic(ViewTestMixin):
     """Test that DynamicScopePermission enforces AND logic across scopes in bulk PUT.
 
@@ -4035,16 +4038,22 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
     DynamicScopePermission wraps that with all(...for sv in scopes_list), meaning
     the user must pass the permission check for EVERY scope in the list.
 
-    course_admin has COURSE_ADMIN on COURSE_SCOPE_ORG1 only, giving them
-    COURSES_MANAGE_COURSE_TEAM on that scope but no permissions elsewhere.
+    Two users illustrate the difference between specific-scope and org-level permissions:
+      - course_admin: COURSE_ADMIN on COURSE_SCOPE_ORG1 only (specific course).
+      - course_admin_org: COURSE_ADMIN on COURSE_ORG1_GLOB (all courses in Org1).
     """
 
-    ANOTHER_COURSE_SCOPE = "course-v1:Org1+COURSE2+2024"
+    ANOTHER_COURSE_SCOPE = "course-v1:Org2+COURSE2+2024"
     _COURSE_ASSIGNMENTS = [
             {
                 "subject_name": "course_admin",
                 "role_name": roles.COURSE_ADMIN.external_key,
                 "scope_name": COURSE_SCOPE_ORG1,
+            },
+            {
+                "subject_name": "course_admin_org",
+                "role_name": roles.COURSE_ADMIN.external_key,
+                "scope_name": COURSE_ORG1_GLOB,
             },
     ]
 
@@ -4057,7 +4066,8 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
 
     def _put_course(self, scopes):
         request_data = {"role": roles.COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
-        with patch.object(api.CourseOverviewData, "exists", return_value=True):
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), \
+             patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True):
             return self.client.put(self.url, data=request_data, format="json")
 
     def _put_lib(self, scopes):
@@ -4066,7 +4076,7 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
             return self.client.put(self.url, data=request_data, format="json")
 
     def test_all_scopes_permitted_succeeds(self):
-        """User has permission on all requested scopes → 207."""
+        """course_admin has permission on their specific scope → 207."""
         response = self._put_course([COURSE_SCOPE_ORG1])
         self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
 
@@ -4088,3 +4098,30 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
         """
         response = self._put_lib(["lib:Org1:LIB1"])
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        # course_admin has COURSE_ADMIN on the specific course only.
+        # Passes for the exact scope, but fails for the org-level glob or any combo including it.
+        ("course_admin", [COURSE_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("course_admin", [COURSE_ORG1_GLOB], status.HTTP_403_FORBIDDEN),
+        ("course_admin", [COURSE_SCOPE_ORG1, COURSE_ORG1_GLOB], status.HTTP_403_FORBIDDEN),
+        # course_admin_org has COURSE_ADMIN on the org-level glob.
+        # Via Casbin glob matching, this covers both the glob itself and any specific course within the org.
+        ("course_admin_org", [COURSE_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_org", [COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_org", [COURSE_SCOPE_ORG1, COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+    )
+    @unpack
+    def test_scope_permission_vs_org_permission(self, username, scopes, expected_status):
+        """A user with a specific-scope role and one with an org-level role behave differently
+        when bulk PUT includes the org-level glob alongside specific scopes.
+
+        course_admin (specific scope) fails on any scope list that includes the org glob,
+        because they have no permission at that level.
+        course_admin_org (org-level glob) passes for both the glob and any specific course
+        within that org, thanks to Casbin's glob matching.
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+        response = self._put_course(scopes)
+        self.assertEqual(response.status_code, expected_status)

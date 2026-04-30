@@ -203,6 +203,36 @@ class DynamicScopePermission(BaseScopePermission):
         perm_class = PermissionMeta.get_permission_class(scope_namespace)
         return perm_class()
 
+    def _has_bulk_permission(self, request, view, scopes_list: list[str]) -> bool:
+        """Check permissions for a bulk request carrying multiple scopes.
+
+        Bulk operations are only supported for endpoints decorated with
+        ``@authz_permissions``. A handler that does not use the decorator (i.e. does
+        not mix in ``MethodPermissionMixin``) has no declared permissions to evaluate
+        per-scope, so bulk access is denied outright.
+
+        Every scope in ``scopes_list`` must pass at least one of the required
+        permissions declared by the decorator (OR logic per permission, AND logic
+        across scopes).
+
+        Args:
+            request: The Django REST framework request object.
+            view: The view being accessed.
+            scopes_list: The list of scope values from ``request.data["scopes"]``.
+
+        Returns:
+            bool: True only if every scope passes at least one required permission.
+        """
+        perm_instance = self._get_permission_instance(request)  # namespace resolved from scopes[0]
+        # Bulk without @authz_permissions decorator is not supported: there are no
+        # per-method permissions to iterate over, so we cannot safely grant access.
+        if not isinstance(perm_instance, MethodPermissionMixin):
+            return False
+        required = perm_instance.get_required_permissions(request, view)
+        if not required:
+            return False
+        return all(perm_instance.validate_permissions(request, required, sv) for sv in scopes_list)
+
     def has_permission(self, request, view) -> bool:
         """Delegate permission check to the appropriate scope-specific permission class.
 
@@ -210,9 +240,9 @@ class DynamicScopePermission(BaseScopePermission):
         users, the permission check is delegated to the permission class registered
         for the request's scope namespace.
 
-        For bulk PUT requests that carry a ``scopes`` list, every scope in the list
-        must pass at least one of the required permissions (OR logic per permission,
-        AND logic across scopes).
+        For bulk requests that carry a ``scopes`` list, delegates to
+        ``_has_bulk_permission``: every scope must pass at least one of the required
+        permissions (OR logic per permission, AND logic across scopes).
 
         Examples:
             >>> # Regular user gets scope-specific check
@@ -223,13 +253,7 @@ class DynamicScopePermission(BaseScopePermission):
             return True
         scopes_list = request.data.get("scopes")
         if scopes_list and isinstance(scopes_list, list):
-            perm_instance = self._get_permission_instance(request)  # namespace resolved from scopes[0]
-            if not isinstance(perm_instance, MethodPermissionMixin):
-                return False
-            required = perm_instance.get_required_permissions(request, view)
-            if not required:
-                return False
-            return all(perm_instance.validate_permissions(request, required, sv) for sv in scopes_list)
+            return self._has_bulk_permission(request, view, scopes_list)
         return self._get_permission_instance(request).has_permission(request, view)
 
     def has_object_permission(self, request, view, obj) -> bool:

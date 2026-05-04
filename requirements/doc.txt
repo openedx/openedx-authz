@@ -26,7 +26,7 @@ bracex==2.6
     # via
     #   -r requirements/test.txt
     #   wcmatch
-build==1.4.3
+build==1.5.0
     # via -r requirements/doc.in
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/test.txt
@@ -54,7 +54,7 @@ coverage[toml]==7.13.5
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==46.0.7
+cryptography==47.0.0
     # via
     #   -r requirements/test.txt
     #   pyjwt
@@ -148,7 +148,7 @@ edx-opaque-keys[django]==4.0.0
     #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/test.txt
-fastavro==1.12.1
+fastavro==1.12.2
     # via
     #   -r requirements/test.txt
     #   openedx-events
@@ -197,13 +197,13 @@ more-itertools==11.0.2
     # via
     #   jaraco-classes
     #   jaraco-functools
-nh3==0.3.4
+nh3==0.3.5
     # via readme-renderer
 openedx-atlas==0.7.0
     # via -r requirements/test.txt
 openedx-events==11.2.0
     # via -r requirements/test.txt
-packaging==26.1
+packaging==26.2
     # via
     #   -r requirements/test.txt
     #   build

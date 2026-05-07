@@ -706,11 +706,11 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         for scope in returned_scopes:
             self.assertEqual(scope, "lib:Org1:math_101")
 
-    def test_batch_auth_parity_with_per_assignment_is_user_allowed(self):
-        """batch_enforce and per-assignment is_user_allowed agree on every assignment."""
+    def test_scope_auth_parity_with_per_assignment_is_user_allowed(self):
+        """Scope-based filter and per-assignment is_user_allowed agree on every assignment."""
         all_assignments = get_user_role_assignments_filtered()
 
-        # New batch path
+        # New scope-based path
         batch_result = _filter_allowed_assignments(all_assignments, user_external_key="alice")
 
         # Reference: old per-assignment path

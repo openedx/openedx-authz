@@ -24,8 +24,9 @@ from openedx_authz.api.data import (
     UserAssignments,
     UserData,
 )
+from casbin.util import key_match_func
+
 from openedx_authz.api.permissions import is_subject_allowed
-from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
@@ -290,33 +291,44 @@ def _prefilter_assignments(
 def _filter_allowed_assignments(
     assignments: list[RoleAssignmentData], user_external_key: str = None
 ) -> list[RoleAssignmentData]:
-    """
-    Filter the given role assignments to only include those that the user has permission to view.
+    """Filter assignments to only those the viewer can see.
 
-    Uses batch Casbin enforcement to avoid per-assignment enforce() calls.
-    Assignments whose scope does not implement ``get_admin_view_permission``
-    are skipped with a warning.
+    Bypasses Casbin enforce() entirely: checks staff/superuser once, then uses
+    get_scopes_for_subject_and_permission for a DB-backed scope membership test
+    followed by Python key_match filtering.
     """
     if not user_external_key:
         return assignments
 
+    try:
+        user = User.objects.get(username=user_external_key, is_active=True)
+        if user.is_staff or user.is_superuser:
+            return assignments
+    except User.DoesNotExist:
+        pass
+
     viewer = UserData(external_key=user_external_key)
-    eligible: list[RoleAssignmentData] = []
-    requests = []
+
+    # Collect distinct permissions needed (typically 1-2 across all scope types).
+    permissions_by_id: dict[str, PermissionData] = {}
     for assignment in assignments:
-        try:
-            permission_id = assignment.scope.get_admin_view_permission().identifier
-        except NotImplementedError:
-            log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
-            continue
-        action = ActionData(external_key=permission_id)
-        requests.append((viewer.namespaced_key, action.namespaced_key, assignment.scope.namespaced_key))
-        eligible.append(assignment)
+        perm = assignment.scope.get_admin_view_permission()
+        permissions_by_id[perm.identifier] = perm
 
-    enforcer = AuthzEnforcer.get_enforcer()
-    results = enforcer.batch_enforce(requests)
+    # One DB-backed lookup per distinct permission.
+    viewer_scopes_by_permission: dict[str, list[ScopeData]] = {
+        perm_id: get_scopes_for_subject_and_permission(viewer, perm)
+        for perm_id, perm in permissions_by_id.items()
+    }
 
-    return [a for a, allowed in zip(eligible, results) if allowed]
+    result = []
+    for assignment in assignments:
+        perm_id = assignment.scope.get_admin_view_permission().identifier
+        viewer_scopes = viewer_scopes_by_permission.get(perm_id, [])
+        if any(key_match_func(assignment.scope.namespaced_key, vs.namespaced_key) for vs in viewer_scopes):
+            result.append(assignment)
+
+    return result
 
 
 def get_visible_role_assignments_for_user(

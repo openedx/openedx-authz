@@ -436,9 +436,12 @@ def get_role_assignments(
     field_index, field_values = _get_field_index_and_values(subject, role, scope)
     policies = enforcer.get_filtered_grouping_policy(field_index, *field_values)
 
+    _perm_cache: dict[str, list[PermissionData]] = {}
     for policy in policies:
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_single_role(role)
+        if role.namespaced_key not in _perm_cache:
+            _perm_cache[role.namespaced_key] = get_permissions_for_single_role(role)
+        role.permissions = _perm_cache[role.namespaced_key]
         role_assignments.append(
             RoleAssignmentData(
                 subject=SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]),

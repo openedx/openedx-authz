@@ -22,10 +22,10 @@ from openedx_authz.api.data import (
     ScopeData,
     SuperAdminAssignmentData,
     UserAssignments,
-    UserAssignmentsFilter,
     UserData,
 )
 from openedx_authz.api.permissions import is_subject_allowed
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
@@ -40,7 +40,7 @@ from openedx_authz.api.roles import (
     unassign_role_from_subject_in_scope,
     unassign_subject_from_all_roles,
 )
-from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
+from openedx_authz.api.utils import get_user_assignment_map
 from openedx_authz.utils import get_user_by_username_or_email
 
 log = logging.getLogger(__name__)
@@ -271,34 +271,52 @@ def get_all_user_role_assignments_in_scope(
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
+def _prefilter_assignments(
+    assignments: list[RoleAssignmentData],
+    orgs: list[str] | None,
+    scopes: list[str] | None,
+    roles: list[str] | None,
+) -> list[RoleAssignmentData]:
+    """Filter a flat assignment list by org/scope/role before the expensive authorization pass."""
+    if scopes:
+        assignments = [a for a in assignments if a.scope.external_key in scopes]
+    if orgs:
+        assignments = [a for a in assignments if getattr(a.scope, "org", None) in orgs]
+    if roles:
+        assignments = [a for a in assignments if a.roles and a.roles[0].external_key in roles]
+    return assignments
+
+
 def _filter_allowed_assignments(
     assignments: list[RoleAssignmentData], user_external_key: str = None
 ) -> list[RoleAssignmentData]:
     """
     Filter the given role assignments to only include those that the user has permission to view.
 
+    Uses batch Casbin enforcement to avoid per-assignment enforce() calls.
     Assignments whose scope does not implement ``get_admin_view_permission``
-    are skipped with a warning
+    are skipped with a warning.
     """
     if not user_external_key:
-        # If no user is specified, return all assignments
         return assignments
-    allowed_assignments: list[RoleAssignmentData] = []
+
+    viewer = UserData(external_key=user_external_key)
+    eligible: list[RoleAssignmentData] = []
+    requests = []
     for assignment in assignments:
         try:
-            permission = assignment.scope.get_admin_view_permission().identifier
+            permission_id = assignment.scope.get_admin_view_permission().identifier
         except NotImplementedError:
             log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
             continue
+        action = ActionData(external_key=permission_id)
+        requests.append((viewer.namespaced_key, action.namespaced_key, assignment.scope.namespaced_key))
+        eligible.append(assignment)
 
-        if permission and is_user_allowed(
-            user_external_key=user_external_key,
-            action_external_key=permission,
-            scope_external_key=assignment.scope.external_key,
-        ):
-            allowed_assignments.append(assignment)
+    enforcer = AuthzEnforcer.get_enforcer()
+    results = enforcer.batch_enforce(requests)
 
-    return allowed_assignments
+    return [a for a, allowed in zip(eligible, results) if allowed]
 
 
 def get_visible_role_assignments_for_user(
@@ -320,30 +338,16 @@ def get_visible_role_assignments_for_user(
         list[UserAssignments]: A list of users with their role assignments, filtered by orgs/scopes and permissions.
     """
     user_role_assignments = get_user_role_assignments_filtered()
-    # Filter assignments based on the user's permissions
+    # Reduce the candidate set with cheap filters before the expensive authorization pass.
+    user_role_assignments = _prefilter_assignments(
+        user_role_assignments, orgs=orgs, scopes=scopes, roles=roles
+    )
+    # Filter assignments based on the viewer's authorization.
     user_role_assignments = _filter_allowed_assignments(
         user_external_key=allowed_for_user_external_key,
         assignments=user_role_assignments,
     )
-    # Group assignments by user
-    users_with_assignments = get_user_assignment_map(user_role_assignments)
-
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.SCOPES,
-        values=scopes,
-    )
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.ORGS,
-        values=orgs,
-    )
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.ROLES,
-        values=roles,
-    )
-    return users_with_assignments
+    return get_user_assignment_map(user_role_assignments)
 
 
 def is_user_allowed(

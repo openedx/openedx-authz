@@ -13,8 +13,10 @@ from openedx_authz.api.users import (
     batch_unassign_role_from_users,
     get_all_user_role_assignments_in_scope,
     get_user_role_assignments,
+    get_user_role_assignments_filtered,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
+    get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
     unassign_all_roles_from_user,
@@ -618,9 +620,11 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
         self.assertGreater(len(eve_assignments), 0)
         self.assertEqual(grace_assignments, [])
 
-    @patch("openedx_authz.api.users.is_user_allowed", return_value=True)
-    def test_skips_assignments_with_unsupported_scope(self, mock_is_user_allowed):
+    @patch("openedx_authz.api.users.AuthzEnforcer")
+    def test_skips_assignments_with_unsupported_scope(self, mock_enforcer_class):
         """Assignments whose scope lacks get_admin_view_permission are skipped with a warning."""
+        mock_enforcer_class.get_enforcer.return_value.batch_enforce.return_value = [True]
+
         unsupported_scope = Mock()
         unsupported_scope.external_key = "unsupported:scope"
         unsupported_scope.get_admin_view_permission.side_effect = NotImplementedError
@@ -648,8 +652,92 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
             log_context.output,
             ["WARNING:openedx_authz.api.users:Skipping assignment with unsupported scope 'unsupported:scope'"],
         )
-        mock_is_user_allowed.assert_called_once_with(
-            user_external_key="alice",
-            action_external_key=supported_scope.get_admin_view_permission().identifier,
-            scope_external_key=supported_scope.external_key,
+        mock_enforcer_class.get_enforcer.return_value.batch_enforce.assert_called_once()
+
+
+
+class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
+    """Tests for get_visible_role_assignments_for_user: pre-filter and batch authorization."""
+
+    def _all_scopes(self, user_assignments_list):
+        return {a.scope.external_key for ua in user_assignments_list for a in ua.assignments}
+
+    def _all_roles(self, user_assignments_list):
+        return {r.external_key for ua in user_assignments_list for a in ua.assignments for r in a.roles}
+
+    def _all_orgs(self, user_assignments_list):
+        return {getattr(a.scope, "org", None) for ua in user_assignments_list for a in ua.assignments}
+
+    def test_no_viewer_filter_allowed_returns_all_assignments(self):
+        """_filter_allowed_assignments with no viewer returns the full input list unchanged."""
+        all_assignments = get_user_role_assignments_filtered()
+        result = _filter_allowed_assignments(all_assignments, user_external_key=None)
+
+        self.assertEqual(len(result), len(all_assignments))
+
+    def test_scope_prefilter_reduces_to_matching_scopes(self):
+        """Assignments outside the requested scopes are excluded."""
+        target_scopes = ["lib:Org1:math_101", "lib:Org2:physics_401"]
+        result = get_visible_role_assignments_for_user(scopes=target_scopes)
+
+        returned_scopes = self._all_scopes(result)
+        self.assertTrue(returned_scopes.issubset(set(target_scopes)))
+
+    def test_org_prefilter_reduces_to_matching_orgs(self):
+        """Assignments outside the requested org are excluded."""
+        result = get_visible_role_assignments_for_user(orgs=["Org2"])
+
+        returned_orgs = self._all_orgs(result)
+        self.assertTrue(returned_orgs.issubset({"Org2"}))
+
+    def test_role_prefilter_reduces_to_matching_roles(self):
+        """Assignments with a different role are excluded."""
+        result = get_visible_role_assignments_for_user(roles=["library_admin"])
+
+        returned_roles = self._all_roles(result)
+        self.assertTrue(returned_roles.issubset({"library_admin"}))
+
+    def test_viewer_restricts_to_accessible_scopes(self):
+        """Viewer with library_admin in one scope cannot see other scopes."""
+        # alice has library_admin in lib:Org1:math_101 only.
+        result = get_visible_role_assignments_for_user(allowed_for_user_external_key="alice")
+
+        returned_scopes = self._all_scopes(result)
+        for scope in returned_scopes:
+            self.assertEqual(scope, "lib:Org1:math_101")
+
+    def test_batch_auth_parity_with_per_assignment_is_user_allowed(self):
+        """batch_enforce and per-assignment is_user_allowed agree on every assignment."""
+        all_assignments = get_user_role_assignments_filtered()
+
+        # New batch path
+        batch_result = _filter_allowed_assignments(all_assignments, user_external_key="alice")
+
+        # Reference: old per-assignment path
+        per_assignment_result = [
+            a for a in all_assignments
+            if is_user_allowed(
+                user_external_key="alice",
+                action_external_key=a.scope.get_admin_view_permission().identifier,
+                scope_external_key=a.scope.external_key,
+            )
+        ]
+
+        self.assertEqual(
+            {(a.subject.username, a.scope.external_key) for a in batch_result},
+            {(a.subject.username, a.scope.external_key) for a in per_assignment_result},
         )
+
+    def test_combined_filters_reduce_set_before_auth(self):
+        """org + role pre-filters leave only matching assignments for authorization."""
+        all_assignments = get_user_role_assignments_filtered()
+
+        # Pre-filter to Org1 + library_admin, then apply authorization as alice.
+        from openedx_authz.api.users import _prefilter_assignments
+        pre_filtered = _prefilter_assignments(all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"])
+        authorized = _filter_allowed_assignments(pre_filtered, user_external_key="alice")
+
+        # All authorized assignments must be in Org1 and have library_admin role.
+        for a in authorized:
+            self.assertEqual(getattr(a.scope, "org", None), "Org1")
+            self.assertTrue(any(r.external_key == "library_admin" for r in a.roles))

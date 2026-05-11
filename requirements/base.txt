@@ -24,9 +24,9 @@ charset-normalizer==3.4.7
     # via requests
 click==8.3.3
     # via edx-django-utils
-cryptography==46.0.7
+cryptography==48.0.0
     # via pyjwt
-django==5.2.13
+django==5.2.14
     # via
     #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.in
@@ -94,9 +94,9 @@ edx-opaque-keys[django]==4.0.0
     #   openedx-events
 edx-organizations==8.0.0
     # via -r requirements/base.in
-fastavro==1.12.1
+fastavro==1.12.2
     # via openedx-events
-idna==3.13
+idna==3.14
     # via requests
 inflection==0.5.1
     # via drf-yasg
@@ -104,7 +104,7 @@ openedx-atlas==0.7.0
     # via -r requirements/base.in
 openedx-events==11.2.0
     # via -r requirements/base.in
-packaging==26.1
+packaging==26.2
     # via drf-yasg
 pillow==12.2.0
     # via edx-organizations
@@ -124,7 +124,7 @@ pymongo==4.17.0
     # via edx-opaque-keys
 pynacl==1.6.2
     # via edx-django-utils
-pytz==2026.1.post1
+pytz==2026.2
     # via drf-yasg
 pyyaml==6.0.3
     # via drf-yasg
@@ -146,7 +146,7 @@ typing-extensions==4.15.0
     # via edx-opaque-keys
 uritemplate==4.2.0
     # via drf-yasg
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
 wcmatch==10.1
     # via pycasbin

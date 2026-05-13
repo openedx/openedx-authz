@@ -24,13 +24,12 @@ from openedx_authz.api.data import (
     UserAssignments,
     UserData,
 )
-from casbin.util import key_match_func
-
 from openedx_authz.api.permissions import is_subject_allowed
 from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
+    filter_role_assignments_visible_to_subject,
     get_all_subject_role_assignments_in_scope,
     get_role_assignments,
     get_scopes_for_subject_and_permission,
@@ -42,7 +41,7 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.api.utils import get_user_assignment_map
-from openedx_authz.utils import get_user_by_username_or_email
+from openedx_authz.utils import get_user_by_username_or_email, is_user_staff_or_superuser
 
 log = logging.getLogger(__name__)
 
@@ -204,11 +203,12 @@ def get_visible_user_role_assignments_filtered_by_current_user(
         list[RoleAssignmentData]: A list of role assignments for the user, filtered by orgs/roles and permissions.
     """
     user_role_assignments = get_user_role_assignments(user_external_key=user_external_key)
-    # Filter assignments based on the user's permissions
-    user_role_assignments = _filter_allowed_assignments(
-        user_external_key=allowed_for_user_external_key,
-        assignments=user_role_assignments,
-    )
+
+    if allowed_for_user_external_key and not is_user_staff_or_superuser(allowed_for_user_external_key):
+        user_role_assignments = _filter_allowed_assignments(
+            user_external_key=allowed_for_user_external_key,
+            assignments=user_role_assignments,
+        )
 
     # Only include assignments whose subject corresponds to an active user,
     # consistent with get_superadmin_assignments which filters by is_active=True.
@@ -272,13 +272,27 @@ def get_all_user_role_assignments_in_scope(
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
-def _prefilter_assignments(
+def _filter_assignments_by_params(
     assignments: list[RoleAssignmentData],
     orgs: list[str] | None,
     scopes: list[str] | None,
     roles: list[str] | None,
 ) -> list[RoleAssignmentData]:
-    """Filter a flat assignment list by org/scope/role before the expensive authorization pass."""
+    """Reduce the candidate assignment set using cheap Python filters before authorization.
+
+    Filters by org, scope external key, and role external key. All filters accept lists
+    and are applied only when provided. This runs before the scope-based authorization
+    pass to avoid paying the DB cost for assignments that would be dropped anyway.
+
+    Args:
+        assignments: The full assignment list to filter.
+        orgs: Optional list of org identifiers to keep (matched against scope.org).
+        scopes: Optional list of scope external keys to keep.
+        roles: Optional list of role external keys to keep.
+
+    Returns:
+        The filtered assignment list.
+    """
     if scopes:
         assignments = [a for a in assignments if a.scope.external_key in scopes]
     if orgs:
@@ -291,44 +305,24 @@ def _prefilter_assignments(
 def _filter_allowed_assignments(
     assignments: list[RoleAssignmentData], user_external_key: str = None
 ) -> list[RoleAssignmentData]:
-    """Filter assignments to only those the viewer can see.
+    """Return only the assignments the given viewer is authorized to see.
 
-    Bypasses Casbin enforce() entirely: checks staff/superuser once, then uses
-    get_scopes_for_subject_and_permission for a DB-backed scope membership test
-    followed by Python key_match filtering.
+    Delegates to filter_role_assignments_visible_to_subject, which uses the viewer's
+    own role assignments to determine scope visibility without calling Casbin enforce().
+    Returns all assignments unchanged when no viewer is specified.
+
+    Args:
+        assignments: The candidate assignments to filter.
+        user_external_key: Username of the viewer. If None, no filtering is applied.
+
+    Returns:
+        The subset of assignments the viewer is allowed to see.
     """
     if not user_external_key:
         return assignments
-
-    try:
-        user = User.objects.get(username=user_external_key, is_active=True)
-        if user.is_staff or user.is_superuser:
-            return assignments
-    except User.DoesNotExist:
-        pass
-
-    viewer = UserData(external_key=user_external_key)
-
-    # Collect distinct permissions needed (typically 1-2 across all scope types).
-    permissions_by_id: dict[str, PermissionData] = {}
-    for assignment in assignments:
-        perm = assignment.scope.get_admin_view_permission()
-        permissions_by_id[perm.identifier] = perm
-
-    # One DB-backed lookup per distinct permission.
-    viewer_scopes_by_permission: dict[str, list[ScopeData]] = {
-        perm_id: get_scopes_for_subject_and_permission(viewer, perm)
-        for perm_id, perm in permissions_by_id.items()
-    }
-
-    result = []
-    for assignment in assignments:
-        perm_id = assignment.scope.get_admin_view_permission().identifier
-        viewer_scopes = viewer_scopes_by_permission.get(perm_id, [])
-        if any(key_match_func(assignment.scope.namespaced_key, vs.namespaced_key) for vs in viewer_scopes):
-            result.append(assignment)
-
-    return result
+    return filter_role_assignments_visible_to_subject(
+        UserData(external_key=user_external_key), assignments
+    )
 
 
 def get_visible_role_assignments_for_user(
@@ -350,15 +344,17 @@ def get_visible_role_assignments_for_user(
         list[UserAssignments]: A list of users with their role assignments, filtered by orgs/scopes and permissions.
     """
     user_role_assignments = get_user_role_assignments_filtered()
-    # Reduce the candidate set with cheap filters before the expensive authorization pass.
-    user_role_assignments = _prefilter_assignments(
+
+    user_role_assignments = _filter_assignments_by_params(
         user_role_assignments, orgs=orgs, scopes=scopes, roles=roles
     )
-    # Filter assignments based on the viewer's authorization.
-    user_role_assignments = _filter_allowed_assignments(
-        user_external_key=allowed_for_user_external_key,
-        assignments=user_role_assignments,
-    )
+
+    if allowed_for_user_external_key and not is_user_staff_or_superuser(allowed_for_user_external_key):
+        user_role_assignments = _filter_allowed_assignments(
+            user_external_key=allowed_for_user_external_key,
+            assignments=user_role_assignments,
+        )
+
     return get_user_assignment_map(user_role_assignments)
 
 

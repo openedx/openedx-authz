@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
     _filter_allowed_assignments,
+    _filter_assignments_by_params,
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
@@ -733,8 +734,7 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         all_assignments = get_user_role_assignments_filtered()
 
         # Pre-filter to Org1 + library_admin, then apply authorization as alice.
-        from openedx_authz.api.users import _prefilter_assignments
-        pre_filtered = _prefilter_assignments(all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"])
+        pre_filtered = _filter_assignments_by_params(all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"])
         authorized = _filter_allowed_assignments(pre_filtered, user_external_key="alice")
 
         # All authorized assignments must be in Org1 and have library_admin role.

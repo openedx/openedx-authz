@@ -904,11 +904,11 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
 @ddt
 class AdvancedSettingsPermissionsTests(CasbinEnforcementTestCase):
     """
-    Tests for advanced settings permissions for course_auditor and course_editor roles.
+    Tests for advanced settings permissions across all course roles.
 
     Verifies the two-tier access model:
     - course_auditor: VIEW only (read-only access)
-    - course_editor: both VIEW and MANAGE (full access)
+    - course_editor, course_admin, course_staff: both VIEW and MANAGE (full access)
     """
 
     COURSE = "course-v1:TestOrg+TestCourse+2024_T1"
@@ -929,11 +929,33 @@ class AdvancedSettingsPermissionsTests(CasbinEnforcementTestCase):
             COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             CourseOverviewData.NAMESPACE,
         ),
+        make_policy(
+            roles.COURSE_ADMIN.external_key,
+            COURSES_VIEW_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+        make_policy(
+            roles.COURSE_ADMIN.external_key,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+        make_policy(
+            roles.COURSE_STAFF.external_key,
+            COURSES_VIEW_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
+        make_policy(
+            roles.COURSE_STAFF.external_key,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            CourseOverviewData.NAMESPACE,
+        ),
     ]
 
     ASSIGNMENTS = [
         make_course_assignment("auditor", roles.COURSE_AUDITOR.external_key, COURSE),
         make_course_assignment("editor", roles.COURSE_EDITOR.external_key, COURSE),
+        make_course_assignment("admin", roles.COURSE_ADMIN.external_key, COURSE),
+        make_course_assignment("staff", roles.COURSE_STAFF.external_key, COURSE),
     ]
 
     CASES = [
@@ -943,6 +965,12 @@ class AdvancedSettingsPermissionsTests(CasbinEnforcementTestCase):
         # course_editor: both view and manage allowed
         make_course_case("editor", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, True),
         make_course_case("editor", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, True),
+        # course_admin: both view and manage allowed
+        make_course_case("admin", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, True),
+        make_course_case("admin", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, True),
+        # course_staff: both view and manage allowed
+        make_course_case("staff", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, True),
+        make_course_case("staff", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, True),
         # unassigned user: both denied
         make_course_case("other", COURSES_VIEW_ADVANCED_SETTINGS.identifier, COURSE, False),
         make_course_case("other", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, COURSE, False),

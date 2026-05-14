@@ -14,6 +14,15 @@ Change Log
 Unreleased
 **********
 
+1.16.0 - 2026-05-14
+*******************
+
+Added
+=====
+
+* Add ``COURSES_VIEW_ADVANCED_SETTINGS`` permission and assign it to ``course_auditor``, ``course_editor``, ``course_staff``, and ``course_admin`` roles to enable read-only access to Advanced Settings.
+* Assign existing ``COURSES_MANAGE_ADVANCED_SETTINGS`` permission to the ``course_editor`` role to grant full read/write access to Advanced Settings.
+
 1.15.0 - 2026-04-30
 *******************
 

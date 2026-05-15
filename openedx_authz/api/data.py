@@ -100,18 +100,24 @@ class ScopeMeta(type):
     """Metaclass for ScopeData to handle dynamic subclass instantiation based on namespace."""
 
     scope_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
-    glob_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
+    org_glob_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
+    platform_glob_registry: ClassVar[dict[str, Type["ScopeData"]]] = {}
 
     def __init__(cls, name, bases, attrs):
-        """Initialize the metaclass and register subclasses."""
         super().__init__(name, bases, attrs)
         if not hasattr(cls, "scope_registry"):
             cls.scope_registry = {}
-        if not hasattr(cls, "glob_registry"):
-            cls.glob_registry = {}
+        if not hasattr(cls, "org_glob_registry"):
+            cls.org_glob_registry = {}
+        if not hasattr(cls, "platform_glob_registry"):
+            cls.platform_glob_registry = {}
 
-        if cls.IS_GLOB and cls.NAMESPACE:
-            cls.glob_registry[cls.NAMESPACE] = cls
+        cls.IS_GLOB = cls.IS_ORG_GLOB or cls.IS_PLATFORM_GLOB
+
+        if cls.IS_PLATFORM_GLOB and cls.NAMESPACE:
+            cls.platform_glob_registry[cls.NAMESPACE] = cls
+        elif cls.IS_ORG_GLOB and cls.NAMESPACE:
+            cls.org_glob_registry[cls.NAMESPACE] = cls
         else:
             cls.scope_registry[cls.NAMESPACE] = cls
 
@@ -170,6 +176,11 @@ class ScopeMeta(type):
 
         return super().__call__(*args, **kwargs)
 
+    @staticmethod
+    def _is_platform_glob(external_key: str, namespace: str) -> bool:
+        """Validate if the external key is a platform glob."""
+        return external_key == f"{namespace}{EXTERNAL_KEY_SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
+
     @classmethod
     def get_subclass_by_namespaced_key(mcs, namespaced_key: str) -> Type["ScopeData"]:
         """Get the appropriate ScopeData subclass from the namespaced key.
@@ -205,10 +216,13 @@ class ScopeMeta(type):
         is_glob = GLOBAL_SCOPE_WILDCARD in external_key
 
         if is_glob:
-            # Try to get glob-specific class first
-            return mcs.glob_registry.get(namespace, ScopeData)
+            # Check if this is a platform glob pattern first
+            if mcs._is_platform_glob(external_key, namespace):
+                return mcs.platform_glob_registry.get(namespace, ScopeData)
+            # If not a platform glob, check if it's an org glob
+            return mcs.org_glob_registry.get(namespace, ScopeData)
 
-        # Fall back to standard scope class
+        # If not a glob, return the standard scope class
         return mcs.scope_registry.get(namespace, ScopeData)
 
     @classmethod
@@ -258,11 +272,20 @@ class ScopeMeta(type):
         is_glob = GLOBAL_SCOPE_WILDCARD in external_key
 
         if is_glob:
-            glob_subclass = mcs.glob_registry.get(namespace)
+            if mcs._is_platform_glob(external_key, namespace):
+                platform_subclass = mcs.platform_glob_registry.get(namespace)
+
+                if not platform_subclass:
+                    raise ValueError(f"Unknown platform glob scope: {namespace} for external_key: {external_key}")
+                if not platform_subclass.validate_external_key(external_key):
+                    raise ValueError(f"Invalid external_key format for platform glob scope: {external_key}")
+
+                return platform_subclass
+
+            glob_subclass = mcs.org_glob_registry.get(namespace)
 
             if not glob_subclass:
                 raise ValueError(f"Unknown glob scope: {namespace} for external_key: {external_key}")
-
             if not glob_subclass.validate_external_key(external_key):
                 raise ValueError(f"Invalid external_key format for glob scope: {external_key}")
 
@@ -272,7 +295,6 @@ class ScopeMeta(type):
 
         if not scope_subclass:
             raise ValueError(f"Unknown scope: {namespace} for external_key: {external_key}")
-
         if not scope_subclass.validate_external_key(external_key):
             raise ValueError(f"Invalid external_key format: {external_key}")
 
@@ -283,14 +305,65 @@ class ScopeMeta(type):
         """Get all registered scope namespaces.
 
         Returns:
-            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes registered in the scope registry.
-                Each namespace corresponds to a ScopeData subclass (e.g., 'lib', 'global').
+            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes
+                registered in the scope registry. Each namespace corresponds to
+                a ScopeData subclass (e.g., 'lib', 'global').
 
         Examples:
             >>> ScopeMeta.get_all_namespaces()
             {'global': ScopeData, 'lib': ContentLibraryData, 'org': OrganizationData}
         """
         return mcs.scope_registry
+
+    @classmethod
+    def get_all_org_glob_namespaces(mcs) -> dict[str, Type["ScopeData"]]:
+        """Get all registered organization-level glob scope namespaces.
+
+        Returns:
+            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes
+                registered in the organization glob registry. Each namespace corresponds
+                to an org-level glob ScopeData subclass (e.g., 'course-v1', 'lib').
+
+        Examples:
+            >>> ScopeMeta.get_all_org_glob_namespaces()
+            {'course-v1': OrgCourseOverviewGlobData, 'lib': OrgContentLibraryGlobData}
+        """
+        return mcs.org_glob_registry
+
+    @classmethod
+    def get_all_platform_glob_namespaces(mcs) -> dict[str, Type["ScopeData"]]:
+        """Get all registered platform-level glob scope namespaces.
+
+        Returns:
+            dict[str, Type["ScopeData"]]: A dictionary of all namespace prefixes
+                registered in the platform glob registry. Each namespace corresponds
+                to a platform-level glob ScopeData subclass (e.g., 'course-v1', 'lib').
+
+        Examples:
+            >>> ScopeMeta.get_all_platform_glob_namespaces()
+            {'course-v1': PlatformCourseOverviewGlobData, 'lib': PlatformContentLibraryGlobData}
+        """
+        return mcs.platform_glob_registry
+
+    @classmethod
+    def get_all_registered_scopes(mcs) -> list[Type["ScopeData"]]:
+        """Get all registered scope subclasses across all registries.
+
+        Returns:
+            list[Type["ScopeData"]]: A unique list of all ScopeData subclasses registered in the standard,
+                organization glob, and platform glob registries.
+
+        Examples:
+            >>> ScopeMeta.get_all_registered_scopes()
+            [ScopeData, ContentLibraryData, OrgCourseOverviewGlobData, PlatformCourseOverviewGlobData]
+        """
+        return list(
+            {
+                *mcs.scope_registry.values(),
+                *mcs.org_glob_registry.values(),
+                *mcs.platform_glob_registry.values(),
+            }
+        )
 
     @classmethod
     def validate_external_key(mcs, external_key: str) -> bool:
@@ -330,7 +403,8 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     # 2. Custom global scopes that don't map to specific domain objects (e.g., 'global:some_scope')
     # Subclasses like ContentLibraryData ('lib') represent concrete resource types with their own namespaces.
     NAMESPACE: ClassVar[str] = "global"
-    IS_GLOB: ClassVar[bool] = False
+    IS_ORG_GLOB: ClassVar[bool] = False
+    IS_PLATFORM_GLOB: ClassVar[bool] = False
 
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
@@ -680,7 +754,8 @@ class OrgGlobData(ScopeData):
     namespace-specific (subclasses must define it to match their key format).
 
     Attributes:
-        IS_GLOB (bool): Always True for organization-level glob patterns.
+        NAMESPACE (str): The namespace prefix for organization-level glob patterns (e.g., ``org``).
+        IS_ORG_GLOB (bool): Always True for organization-level glob patterns.
         ID_SEPARATOR (str): Separator used right before the wildcard (e.g., ``:`` or ``+``).
         ORG_NAME_VALID_PATTERN (re.Pattern | str): Regex used to validate the organization
             identifier extracted from :attr:`external_key`.
@@ -690,7 +765,8 @@ class OrgGlobData(ScopeData):
         - ``course-v1:DemoX+*`` (all courses in org ``DemoX``)
     """
 
-    IS_GLOB: ClassVar[bool] = True
+    NAMESPACE: ClassVar[str] = "org"
+    IS_ORG_GLOB: ClassVar[bool] = True
     ID_SEPARATOR: ClassVar[str]
     ORG_NAME_VALID_PATTERN: ClassVar[re.Pattern] = r"^[a-zA-Z0-9._-]*$"
 
@@ -824,7 +900,7 @@ class OrgContentLibraryGlobData(OrgGlobData):
     Attributes:
         NAMESPACE (str): 'lib' for content library scopes.
         ID_SEPARATOR (str): ':' for content library scopes.
-        IS_GLOB (bool): True for scope data that represents a glob pattern.
+        IS_ORG_GLOB (bool): True for scope data that represents an organization-level glob pattern.
         external_key (str): The glob pattern (e.g., ``lib:DemoX:*``).
         namespaced_key (str): The pattern with namespace (e.g., ``lib^lib:DemoX:*``).
 
@@ -882,7 +958,7 @@ class OrgCourseOverviewGlobData(OrgGlobData):
     Attributes:
         NAMESPACE (str): 'course-v1' for course scopes.
         ID_SEPARATOR (str): '+' for course scopes.
-        IS_GLOB (bool): True for scope data that represents a glob pattern.
+        IS_ORG_GLOB (bool): True for scope data that represents an organization-level glob pattern.
         external_key (str): The glob pattern (e.g., 'course-v1:OpenedX+*').
         namespaced_key (str): The pattern with namespace (e.g., 'course-v1^course-v1:OpenedX+*').
 
@@ -920,6 +996,152 @@ class OrgCourseOverviewGlobData(OrgGlobData):
     @classmethod
     def get_admin_manage_permission(cls) -> PermissionData:
         """Get the permission required to manage this scope
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return COURSES_MANAGE_COURSE_TEAM
+
+
+@define
+class PlatformGlobData(ScopeData):
+    """Base class for platform-level glob scope keys.
+
+    This represents a platform-wide pattern: it matches "all resources in the platform"
+    for a given namespace, rather than being limited to a specific organization or concrete
+    object. The pattern is stored in :attr:`external_key` and **must** consist only of
+    the namespace followed by the global wildcard (``*``).
+
+    The expected shape is::
+
+        {NAMESPACE}{EXTERNAL_KEY_SEPARATOR}*
+
+    where ``{NAMESPACE}`` is the resource type namespace (e.g., ``course-v1`` or ``lib``).
+
+    Attributes:
+        IS_PLATFORM_GLOB (bool): Always True for platform-level glob patterns.
+        NAMESPACE (str): Must be defined by subclasses (e.g., 'course-v1', 'lib').
+
+    Examples:
+        - ``course-v1:*`` (all courses in the platform)
+        - ``lib:*`` (all libraries in the platform)
+
+    Note:
+        Subclasses must override NAMESPACE and implement the required abstract methods.
+    """
+
+    NAMESPACE: ClassVar[str] = "platform"
+    IS_PLATFORM_GLOB: ClassVar[bool] = True
+
+    @classmethod
+    def validate_external_key(cls, external_key: str) -> bool:
+        """Validate the external_key format for platform-level glob patterns.
+
+        Args:
+            external_key (str): The external key to validate (e.g., ``course-v1:*`` or ``lib:*``).
+
+        Returns:
+            bool: True if the format is valid, False otherwise.
+        """
+        return cls.build_external_key() == external_key
+
+    @classmethod
+    @abstractmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope.
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_view_permission method.")
+
+    @classmethod
+    @abstractmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope.
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        raise NotImplementedError("Subclasses must implement get_admin_manage_permission method.")
+
+    @classmethod
+    def build_external_key(cls) -> str:
+        """Build the external key for all resources in the platform.
+
+        Returns:
+            str: The external key for the platform-level glob (e.g., ``course-v1:*``).
+
+        Examples:
+            >>> PlatformCourseOverviewGlobData.build_external_key()
+            'course-v1:*'
+        """
+        return f"{cls.NAMESPACE}{EXTERNAL_KEY_SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
+
+    def get_object(self) -> None:
+        """Platform-level glob scopes do not map to a concrete domain object.
+
+        Returns:
+            None: Always returns None.
+        """
+        return None
+
+    def exists(self) -> bool:
+        """Platform-level glob scopes always exist.
+
+        Returns:
+            bool: Always True.
+        """
+        return True
+
+
+@define
+class PlatformCourseOverviewGlobData(PlatformGlobData):
+    """Platform-level glob pattern for courses.
+
+    This class represents glob patterns that match all courses in the platform,
+    Format: ``course-v1:*``
+
+    The glob pattern allows granting permissions to all courses across the entire
+    platform without needing to specify organizations or individual courses.
+
+    Attributes:
+        NAMESPACE (str): 'course-v1' for course scopes.
+        IS_PLATFORM_GLOB (bool): True for scope data that represents a platform-level glob pattern.
+        external_key (str): The glob pattern (always ``course-v1:*``).
+        namespaced_key (str): The pattern with namespace (``course-v1^course-v1:*``).
+
+    Validation Rules:
+        - Must be exactly ``course-v1:*``
+        - Applies to all existing and future courses in the platform
+        - Does not grant access to other resource types
+
+    Examples:
+        >>> glob = PlatformCourseOverviewGlobData(external_key='course-v1:*')
+        >>> glob.exists()
+        True
+        >>> glob.namespaced_key
+        'course-v1^course-v1:*'
+
+    Note:
+        This class is automatically instantiated by the ScopeMeta metaclass when
+        a course scope with the platform wildcard is created.
+    """
+
+    NAMESPACE: ClassVar[str] = "course-v1"
+
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope.
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return COURSES_VIEW_COURSE_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope.
 
         Returns:
             PermissionData: The permission required to manage this scope in the admin console.

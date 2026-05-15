@@ -1,12 +1,13 @@
 """Test suite for user-role assignment API functions."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
+    _filter_allowed_assignments,
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
@@ -616,3 +617,39 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
 
         self.assertGreater(len(eve_assignments), 0)
         self.assertEqual(grace_assignments, [])
+
+    @patch("openedx_authz.api.users.is_user_allowed", return_value=True)
+    def test_skips_assignments_with_unsupported_scope(self, mock_is_user_allowed):
+        """Assignments whose scope lacks get_admin_view_permission are skipped with a warning."""
+        unsupported_scope = Mock()
+        unsupported_scope.external_key = "unsupported:scope"
+        unsupported_scope.get_admin_view_permission.side_effect = NotImplementedError
+
+        supported_scope = ContentLibraryData(external_key="lib:Org1:math_101")
+        unsupported_assignment = RoleAssignmentData(
+            subject=UserData(external_key="john_doe"),
+            roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            scope=unsupported_scope,
+        )
+        supported_assignment = RoleAssignmentData(
+            subject=UserData(external_key="john_doe"),
+            roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            scope=supported_scope,
+        )
+
+        with self.assertLogs("openedx_authz.api.users", level="WARNING") as log_context:
+            filtered = _filter_allowed_assignments(
+                assignments=[unsupported_assignment, supported_assignment],
+                user_external_key="alice",
+            )
+
+        self.assertEqual(filtered, [supported_assignment])
+        self.assertEqual(
+            log_context.output,
+            ["WARNING:openedx_authz.api.users:Skipping assignment with unsupported scope 'unsupported:scope'"],
+        )
+        mock_is_user_allowed.assert_called_once_with(
+            user_external_key="alice",
+            action_external_key=supported_scope.get_admin_view_permission().identifier,
+            scope_external_key=supported_scope.external_key,
+        )

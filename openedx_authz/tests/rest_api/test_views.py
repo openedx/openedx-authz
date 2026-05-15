@@ -20,6 +20,7 @@ from openedx_authz.api.data import (
     CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
+    PlatformCourseOverviewGlobData,
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
@@ -150,9 +151,7 @@ class ViewTestMixin(BaseRolesTestCase):
         """Create course users (plain, non-staff)."""
         users = ["course_admin", "course_editor", "course_auditor", "course_admin_org"]
         for username in users:
-            User.objects.get_or_create(
-                username=username, defaults={"email": f"{username}@example.com"}
-            )
+            User.objects.get_or_create(username=username, defaults={"email": f"{username}@example.com"})
 
     @classmethod
     def setUpTestData(cls):
@@ -330,21 +329,21 @@ class TestRoleUserAPIView(ViewTestMixin):
     """Test suite for RoleUserAPIView."""
 
     _COURSE_ASSIGNMENTS = [
-            {
-                "subject_name": "course_admin",
-                "role_name": roles.COURSE_ADMIN.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
-            {
-                "subject_name": "course_editor",
-                "role_name": roles.COURSE_EDITOR.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
-            {
-                "subject_name": "course_auditor",
-                "role_name": roles.COURSE_AUDITOR.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
+        {
+            "subject_name": "course_admin",
+            "role_name": roles.COURSE_ADMIN.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "course_editor",
+            "role_name": roles.COURSE_EDITOR.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "course_auditor",
+            "role_name": roles.COURSE_AUDITOR.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
     ]
 
     @classmethod
@@ -955,6 +954,8 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
         self.url = reverse("openedx_authz:role-user-list")
 
     @data(
+        # Bare global wildcard — not accepted via the API
+        "*",
         # Course: globs only after full org segment (ORG+*), not course-v1:ORG* or mid-key globs
         "course-v1:OpenedX*",
         "course-v1:OpenedX**",
@@ -990,6 +991,8 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
+        # Bare global wildcard — not accepted via the API
+        "*",
         "course-v1:OpenedX*",
         "course-v1:OpenedX+CS101+*",
         "lib:DemoX*",
@@ -1535,6 +1538,25 @@ class TestScopesAPIView(ViewTestMixin):
         external_keys = [item["external_key"] for item in response.data["results"]]
         self.assertIn(self.COURSE_ORG1, external_keys)
         self.assertNotIn(self.COURSE_ORG2, external_keys)
+
+    def test_platform_glob_scope_returns_all_courses(self):
+        """A user with platform-level glob (course-v1:*) sees all courses across orgs."""
+        user = User.objects.get(username="regular_9")
+        self.client.force_authenticate(user=user)
+        self.build_qs_patcher.stop()
+
+        platform_scope = PlatformCourseOverviewGlobData(external_key="course-v1:*")
+        with patch(
+            "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
+            return_value=[platform_scope],
+        ):
+            response = self.client.get(self.url, {"scope_type": "course"})
+
+        self.build_qs_patcher.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = [item["external_key"] for item in response.data["results"]]
+        self.assertIn(self.COURSE_ORG1, external_keys)
+        self.assertIn(self.COURSE_ORG2, external_keys)
 
     def test_manage_permission_only_uses_manage_permission(self):
         """management_permission_only=true calls get_admin_manage_permission, not get_admin_view_permission."""
@@ -2606,6 +2628,28 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         else:
             self.assertIsNone(response.data["next"])
 
+    def test_platform_glob_assignment_serializes_wildcard_org(self):
+        """User with platform glob role assignment returns org '*' in the API response.
+
+        regular_10 is assigned course_staff on course-v1:* (all courses on the platform).
+        regular_9 is assigned course_admin on the same scope so they can view team
+        assignments for that platform-level glob.
+        """
+        PLATFORM_COURSE_GLOB = "course-v1:*"
+        assign_role_to_user_in_scope("regular_10", roles.COURSE_STAFF.external_key, PLATFORM_COURSE_GLOB)
+        assign_role_to_user_in_scope("regular_9", roles.COURSE_ADMIN.external_key, PLATFORM_COURSE_GLOB)
+
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
+        response = self.client.get(self._url("regular_10"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        assignment = response.data["results"][0]
+        self.assertFalse(assignment["is_superadmin"])
+        self.assertEqual(assignment["org"], "*")
+        self.assertEqual(assignment["scope"], PLATFORM_COURSE_GLOB)
+        self.assertEqual(assignment["role"], roles.COURSE_STAFF.external_key)
+
     # ------------------------------------------------------------------ #
     # Response shape                                                     #
     # ------------------------------------------------------------------ #
@@ -2649,21 +2693,21 @@ class TestRoleListView(ViewTestMixin):
     """Test suite for RoleListView."""
 
     _COURSE_ASSIGNMENTS = [
-            {
-                "subject_name": "course_admin",
-                "role_name": roles.COURSE_ADMIN.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
-            {
-                "subject_name": "course_editor",
-                "role_name": roles.COURSE_EDITOR.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
-            {
-                "subject_name": "course_auditor",
-                "role_name": roles.COURSE_AUDITOR.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
+        {
+            "subject_name": "course_admin",
+            "role_name": roles.COURSE_ADMIN.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "course_editor",
+            "role_name": roles.COURSE_EDITOR.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "course_auditor",
+            "role_name": roles.COURSE_AUDITOR.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
     ]
 
     @classmethod
@@ -2730,6 +2774,7 @@ class TestRoleListView(ViewTestMixin):
         ({"scope": ""}, "blank"),
         ({"scope": "a" * 256}, "max_length"),
         ({"scope": "invalid"}, "invalid"),
+        ({"scope": "*"}, "invalid"),
     )
     @unpack
     def test_get_roles_scope_is_invalid(self, query_params: dict, error_code: str):
@@ -4045,16 +4090,16 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
 
     ANOTHER_COURSE_SCOPE = "course-v1:Org2+COURSE2+2024"
     _COURSE_ASSIGNMENTS = [
-            {
-                "subject_name": "course_admin",
-                "role_name": roles.COURSE_ADMIN.external_key,
-                "scope_name": COURSE_SCOPE_ORG1,
-            },
-            {
-                "subject_name": "course_admin_org",
-                "role_name": roles.COURSE_ADMIN.external_key,
-                "scope_name": COURSE_ORG1_GLOB,
-            },
+        {
+            "subject_name": "course_admin",
+            "role_name": roles.COURSE_ADMIN.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "course_admin_org",
+            "role_name": roles.COURSE_ADMIN.external_key,
+            "scope_name": COURSE_ORG1_GLOB,
+        },
     ]
 
     def setUp(self):
@@ -4065,12 +4110,22 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
         self._assign_roles_to_users(assignments=self._COURSE_ASSIGNMENTS)
 
     def _put_course(self, scopes):
+        """Send a bulk PUT assigning COURSE_ADMIN to regular_2 for the given course scopes.
+
+        Patches scope existence checks so validation does not depend on the database.
+        """
         request_data = {"role": roles.COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
-        with patch.object(api.CourseOverviewData, "exists", return_value=True), \
-             patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True):
+        with (
+            patch.object(api.CourseOverviewData, "exists", return_value=True),
+            patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True),
+        ):
             return self.client.put(self.url, data=request_data, format="json")
 
     def _put_lib(self, scopes):
+        """Send a bulk PUT assigning LIBRARY_ADMIN to regular_2 for the given library scopes.
+
+        Patches ContentLibraryData.exists so validation does not depend on the database.
+        """
         request_data = {"role": roles.LIBRARY_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
             return self.client.put(self.url, data=request_data, format="json")

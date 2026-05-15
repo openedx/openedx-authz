@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("openedx_authz", "0008_authzcourseauthoringmigrationrun"),
     ]

@@ -258,7 +258,7 @@ class ScopeMeta(type):
         Notes:
             - The external_key format should be 'namespace:some-identifier' (e.g., 'lib:DemoX:CSPROB').
             - The namespace prefix before ':' is used to determine the subclass.
-            - If a wildcard is detected, the glob_registry is consulted first.
+            - If a wildcard is detected, the platform_glob_registry or org_glob_registry is consulted first.
             - Each subclass must implement validate_external_key() to verify the full key format.
             - This won't work for org scopes that don't have explicit namespace prefixes.
               TODO: Handle org scopes differently.

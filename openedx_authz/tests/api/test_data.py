@@ -262,10 +262,10 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(ScopeData.scope_registry["ccx-v1"], CCXCourseOverviewData)
 
         # Glob registries for organization-level scopes
-        self.assertIn("lib", ScopeMeta.glob_registry)
-        self.assertIs(ScopeMeta.glob_registry["lib"], OrgContentLibraryGlobData)
-        self.assertIn("course-v1", ScopeMeta.glob_registry)
-        self.assertIs(ScopeMeta.glob_registry["course-v1"], OrgCourseOverviewGlobData)
+        self.assertIn("lib", ScopeMeta.org_glob_registry)
+        self.assertIs(ScopeMeta.org_glob_registry["lib"], OrgContentLibraryGlobData)
+        self.assertIn("course-v1", ScopeMeta.org_glob_registry)
+        self.assertIs(ScopeMeta.org_glob_registry["course-v1"], OrgCourseOverviewGlobData)
 
     @data(
         ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
@@ -386,12 +386,12 @@ class TestScopeMetaClass(TestCase):
         scope_registry and glob_registry when they are not present on the class.
         """
         original_scope_registry = ScopeMeta.scope_registry
-        original_glob_registry = ScopeMeta.glob_registry
+        original_org_glob_registry = ScopeMeta.org_glob_registry
 
         try:
             # Simulate an environment where the registries are not yet defined
             del ScopeMeta.scope_registry
-            del ScopeMeta.glob_registry
+            del ScopeMeta.org_glob_registry
 
             class TempScope(ScopeData):
                 """Temporary scope class for testing."""
@@ -410,13 +410,13 @@ class TestScopeMetaClass(TestCase):
 
             # Metaclass should have recreated the registries on the class
             self.assertTrue(hasattr(TempScope, "scope_registry"))
-            self.assertTrue(hasattr(TempScope, "glob_registry"))
+            self.assertTrue(hasattr(TempScope, "org_glob_registry"))
             # And the new scope should be registered under its namespace
             self.assertIs(TempScope.scope_registry.get("temp"), TempScope)
         finally:
             # Restore original registries to avoid side effects on other tests
             ScopeMeta.scope_registry = original_scope_registry
-            ScopeMeta.glob_registry = original_glob_registry
+            ScopeMeta.org_glob_registry = original_org_glob_registry
 
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
         """Test that direct subclass instantiation doesn't trigger metaclass logic.

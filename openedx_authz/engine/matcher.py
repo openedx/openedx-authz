@@ -8,6 +8,7 @@ from openedx_authz.api.data import (
     CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
+    PlatformCourseOverviewGlobData,
     ScopeData,
     UserData,
 )
@@ -21,6 +22,7 @@ SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
     (CourseOverviewData.NAMESPACE, CourseOverviewData),
     (OrgContentLibraryGlobData.NAMESPACE, OrgContentLibraryGlobData),
     (OrgCourseOverviewGlobData.NAMESPACE, OrgCourseOverviewGlobData),
+    (PlatformCourseOverviewGlobData.NAMESPACE, PlatformCourseOverviewGlobData),
 }
 
 

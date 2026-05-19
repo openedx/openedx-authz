@@ -2624,6 +2624,28 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         else:
             self.assertIsNone(response.data["next"])
 
+    def test_platform_glob_assignment_serializes_wildcard_org(self):
+        """User with platform glob role assignment returns org '*' in the API response.
+
+        regular_10 is assigned course_staff on course-v1:* (all courses on the platform).
+        regular_9 is assigned course_admin on the same scope so they can view team
+        assignments for that platform-level glob.
+        """
+        PLATFORM_COURSE_GLOB = "course-v1:*"
+        assign_role_to_user_in_scope("regular_10", roles.COURSE_STAFF.external_key, PLATFORM_COURSE_GLOB)
+        assign_role_to_user_in_scope("regular_9", roles.COURSE_ADMIN.external_key, PLATFORM_COURSE_GLOB)
+
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
+        response = self.client.get(self._url("regular_10"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        assignment = response.data["results"][0]
+        self.assertFalse(assignment["is_superadmin"])
+        self.assertEqual(assignment["org"], "*")
+        self.assertEqual(assignment["scope"], PLATFORM_COURSE_GLOB)
+        self.assertEqual(assignment["role"], roles.COURSE_STAFF.external_key)
+
     # ------------------------------------------------------------------ #
     # Response shape                                                     #
     # ------------------------------------------------------------------ #

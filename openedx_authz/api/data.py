@@ -284,14 +284,14 @@ class ScopeMeta(type):
 
                 return platform_subclass
 
-            glob_subclass = mcs.org_glob_registry.get(namespace)
+            org_subclass = mcs.org_glob_registry.get(namespace)
 
-            if not glob_subclass:
-                raise ValueError(f"Unknown glob scope: {namespace} for external_key: {external_key}")
-            if not glob_subclass.validate_external_key(external_key):
-                raise ValueError(f"Invalid external_key format for glob scope: {external_key}")
+            if not org_subclass:
+                raise ValueError(f"Unknown org glob scope: {namespace} for external_key: {external_key}")
+            if not org_subclass.validate_external_key(external_key):
+                raise ValueError(f"Invalid external_key format for org glob scope: {external_key}")
 
-            return glob_subclass
+            return org_subclass
 
         scope_subclass = mcs.scope_registry.get(namespace)
 

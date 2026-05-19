@@ -100,9 +100,7 @@ class BaseScopePermission(BasePermission, metaclass=PermissionMeta):
         scopes_list = request.data.get("scopes")
         if scopes_list and isinstance(scopes_list, list):
             if not self._scopes_have_homogeneous_namespaces(scopes_list):
-                raise ValueError(
-                    f"Mixed scope namespaces in bulk request are not allowed: {scopes_list}"
-                )
+                raise ValueError(f"Mixed scope namespaces in bulk request are not allowed: {scopes_list}")
         scope_value = self.get_scope_value(request)
         if not scope_value:
             return self.NAMESPACE

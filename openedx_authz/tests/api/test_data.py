@@ -14,6 +14,7 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PermissionData,
+    PlatformCourseOverviewGlobData,
     RoleAssignmentData,
     RoleData,
     ScopeData,
@@ -267,12 +268,17 @@ class TestScopeMetaClass(TestCase):
         self.assertIn("course-v1", ScopeMeta.org_glob_registry)
         self.assertIs(ScopeMeta.org_glob_registry["course-v1"], OrgCourseOverviewGlobData)
 
+        # Glob registries for platform-level scopes
+        self.assertIn("course-v1", ScopeMeta.platform_glob_registry)
+        self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
+
     @data(
         ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX*", OrgContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX*", OrgCourseOverviewGlobData),
+        ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
         ("global^generic_scope", ScopeData),
     )
     @unpack
@@ -294,6 +300,7 @@ class TestScopeMetaClass(TestCase):
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX:*", OrgContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX+*", OrgCourseOverviewGlobData),
+        ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
         ("global^generic", ScopeData),
         ("unknown^something", ScopeData),
     )
@@ -318,6 +325,7 @@ class TestScopeMetaClass(TestCase):
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:DemoX:*", OrgContentLibraryGlobData),
         ("course-v1:OpenedX+*", OrgCourseOverviewGlobData),
+        ("course-v1:*", PlatformCourseOverviewGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
     )
@@ -906,3 +914,79 @@ class TestOrgCourseOverviewGlobData(TestCase):
 
         self.assertIsNone(scope.org)
         self.assertFalse(scope.exists())
+
+
+@ddt
+class TestPlatformCourseOverviewGlobData(TestCase):
+    """Tests for the PlatformCourseOverviewGlobData scope."""
+
+    PLATFORM_GLOB_EXTERNAL_KEY = "course-v1:*"
+    PLATFORM_GLOB_NAMESPACED_KEY = "course-v1^course-v1:*"
+
+    def test_build_external_key(self):
+        """build_external_key returns the platform-wide course glob pattern."""
+        self.assertEqual(PlatformCourseOverviewGlobData.build_external_key(), self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    @data(
+        ("course-v1:*", True),
+        ("course-v1:OpenedX+*", False),
+        ("course-v1:OpenedX*", False),
+        ("course-v1:OpenedX", False),
+        ("course-v1:*:*", False),
+        ("other:*", False),
+        ("lib:*", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate platform-level course glob external keys."""
+        self.assertEqual(PlatformCourseOverviewGlobData.validate_external_key(external_key), expected_valid)
+
+    def test_exists_always_true(self):
+        """exists() returns True without checking the database."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertTrue(scope.exists())
+
+    def test_get_object_returns_none(self):
+        """Platform glob scopes do not map to a concrete domain object."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsNone(scope.get_object())
+
+    def test_namespaced_key(self):
+        """namespaced_key includes namespace prefix and external key."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertEqual(scope.namespaced_key, self.PLATFORM_GLOB_NAMESPACED_KEY)
+
+    def test_dynamic_instantiation_via_scope_data(self):
+        """ScopeData resolves course-v1:* to PlatformCourseOverviewGlobData."""
+        scope = ScopeData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsInstance(scope, PlatformCourseOverviewGlobData)
+        self.assertEqual(scope.external_key, self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    def test_get_admin_view_permission(self):
+        """View permission matches course team view permission."""
+        self.assertEqual(
+            PlatformCourseOverviewGlobData.get_admin_view_permission(), permissions.COURSES_VIEW_COURSE_TEAM
+        )
+
+    def test_get_admin_manage_permission(self):
+        """Manage permission matches course team manage permission."""
+        self.assertEqual(
+            PlatformCourseOverviewGlobData.get_admin_manage_permission(),
+            permissions.COURSES_MANAGE_COURSE_TEAM,
+        )
+
+    def test_is_platform_glob(self):
+        """Platform course glob is flagged as a platform-level glob scope."""
+        self.assertTrue(PlatformCourseOverviewGlobData.IS_PLATFORM_GLOB)
+        self.assertFalse(PlatformCourseOverviewGlobData.IS_ORG_GLOB)
+
+    def test_get_all_platform_glob_namespaces(self):
+        """Platform glob namespace is registered in ScopeMeta."""
+        platform_globs = ScopeMeta.get_all_platform_glob_namespaces()
+
+        self.assertIn("course-v1", platform_globs)
+        self.assertIs(platform_globs["course-v1"], PlatformCourseOverviewGlobData)

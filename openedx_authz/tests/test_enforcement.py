@@ -22,6 +22,7 @@ from openedx_authz.api.data import (
     CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
+    PlatformCourseOverviewGlobData,
 )
 from openedx_authz.constants import roles
 from openedx_authz.constants.permissions import (
@@ -675,6 +676,41 @@ class OrgGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
+@ddt
+class PlatformGlobCourseEnforcementTests(CasbinEnforcementTestCase):
+    """
+    Tests for platform-level glob patterns in course scopes.
+
+    This test class verifies that policies defined with platform-level glob patterns
+    (e.g., ``course-v1:*``) are correctly enforced for concrete course scopes across
+    all organizations on the platform.
+    """
+
+    POLICIES = [
+        make_policy(roles.COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)
+    ]
+
+    ASSIGNMENTS = [
+        make_course_assignment("user1", roles.COURSE_STAFF.external_key, "course-v1:*"),
+    ]
+
+    CASES = [
+        # Permission granted across organizations
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Python+2026", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OtherOrg+Course+2025", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:InexistentOrg+Demo+2026", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedXv2+Demo+2026", True),
+        # Permission denied
+        make_course_case("user1", COURSES_CREATE_FILES.identifier, "course-v1:OpenedX+Python+2026", False),
+        make_course_case("user2", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Demo+2026", False),
+    ]
+
+    @data(*CASES)
+    def test_platform_level_glob_enforcement(self, request: AuthRequest):
+        """Test that platform-level glob patterns in course scopes are enforced correctly."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
+
+
 def make_org_library_glob_key(key: str) -> str:
     """Create a namespaced org-level library glob key (e.g., 'lib^lib:DemoX:*')."""
     return f"{OrgContentLibraryGlobData.NAMESPACE}{OrgContentLibraryGlobData.SEPARATOR}{key}"
@@ -683,6 +719,11 @@ def make_org_library_glob_key(key: str) -> str:
 def make_org_course_glob_key(key: str) -> str:
     """Create a namespaced org-level course glob key (e.g., 'course-v1^course-v1:DemoX+*')."""
     return f"{OrgCourseOverviewGlobData.NAMESPACE}{OrgCourseOverviewGlobData.SEPARATOR}{key}"
+
+
+def make_platform_course_glob_key(key: str) -> str:
+    """Create a namespaced platform-level course glob key (e.g., 'course-v1^course-v1:*')."""
+    return f"{PlatformCourseOverviewGlobData.NAMESPACE}{PlatformCourseOverviewGlobData.SEPARATOR}{key}"
 
 
 @pytest.mark.django_db
@@ -869,6 +910,25 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
             make_org_course_glob_key("course-v1:TestOrg+*"),
             False,
         ),
+        # PlatformCourseOverviewGlobData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("courses.view_course"),
+            make_platform_course_glob_key("course-v1:*"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("courses.view_course"),
+            make_platform_course_glob_key("course-v1:*"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("courses.view_course"),
+            make_platform_course_glob_key("course-v1:*"),
+            False,
+        ),
         # Unsupported scope type - no one is granted access via this matcher
         (make_user_key("staff_user"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
         (make_user_key("superuser"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
@@ -885,13 +945,14 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
 
         Verifies that:
         - Staff users are always allowed for ContentLibraryData, CourseOverviewData,
-          OrgContentLibraryGlobData, and OrgCourseOverviewGlobData scopes.
+          OrgContentLibraryGlobData, OrgCourseOverviewGlobData, and
+          PlatformCourseOverviewGlobData scopes.
         - Superusers are always allowed for the same scopes.
         - Regular users are denied when they have no role assignments.
         - Unsupported scope types (e.g., org) are denied even for staff/superusers.
 
         Expected result:
-            - staff_user and superuser: True for all four supported scope types.
+            - staff_user and superuser: True for all supported scope types.
             - regular_user: False for all scope types (no role assignments).
             - staff_user and superuser: False for unsupported scope types.
         """

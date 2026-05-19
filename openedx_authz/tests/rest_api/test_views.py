@@ -4083,6 +4083,10 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
         self._assign_roles_to_users(assignments=self._COURSE_ASSIGNMENTS)
 
     def _put_course(self, scopes):
+        """Send a bulk PUT assigning COURSE_ADMIN to regular_2 for the given course scopes.
+
+        Patches scope existence checks so validation does not depend on the database.
+        """
         request_data = {"role": roles.COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
         with (
             patch.object(api.CourseOverviewData, "exists", return_value=True),
@@ -4091,6 +4095,10 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
             return self.client.put(self.url, data=request_data, format="json")
 
     def _put_lib(self, scopes):
+        """Send a bulk PUT assigning LIBRARY_ADMIN to regular_2 for the given library scopes.
+
+        Patches ContentLibraryData.exists so validation does not depend on the database.
+        """
         request_data = {"role": roles.LIBRARY_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
             return self.client.put(self.url, data=request_data, format="json")

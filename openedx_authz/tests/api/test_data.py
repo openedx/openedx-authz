@@ -387,6 +387,55 @@ class TestScopeMetaClass(TestCase):
         with self.assertRaises(ValueError):
             ScopeMeta.get_subclass_by_external_key(external_key)
 
+    @data(
+        ("course-v1", "course-v1:*", True),
+        ("course-v1", "course-v1:OpenedX+*", False),
+        ("course-v1", "course-v1:OpenedX+CS101+2024", False),
+        ("lib", "lib:*", True),
+        ("lib", "lib:DemoX:*", False),
+    )
+    @unpack
+    def test_is_platform_glob(self, namespace, external_key, expected):
+        """_is_platform_glob matches only namespace:* patterns."""
+        # pylint: disable=protected-access
+        self.assertEqual(ScopeMeta._is_platform_glob(external_key, namespace), expected)
+
+    def test_platform_glob_registration_does_not_override_scope_registry(self):
+        """Platform globs register separately; concrete scopes keep scope_registry entries."""
+        self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
+        self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
+        self.assertNotIn(PlatformCourseOverviewGlobData, ScopeData.scope_registry.values())
+
+    def test_platform_glob_resolves_before_org_glob_for_course_namespace(self):
+        """course-v1:* is a platform glob; course-v1:Org+* remains an org glob."""
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("course-v1:*"), PlatformCourseOverviewGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("course-v1:OpenedX+*"), OrgCourseOverviewGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_namespaced_key("course-v1^course-v1:*"), PlatformCourseOverviewGlobData)
+        self.assertIs(
+            ScopeMeta.get_subclass_by_namespaced_key("course-v1^course-v1:OpenedX+*"), OrgCourseOverviewGlobData
+        )
+
+    def test_dynamic_instantiation_via_external_key_for_platform_glob(self):
+        """ScopeData(external_key='course-v1:*') instantiates PlatformCourseOverviewGlobData."""
+        scope = ScopeData(external_key="course-v1:*")
+
+        self.assertIsInstance(scope, PlatformCourseOverviewGlobData)
+        self.assertEqual(scope.external_key, "course-v1:*")
+        self.assertEqual(scope.namespaced_key, "course-v1^course-v1:*")
+
+    def test_get_subclass_by_external_key_unknown_platform_glob_raises_value_error(self):
+        """Namespace:* without a registered platform glob subclass raises ValueError."""
+        with self.assertRaisesRegex(ValueError, "Unknown platform glob scope"):
+            ScopeMeta.get_subclass_by_external_key("lib:*")
+
+    def test_get_all_registered_scopes_includes_platform_glob(self):
+        """get_all_registered_scopes returns platform glob subclasses."""
+        registered = ScopeMeta.get_all_registered_scopes()
+
+        self.assertIn(PlatformCourseOverviewGlobData, registered)
+        self.assertIn(OrgCourseOverviewGlobData, registered)
+        self.assertIn(CourseOverviewData, registered)
+
     def test_scope_meta_initializes_registries_when_missing(self):
         """ScopeMeta should create registries if they don't exist on initialization.
 
@@ -395,11 +444,13 @@ class TestScopeMetaClass(TestCase):
         """
         original_scope_registry = ScopeMeta.scope_registry
         original_org_glob_registry = ScopeMeta.org_glob_registry
+        original_platform_glob_registry = ScopeMeta.platform_glob_registry
 
         try:
             # Simulate an environment where the registries are not yet defined
             del ScopeMeta.scope_registry
             del ScopeMeta.org_glob_registry
+            del ScopeMeta.platform_glob_registry
 
             class TempScope(ScopeData):
                 """Temporary scope class for testing."""
@@ -419,12 +470,14 @@ class TestScopeMetaClass(TestCase):
             # Metaclass should have recreated the registries on the class
             self.assertTrue(hasattr(TempScope, "scope_registry"))
             self.assertTrue(hasattr(TempScope, "org_glob_registry"))
+            self.assertTrue(hasattr(TempScope, "platform_glob_registry"))
             # And the new scope should be registered under its namespace
             self.assertIs(TempScope.scope_registry.get("temp"), TempScope)
         finally:
             # Restore original registries to avoid side effects on other tests
             ScopeMeta.scope_registry = original_scope_registry
             ScopeMeta.org_glob_registry = original_org_glob_registry
+            ScopeMeta.platform_glob_registry = original_platform_glob_registry
 
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
         """Test that direct subclass instantiation doesn't trigger metaclass logic.

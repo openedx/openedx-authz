@@ -37,6 +37,8 @@ __all__ = [
     "OrgGlobData",
     "OrgContentLibraryGlobData",
     "PermissionData",
+    "PlatformCourseOverviewGlobData",
+    "PlatformGlobData",
     "PolicyIndex",
     "RoleAssignmentData",
     "RoleData",

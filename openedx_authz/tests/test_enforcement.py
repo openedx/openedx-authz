@@ -20,9 +20,6 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ContentLibraryData,
     CourseOverviewData,
-    OrgContentLibraryGlobData,
-    OrgCourseOverviewGlobData,
-    PlatformCourseOverviewGlobData,
 )
 from openedx_authz.constants import roles
 from openedx_authz.constants.permissions import (
@@ -711,21 +708,6 @@ class PlatformGlobCourseEnforcementTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
-def make_org_library_glob_key(key: str) -> str:
-    """Create a namespaced org-level library glob key (e.g., 'lib^lib:DemoX:*')."""
-    return f"{OrgContentLibraryGlobData.NAMESPACE}{OrgContentLibraryGlobData.SEPARATOR}{key}"
-
-
-def make_org_course_glob_key(key: str) -> str:
-    """Create a namespaced org-level course glob key (e.g., 'course-v1^course-v1:DemoX+*')."""
-    return f"{OrgCourseOverviewGlobData.NAMESPACE}{OrgCourseOverviewGlobData.SEPARATOR}{key}"
-
-
-def make_platform_course_glob_key(key: str) -> str:
-    """Create a namespaced platform-level course glob key (e.g., 'course-v1^course-v1:*')."""
-    return f"{PlatformCourseOverviewGlobData.NAMESPACE}{PlatformCourseOverviewGlobData.SEPARATOR}{key}"
-
-
 @pytest.mark.django_db
 @ddt
 class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
@@ -876,57 +858,57 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
         (
             make_user_key("staff_user"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             True,
         ),
         (
             make_user_key("superuser"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             True,
         ),
         (
             make_user_key("regular_user"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             False,
         ),
         # OrgCourseOverviewGlobData scope
         (
             make_user_key("staff_user"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             True,
         ),
         (
             make_user_key("superuser"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             True,
         ),
         (
             make_user_key("regular_user"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             False,
         ),
         # PlatformCourseOverviewGlobData scope
         (
             make_user_key("staff_user"),
             make_action_key("courses.view_course"),
-            make_platform_course_glob_key("course-v1:*"),
+            make_course_key("course-v1:*"),
             True,
         ),
         (
             make_user_key("superuser"),
             make_action_key("courses.view_course"),
-            make_platform_course_glob_key("course-v1:*"),
+            make_course_key("course-v1:*"),
             True,
         ),
         (
             make_user_key("regular_user"),
             make_action_key("courses.view_course"),
-            make_platform_course_glob_key("course-v1:*"),
+            make_course_key("course-v1:*"),
             False,
         ),
         # Unsupported scope type - no one is granted access via this matcher

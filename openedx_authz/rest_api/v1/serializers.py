@@ -398,6 +398,8 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
             case api.SuperAdminAssignmentData():
                 return "*"
             case api.RoleAssignmentData():
+                if isinstance(obj.scope, api.PlatformCourseOverviewGlobData):
+                    return "*"
                 return getattr(obj.scope, "org", "")
 
     def get_scope(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:

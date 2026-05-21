@@ -17,7 +17,13 @@ are the main entry points for listing role assignments in the admin console. Bot
 
 The original implementation called ``is_user_allowed`` once per candidate assignment.
 ``is_user_allowed`` calls ``enforcer.enforce()``, one policy evaluation per call. With N
-assignments, that is N enforce calls per request, which is too expensive at realistic data volumes.
+assignments, that is N enforce calls per request.
+
+Profiling on a realistic dataset (muscat, ``GET /api/authz/v1/assignments/``) showed
+``_filter_allowed_assignments`` taking 16.74s for a non-admin user (see `pyinstrument report, main non-admin`_).
+Each ``enforce()`` call costs 20 to 80ms due to Casbin evaluating the full policy graph per
+(subject, action, object) triple, including role graph traversal via ``has_link`` and the
+custom matcher function. At scale, N enforce calls dominate the request time.
 
 The two questions were also answered in a different order: question 2 (authorization) ran first on
 the full assignment list, and question 1 (filtering) ran afterward on the grouped result.
@@ -36,12 +42,12 @@ A new public function, ``filter_role_assignments_visible_to_subject`` (in
 ``openedx_authz.api.roles``), replaces per-assignment ``enforce()`` calls. It:
 
 - calls ``get_scopes_for_subject_and_permission`` once per distinct permission type across all
-  candidates (one DB query per type),
+  candidates (one enforcer lookup per type, not one per assignment),
 - uses Casbin's own ``key_match_func`` to check whether each assignment's scope matches any of
   the viewer's accessible scopes.
 
-This reduces DB queries from N (one per assignment) to M (one per distinct permission type, typically 1-3) and moves the
-matching logic into Python. The function is public for reuse in other contexts where visibility filtering is needed.
+``get_scopes_for_subject_and_permission`` is called once per distinct permission type (typically
+1-3 per request), not once per assignment. Matching is done in Python via ``key_match_func``.
 
 #. Filter by params before the authorization pass
 ==================================================
@@ -59,7 +65,9 @@ filters are never evaluated for visibility.
 Consequences
 ************
 
-#. **No Casbin enforce calls in the visible-assignment for filtering** This is the main point of the change, improving performance by reducing per-assignment overhead.
+#. **No Casbin enforce calls in the visible-assignment path** for the common case.
+   ``get_scopes_for_subject_and_permission`` is called once per distinct permission type, not
+   once per assignment.
 
 #. **The authorization pass and grouping step operate on a pre-filtered list.** Assignments
    dropped by the filters are never evaluated for visibility.
@@ -120,3 +128,4 @@ References
 .. _ADR 0005: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0005-architecture-and-data-modeling.rst
 .. _ADR 0012: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0012-auditability.rst
 .. _528b129: https://github.com/openedx/openedx-authz/commit/528b129c829df13588e74965b1f8116d73320627
+.. _pyinstrument report, main non-admin: ../../../pyinstrument-reports/20260521-131048-main-muscat-nonadmin.html

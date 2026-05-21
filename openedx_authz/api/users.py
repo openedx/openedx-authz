@@ -41,7 +41,7 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.api.utils import get_user_assignment_map
-from openedx_authz.utils import get_user_by_username_or_email
+from openedx_authz.utils import get_user_by_username_or_email, is_user_staff_or_superuser
 
 log = logging.getLogger(__name__)
 
@@ -320,6 +320,13 @@ def _filter_allowed_assignments(
     """
     if not user_external_key:
         return assignments
+
+    # Temporary: the scope-based filter in filter_role_assignments_visible_to_subject uses
+    # key_match instead of enforce(), so the enforcer never runs is_admin_or_superuser_check.
+    # Staff and superusers must return early here or they lose the access that check would have granted them.
+    if is_user_staff_or_superuser(user_external_key):
+        return assignments
+
     return filter_role_assignments_visible_to_subject(
         UserData(external_key=user_external_key), assignments
     )

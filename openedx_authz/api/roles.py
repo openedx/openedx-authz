@@ -624,37 +624,34 @@ def get_all_role_assignments_per_scope_type(scope_types: tuple[type[ScopeData], 
 
 def filter_role_assignments_visible_to_subject(
     subject: SubjectData,
-    assignments: list[RoleAssignmentData],
+    candidate_assignments: list[RoleAssignmentData],
 ) -> list[RoleAssignmentData]:
     """Return only the assignments the given subject has permission to view.
 
     Looks up the scopes where the subject holds admin-view access (one DB query
     per distinct permission type across all assignments), then filters using
-    key_match_func to support glob scope patterns. A viewer with access to
-    ``lib:DemoX:*`` will see all assignments whose scope matches that pattern.
+    key_match_func to support glob scope patterns. A viewer with admin-view
+    access (ex. VIEW_LIBRARY_TEAM) to ``lib:DemoX:*`` will see all assignments
+    whose scope matches that pattern.
 
     Args:
         subject: The viewer whose role assignments determine what is visible.
-        assignments: The candidate assignments to filter.
+        candidate_assignments: The candidate assignments to filter.
 
     Returns:
         The subset of assignments the subject is allowed to see.
     """
-    permissions_by_id: dict[str, PermissionData] = {}
-    for assignment in assignments:
+    viewer_scopes_by_permission: dict[str, list[ScopeData]] = {}
+    filtered_assignments = []
+    for assignment in candidate_assignments:
         perm = assignment.scope.get_admin_view_permission()
-        permissions_by_id[perm.identifier] = perm
 
-    viewer_scopes_by_permission: dict[str, list[ScopeData]] = {
-        perm_id: get_scopes_for_subject_and_permission(subject, perm)
-        for perm_id, perm in permissions_by_id.items()
-    }
+        if perm.identifier not in viewer_scopes_by_permission:
+            viewer_scopes_by_permission[perm.identifier] = get_scopes_for_subject_and_permission(subject, perm)
+        viewer_scopes = viewer_scopes_by_permission[perm.identifier]
 
-    result = []
-    for assignment in assignments:
-        perm_id = assignment.scope.get_admin_view_permission().identifier
-        viewer_scopes = viewer_scopes_by_permission.get(perm_id, [])
+        # If any of the viewer's scopes match the assignment's scope, the assignment is visible to the viewer.
         if any(key_match_func(assignment.scope.namespaced_key, vs.namespaced_key) for vs in viewer_scopes):
-            result.append(assignment)
+            filtered_assignments.append(assignment)
 
-    return result
+    return filtered_assignments

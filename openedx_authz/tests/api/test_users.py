@@ -734,7 +734,9 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         all_assignments = get_user_role_assignments_filtered()
 
         # Pre-filter to Org1 + library_admin, then apply authorization as alice.
-        pre_filtered = _filter_assignments_by_params(all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"])
+        pre_filtered = _filter_assignments_by_params(
+            all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"]
+        )
         authorized = _filter_allowed_assignments(pre_filtered, user_external_key="alice")
 
         # All authorized assignments must be in Org1 and have library_admin role.

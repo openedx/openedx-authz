@@ -631,7 +631,7 @@ def filter_role_assignments_visible_to_subject(
     Looks up the scopes where the subject holds admin-view access (one DB query
     per distinct permission type across all assignments), then filters using
     key_match_func to support glob scope patterns. A viewer with access to
-    'lib:DemoX:*' will see all assignments whose scope matches that pattern.
+    ``lib:DemoX:*`` will see all assignments whose scope matches that pattern.
 
     Args:
         subject: The viewer whose role assignments determine what is visible.

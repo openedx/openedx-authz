@@ -10,7 +10,8 @@ _STAFF_SUPERUSER_CACHE_NAMESPACE = "rbac_is_staff_or_superuser"
 
 
 def is_user_staff_or_superuser(username: str) -> bool:
-    """Return True if the user with the given username is staff or superuser.
+    """
+    Return True if the user with the given username is staff or superuser.
 
     Uses RequestCache to avoid repeated DB lookups within the same request.
     Returns False if the user does not exist or is inactive.

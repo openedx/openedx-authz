@@ -31,8 +31,8 @@ Avoid Casbin ``enforce()`` in the visible-assignment hot path. The authorization
 by a scope-based approach that retrieves the viewer's accessible scopes from the database and
 matches assignment scopes in Python.
 
-#. Scope-Based Visibility Check
-================================
+#. Replace per-assignment enforce() with scope lookups
+=======================================================
 
 A new public function, ``filter_role_assignments_visible_to_subject`` (in
 ``openedx_authz.api.roles``), replaces per-assignment ``enforce()`` calls. It:
@@ -45,22 +45,15 @@ A new public function, ``filter_role_assignments_visible_to_subject`` (in
 The number of DB queries is bounded by the number of distinct permission types, not the number
 of assignments. No Casbin enforce calls are made in the common path.
 
-#. Pre-Filter Before Authorization
-====================================
+#. Filter by params before the authorization pass
+==================================================
 
 A new ``_filter_assignments_by_params`` function applies org, scope, and role filters on the
 flat assignment list before the authorization pass. Assignments that would be dropped by the
 filters are never evaluated for visibility. The order is now: filter cheaply, then authorize.
 
-#. Short-Circuit for Staff and Superusers
-==========================================
-
-Both entry points skip the authorization pass entirely when the viewer is a Django staff user
-or superuser. A shared ``is_user_staff_or_superuser`` utility centralizes this check and is
-also reused in ``engine/matcher.py``, replacing the former ``RequestCache``-based approach there.
-
-#. Memoize Role Permission Lookups
-====================================
+#. Cache role permission lookups within a call
+===============================================
 
 ``get_role_assignments`` now caches ``get_permissions_for_single_role`` results within a single
 call using a local ``_perm_cache`` dict. When multiple assignments share the same role key, the
@@ -89,11 +82,6 @@ Consequences
    results silently. The per-assignment ``enforce()`` approach had the same dependency, but
    made it implicit per call rather than resolved once upfront.
 
-#. **Staff and superuser checks happen outside Casbin.** The Casbin model does not represent
-   staff or superuser as policy. The short-circuit in ``is_user_staff_or_superuser`` avoids
-   a policy miss that would otherwise be a false denial or require a custom matcher with its
-   own DB call per check.
-
 What We Have Learned About Casbin Performance
 *********************************************
 
@@ -117,52 +105,18 @@ function rather than reimplementing it.
 **Filter early, authorize late.**
 Apply cheap, deterministic filters (field equality, list membership) before paying the cost of
 authorization. Casbin is not involved in the first pass.
-
-**Staff and superuser checks belong outside the enforcer.**
-The Casbin model does not represent staff or superuser as policy. Check ``is_staff or
-is_superuser`` before touching the enforcer to avoid a policy miss that then falls through to
-a custom matcher with its own DB call.
-
-What We Have Learned About Casbin Performance
-*********************************************
-
-These patterns apply to any bulk query path that touches the Casbin enforcer.
-
-**Prefer scope lookups over enforce loops.**
-If the question is "can this user see any of these N items?", the right query is "what scopes
-does this user have access to?", answered once, not "can this user access scope X?" answered N
-times. ``get_scopes_for_subject_and_permission`` exists for this purpose.
-
-**batch_enforce is an optimization, not a redesign.**
-``batch_enforce`` removes per-call overhead but still evaluates N policies, one per item. It
-is useful when a small number of enforce calls cannot be avoided. It is not a substitute for
-rethinking the authorization strategy when N scales with user-controlled data.
-
-**Use Casbin's own matching utilities.**
-``casbin.util.key_match_func`` implements the same glob-matching logic as the Casbin model's
-``keyMatch`` function. When you need to replicate Casbin's matching behavior in Python, use this
-function rather than reimplementing it.
-
-**Filter early, authorize late.**
-Apply cheap, deterministic filters (field equality, list membership) before paying the cost of
-authorization. Casbin is not involved in the first pass.
-
-**Staff and superuser checks belong outside the enforcer.**
-The Casbin model does not represent staff or superuser as policy. Check ``is_staff or
-is_superuser`` before touching the enforcer to avoid a policy miss that then falls through to
-a custom matcher with its own DB call.
 
 Alternatives Considered
 ***********************
 
-``batch_enforce`` to Replace the Per-Assignment Loop
+``batch_enforce`` to replace the per-assignment loop
 =====================================================
 
 Replacing the ``enforce()`` loop with a single ``batch_enforce`` call was implemented first
 (see ``528b129``). It removed the per-call overhead but kept N policy evaluations. For large
 assignment lists the complexity does not change. Dropped in favor of the scope-based approach.
 
-Per-Assignment ``enforce()`` (Original)
+Per-assignment ``enforce()`` (original)
 ========================================
 
 The original implementation was correct and simple. It was retained up to this point because

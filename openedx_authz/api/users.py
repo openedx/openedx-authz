@@ -41,7 +41,7 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.api.utils import get_user_assignment_map
-from openedx_authz.utils import get_user_by_username_or_email, is_user_staff_or_superuser
+from openedx_authz.utils import get_user_by_username_or_email
 
 log = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ def get_visible_user_role_assignments_filtered_by_current_user(
     """
     user_role_assignments = get_user_role_assignments(user_external_key=user_external_key)
 
-    if allowed_for_user_external_key and not is_user_staff_or_superuser(allowed_for_user_external_key):
+    if allowed_for_user_external_key:
         user_role_assignments = _filter_allowed_assignments(
             user_external_key=allowed_for_user_external_key,
             assignments=user_role_assignments,
@@ -349,7 +349,7 @@ def get_visible_role_assignments_for_user(
         user_role_assignments, orgs=orgs, scopes=scopes, roles=roles
     )
 
-    if allowed_for_user_external_key and not is_user_staff_or_superuser(allowed_for_user_external_key):
+    if allowed_for_user_external_key:
         user_role_assignments = _filter_allowed_assignments(
             user_external_key=allowed_for_user_external_key,
             assignments=user_role_assignments,

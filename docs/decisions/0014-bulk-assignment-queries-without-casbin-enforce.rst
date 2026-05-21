@@ -15,21 +15,19 @@ are the main entry points for listing role assignments in the admin console. Bot
 1. Which assignments match the requested filters (org, scope, role)?
 2. Which of those assignments is the requesting user allowed to see?
 
-The original implementation answered question 2 by calling ``is_user_allowed`` once per candidate
-assignment. Internally, ``is_user_allowed`` calls ``enforcer.enforce()``, which evaluates the full
-Casbin policy graph for a single (subject, action, object) triple. With N assignments in scope,
-this means N Casbin enforce calls in the hot path.
+The original implementation called ``is_user_allowed`` once per candidate assignment.
+``is_user_allowed`` calls ``enforcer.enforce()``, one policy evaluation per call. With N
+assignments, that is N enforce calls per request, which is too expensive at realistic data volumes.
 
-Additionally, the two questions were answered in the wrong order: question 2 (authorization) ran
-first on the full assignment list, and question 1 (filtering) ran afterward on the grouped result.
+The two questions were also answered in a different order: question 2 (authorization) ran first on
+the full assignment list, and question 1 (filtering) ran afterward on the grouped result.
 Assignments that would have been dropped by the filter were still evaluated by Casbin.
 
 Decision
 ********
 
-Avoid Casbin ``enforce()`` in the visible-assignment hot path. The authorization check is replaced
-by a scope-based approach that retrieves the viewer's accessible scopes from the database and
-matches assignment scopes in Python.
+Avoid Casbin ``enforce()`` in the visible-assignment hot path. Instead, retrieve the viewer's
+accessible scopes from the database and match assignment scopes in Python.
 
 #. Replace per-assignment enforce() with scope lookups
 =======================================================
@@ -42,32 +40,29 @@ A new public function, ``filter_role_assignments_visible_to_subject`` (in
 - uses Casbin's own ``key_match_func`` to check whether each assignment's scope matches any of
   the viewer's accessible scopes.
 
-The number of DB queries is bounded by the number of distinct permission types, not the number
-of assignments. No Casbin enforce calls are made in the common path.
+This reduces DB queries from N (one per assignment) to M (one per distinct permission type, typically 1-3) and moves the
+matching logic into Python. The function is public for reuse in other contexts where visibility filtering is needed.
 
 #. Filter by params before the authorization pass
 ==================================================
 
 A new ``_filter_assignments_by_params`` function applies org, scope, and role filters on the
 flat assignment list before the authorization pass. Assignments that would be dropped by the
-filters are never evaluated for visibility. The order is now: filter cheaply, then authorize.
+filters are never evaluated for visibility.
 
 #. Cache role permission lookups within a call
 ===============================================
 
-``get_role_assignments`` now caches ``get_permissions_for_single_role`` results within a single
-call using a local ``_perm_cache`` dict. When multiple assignments share the same role key, the
-permission list is resolved once instead of once per policy entry.
+``get_role_assignments`` now uses a local ``_perm_cache`` dict to avoid calling
+``get_permissions_for_single_role`` more than once per role key per call.
 
 Consequences
 ************
 
-#. **The number of Casbin enforce calls in the visible-assignment path drops to zero** for the
-   common case. The number of DB queries is proportional to the number of distinct permission
-   types, not the number of assignments.
+#. **No Casbin enforce calls in the visible-assignment for filtering** This is the main point of the change, improving performance by reducing per-assignment overhead.
 
-#. **Pre-filtering reduces the authorization surface.** Both the authorization pass and the
-   subsequent grouping step operate on a smaller list.
+#. **The authorization pass and grouping step operate on a pre-filtered list.** Assignments
+   dropped by the filters are never evaluated for visibility.
 
 #. **``filter_role_assignments_visible_to_subject`` is a public function** in
    ``openedx_authz.api.roles``, available to callers who need visibility filtering outside of
@@ -77,34 +72,30 @@ Consequences
    filter to Casbin's matching semantics. If the model's matching behavior changes, this function
    must change too.
 
-#. **The scope-based approach assumes ``get_scopes_for_subject_and_permission`` is correct
-   and up-to-date.** If the enforcer cache is stale, the visibility filter will produce wrong
-   results silently. The per-assignment ``enforce()`` approach had the same dependency, but
-   made it implicit per call rather than resolved once upfront.
+#. **``get_scopes_for_subject_and_permission`` must return current data.** If the enforcer cache
+   is stale, the visibility filter produces wrong results silently. The per-assignment
+   ``enforce()`` approach had the same dependency, resolved per call rather than once upfront.
 
-What We Have Learned About Casbin Performance
-*********************************************
+Patterns for Bulk Authorization Paths
+**************************************
 
-These patterns apply to any bulk query path that touches the Casbin enforcer.
+While implementing this change, we identified some patterns for bulk authorization paths like this one:
 
-**Prefer scope lookups over enforce loops.**
-If the question is "can this user see any of these N items?", the right query is "what scopes
-does this user have access to?", answered once, not "can this user access scope X?" answered N
-times. ``get_scopes_for_subject_and_permission`` exists for this purpose.
+**Scope lookups for bulk visibility checks.**
+Query the viewer's accessible scopes once rather than calling enforce per item.
+``get_scopes_for_subject_and_permission`` does this.
 
-**batch_enforce is an optimization, not a redesign.**
-``batch_enforce`` removes per-call overhead but still evaluates N policies, one per item. It
-is useful when a small number of enforce calls cannot be avoided. It is not a substitute for
-rethinking the authorization strategy when N scales with user-controlled data.
+**batch_enforce to reduce per-call overhead**
+If per-item enforce calls are still needed, use Casbin's ``batch_enforce`` to reduce overhead getting the enforcer.
+This was implemented and tested but ultimately not used in this case since scope lookups were sufficient.
 
 **Use Casbin's own matching utilities.**
 ``casbin.util.key_match_func`` implements the same glob-matching logic as the Casbin model's
-``keyMatch`` function. When you need to replicate Casbin's matching behavior in Python, use this
-function rather than reimplementing it.
+``keyMatch``. Use it rather than reimplementing the matching logic.
 
-**Filter early, authorize late.**
-Apply cheap, deterministic filters (field equality, list membership) before paying the cost of
-authorization. Casbin is not involved in the first pass.
+**Filter before authorizing.**
+Apply cheap filters (field equality, etc.) before authorization. Casbin is not
+involved in the first pass.
 
 Alternatives Considered
 ***********************
@@ -113,15 +104,12 @@ Alternatives Considered
 =====================================================
 
 Replacing the ``enforce()`` loop with a single ``batch_enforce`` call was implemented first
-(see ``528b129``). It removed the per-call overhead but kept N policy evaluations. For large
-assignment lists the complexity does not change. Dropped in favor of the scope-based approach.
+(see `528b129`_). It removed per-call overhead but kept N policy evaluations. Dropped in favor
+of the scope-based approach.
 
-Per-assignment ``enforce()`` (original)
-========================================
+Short circuiting for admin users
+=================================
 
-The original implementation was correct and simple. It was retained up to this point because
-the visible-assignment endpoints were not on a measured hot path. Profiling under realistic
-data volumes showed N enforce calls as the dominant cost. Replaced by this decision.
 
 References
 **********
@@ -131,3 +119,4 @@ References
 
 .. _ADR 0005: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0005-architecture-and-data-modeling.rst
 .. _ADR 0012: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0012-auditability.rst
+.. _528b129: https://github.com/openedx/openedx-authz/commit/528b129c829df13588e74965b1f8116d73320627

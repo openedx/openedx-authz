@@ -27,19 +27,6 @@ from django.conf import settings
 from openedx_authz.engine.adapter import ExtendedAdapter
 from openedx_authz.models.engine import PolicyCacheControl
 
-
-def libraries_v2_enabled() -> bool:
-    """Dummy toggle that is always enabled."""
-    return True
-
-
-if getattr(settings, "SERVICE_VARIANT", None) == "cms":
-    try:
-        from cms.djangoapps.contentstore.toggles import libraries_v2_enabled
-    except ImportError:
-        # If the CMS is not available, use the dummy toggle.
-        pass
-
 logger = logging.getLogger(__name__)
 
 
@@ -221,15 +208,7 @@ class AuthzEnforcer:
         # (re)load policy if needed
         cls.load_policy_if_needed()
 
-        # HACK: This code block will only be useful when in Ulmo to deactivate
-        # the enforcer when the new library experience is disabled. It should be
-        # removed for the next release cycle.
-        # When replaced, we will only need to configure the enforcer here. Which
-        # is in charge of enabling/disabling auto-load and auto-save.
-        if libraries_v2_enabled():
-            cls.configure_enforcer_auto_save_and_load()
-        else:
-            cls.deactivate_enforcer()
+        cls.configure_enforcer_auto_save_and_load()
 
         return cls._enforcer
 

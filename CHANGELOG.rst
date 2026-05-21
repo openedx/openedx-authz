@@ -16,6 +16,17 @@ Unreleased
 
 *
 
+0.20.1 - 2026-05-21
+********************
+
+Changed
+=======
+
+* Removed checks for libraries v2 when the enforcer is loaded. This was
+  originally add to improve performance, but a circular import on
+  openedx-platform caused it to always default to true. This ensures that the
+  enforcer continues to work even if the circular import is resolved.
+
 0.20.0 - 2025-11-27
 ********************
 

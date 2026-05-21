@@ -26,6 +26,7 @@ from openedx_authz.api.roles import (
     _get_field_index_and_values,
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
+    filter_role_assignments_visible_to_subject,
     get_all_subject_role_assignments,
     get_all_subject_role_assignments_in_scope,
     get_permissions_for_active_roles_in_scope,
@@ -1522,3 +1523,64 @@ class TestFieldIndexAndValues(TestCase):
         self.assertEqual(field_index, 0)
         self.assertEqual(field_values, ["user^mary", "", "lib^lib:Org3:history_201"])
         self.assertEqual(field_values[1], "")
+
+
+class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
+    """Tests for filter_role_assignments_visible_to_subject."""
+
+    def test_subject_sees_assignments_in_accessible_scope(self):
+        """A subject sees assignments whose scope matches one they have admin-view access to.
+
+        Expected result:
+            - alice, who has library_admin in lib:Org1:math_101, sees assignments in that scope.
+        """
+        all_assignments = get_all_subject_role_assignments()
+
+        visible = filter_role_assignments_visible_to_subject(
+            SubjectData(external_key="alice"), all_assignments
+        )
+
+        visible_scopes = {a.scope.external_key for a in visible}
+        self.assertIn("lib:Org1:math_101", visible_scopes)
+
+    def test_subject_cannot_see_assignments_outside_accessible_scopes(self):
+        """A subject cannot see assignments in scopes they have no admin-view access to.
+
+        Expected result:
+            - alice cannot see assignments in lib:Org2:physics_401 or lib:Org3:cs_101.
+        """
+        all_assignments = get_all_subject_role_assignments()
+
+        visible = filter_role_assignments_visible_to_subject(
+            SubjectData(external_key="alice"), all_assignments
+        )
+
+        visible_scopes = {a.scope.external_key for a in visible}
+        self.assertNotIn("lib:Org2:physics_401", visible_scopes)
+        self.assertNotIn("lib:Org3:cs_101", visible_scopes)
+
+    def test_subject_with_no_role_assignments_sees_nothing(self):
+        """A subject with no role assignments cannot see any assignments.
+
+        Expected result:
+            - Result is empty when the subject holds no role assignments.
+        """
+        all_assignments = get_all_subject_role_assignments()
+
+        visible = filter_role_assignments_visible_to_subject(
+            SubjectData(external_key="unknown_user"), all_assignments
+        )
+
+        self.assertEqual(visible, [])
+
+    def test_empty_candidate_list_returns_empty(self):
+        """Filtering an empty candidate list always returns an empty list.
+
+        Expected result:
+            - Result is empty regardless of the subject's accessible scopes.
+        """
+        visible = filter_role_assignments_visible_to_subject(
+            SubjectData(external_key="alice"), []
+        )
+
+        self.assertEqual(visible, [])

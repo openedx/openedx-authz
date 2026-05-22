@@ -114,8 +114,6 @@ class ScopeMeta(type):
         if not hasattr(cls, "platform_glob_registry"):
             cls.platform_glob_registry = {}
 
-        cls.IS_GLOB = cls.IS_ORG_GLOB or cls.IS_PLATFORM_GLOB
-
         if cls.IS_PLATFORM_GLOB and cls.NAMESPACE:
             cls.platform_glob_registry[cls.NAMESPACE] = cls
         elif cls.IS_ORG_GLOB and cls.NAMESPACE:
@@ -407,6 +405,11 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
     NAMESPACE: ClassVar[str] = "global"
     IS_ORG_GLOB: ClassVar[bool] = False
     IS_PLATFORM_GLOB: ClassVar[bool] = False
+
+    @property
+    def IS_GLOB(self) -> bool:
+        """Whether this scope represents a glob pattern (org- or platform-level)."""
+        return self.IS_ORG_GLOB or self.IS_PLATFORM_GLOB
 
     @classmethod
     def validate_external_key(cls, _: str) -> bool:

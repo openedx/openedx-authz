@@ -22,7 +22,7 @@ A **role** is a set of permissions that defines what actions a user can perform.
 
 - The **Course Editor** can create and edit content within a course but cannot publish it. They support the authoring process while leaving final publishing to Staff or Admins.
 
-- The **Course Auditor** can view and reuse content but cannot edit or delete anything.
+- The **Course Auditor** provides view-only access for general oversight, compliance review, and QA. This role cannot edit, delete, or modify any content in Studio.
 
 .. note::
 
@@ -42,7 +42,7 @@ Course Access & Content
 
 Library Updates
 ========================
-- **Review library updates** (``courses.manage_library_updates``): Allows users to accept or reject library updates in Studio.
+- **Manage library updates** (``courses.manage_library_updates``): Allows users to accept or reject library updates in Studio.
 
 Course Updates & Handouts
 ===========================
@@ -63,9 +63,8 @@ Files
 
 Schedule & Details
 ===================
-- **View schedule** (``courses.view_schedule``): Allows users to view the course schedule.
+- **View schedule and details** (``courses.view_schedule_and_details``): Allows users to view the course schedule and details.
 - **Edit schedule** (``courses.edit_schedule``): Allows users to edit the course schedule.
-- **View course details** (``courses.view_details``): Allows users to view course details.
 - **Edit course details** (``courses.edit_details``): Allows users to edit course details, including summary, pacing, and prerequisites.
 
 Grading
@@ -139,9 +138,8 @@ Roles and Permissions Summary Table
    courses.delete_files                          ✅             ✅             ❌                    ❌
    **Schedule & Details**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_schedule                         ✅             ✅             ✅                    ✅
+   courses.view_schedule_and_details             ✅             ✅             ✅                    ✅
    courses.edit_schedule                         ✅             ✅             ❌                    ❌
-   courses.view_details                          ✅             ✅             ✅                    ✅
    courses.edit_details                          ✅             ✅             ✅                    ❌
    **Library Updates**
    --------------------------------------------- -------------- -------------- --------------------- --------------

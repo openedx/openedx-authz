@@ -14,6 +14,17 @@ Change Log
 Unreleased
 **********
 
+1.16.0 - 2026-05-21
+********************
+
+Changed
+=======
+
+* (Patched onto newer changes as well as 0.20.1) Removed checks for libraries v2 when the enforcer is loaded. This was
+  originally add to improve performance, but a circular import on
+  openedx-platform caused it to always default to true. This ensures that the
+  enforcer continues to work even if the circular import is resolved.
+
 1.15.0 - 2026-04-30
 *******************
 
@@ -189,6 +200,17 @@ Added
 =====
 
 * Add course staff role, permission to manage advanced course settings, and introduce course scope
+
+0.20.1 - 2026-05-21
+********************
+
+Changed
+=======
+
+* Removed checks for libraries v2 when the enforcer is loaded. This was
+  originally add to improve performance, but a circular import on
+  openedx-platform caused it to always default to true. This ensures that the
+  enforcer continues to work even if the circular import is resolved.
 
 0.20.0 - 2025-11-27
 ********************

@@ -14,18 +14,21 @@ def is_user_staff_or_superuser(username: str) -> bool:
     Return True if the user with the given username is staff or superuser.
 
     Uses RequestCache to avoid repeated DB lookups within the same request.
-    Returns False if the user does not exist or is inactive.
+    Returns False if the user does not exist or has a retirement request.
     """
     cache = RequestCache(_STAFF_SUPERUSER_CACHE_NAMESPACE)
     cached = cache.get_cached_response(username)
     if cached.is_found:
         return cached.value
+
     try:
-        user = User.objects.get(username=username, is_active=True)
+        user = get_user_by_username_or_email(username)
     except User.DoesNotExist:
         return False
+
     result = user.is_staff or user.is_superuser
     cache.set(username, result)
+
     return result
 
 

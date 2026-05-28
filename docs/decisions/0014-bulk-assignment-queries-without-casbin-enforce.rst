@@ -4,7 +4,7 @@
 Status
 ******
 
-**Accepted** - *2026-05-19*
+**Accepted** - *2026-05-28*
 
 Context
 *******
@@ -35,7 +35,7 @@ Decision
 Avoid Casbin ``enforce()`` in the visible-assignment hot path. Instead, retrieve the viewer's
 accessible scopes from the database and match assignment scopes in Python.
 
-#. Replace per-assignment enforce() with scope lookups
+1. Replace per-assignment enforce() with scope lookups
 =======================================================
 
 A new public function, ``filter_role_assignments_visible_to_subject`` (in
@@ -49,14 +49,14 @@ A new public function, ``filter_role_assignments_visible_to_subject`` (in
 ``get_scopes_for_subject_and_permission`` is called once per distinct permission type (typically
 1-3 per request), not once per assignment. Matching is done in Python via ``key_match_func``.
 
-#. Filter by params before the authorization pass
+2. Filter by params before the authorization pass
 ==================================================
 
 A new ``_filter_assignments_by_params`` function applies org, scope, and role filters on the
 flat assignment list before the authorization pass. Assignments that would be dropped by the
 filters are never evaluated for visibility.
 
-#. Cache role permission lookups within a call
+3. Cache role permission lookups within a call
 ===============================================
 
 ``get_role_assignments`` now uses a local ``_perm_cache`` dict to avoid calling
@@ -72,15 +72,15 @@ Consequences
 #. **The authorization pass and grouping step operate on a pre-filtered list.** Assignments
    dropped by the filters are never evaluated for visibility.
 
-#. **``filter_role_assignments_visible_to_subject`` is a public function** in
+#. ``filter_role_assignments_visible_to_subject`` **is a public function** in
    ``openedx_authz.api.roles``, available to callers who need visibility filtering outside of
    the user-assignment endpoints.
 
-#. **``key_match_func`` is used directly from ``casbin.util``.** This couples the visibility
+#. ``key_match_func`` **is used directly from** ``casbin.util``. This couples the visibility
    filter to Casbin's matching semantics. If the model's matching behavior changes, this function
    must change too.
 
-#. **``get_scopes_for_subject_and_permission`` must return current data.** If the enforcer cache
+#. ``get_scopes_for_subject_and_permission`` **must return current data.** If the enforcer cache
    is stale, the visibility filter produces wrong results silently. The per-assignment
    ``enforce()`` approach had the same dependency, resolved per call rather than once upfront.
 
@@ -114,10 +114,6 @@ Alternatives Considered
 Replacing the ``enforce()`` loop with a single ``batch_enforce`` call was implemented first
 (see `528b129`_). It removed per-call overhead but kept N policy evaluations. Dropped in favor
 of the scope-based approach.
-
-Short circuiting for admin users
-=================================
-
 
 References
 **********

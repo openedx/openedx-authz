@@ -97,7 +97,6 @@ Import / Export
 Other
 =====
 - **View checklists** (``courses.view_checklists``): Allows users to view checklists.
-- **View global staff & super admins** (``courses.view_global_staff_and_superadmins``): Allows course admins to view the list of global staff and super admin users.
 
 .. _Course RP Summary Table:
 
@@ -165,7 +164,6 @@ Roles and Permissions Summary Table
    **Other**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_checklists                       ✅             ✅             ✅                    ✅
-   courses.view_global_staff_and_superadmins     ✅             ✅             ✅                    ❌
    ============================================= ============== ============== ===================== ==============
 
 .. END COURSE RP TABLE

@@ -48,7 +48,7 @@ code-annotations==3.0.0
     # via
     #   -r requirements/test.txt
     #   edx-lint
-coverage[toml]==7.14.0
+coverage[toml]==7.14.1
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -144,7 +144,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/test.txt
     #   openedx-events
-idna==3.16
+idna==3.17
     # via
     #   -r requirements/test.txt
     #   requests
@@ -181,7 +181,7 @@ pillow==12.2.0
     # via
     #   -r requirements/test.txt
     #   edx-organizations
-platformdirs==4.9.6
+platformdirs==4.10.0
     # via pylint
 pluggy==1.6.0
     # via
@@ -259,7 +259,7 @@ requests==2.34.2
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
-ruff==0.15.14
+ruff==0.15.15
     # via -r requirements/quality.in
 semantic-version==2.10.0
     # via

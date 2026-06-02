@@ -5,3 +5,4 @@ Core Roles and Permissions
     :maxdepth: 1
 
     content_library_roles
+    course_roles

@@ -2636,7 +2636,6 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         regular_9 is assigned course_admin on the same scope so they can view team
         assignments for that platform-level glob.
         """
-        PLATFORM_COURSE_GLOB = "course-v1:*"
         assign_role_to_user_in_scope("regular_10", roles.COURSE_STAFF.external_key, PLATFORM_COURSE_GLOB)
         assign_role_to_user_in_scope("regular_9", roles.COURSE_ADMIN.external_key, PLATFORM_COURSE_GLOB)
 

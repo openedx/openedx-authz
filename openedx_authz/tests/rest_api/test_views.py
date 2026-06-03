@@ -38,6 +38,7 @@ User = get_user_model()
 
 COURSE_SCOPE_ORG1 = "course-v1:Org1+COURSE1+2024"
 COURSE_ORG1_GLOB = OrgCourseOverviewGlobData.build_external_key(CourseOverviewData(external_key=COURSE_SCOPE_ORG1).org)
+PLATFORM_COURSE_GLOB = PlatformCourseOverviewGlobData.build_external_key()
 
 
 class ViewTestMixin(BaseRolesTestCase):
@@ -149,7 +150,7 @@ class ViewTestMixin(BaseRolesTestCase):
     @classmethod
     def create_course_users(cls):
         """Create course users (plain, non-staff)."""
-        users = ["course_admin", "course_editor", "course_auditor", "course_admin_org"]
+        users = ["course_admin", "course_editor", "course_auditor", "course_admin_org", "course_admin_platform"]
         for username in users:
             User.objects.get_or_create(username=username, defaults={"email": f"{username}@example.com"})
 
@@ -4083,9 +4084,10 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
     DynamicScopePermission wraps that with all(...for sv in scopes_list), meaning
     the user must pass the permission check for EVERY scope in the list.
 
-    Two users illustrate the difference between specific-scope and org-level permissions:
+    Three users illustrate the difference between specific-scope, org-level, and platform-level permissions:
       - course_admin: COURSE_ADMIN on COURSE_SCOPE_ORG1 only (specific course).
       - course_admin_org: COURSE_ADMIN on COURSE_ORG1_GLOB (all courses in Org1).
+      - course_admin_platform: COURSE_ADMIN on PLATFORM_COURSE_GLOB (all courses on the platform).
     """
 
     ANOTHER_COURSE_SCOPE = "course-v1:Org2+COURSE2+2024"
@@ -4099,6 +4101,11 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
             "subject_name": "course_admin_org",
             "role_name": roles.COURSE_ADMIN.external_key,
             "scope_name": COURSE_ORG1_GLOB,
+        },
+        {
+            "subject_name": "course_admin_platform",
+            "role_name": roles.COURSE_ADMIN.external_key,
+            "scope_name": PLATFORM_COURSE_GLOB,
         },
     ]
 
@@ -4179,4 +4186,33 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
         response = self._put_course(scopes)
+        self.assertEqual(response.status_code, expected_status)
+
+    @data(
+        # course_admin and course_admin_org lack permission at the platform glob.
+        ("course_admin", [PLATFORM_COURSE_GLOB], status.HTTP_403_FORBIDDEN),
+        ("course_admin", [COURSE_SCOPE_ORG1, PLATFORM_COURSE_GLOB], status.HTTP_403_FORBIDDEN),
+        ("course_admin_org", [PLATFORM_COURSE_GLOB], status.HTTP_403_FORBIDDEN),
+        ("course_admin_org", [COURSE_ORG1_GLOB, PLATFORM_COURSE_GLOB], status.HTTP_403_FORBIDDEN),
+        # course_admin_platform has COURSE_ADMIN on the platform glob.
+        # Via Casbin glob matching, this covers the platform glob and any org or course scope.
+        ("course_admin_platform", [PLATFORM_COURSE_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_platform", [COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_platform", [COURSE_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("course_admin_platform", [PLATFORM_COURSE_GLOB, COURSE_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+    )
+    @unpack
+    def test_scope_permission_vs_platform_permission(self, username, scopes, expected_status):
+        """Users with course- or org-level roles cannot assign at the platform glob.
+
+        course_admin (specific scope) and course_admin_org (org glob) fail on any scope
+        list that includes the platform glob, because they have no permission at that level.
+        course_admin_platform (platform glob) passes for the platform glob and any org or
+        specific course within it, thanks to Casbin's glob matching.
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+
+        response = self._put_course(scopes)
+
         self.assertEqual(response.status_code, expected_status)

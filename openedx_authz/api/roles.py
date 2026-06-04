@@ -8,7 +8,9 @@ We'll interact with roles through this API, which will use the enforcer
 internally to manage the underlying policies and role assignments.
 """
 
+import logging
 from collections import defaultdict
+
 
 from casbin.util import key_match_func
 from crum import get_current_user
@@ -62,6 +64,8 @@ __all__ = [
 # it based on the scope for enforcement time? What about these API functions?
 # I believe they assume the enforcer is already loaded with the relevant policies
 # in this case, ALL the policies, but that might not be the case
+
+log = logging.getLogger(__name__)
 
 
 def get_permissions_for_single_role(
@@ -644,7 +648,11 @@ def filter_role_assignments_visible_to_subject(
     viewer_scopes_by_permission: dict[str, list[ScopeData]] = {}
     filtered_assignments = []
     for assignment in candidate_assignments:
-        perm = assignment.scope.get_admin_view_permission()
+        try:
+            perm = assignment.scope.get_admin_view_permission()
+        except NotImplementedError:
+            log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
+            continue
 
         if perm.identifier not in viewer_scopes_by_permission:
             viewer_scopes_by_permission[perm.identifier] = get_scopes_for_subject_and_permission(subject, perm)

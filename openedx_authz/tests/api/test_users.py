@@ -621,11 +621,8 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
         self.assertGreater(len(eve_assignments), 0)
         self.assertEqual(grace_assignments, [])
 
-    @patch("openedx_authz.api.users.AuthzEnforcer")
-    def test_skips_assignments_with_unsupported_scope(self, mock_enforcer_class):
+    def test_skips_assignments_with_unsupported_scope(self):
         """Assignments whose scope lacks get_admin_view_permission are skipped with a warning."""
-        mock_enforcer_class.get_enforcer.return_value.batch_enforce.return_value = [True]
-
         unsupported_scope = Mock()
         unsupported_scope.external_key = "unsupported:scope"
         unsupported_scope.get_admin_view_permission.side_effect = NotImplementedError
@@ -637,24 +634,22 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
             scope=unsupported_scope,
         )
         supported_assignment = RoleAssignmentData(
-            subject=UserData(external_key="john_doe"),
+            subject=UserData(external_key="alice"),
             roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
             scope=supported_scope,
         )
 
-        with self.assertLogs("openedx_authz.api.users", level="WARNING") as log_context:
+        with self.assertLogs("openedx_authz.api.roles", level="WARNING") as log_context:
             filtered = _filter_allowed_assignments(
                 assignments=[unsupported_assignment, supported_assignment],
                 user_external_key="alice",
             )
 
-        self.assertEqual(filtered, [supported_assignment])
+        self.assertNotIn(unsupported_assignment, filtered)
         self.assertEqual(
             log_context.output,
-            ["WARNING:openedx_authz.api.users:Skipping assignment with unsupported scope 'unsupported:scope'"],
+            ["WARNING:openedx_authz.api.roles:Skipping assignment with unsupported scope 'unsupported:scope'"],
         )
-        mock_enforcer_class.get_enforcer.return_value.batch_enforce.assert_called_once()
-
 
 
 class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):

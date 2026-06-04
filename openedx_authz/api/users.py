@@ -322,6 +322,7 @@ def _filter_allowed_assignments(
         The subset of assignments the viewer is allowed to see.
     """
     if not user_external_key:
+        # If no user is specified, return all assignments
         return assignments
 
     # Temporary: the scope-based filter in filter_role_assignments_visible_to_subject uses

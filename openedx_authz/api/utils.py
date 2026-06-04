@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from openedx_authz.api.data import (
     RoleAssignmentData,
     UserAssignments,
-    UserAssignmentsFilter,
 )
 
 User = get_user_model()

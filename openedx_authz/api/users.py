@@ -272,7 +272,7 @@ def get_all_user_role_assignments_in_scope(
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
-def _filter_assignments_by_params(
+def _filter_candidate_assignments_by_params(
     assignments: list[RoleAssignmentData],
     orgs: list[str] | None,
     scopes: list[str] | None,
@@ -285,10 +285,11 @@ def _filter_assignments_by_params(
     pass to avoid paying the DB cost for assignments that would be dropped anyway.
 
     Args:
-        assignments: The full assignment list to filter.
-        orgs: Optional list of org identifiers to keep (matched against scope.org).
-        scopes: Optional list of scope external keys to keep.
-        roles: Optional list of role external keys to keep.
+        assignments: The full assignment list to filter. Each entry has exactly one role
+            (one policy line = one RoleAssignmentData), as produced by get_role_assignments.
+        orgs: Optional list of org identifiers to keep (e.g., ['edX', 'MITx']), matched against scope.org.
+        scopes: Optional list of scope external keys to keep (e.g., ['lib:DemoX:CSPROB']).
+        roles: Optional list of role external keys to keep (e.g., ['library_admin', 'instructor']).
 
     Returns:
         The filtered assignment list.
@@ -298,6 +299,8 @@ def _filter_assignments_by_params(
     if orgs:
         assignments = [a for a in assignments if getattr(a.scope, "org", None) in orgs]
     if roles:
+        # get_role_assignments always produces one role per assignment, so use
+        # a.roles[0] check to avoid iterating over the list of roles for every assignment
         assignments = [a for a in assignments if a.roles and a.roles[0].external_key in roles]
     return assignments
 
@@ -352,7 +355,7 @@ def get_visible_role_assignments_for_user(
     """
     user_role_assignments = get_user_role_assignments_filtered()
 
-    user_role_assignments = _filter_assignments_by_params(
+    user_role_assignments = _filter_candidate_assignments_by_params(
         user_role_assignments, orgs=orgs, scopes=scopes, roles=roles
     )
 

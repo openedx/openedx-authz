@@ -14,6 +14,7 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PermissionData,
+    PlatformCourseOverviewGlobData,
     RoleAssignmentData,
     RoleData,
     ScopeData,
@@ -262,10 +263,14 @@ class TestScopeMetaClass(TestCase):
         self.assertIs(ScopeData.scope_registry["ccx-v1"], CCXCourseOverviewData)
 
         # Glob registries for organization-level scopes
-        self.assertIn("lib", ScopeMeta.glob_registry)
-        self.assertIs(ScopeMeta.glob_registry["lib"], OrgContentLibraryGlobData)
-        self.assertIn("course-v1", ScopeMeta.glob_registry)
-        self.assertIs(ScopeMeta.glob_registry["course-v1"], OrgCourseOverviewGlobData)
+        self.assertIn("lib", ScopeMeta.org_glob_registry)
+        self.assertIs(ScopeMeta.org_glob_registry["lib"], OrgContentLibraryGlobData)
+        self.assertIn("course-v1", ScopeMeta.org_glob_registry)
+        self.assertIs(ScopeMeta.org_glob_registry["course-v1"], OrgCourseOverviewGlobData)
+
+        # Glob registries for platform-level scopes
+        self.assertIn("course-v1", ScopeMeta.platform_glob_registry)
+        self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
 
     @data(
         ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
@@ -273,6 +278,7 @@ class TestScopeMetaClass(TestCase):
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX*", OrgContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX*", OrgCourseOverviewGlobData),
+        ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
         ("global^generic_scope", ScopeData),
     )
     @unpack
@@ -294,8 +300,9 @@ class TestScopeMetaClass(TestCase):
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX:*", OrgContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX+*", OrgCourseOverviewGlobData),
-        ("global^generic", ScopeData),
-        ("unknown^something", ScopeData),
+        ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
+        ("lib^*", ScopeData),
+        ("course-v1^*", ScopeData),
     )
     @unpack
     def test_get_subclass_by_namespaced_key(self, namespaced_key, expected_class):
@@ -305,12 +312,146 @@ class TestScopeMetaClass(TestCase):
             - 'ccx-v1^...' returns CCXCourseOverviewData
             - 'course-v1^...' returns CourseOverviewData
             - 'lib^...' returns ContentLibraryData
-            - 'global^...' returns ScopeData
-            - 'unknown^...' returns ScopeData (fallback)
+            - 'lib^*' / 'course-v1^*' return ScopeData (non-global namespace wildcard)
+            - unregistered non-glob namespaces raise ValueError
         """
         subclass = ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
 
         self.assertIs(subclass, expected_class)
+
+    def test_get_subclass_by_namespaced_key_global_wildcard_raises(self):
+        """Test that 'global^*' raises ValueError.
+
+        The global namespace wildcard has no type context and is not a valid scope.
+
+        Expected Result:
+            - ScopeMeta.get_subclass_by_namespaced_key('global^*') raises ValueError
+        """
+        with self.assertRaises(ValueError):
+            ScopeMeta.get_subclass_by_namespaced_key("global^*")
+
+    @data(
+        # No separator at all
+        "nohatseparator",
+        # Empty string
+        "",
+        # Nothing after the separator
+        "lib^",
+        # Nothing before the separator
+        "^something",
+    )
+    def test_get_subclass_by_namespaced_key_invalid_format_raises(self, invalid_key: str):
+        """Test that keys not matching the namespaced format raise ValueError.
+
+        NAMESPACED_KEY_PATTERN requires at least one character on both sides of the
+        '^' separator.  Keys that violate this contract are rejected immediately.
+
+        Expected Result:
+            - ValueError with "Invalid namespaced_key format" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Invalid namespaced_key format"):
+            ScopeMeta.get_subclass_by_namespaced_key(invalid_key)
+
+    def test_get_subclass_by_namespaced_key_unknown_platform_glob_raises(self):
+        """Test that a platform-glob key with an unregistered namespace raises ValueError.
+
+        A platform glob has the shape ``namespace^namespace:*``.  When the namespace
+        prefix is not in ``platform_glob_registry`` the method raises a ValueError
+        instead of silently falling through to a wrong class.
+
+        Example: 'xyz^xyz:*' — external_key 'xyz:*' passes _is_platform_glob for
+        namespace 'xyz', but 'xyz' has no platform glob subclass registered.
+
+        Expected Result:
+            - ValueError with "Unknown platform glob scope" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Unknown platform glob scope"):
+            ScopeMeta.get_subclass_by_namespaced_key("xyz^xyz:*")
+
+    def test_get_subclass_by_namespaced_key_unknown_org_glob_raises(self):
+        """Test that an org-glob key with an unregistered namespace raises ValueError.
+
+        An org glob has the shape ``namespace^namespace:ORG<sep>*`` (e.g. the ':' or
+        '+' separator before the trailing '*').  When the namespace is not in
+        ``org_glob_registry`` a ValueError is raised.
+
+        Example: 'xyz^xyz:Org1:*' — external_key 'xyz:Org1:*' passes _is_org_glob for
+        namespace 'xyz', but 'xyz' has no org glob subclass registered.
+
+        Expected Result:
+            - ValueError with "Unknown org glob scope" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Unknown org glob scope"):
+            ScopeMeta.get_subclass_by_namespaced_key("xyz^xyz:Org1:*")
+
+    @data(
+        "org^any-org",
+        "course^course-v1:OpenedX+DemoX+CS101",
+    )
+    def test_get_subclass_by_namespaced_key_unknown_scope_raises(self, namespaced_key: str):
+        """Test that a non-glob key with an unregistered namespace raises ValueError.
+
+        When the namespace prefix is not in ``scope_registry`` and the external key
+        does not contain a wildcard, the method raises instead of falling back to
+        ScopeData.
+
+        Expected Result:
+            - ValueError with "Unknown scope" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Unknown scope"):
+            ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
+
+    @data(
+        "lib^*",
+        "course-v1^*",
+        "ccx-v1^*",
+    )
+    def test_get_subclass_by_namespaced_key_registered_namespace_wildcard_returns_scope_data(
+        self,
+        namespaced_key: str,
+    ):
+        """Test that a bare namespace wildcard for a registered namespace returns ScopeData.
+
+        A key shaped ``namespace^*`` carries a meaningful namespace prefix but no
+        concrete object. When the namespace is registered in ``scope_registry``
+        (e.g. 'lib', 'course-v1', 'ccx-v1') the method returns the base ScopeData
+        class instead of raising.
+
+        Expected Result:
+            - ScopeData is returned
+        """
+        self.assertIs(ScopeMeta.get_subclass_by_namespaced_key(namespaced_key), ScopeData)
+
+    def test_get_subclass_by_namespaced_key_unregistered_namespace_wildcard_raises(self):
+        """Test that a bare namespace wildcard for an unregistered namespace raises ValueError.
+
+        ``xyz^*`` has external_key '*' (the bare wildcard) but the 'xyz' namespace is
+        not registered in ``scope_registry``, so it cannot be resolved to ScopeData.
+
+        Expected Result:
+            - ValueError with "Unknown scope" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Unknown scope"):
+            ScopeMeta.get_subclass_by_namespaced_key("xyz^*")
+
+    @data(
+        # Wildcard in the middle, not a trailing org/platform glob
+        "lib^lib:*:CSPROB",
+        # Wildcard before the trailing run segment for a course key
+        "course-v1^course-v1:OpenedX+CS*+2025",
+    )
+    def test_get_subclass_by_namespaced_key_invalid_glob_pattern_raises(self, namespaced_key: str):
+        """Test that a wildcard key that is neither a platform nor org glob raises ValueError.
+
+        These keys contain a wildcard (so they are treated as globs) but do not match
+        the platform glob shape (``namespace:*``), the org glob shape
+        (``namespace:ORG<sep>*``), nor the bare namespace wildcard (``namespace^*``).
+
+        Expected Result:
+            - ValueError with "Unknown glob pattern" is raised
+        """
+        with self.assertRaisesRegex(ValueError, "Unknown glob pattern"):
+            ScopeMeta.get_subclass_by_namespaced_key(namespaced_key)
 
     @data(
         ("ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
@@ -318,6 +459,7 @@ class TestScopeMetaClass(TestCase):
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:DemoX:*", OrgContentLibraryGlobData),
         ("course-v1:OpenedX+*", OrgCourseOverviewGlobData),
+        ("course-v1:*", PlatformCourseOverviewGlobData),
         ("lib:edX:Demo", ContentLibraryData),
         ("global:generic_scope", ScopeData),
     )
@@ -379,44 +521,54 @@ class TestScopeMetaClass(TestCase):
         with self.assertRaises(ValueError):
             ScopeMeta.get_subclass_by_external_key(external_key)
 
-    def test_scope_meta_initializes_registries_when_missing(self):
-        """ScopeMeta should create registries if they don't exist on initialization.
+    @data(
+        ("course-v1", "course-v1:*", True),
+        ("course-v1", "course-v1:OpenedX+*", False),
+        ("course-v1", "course-v1:OpenedX+CS101+2024", False),
+        ("lib", "lib:*", True),
+        ("lib", "lib:DemoX:*", False),
+    )
+    @unpack
+    def test_is_platform_glob(self, namespace, external_key, expected):
+        """_is_platform_glob matches only namespace:* patterns."""
+        # pylint: disable=protected-access
+        self.assertEqual(ScopeMeta._is_platform_glob(external_key, namespace), expected)
 
-        This validates the defensive branch in ScopeMeta.__init__ that initializes
-        scope_registry and glob_registry when they are not present on the class.
-        """
-        original_scope_registry = ScopeMeta.scope_registry
-        original_glob_registry = ScopeMeta.glob_registry
+    def test_platform_glob_registration_does_not_override_scope_registry(self):
+        """Platform globs register separately; concrete scopes keep scope_registry entries."""
+        self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
+        self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
+        self.assertNotIn(PlatformCourseOverviewGlobData, ScopeData.scope_registry.values())
 
-        try:
-            # Simulate an environment where the registries are not yet defined
-            del ScopeMeta.scope_registry
-            del ScopeMeta.glob_registry
+    def test_platform_glob_resolves_before_org_glob_for_course_namespace(self):
+        """course-v1:* is a platform glob; course-v1:Org+* remains an org glob."""
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("course-v1:*"), PlatformCourseOverviewGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("course-v1:OpenedX+*"), OrgCourseOverviewGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_namespaced_key("course-v1^course-v1:*"), PlatformCourseOverviewGlobData)
+        self.assertIs(
+            ScopeMeta.get_subclass_by_namespaced_key("course-v1^course-v1:OpenedX+*"), OrgCourseOverviewGlobData
+        )
 
-            class TempScope(ScopeData):
-                """Temporary scope class for testing."""
+    def test_dynamic_instantiation_via_external_key_for_platform_glob(self):
+        """ScopeData(external_key='course-v1:*') instantiates PlatformCourseOverviewGlobData."""
+        scope = ScopeData(external_key="course-v1:*")
 
-                NAMESPACE = "temp"
+        self.assertIsInstance(scope, PlatformCourseOverviewGlobData)
+        self.assertEqual(scope.external_key, "course-v1:*")
+        self.assertEqual(scope.namespaced_key, "course-v1^course-v1:*")
 
-                def get_object(self):
-                    return None
+    def test_get_subclass_by_external_key_unknown_platform_glob_raises_value_error(self):
+        """Namespace:* without a registered platform glob subclass raises ValueError."""
+        with self.assertRaisesRegex(ValueError, "Unknown platform glob scope"):
+            ScopeMeta.get_subclass_by_external_key("lib:*")
 
-                def exists(self) -> bool:
-                    return False
+    def test_get_all_registered_scopes_includes_platform_glob(self):
+        """get_all_registered_scopes returns platform glob subclasses."""
+        registered = ScopeMeta.get_all_registered_scopes()
 
-                @classmethod
-                def get_admin_view_permission(cls):
-                    raise NotImplementedError("Not implemented for TempScope")
-
-            # Metaclass should have recreated the registries on the class
-            self.assertTrue(hasattr(TempScope, "scope_registry"))
-            self.assertTrue(hasattr(TempScope, "glob_registry"))
-            # And the new scope should be registered under its namespace
-            self.assertIs(TempScope.scope_registry.get("temp"), TempScope)
-        finally:
-            # Restore original registries to avoid side effects on other tests
-            ScopeMeta.scope_registry = original_scope_registry
-            ScopeMeta.glob_registry = original_glob_registry
+        self.assertIn(PlatformCourseOverviewGlobData, registered)
+        self.assertIn(OrgCourseOverviewGlobData, registered)
+        self.assertIn(CourseOverviewData, registered)
 
     def test_direct_subclass_instantiation_bypasses_metaclass(self):
         """Test that direct subclass instantiation doesn't trigger metaclass logic.
@@ -463,26 +615,49 @@ class TestScopeMetaClass(TestCase):
         with self.assertRaises(ValueError):
             SubjectData(external_key="")
 
-    def test_scope_data_with_wildcard_external_key(self):
-        """Test that ScopeData instantiated with wildcard (*) returns base ScopeData.
+    def test_scope_data_with_wildcard_external_key_raises(self):
+        """Test that ScopeData instantiated with bare wildcard '*' raises ValueError.
 
-        When using the global scope wildcard '*', the metaclass should return a base
-        ScopeData instance rather than attempting subclass determination.
+        The global scope wildcard '*' (which maps to 'global^*') has no namespace
+        context and breaks permission checks, so it is rejected at construction time.
 
         Expected Result:
-            - ScopeData(external_key='*') creates base ScopeData instance
-            - namespaced_key is 'global^*'
-            - No subclass determination occurs
+            - ScopeData(external_key='*') raises ValueError
         """
-        scope = ScopeData(external_key="*")
+        with self.assertRaises(ValueError):
+            ScopeData(external_key="*")
 
-        expected_namespaced = f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}*"
+    def test_scope_data_with_global_namespaced_wildcard_raises(self):
+        """Test that ScopeData(namespaced_key='global^*') raises ValueError.
 
-        self.assertIsInstance(scope, ScopeData)
-        # Ensure it's exactly ScopeData, not a subclass
-        self.assertEqual(type(scope), ScopeData)
-        self.assertEqual(scope.external_key, "*")
-        self.assertEqual(scope.namespaced_key, expected_namespaced)
+        'global^*' is the bare global wildcard expressed as a namespaced key.
+        It is rejected for the same reasons as external_key='*'.
+
+        Expected Result:
+            - ScopeData(namespaced_key='global^*') raises ValueError
+        """
+        with self.assertRaises(ValueError):
+            ScopeData(namespaced_key=f"{ScopeData.NAMESPACE}{ScopeData.SEPARATOR}*")
+
+    def test_scope_data_with_namespaced_wildcard_allowed(self):
+        """Test that namespaced wildcards for non-global namespaces are still allowed.
+
+        'lib^*' and 'course-v1^*' carry a meaningful namespace prefix and are used
+        internally by the policy store as untyped wildcards.
+
+        Expected Result:
+            - ScopeData(namespaced_key='lib^*') succeeds and external_key is '*'
+            - ScopeData(namespaced_key='course-v1^*') succeeds and external_key is '*'
+        """
+        lib_scope = ScopeData(namespaced_key="lib^*")
+        self.assertIsInstance(lib_scope, ScopeData)
+        self.assertEqual(lib_scope.external_key, "*")
+        self.assertEqual(lib_scope.namespaced_key, "lib^*")
+
+        course_scope = ScopeData(namespaced_key="course-v1^*")
+        self.assertIsInstance(course_scope, ScopeData)
+        self.assertEqual(course_scope.external_key, "*")
+        self.assertEqual(course_scope.namespaced_key, "course-v1^*")
 
 
 @ddt
@@ -906,3 +1081,79 @@ class TestOrgCourseOverviewGlobData(TestCase):
 
         self.assertIsNone(scope.org)
         self.assertFalse(scope.exists())
+
+
+@ddt
+class TestPlatformCourseOverviewGlobData(TestCase):
+    """Tests for the PlatformCourseOverviewGlobData scope."""
+
+    PLATFORM_GLOB_EXTERNAL_KEY = "course-v1:*"
+    PLATFORM_GLOB_NAMESPACED_KEY = "course-v1^course-v1:*"
+
+    def test_build_external_key(self):
+        """build_external_key returns the platform-wide course glob pattern."""
+        self.assertEqual(PlatformCourseOverviewGlobData.build_external_key(), self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    @data(
+        ("course-v1:*", True),
+        ("course-v1:OpenedX+*", False),
+        ("course-v1:OpenedX*", False),
+        ("course-v1:OpenedX", False),
+        ("course-v1:*:*", False),
+        ("other:*", False),
+        ("lib:*", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate platform-level course glob external keys."""
+        self.assertEqual(PlatformCourseOverviewGlobData.validate_external_key(external_key), expected_valid)
+
+    def test_exists_always_true(self):
+        """exists() returns True without checking the database."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertTrue(scope.exists())
+
+    def test_get_object_returns_none(self):
+        """Platform glob scopes do not map to a concrete domain object."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsNone(scope.get_object())
+
+    def test_namespaced_key(self):
+        """namespaced_key includes namespace prefix and external key."""
+        scope = PlatformCourseOverviewGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertEqual(scope.namespaced_key, self.PLATFORM_GLOB_NAMESPACED_KEY)
+
+    def test_dynamic_instantiation_via_scope_data(self):
+        """ScopeData resolves course-v1:* to PlatformCourseOverviewGlobData."""
+        scope = ScopeData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsInstance(scope, PlatformCourseOverviewGlobData)
+        self.assertEqual(scope.external_key, self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    def test_get_admin_view_permission(self):
+        """View permission matches course team view permission."""
+        self.assertEqual(
+            PlatformCourseOverviewGlobData.get_admin_view_permission(), permissions.COURSES_VIEW_COURSE_TEAM
+        )
+
+    def test_get_admin_manage_permission(self):
+        """Manage permission matches course team manage permission."""
+        self.assertEqual(
+            PlatformCourseOverviewGlobData.get_admin_manage_permission(),
+            permissions.COURSES_MANAGE_COURSE_TEAM,
+        )
+
+    def test_is_platform_glob(self):
+        """Platform course glob is flagged as a platform-level glob scope."""
+        self.assertTrue(PlatformCourseOverviewGlobData.IS_PLATFORM_GLOB)
+        self.assertFalse(PlatformCourseOverviewGlobData.IS_ORG_GLOB)
+
+    def test_get_all_platform_glob_namespaces(self):
+        """Platform glob namespace is registered in ScopeMeta."""
+        platform_globs = ScopeMeta.get_all_platform_glob_namespaces()
+
+        self.assertIn("course-v1", platform_globs)
+        self.assertIs(platform_globs["course-v1"], PlatformCourseOverviewGlobData)

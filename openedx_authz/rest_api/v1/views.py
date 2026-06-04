@@ -28,6 +28,7 @@ from openedx_authz.api.data import (
     CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
+    PlatformGlobData,
     RoleAssignmentData,
     SuperAdminAssignmentData,
     UserAssignmentData,
@@ -256,7 +257,9 @@ class RoleUserAPIView(APIView):
     **Authentication and Permissions**
 
     - Requires authenticated user.
-    - Requires ``manage_library_team`` permission for the scope.
+
+    - GET: Requires ``view_library_team`` or ``view_course_team`` permission according to the scope.
+    - PUT and DELETE: Requires ``manage_library_team`` or ``manage_course_team`` permission according to the scope.
 
     **Example Request**
 
@@ -784,7 +787,7 @@ class ScopesAPIView(generics.ListAPIView):
         *,
         username: str,
         scope_cls: type,
-        glob_cls: type,
+        org_glob_cls: type,
         get_permission: callable,
         queryset_builder: callable,
         extract_ids: callable,
@@ -801,7 +804,7 @@ class ScopesAPIView(generics.ListAPIView):
         Args:
             username: The username to check permissions for.
             scope_cls: The concrete scope data class (e.g., CourseOverviewData).
-            glob_cls: The org-level glob class (e.g., OrgCourseOverviewGlobData).
+            org_glob_cls: The org-level glob class (e.g., OrgCourseOverviewGlobData).
             get_permission: Callable that returns the permission for a scope class.
             queryset_builder: Callable that builds the filtered queryset (e.g., _get_courses_queryset).
             extract_ids: Callable that extracts specific IDs from non-glob scopes.
@@ -812,9 +815,14 @@ class ScopesAPIView(generics.ListAPIView):
             QuerySet: The filtered queryset projected to the unified scope shape.
         """
         allowed_scopes = get_scopes_for_user_and_permission(username, get_permission(scope_cls).identifier)
-        specific_scopes = [s for s in allowed_scopes if not isinstance(s, glob_cls)]
+
+        has_platform_access = any(isinstance(s, PlatformGlobData) for s in allowed_scopes)
+        if has_platform_access:
+            return queryset_builder(allowed_ids=None, allowed_orgs=None, search=search, orgs=orgs)
+
+        specific_scopes = [s for s in allowed_scopes if not s.IS_GLOB]
         allowed_ids = extract_ids(specific_scopes)
-        allowed_orgs = {s.org for s in allowed_scopes if isinstance(s, glob_cls)}
+        allowed_orgs = {s.org for s in allowed_scopes if isinstance(s, org_glob_cls)}
         return queryset_builder(allowed_ids, allowed_orgs, search=search, orgs=orgs)
 
     def _build_queryset(self, courses_qs: QuerySet | None, libraries_qs: QuerySet | None) -> QuerySet:
@@ -873,7 +881,7 @@ class ScopesAPIView(generics.ListAPIView):
             courses_qs = self._get_allowed_scope_queryset(
                 username=user.username,
                 scope_cls=CourseOverviewData,
-                glob_cls=OrgCourseOverviewGlobData,
+                org_glob_cls=OrgCourseOverviewGlobData,
                 get_permission=get_permission,
                 queryset_builder=self._get_courses_queryset,
                 extract_ids=lambda scopes: {s.external_key for s in scopes},
@@ -886,7 +894,7 @@ class ScopesAPIView(generics.ListAPIView):
             libraries_qs = self._get_allowed_scope_queryset(
                 username=user.username,
                 scope_cls=ContentLibraryData,
-                glob_cls=OrgContentLibraryGlobData,
+                org_glob_cls=OrgContentLibraryGlobData,
                 get_permission=get_permission,
                 queryset_builder=self._get_libraries_queryset,
                 extract_ids=lambda scopes: {

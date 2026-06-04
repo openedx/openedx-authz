@@ -20,8 +20,6 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ContentLibraryData,
     CourseOverviewData,
-    OrgContentLibraryGlobData,
-    OrgCourseOverviewGlobData,
 )
 from openedx_authz.constants import roles
 from openedx_authz.constants.permissions import (
@@ -43,6 +41,7 @@ from openedx_authz.tests.test_utils import (
     make_role_key,
     make_scope_key,
     make_user_key,
+    make_wildcard_key,
 )
 
 User = get_user_model()
@@ -156,19 +155,7 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("global", GLOBAL_SCOPE_WILDCARD),
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("manage"),
-            "scope": make_scope_key("org", "any-org"),
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("manage"),
-            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+            "scope": make_course_key("course-v1:any-org+any-course+any-course-run"),
             "expected_result": True,
         },
         {
@@ -195,19 +182,21 @@ class ActionGroupingTests(CasbinEnforcementTestCase):
     (like 'edit', 'read', 'write', 'delete') through the g2 grouping mechanism.
     """
 
+    ORG_COURSE_SCOPE = make_course_key("course-v1:any-org+*")
+
     POLICY = [
         [
             "p",
             make_role_key("role-1"),
             make_action_key("manage"),
-            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
+            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "g",
             make_user_key("user-1"),
             make_role_key("role-1"),
-            make_scope_key("org", "any-org"),
+            ORG_COURSE_SCOPE,
         ],
     ] + COMMON_ACTION_GROUPING
 
@@ -215,25 +204,25 @@ class ActionGroupingTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("edit"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("read"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("write"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("delete"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
     ]
@@ -253,6 +242,9 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
     within their assigned scopes.
     """
 
+    ORG_COURSE_SCOPE = make_course_key("course-v1:any-org+*")
+    COURSE_SCOPE = make_course_key("course-v1:any-org+any-course+any-course-run")
+
     POLICY = [
         # Policies
         ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
@@ -260,28 +252,28 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
             "p",
             make_role_key("org_admin"),
             make_action_key("manage"),
-            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
+            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("org_editor"),
             make_action_key("edit"),
-            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
+            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("org_author"),
             make_action_key("write"),
-            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
+            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
             "p",
             make_role_key("course_admin"),
             make_action_key("manage"),
-            make_scope_key("course", GLOBAL_SCOPE_WILDCARD),
+            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
             "allow",
         ],
         [
@@ -318,25 +310,25 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
             "g",
             make_user_key("user-2"),
             make_role_key("org_admin"),
-            make_scope_key("org", "any-org"),
+            ORG_COURSE_SCOPE,
         ],
         [
             "g",
             make_user_key("user-3"),
             make_role_key("org_editor"),
-            make_scope_key("org", "any-org"),
+            ORG_COURSE_SCOPE,
         ],
         [
             "g",
             make_user_key("user-4"),
             make_role_key("org_author"),
-            make_scope_key("org", "any-org"),
+            ORG_COURSE_SCOPE,
         ],
         [
             "g",
             make_user_key("user-5"),
             make_role_key("course_admin"),
-            make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+            COURSE_SCOPE,
         ],
         [
             "g",
@@ -368,31 +360,31 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-2"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-3"),
             "action": make_action_key("edit"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-4"),
             "action": make_action_key("write"),
-            "scope": make_scope_key("org", "any-org"),
+            "scope": ORG_COURSE_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-5"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("course", "course-v1:any-org+any-course+any-course-run"),
+            "scope": COURSE_SCOPE,
             "expected_result": True,
         },
         {
@@ -435,13 +427,16 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
     when explicit deny rules override allow rules.
     """
 
+    ALLOWED_ORG_SCOPE = make_course_key("course-v1:allowed-org+*")
+    RESTRICTED_ORG_SCOPE = make_course_key("course-v1:restricted-org+*")
+
     POLICY = [
         ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         [
             "p",
             make_role_key("platform_admin"),
             make_action_key("manage"),
-            make_scope_key("org", "restricted-org"),
+            RESTRICTED_ORG_SCOPE,
             "deny",
         ],
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
@@ -451,37 +446,37 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("org", "allowed-org"),
+            "scope": ALLOWED_ORG_SCOPE,
             "expected_result": True,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
-            "scope": make_scope_key("org", "restricted-org"),
+            "scope": RESTRICTED_ORG_SCOPE,
             "expected_result": False,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("edit"),
-            "scope": make_scope_key("org", "restricted-org"),
+            "scope": RESTRICTED_ORG_SCOPE,
             "expected_result": False,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("read"),
-            "scope": make_scope_key("org", "restricted-org"),
+            "scope": RESTRICTED_ORG_SCOPE,
             "expected_result": False,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("write"),
-            "scope": make_scope_key("org", "restricted-org"),
+            "scope": RESTRICTED_ORG_SCOPE,
             "expected_result": False,
         },
         {
             "subject": make_user_key("user-1"),
             "action": make_action_key("delete"),
-            "scope": make_scope_key("org", "restricted-org"),
+            "scope": RESTRICTED_ORG_SCOPE,
             "expected_result": False,
         },
     ]
@@ -494,55 +489,42 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
 
 @ddt
 class WildcardScopeTests(CasbinEnforcementTestCase):
-    """Tests for wildcard scope authorization patterns.
+    """Tests for namespace wildcard scope authorization patterns.
 
-    Verifies that users with roles assigned to wildcard scopes (like "*" for global access
-    or "org^*" for organization-wide access) can properly access resources within their
-    authorized scope boundaries.
-
-    TODO: this needs to be updated with the latest changes in the model.
+    Verifies that users assigned to roles at global scope (``*``) can only access
+    resources whose scope matches the namespace wildcard defined in the policy
+    (e.g., ``course-v1^*`` for courses, ``lib^*`` for libraries). Access to scopes
+    outside the role's namespace is denied.
     """
 
     POLICY = [
         # Policies
-        ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         [
             "p",
-            make_role_key("org_admin"),
+            make_role_key(roles.COURSE_ADMIN.external_key),
             make_action_key("manage"),
-            make_scope_key("org", GLOBAL_SCOPE_WILDCARD),
-            "allow",
-        ],
-        [
-            "p",
-            make_role_key("course_admin"),
-            make_action_key("manage"),
-            make_scope_key("course", GLOBAL_SCOPE_WILDCARD),
+            make_wildcard_key(CourseOverviewData.NAMESPACE),
             "allow",
         ],
         [
             "p",
             make_role_key(roles.LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
-            make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
+            make_wildcard_key(ContentLibraryData.NAMESPACE),
             "allow",
         ],
         # Role assignments
-        ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
-        ["g", make_user_key("user-2"), make_role_key("org_admin"), GLOBAL_SCOPE_WILDCARD],
-        ["g", make_user_key("user-3"), make_role_key("course_admin"), GLOBAL_SCOPE_WILDCARD],
-        ["g", make_user_key("user-4"), make_role_key(roles.LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-1"), make_role_key(roles.COURSE_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-2"), make_role_key(roles.LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
     ] + COMMON_ACTION_GROUPING
 
     @data(
-        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), True),
-        (make_scope_key("org", "MIT"), True),
-        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
-        (make_library_key("lib:OpenedX:math-basics"), True),
+        (make_course_key("course-v1:OpenedX+DemoX+CS101"), True),
+        (make_library_key("lib:OpenedX:math-basics"), False),
     )
     @unpack
-    def test_wildcard_global_access(self, scope: str, expected_result: bool):
-        """Test that users have access through wildcard global scope."""
+    def test_wildcard_course_access(self, scope: str, expected_result: bool):
+        """Test that users have access through wildcard course scope."""
         request = {
             "subject": make_user_key("user-1"),
             "action": make_action_key("manage"),
@@ -552,50 +534,14 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICY, request)
 
     @data(
-        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
-        (make_scope_key("org", "MIT"), True),
-        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
-        (make_library_key("lib:OpenedX:math-basics"), False),
-    )
-    @unpack
-    def test_wildcard_org_access(self, scope: str, expected_result: bool):
-        """Test that users have access through wildcard org scope."""
-        request = {
-            "subject": make_user_key("user-2"),
-            "action": make_action_key("manage"),
-            "scope": scope,
-            "expected_result": expected_result,
-        }
-        self._test_enforcement(self.POLICY, request)
-
-    @data(
-        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
-        (make_scope_key("org", "MIT"), False),
-        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), True),
-        (make_library_key("lib:OpenedX:math-basics"), False),
-    )
-    @unpack
-    def test_wildcard_course_access(self, scope: str, expected_result: bool):
-        """Test that users have access through wildcard course scope."""
-        request = {
-            "subject": make_user_key("user-3"),
-            "action": make_action_key("manage"),
-            "scope": scope,
-            "expected_result": expected_result,
-        }
-        self._test_enforcement(self.POLICY, request)
-
-    @data(
-        (make_scope_key("global", GLOBAL_SCOPE_WILDCARD), False),
-        (make_scope_key("org", "MIT"), False),
-        (make_scope_key("course", "course-v1:OpenedX+DemoX+CS101"), False),
+        (make_course_key("course-v1:OpenedX+DemoX+CS101"), False),
         (make_library_key("lib:OpenedX:math-basics"), True),
     )
     @unpack
     def test_wildcard_library_access(self, scope: str, expected_result: bool):
         """Test that users have access through wildcard library scope."""
         request = {
-            "subject": make_user_key("user-4"),
+            "subject": make_user_key("user-2"),
             "action": make_action_key("manage"),
             "scope": scope,
             "expected_result": expected_result,
@@ -675,14 +621,39 @@ class OrgGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
-def make_org_library_glob_key(key: str) -> str:
-    """Create a namespaced org-level library glob key (e.g., 'lib^lib:DemoX:*')."""
-    return f"{OrgContentLibraryGlobData.NAMESPACE}{OrgContentLibraryGlobData.SEPARATOR}{key}"
+@ddt
+class PlatformGlobCourseEnforcementTests(CasbinEnforcementTestCase):
+    """
+    Tests for platform-level glob patterns in course scopes.
 
+    This test class verifies that policies defined with platform-level glob patterns
+    (e.g., ``course-v1:*``) are correctly enforced for concrete course scopes across
+    all organizations on the platform.
+    """
 
-def make_org_course_glob_key(key: str) -> str:
-    """Create a namespaced org-level course glob key (e.g., 'course-v1^course-v1:DemoX+*')."""
-    return f"{OrgCourseOverviewGlobData.NAMESPACE}{OrgCourseOverviewGlobData.SEPARATOR}{key}"
+    POLICIES = [
+        make_policy(roles.COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)
+    ]
+
+    ASSIGNMENTS = [
+        make_course_assignment("user1", roles.COURSE_STAFF.external_key, "course-v1:*"),
+    ]
+
+    CASES = [
+        # Permission granted across organizations
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Python+2026", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OtherOrg+Course+2025", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:InexistentOrg+Demo+2026", True),
+        make_course_case("user1", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedXv2+Demo+2026", True),
+        # Permission denied
+        make_course_case("user1", COURSES_CREATE_FILES.identifier, "course-v1:OpenedX+Python+2026", False),
+        make_course_case("user2", COURSES_VIEW_COURSE.identifier, "course-v1:OpenedX+Demo+2026", False),
+    ]
+
+    @data(*CASES)
+    def test_platform_level_glob_enforcement(self, request: AuthRequest):
+        """Test that platform-level glob patterns in course scopes are enforced correctly."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
 @pytest.mark.django_db
@@ -835,43 +806,59 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
         (
             make_user_key("staff_user"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             True,
         ),
         (
             make_user_key("superuser"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             True,
         ),
         (
             make_user_key("regular_user"),
             make_action_key("content_libraries.view_library"),
-            make_org_library_glob_key("lib:TestOrg:*"),
+            make_library_key("lib:TestOrg:*"),
             False,
         ),
         # OrgCourseOverviewGlobData scope
         (
             make_user_key("staff_user"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             True,
         ),
         (
             make_user_key("superuser"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             True,
         ),
         (
             make_user_key("regular_user"),
             make_action_key("courses.view_course"),
-            make_org_course_glob_key("course-v1:TestOrg+*"),
+            make_course_key("course-v1:TestOrg+*"),
             False,
         ),
-        # Unsupported scope type - no one is granted access via this matcher
-        (make_user_key("staff_user"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
-        (make_user_key("superuser"), make_action_key("manage"), make_scope_key("org", "TestOrg"), False),
+        # PlatformCourseOverviewGlobData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:*"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:*"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("courses.view_course"),
+            make_course_key("course-v1:*"),
+            False,
+        ),
     )
     @unpack
     def test_is_admin_or_superuser_check(
@@ -885,13 +872,14 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
 
         Verifies that:
         - Staff users are always allowed for ContentLibraryData, CourseOverviewData,
-          OrgContentLibraryGlobData, and OrgCourseOverviewGlobData scopes.
+          OrgContentLibraryGlobData, OrgCourseOverviewGlobData, and
+          PlatformCourseOverviewGlobData scopes.
         - Superusers are always allowed for the same scopes.
         - Regular users are denied when they have no role assignments.
         - Unsupported scope types (e.g., org) are denied even for staff/superusers.
 
         Expected result:
-            - staff_user and superuser: True for all four supported scope types.
+            - staff_user and superuser: True for all supported scope types.
             - regular_user: False for all scope types (no role assignments).
             - staff_user and superuser: False for unsupported scope types.
         """

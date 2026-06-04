@@ -6,7 +6,7 @@ from organizations.serializers import OrganizationSerializer
 from rest_framework import serializers
 
 from openedx_authz import api
-from openedx_authz.api.data import UserAssignments
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, UserAssignments
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     ScopesTypeField,
@@ -87,6 +87,11 @@ class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstr
             serializers.ValidationError: If the scope is not registered, doesn't exist,
                 or if the role is not defined in the scope.
         """
+        if scope_value == GLOBAL_SCOPE_WILDCARD:
+            raise serializers.ValidationError(
+                {"scope": "Global wildcard scope '*' is not accepted via the API. Use a specific scope key."}
+            )
+
         try:
             scope = api.ScopeData(external_key=scope_value)
         except ValueError as exc:
@@ -215,6 +220,10 @@ class ListRolesWithScopeSerializer(serializers.Serializer):  # pylint: disable=a
             >>> validate_scope('lib:DemoX:CSPROB')
             ContentLibraryData(external_key='lib:DemoX:CSPROB')
         """
+        if value == GLOBAL_SCOPE_WILDCARD:
+            raise serializers.ValidationError(
+                "Global wildcard scope '*' is not accepted via the API. Use a specific scope key."
+            )
         try:
             return api.ScopeData(external_key=value)
         except ValueError as exc:
@@ -398,6 +407,8 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
             case api.SuperAdminAssignmentData():
                 return "*"
             case api.RoleAssignmentData():
+                if obj.scope.IS_PLATFORM_GLOB:
+                    return "*"
                 return getattr(obj.scope, "org", "")
 
     def get_scope(self, obj: api.RoleAssignmentData | api.SuperAdminAssignmentData) -> str:

@@ -15,7 +15,6 @@ from django.test import TestCase
 
 from openedx_authz.api.data import (
     ActionData,
-    ContentLibraryData,
     PermissionData,
     RoleAssignmentData,
     RoleData,
@@ -43,6 +42,7 @@ from openedx_authz.api.roles import (
 )
 from openedx_authz.constants import permissions, roles
 from openedx_authz.constants.roles import (
+    COURSE_AUDITOR_PERMISSIONS,
     LIBRARY_ADMIN_PERMISSIONS,
     LIBRARY_AUTHOR_PERMISSIONS,
     LIBRARY_CONTRIBUTOR_PERMISSIONS,
@@ -496,33 +496,56 @@ class TestRolesAPI(RolesTestSetupMixin):
 
     @ddt_data(
         (
-            "*",
+            "lib^*",
             {
                 roles.LIBRARY_ADMIN.external_key,
                 roles.LIBRARY_AUTHOR.external_key,
                 roles.LIBRARY_CONTRIBUTOR.external_key,
                 roles.LIBRARY_USER.external_key,
             },
+            roles.LIBRARY_ADMIN.external_key,
+            LIBRARY_ADMIN_PERMISSIONS,
+        ),
+        (
+            "course-v1^*",
+            {
+                roles.COURSE_AUDITOR.external_key,
+                roles.COURSE_EDITOR.external_key,
+                roles.COURSE_STAFF.external_key,
+                roles.COURSE_ADMIN.external_key,
+                roles.COURSE_LIMITED_STAFF.external_key,
+                roles.COURSE_DATA_RESEARCHER.external_key,
+                roles.COURSE_BETA_TESTER.external_key,
+            },
+            roles.COURSE_AUDITOR.external_key,
+            COURSE_AUDITOR_PERMISSIONS,
         ),
     )
     @unpack
-    def test_get_roles_in_scope(self, scope_name, expected_roles):
-        """Test retrieving roles definitions in a specific scope.
-
-        Currently, this function returns all roles defined in the system because
-        we're using only lib:* scope (which maps to lib^* internally). This should
-        be updated when we have more (template) scopes in the policy file.
+    def test_get_role_definitions_in_scope(
+        self,
+        namespaced_scope,
+        expected_roles,
+        sample_role,
+        expected_permissions,
+    ):
+        """Test retrieving role definitions from policy for a namespace wildcard scope.
 
         Expected result:
-            - Roles in the given scope are correctly retrieved.
+            - Role definitions defined in authz.policy for the scope are returned.
+            - Each role includes the permissions declared in its policy rules.
         """
-        # TODO: cheat and use ContentLibraryData until we have more scope types
-        roles_in_scope = get_role_definitions_in_scope(
-            ContentLibraryData(external_key=scope_name),
-        )
+        roles_in_scope = get_role_definitions_in_scope(ScopeData(namespaced_key=namespaced_scope))
+        roles_by_key = {role.external_key: role for role in roles_in_scope}
 
-        role_names = {role.external_key for role in roles_in_scope}
-        self.assertEqual(role_names, expected_roles)
+        self.assertEqual(set(roles_by_key.keys()), expected_roles)
+        self.assertEqual(roles_by_key[sample_role].permissions, expected_permissions)
+
+    def test_get_role_definitions_in_scope_returns_empty_for_concrete_scope(self):
+        """Concrete scopes do not match namespace wildcard policy definitions."""
+        roles_in_scope = get_role_definitions_in_scope(ScopeData(external_key="lib:Org1:math_101"))
+
+        self.assertEqual(roles_in_scope, [])
 
     @ddt_data(
         ("alice", "lib:Org1:math_101", {roles.LIBRARY_ADMIN.external_key}),

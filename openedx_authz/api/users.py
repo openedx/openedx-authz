@@ -9,6 +9,8 @@ with the role management system, which uses namespaced subjects
 (e.g., 'user^john_doe').
 """
 
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
@@ -40,6 +42,8 @@ from openedx_authz.api.roles import (
 )
 from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
 from openedx_authz.utils import get_user_by_username_or_email
+
+log = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -272,16 +276,20 @@ def _filter_allowed_assignments(
 ) -> list[RoleAssignmentData]:
     """
     Filter the given role assignments to only include those that the user has permission to view.
+
+    Assignments whose scope does not implement ``get_admin_view_permission``
+    are skipped with a warning
     """
     if not user_external_key:
         # If no user is specified, return all assignments
         return assignments
     allowed_assignments: list[RoleAssignmentData] = []
     for assignment in assignments:
-        permission = None
-
-        # Get the permission needed to view the specific scope in the admin console
-        permission = assignment.scope.get_admin_view_permission().identifier
+        try:
+            permission = assignment.scope.get_admin_view_permission().identifier
+        except NotImplementedError:
+            log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
+            continue
 
         if permission and is_user_allowed(
             user_external_key=user_external_key,

@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
     _filter_allowed_assignments,
-    _filter_assignments_by_params,
+    _filter_candidate_assignments_by_params,
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
@@ -755,7 +755,7 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         all_assignments = get_user_role_assignments_filtered()
 
         # Pre-filter to Org1 + library_admin, then authorize as alice.
-        pre_filtered = _filter_assignments_by_params(
+        pre_filtered = _filter_candidate_assignments_by_params(
             all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"]
         )
         authorized = _filter_allowed_assignments(pre_filtered, user_external_key="alice")

@@ -11,7 +11,6 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.utils import is_user_staff_or_superuser
 
-
 SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
     (ContentLibraryData.NAMESPACE, ContentLibraryData),
     (CourseOverviewData.NAMESPACE, CourseOverviewData),

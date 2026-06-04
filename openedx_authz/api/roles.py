@@ -11,7 +11,6 @@ internally to manage the underlying policies and role assignments.
 import logging
 from collections import defaultdict
 
-
 from casbin.util import key_match_func
 from crum import get_current_user
 from django.db import transaction

@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.17.1 - 2026-06-05
+*******************
+
+Fixed
+======
+
+* Performance: Fixed an O(N) bottleneck in visible assignments by pre-filtering data before authorization, avoiding repetitive Casbin enforcer evaluations, and caching role permission lookups (#278).
+
 1.17.0 - 2026-06-03
 *******************
 

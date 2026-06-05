@@ -8,8 +8,10 @@ We'll interact with roles through this API, which will use the enforcer
 internally to manage the underlying policies and role assignments.
 """
 
+import logging
 from collections import defaultdict
 
+from casbin.util import key_match_func
 from crum import get_current_user
 from django.db import transaction
 from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
@@ -51,6 +53,7 @@ __all__ = [
     "get_all_role_assignments_per_scope_type",
     "unassign_role_from_subject_in_scope",
     "unassign_subject_from_all_roles",
+    "filter_role_assignments_visible_to_subject",
 ]
 
 # TODO: these are the concerns we still have to address:
@@ -60,6 +63,8 @@ __all__ = [
 # it based on the scope for enforcement time? What about these API functions?
 # I believe they assume the enforcer is already loaded with the relevant policies
 # in this case, ALL the policies, but that might not be the case
+
+log = logging.getLogger(__name__)
 
 
 def get_permissions_for_single_role(
@@ -436,9 +441,12 @@ def get_role_assignments(
     field_index, field_values = _get_field_index_and_values(subject, role, scope)
     policies = enforcer.get_filtered_grouping_policy(field_index, *field_values)
 
+    _perm_cache: dict[str, list[PermissionData]] = {}
     for policy in policies:
         role = RoleData(namespaced_key=policy[GroupingPolicyIndex.ROLE.value])
-        role.permissions = get_permissions_for_single_role(role)
+        if role.namespaced_key not in _perm_cache:
+            _perm_cache[role.namespaced_key] = get_permissions_for_single_role(role)
+        role.permissions = _perm_cache[role.namespaced_key]
         role_assignments.append(
             RoleAssignmentData(
                 subject=SubjectData(namespaced_key=policy[GroupingPolicyIndex.SUBJECT.value]),
@@ -615,3 +623,42 @@ def get_all_role_assignments_per_scope_type(scope_types: tuple[type[ScopeData], 
     return [
         role_assignment for role_assignment in get_role_assignments() if isinstance(role_assignment.scope, scope_types)
     ]
+
+
+def filter_role_assignments_visible_to_subject(
+    subject: SubjectData,
+    candidate_assignments: list[RoleAssignmentData],
+) -> list[RoleAssignmentData]:
+    """Return only the assignments the given subject has permission to view.
+
+    Looks up the scopes where the subject holds admin-view access (one DB query
+    per distinct permission type across all assignments), then filters using
+    key_match_func to support glob scope patterns. A viewer with admin-view
+    access (ex. VIEW_LIBRARY_TEAM) to ``lib:DemoX:*`` will see all assignments
+    whose scope matches that pattern.
+
+    Args:
+        subject: The viewer whose role assignments determine what is visible.
+        candidate_assignments: The candidate assignments to filter.
+
+    Returns:
+        The subset of assignments the subject is allowed to see.
+    """
+    viewer_scopes_by_permission: dict[str, list[ScopeData]] = {}
+    filtered_assignments = []
+    for assignment in candidate_assignments:
+        try:
+            perm = assignment.scope.get_admin_view_permission()
+        except NotImplementedError:
+            log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
+            continue
+
+        if perm.identifier not in viewer_scopes_by_permission:
+            viewer_scopes_by_permission[perm.identifier] = get_scopes_for_subject_and_permission(subject, perm)
+        viewer_scopes = viewer_scopes_by_permission[perm.identifier]
+
+        # If any of the viewer's scopes match the assignment's scope, the assignment is visible to the viewer.
+        if any(key_match_func(assignment.scope.namespaced_key, vs.namespaced_key) for vs in viewer_scopes):
+            filtered_assignments.append(assignment)
+
+    return filtered_assignments

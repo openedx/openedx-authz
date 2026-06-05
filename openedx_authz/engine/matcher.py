@@ -1,8 +1,5 @@
 """Custom condition checker. Note only used for data_library scope"""
 
-from django.contrib.auth import get_user_model
-from edx_django_utils.cache import RequestCache
-
 from openedx_authz.api.data import (
     ContentLibraryData,
     CourseOverviewData,
@@ -12,10 +9,7 @@ from openedx_authz.api.data import (
     ScopeData,
     UserData,
 )
-from openedx_authz.utils import get_user_by_username_or_email
-
-User = get_user_model()
-
+from openedx_authz.utils import is_user_staff_or_superuser
 
 SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK = {
     (ContentLibraryData.NAMESPACE, ContentLibraryData),
@@ -47,23 +41,10 @@ def is_admin_or_superuser_check(request_user: str, request_action: str, request_
 
     scope = ScopeData(namespaced_key=request_scope)
     username = UserData(namespaced_key=request_user).external_key
-    request_cache = RequestCache("rbac_is_admin_or_superuser")
 
     # TODO: This special case for superuser and staff users is currently only for
     # content libraries and course overviews. See: https://github.com/openedx/openedx-authz/issues/87
     if (scope.NAMESPACE, type(scope)) not in SCOPES_WITH_ADMIN_OR_SUPERUSER_CHECK:
         return False
 
-    cached_response = request_cache.get_cached_response(username)
-    if cached_response.is_found:
-        return cached_response.value
-
-    try:
-        user = get_user_by_username_or_email(username)
-    except User.DoesNotExist:
-        return False
-
-    is_allowed = user.is_staff or user.is_superuser
-    request_cache.set(username, is_allowed)
-
-    return is_allowed
+    return is_user_staff_or_superuser(username)

@@ -22,7 +22,6 @@ from openedx_authz.api.data import (
     ScopeData,
     SuperAdminAssignmentData,
     UserAssignments,
-    UserAssignmentsFilter,
     UserData,
 )
 from openedx_authz.api.permissions import is_subject_allowed
@@ -30,6 +29,7 @@ from openedx_authz.api.roles import (
     assign_role_to_subject_in_scope,
     batch_assign_role_to_subjects_in_scope,
     batch_unassign_role_from_subjects_in_scope,
+    filter_role_assignments_visible_to_subject,
     get_all_subject_role_assignments_in_scope,
     get_role_assignments,
     get_scopes_for_subject_and_permission,
@@ -40,8 +40,8 @@ from openedx_authz.api.roles import (
     unassign_role_from_subject_in_scope,
     unassign_subject_from_all_roles,
 )
-from openedx_authz.api.utils import filter_user_assignments, get_user_assignment_map
-from openedx_authz.utils import get_user_by_username_or_email
+from openedx_authz.api.utils import get_user_assignment_map
+from openedx_authz.utils import get_user_by_username_or_email, is_user_staff_or_superuser
 
 log = logging.getLogger(__name__)
 
@@ -203,11 +203,12 @@ def get_visible_user_role_assignments_filtered_by_current_user(
         list[RoleAssignmentData]: A list of role assignments for the user, filtered by orgs/roles and permissions.
     """
     user_role_assignments = get_user_role_assignments(user_external_key=user_external_key)
-    # Filter assignments based on the user's permissions
-    user_role_assignments = _filter_allowed_assignments(
-        user_external_key=allowed_for_user_external_key,
-        assignments=user_role_assignments,
-    )
+
+    if allowed_for_user_external_key:
+        user_role_assignments = _filter_allowed_assignments(
+            user_external_key=allowed_for_user_external_key,
+            assignments=user_role_assignments,
+        )
 
     # Only include assignments whose subject corresponds to an active user,
     # consistent with get_superadmin_assignments which filters by is_active=True.
@@ -271,34 +272,68 @@ def get_all_user_role_assignments_in_scope(
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
+def _filter_candidate_assignments_by_params(
+    assignments: list[RoleAssignmentData],
+    orgs: list[str] | None,
+    scopes: list[str] | None,
+    roles: list[str] | None,
+) -> list[RoleAssignmentData]:
+    """Reduce the candidate assignment set using cheap Python filters before authorization.
+
+    Filters by org, scope external key, and role external key. All filters accept lists
+    and are applied only when provided. This runs before the scope-based authorization
+    pass to avoid paying the DB cost for assignments that would be dropped anyway.
+
+    Args:
+        assignments: The full assignment list to filter. Each entry has exactly one role
+            (one policy line = one RoleAssignmentData), as produced by get_role_assignments.
+        orgs: Optional list of org identifiers to keep (e.g., ['edX', 'MITx']), matched against scope.org.
+        scopes: Optional list of scope external keys to keep (e.g., ['lib:DemoX:CSPROB']).
+        roles: Optional list of role external keys to keep (e.g., ['library_admin', 'instructor']).
+
+    Returns:
+        The filtered assignment list.
+    """
+    if scopes:
+        assignments = [a for a in assignments if a.scope.external_key in scopes]
+    if orgs:
+        assignments = [a for a in assignments if getattr(a.scope, "org", None) in orgs]
+    if roles:
+        # get_role_assignments always produces one role per assignment, so use
+        # a.roles[0] check to avoid iterating over the list of roles for every assignment
+        assignments = [a for a in assignments if a.roles and a.roles[0].external_key in roles]
+    return assignments
+
+
 def _filter_allowed_assignments(
     assignments: list[RoleAssignmentData], user_external_key: str = None
 ) -> list[RoleAssignmentData]:
-    """
-    Filter the given role assignments to only include those that the user has permission to view.
+    """Return only the assignments the given viewer is authorized to see.
 
-    Assignments whose scope does not implement ``get_admin_view_permission``
-    are skipped with a warning
+    Delegates to filter_role_assignments_visible_to_subject, which uses the viewer's
+    own role assignments to determine scope visibility without calling Casbin enforce().
+    Returns all assignments unchanged when no viewer is specified.
+
+    Args:
+        assignments: The candidate assignments to filter.
+        user_external_key: Username of the viewer. If None, no filtering is applied.
+
+    Returns:
+        The subset of assignments the viewer is allowed to see.
     """
     if not user_external_key:
         # If no user is specified, return all assignments
         return assignments
-    allowed_assignments: list[RoleAssignmentData] = []
-    for assignment in assignments:
-        try:
-            permission = assignment.scope.get_admin_view_permission().identifier
-        except NotImplementedError:
-            log.warning("Skipping assignment with unsupported scope %r", assignment.scope.external_key)
-            continue
 
-        if permission and is_user_allowed(
-            user_external_key=user_external_key,
-            action_external_key=permission,
-            scope_external_key=assignment.scope.external_key,
-        ):
-            allowed_assignments.append(assignment)
+    # Temporary: the scope-based filter in filter_role_assignments_visible_to_subject uses
+    # key_match instead of enforce(), so the enforcer never runs is_admin_or_superuser_check.
+    # Staff and superusers must return early here or they lose the access that check would have granted them.
+    if is_user_staff_or_superuser(user_external_key):
+        return assignments
 
-    return allowed_assignments
+    return filter_role_assignments_visible_to_subject(
+        UserData(external_key=user_external_key), assignments
+    )
 
 
 def get_visible_role_assignments_for_user(
@@ -320,30 +355,18 @@ def get_visible_role_assignments_for_user(
         list[UserAssignments]: A list of users with their role assignments, filtered by orgs/scopes and permissions.
     """
     user_role_assignments = get_user_role_assignments_filtered()
-    # Filter assignments based on the user's permissions
-    user_role_assignments = _filter_allowed_assignments(
-        user_external_key=allowed_for_user_external_key,
-        assignments=user_role_assignments,
-    )
-    # Group assignments by user
-    users_with_assignments = get_user_assignment_map(user_role_assignments)
 
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.SCOPES,
-        values=scopes,
+    user_role_assignments = _filter_candidate_assignments_by_params(
+        user_role_assignments, orgs=orgs, scopes=scopes, roles=roles
     )
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.ORGS,
-        values=orgs,
-    )
-    users_with_assignments = filter_user_assignments(
-        users_with_assignments=users_with_assignments,
-        by=UserAssignmentsFilter.ROLES,
-        values=roles,
-    )
-    return users_with_assignments
+
+    if allowed_for_user_external_key:
+        user_role_assignments = _filter_allowed_assignments(
+            user_external_key=allowed_for_user_external_key,
+            assignments=user_role_assignments,
+        )
+
+    return get_user_assignment_map(user_role_assignments)
 
 
 def is_user_allowed(

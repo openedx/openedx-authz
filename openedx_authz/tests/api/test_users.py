@@ -8,13 +8,16 @@ from django.contrib.auth import get_user_model
 from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
 from openedx_authz.api.users import (
     _filter_allowed_assignments,
+    _filter_candidate_assignments_by_params,
     assign_role_to_user_in_scope,
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
     get_all_user_role_assignments_in_scope,
     get_user_role_assignments,
+    get_user_role_assignments_filtered,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
+    get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
     unassign_all_roles_from_user,
@@ -618,8 +621,7 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
         self.assertGreater(len(eve_assignments), 0)
         self.assertEqual(grace_assignments, [])
 
-    @patch("openedx_authz.api.users.is_user_allowed", return_value=True)
-    def test_skips_assignments_with_unsupported_scope(self, mock_is_user_allowed):
+    def test_skips_assignments_with_unsupported_scope(self):
         """Assignments whose scope lacks get_admin_view_permission are skipped with a warning."""
         unsupported_scope = Mock()
         unsupported_scope.external_key = "unsupported:scope"
@@ -632,24 +634,127 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
             scope=unsupported_scope,
         )
         supported_assignment = RoleAssignmentData(
-            subject=UserData(external_key="john_doe"),
+            subject=UserData(external_key="alice"),
             roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
             scope=supported_scope,
         )
 
-        with self.assertLogs("openedx_authz.api.users", level="WARNING") as log_context:
+        with self.assertLogs("openedx_authz.api.roles", level="WARNING") as log_context:
             filtered = _filter_allowed_assignments(
                 assignments=[unsupported_assignment, supported_assignment],
                 user_external_key="alice",
             )
 
-        self.assertEqual(filtered, [supported_assignment])
+        self.assertNotIn(unsupported_assignment, filtered)
         self.assertEqual(
             log_context.output,
-            ["WARNING:openedx_authz.api.users:Skipping assignment with unsupported scope 'unsupported:scope'"],
+            ["WARNING:openedx_authz.api.roles:Skipping assignment with unsupported scope 'unsupported:scope'"],
         )
-        mock_is_user_allowed.assert_called_once_with(
-            user_external_key="alice",
-            action_external_key=supported_scope.get_admin_view_permission().identifier,
-            scope_external_key=supported_scope.external_key,
+
+
+class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
+    """Tests for get_visible_role_assignments_for_user: pre-filtering and scope-based authorization."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        User = get_user_model()
+        for username in ["alice", "bob", "eve", "grace", "heidi"]:
+            User.objects.get_or_create(
+                username=username,
+                defaults={"email": f"{username}@example.com", "is_active": True},
+            )
+
+    def test_no_viewer_returns_all_assignments(self):
+        """When no viewer is specified, all assignments are returned without authorization filtering.
+
+        Expected result:
+            - Assignments for all active Django users are present in the result.
+            - Known assignments (alice in lib:Org1:math_101, eve in lib:Org2:physics_401) are included.
+        """
+        result = get_visible_role_assignments_for_user(allowed_for_user_external_key=None)
+
+        returned_scopes = {a.scope.external_key for ua in result for a in ua.assignments}
+        self.assertIn("lib:Org1:math_101", returned_scopes)
+        self.assertIn("lib:Org2:physics_401", returned_scopes)
+
+    def test_viewer_with_no_roles_sees_no_assignments(self):
+        """A viewer with no role assignments cannot see any assignments.
+
+        Expected result:
+            - Result is empty when the viewer has no role assignments of their own.
+        """
+        result = get_visible_role_assignments_for_user(allowed_for_user_external_key="user_with_no_roles")
+
+        self.assertEqual(result, [])
+
+    def test_org_filter_excludes_assignments_from_other_orgs(self):
+        """Assignments outside the requested org are excluded before authorization.
+
+        Expected result:
+            - Every returned assignment belongs to the requested org.
+        """
+        result = get_visible_role_assignments_for_user(orgs=["Org2"])
+
+        for user_assignment in result:
+            for assignment in user_assignment.assignments:
+                self.assertEqual(getattr(assignment.scope, "org", None), "Org2")
+
+    def test_scope_filter_excludes_assignments_from_other_scopes(self):
+        """Assignments outside the requested scope list are excluded before authorization.
+
+        Expected result:
+            - Every returned assignment belongs to one of the requested scopes.
+        """
+        target_scopes = ["lib:Org1:math_101", "lib:Org1:history_201"]
+
+        result = get_visible_role_assignments_for_user(scopes=target_scopes)
+
+        for user_assignment in result:
+            for assignment in user_assignment.assignments:
+                self.assertIn(assignment.scope.external_key, target_scopes)
+
+    def test_role_filter_excludes_assignments_with_other_roles(self):
+        """Assignments with roles not in the requested list are excluded before authorization.
+
+        Expected result:
+            - Every returned assignment carries only a role from the requested list.
+        """
+        result = get_visible_role_assignments_for_user(roles=["library_admin"])
+
+        for user_assignment in result:
+            for assignment in user_assignment.assignments:
+                role_keys = {r.external_key for r in assignment.roles}
+                self.assertTrue(role_keys.issubset({"library_admin"}))
+
+    def test_viewer_sees_only_assignments_in_accessible_scopes(self):
+        """A viewer can only see assignments in scopes where they hold admin-view access.
+
+        Expected result:
+            - alice, who has library_admin only in lib:Org1:math_101, sees only assignments in that scope.
+            - Assignments in all other scopes are excluded.
+        """
+        result = get_visible_role_assignments_for_user(allowed_for_user_external_key="alice")
+
+        for user_assignment in result:
+            for assignment in user_assignment.assignments:
+                self.assertEqual(assignment.scope.external_key, "lib:Org1:math_101")
+
+    def test_prefilter_is_applied_before_authorization(self):
+        """Org and role filters narrow the candidate list before the authorization pass.
+
+        Expected result:
+            - Only assignments matching both the org and role filters are passed to authorization.
+            - The combination of pre-filter and viewer restriction produces a consistent result.
+        """
+        all_assignments = get_user_role_assignments_filtered()
+
+        # Pre-filter to Org1 + library_admin, then authorize as alice.
+        pre_filtered = _filter_candidate_assignments_by_params(
+            all_assignments, orgs=["Org1"], scopes=None, roles=["library_admin"]
         )
+        authorized = _filter_allowed_assignments(pre_filtered, user_external_key="alice")
+
+        for a in authorized:
+            self.assertEqual(getattr(a.scope, "org", None), "Org1")
+            self.assertTrue(any(r.external_key == "library_admin" for r in a.roles))

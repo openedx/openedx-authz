@@ -37,6 +37,7 @@ __all__ = [
     "OrgGlobData",
     "OrgContentLibraryGlobData",
     "PermissionData",
+    "PlatformContentLibraryGlobData",
     "PlatformCourseOverviewGlobData",
     "PlatformGlobData",
     "PolicyIndex",
@@ -414,7 +415,7 @@ class ScopeMeta(type):
 
         Examples:
             >>> ScopeMeta.get_all_platform_glob_namespaces()
-            {'course-v1': PlatformCourseOverviewGlobData}
+            {'course-v1': PlatformCourseOverviewGlobData, 'lib': PlatformContentLibraryGlobData}
         """
         return mcs.platform_glob_registry
 
@@ -428,7 +429,13 @@ class ScopeMeta(type):
 
         Examples:
             >>> ScopeMeta.get_all_registered_scopes()
-            [ScopeData, ContentLibraryData, OrgCourseOverviewGlobData, PlatformCourseOverviewGlobData]
+            [
+                ScopeData,
+                ContentLibraryData,
+                OrgCourseOverviewGlobData,
+                PlatformContentLibraryGlobData,
+                PlatformCourseOverviewGlobData,
+            ]
         """
         return list(
             {
@@ -1225,6 +1232,60 @@ class PlatformCourseOverviewGlobData(PlatformGlobData):
             PermissionData: The permission required to manage this scope in the admin console.
         """
         return COURSES_MANAGE_COURSE_TEAM
+
+
+@define
+class PlatformContentLibraryGlobData(PlatformGlobData):
+    """Platform-level glob pattern for content libraries.
+
+    This class represents glob patterns that match all content libraries in the platform.
+    Format: ``lib:*``
+
+    The glob pattern allows granting permissions to all libraries across the entire
+    platform without needing to specify organizations or individual libraries.
+
+    Attributes:
+        NAMESPACE (str): 'lib' for content library scopes.
+        IS_PLATFORM_GLOB (bool): True for scope data that represents a platform-level glob pattern.
+        external_key (str): The glob pattern (always ``lib:*``).
+        namespaced_key (str): The pattern with namespace (``lib^lib:*``).
+
+    Validation Rules:
+        - Must be exactly ``lib:*``
+        - Applies to all existing and future libraries in the platform
+        - Does not grant access to other resource types
+
+    Examples:
+        >>> glob = PlatformContentLibraryGlobData(external_key='lib:*')
+        >>> glob.exists()
+        True
+        >>> glob.namespaced_key
+        'lib^lib:*'
+
+    Note:
+        This class is automatically instantiated by the ScopeMeta metaclass when
+        a library scope with the platform wildcard is created.
+    """
+
+    NAMESPACE: ClassVar[str] = "lib"
+
+    @classmethod
+    def get_admin_view_permission(cls) -> PermissionData:
+        """Get the permission required to view this scope.
+
+        Returns:
+            PermissionData: The permission required to view this scope in the admin console.
+        """
+        return VIEW_LIBRARY_TEAM
+
+    @classmethod
+    def get_admin_manage_permission(cls) -> PermissionData:
+        """Get the permission required to manage this scope.
+
+        Returns:
+            PermissionData: The permission required to manage this scope in the admin console.
+        """
+        return MANAGE_LIBRARY_TEAM
 
 
 class CCXCourseOverviewData(CourseOverviewData):

@@ -1236,9 +1236,7 @@ class TestPlatformContentLibraryGlobData(TestCase):
 
     def test_get_admin_view_permission(self):
         """View permission matches library team view permission."""
-        self.assertEqual(
-            PlatformContentLibraryGlobData.get_admin_view_permission(), permissions.VIEW_LIBRARY_TEAM
-        )
+        self.assertEqual(PlatformContentLibraryGlobData.get_admin_view_permission(), permissions.VIEW_LIBRARY_TEAM)
 
     def test_get_admin_manage_permission(self):
         """Manage permission matches library team manage permission."""

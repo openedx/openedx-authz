@@ -331,9 +331,7 @@ def _filter_allowed_assignments(
     if is_user_staff_or_superuser(user_external_key):
         return assignments
 
-    return filter_role_assignments_visible_to_subject(
-        UserData(external_key=user_external_key), assignments
-    )
+    return filter_role_assignments_visible_to_subject(UserData(external_key=user_external_key), assignments)
 
 
 def get_visible_role_assignments_for_user(

@@ -1536,9 +1536,7 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         """
         all_assignments = get_all_subject_role_assignments()
 
-        visible = filter_role_assignments_visible_to_subject(
-            SubjectData(external_key="alice"), all_assignments
-        )
+        visible = filter_role_assignments_visible_to_subject(SubjectData(external_key="alice"), all_assignments)
 
         visible_scopes = {a.scope.external_key for a in visible}
         self.assertIn("lib:Org1:math_101", visible_scopes)
@@ -1551,9 +1549,7 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         """
         all_assignments = get_all_subject_role_assignments()
 
-        visible = filter_role_assignments_visible_to_subject(
-            SubjectData(external_key="alice"), all_assignments
-        )
+        visible = filter_role_assignments_visible_to_subject(SubjectData(external_key="alice"), all_assignments)
 
         visible_scopes = {a.scope.external_key for a in visible}
         self.assertNotIn("lib:Org2:physics_401", visible_scopes)
@@ -1567,9 +1563,7 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         """
         all_assignments = get_all_subject_role_assignments()
 
-        visible = filter_role_assignments_visible_to_subject(
-            SubjectData(external_key="unknown_user"), all_assignments
-        )
+        visible = filter_role_assignments_visible_to_subject(SubjectData(external_key="unknown_user"), all_assignments)
 
         self.assertEqual(visible, [])
 
@@ -1579,8 +1573,6 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         Expected result:
             - Result is empty regardless of the subject's accessible scopes.
         """
-        visible = filter_role_assignments_visible_to_subject(
-            SubjectData(external_key="alice"), []
-        )
+        visible = filter_role_assignments_visible_to_subject(SubjectData(external_key="alice"), [])
 
         self.assertEqual(visible, [])

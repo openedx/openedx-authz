@@ -666,9 +666,7 @@ class PlatformGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
     all organizations on the platform.
     """
 
-    POLICIES = [
-        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE)
-    ]
+    POLICIES = [make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE)]
 
     ASSIGNMENTS = [
         make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:*"),

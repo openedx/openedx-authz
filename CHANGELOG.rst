@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.18.0 - 2026-06-09
+*******************
+
+Added
+=====
+
+* Add platform glob scope for content libraries.
+
 1.17.1 - 2026-06-05
 *******************
 

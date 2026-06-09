@@ -127,7 +127,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/base.txt
     #   openedx-events
-idna==3.17
+idna==3.18
     # via
     #   -r requirements/base.txt
     #   requests

@@ -656,6 +656,47 @@ class PlatformGlobCourseEnforcementTests(CasbinEnforcementTestCase):
         self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
 
 
+@ddt
+class PlatformGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
+    """
+    Tests for platform-level glob patterns in library scopes.
+
+    This test class verifies that policies defined with platform-level glob patterns
+    (e.g., ``lib:*``) are correctly enforced for concrete library scopes across
+    all organizations on the platform.
+    """
+
+    POLICIES = [
+        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
+        make_policy(roles.LIBRARY_ADMIN.external_key, MANAGE_LIBRARY_TEAM.identifier, ContentLibraryData.NAMESPACE),
+    ]
+
+    ASSIGNMENTS = [
+        make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:*"),
+    ]
+
+    CASES = [
+        # Permission granted
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedX:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OtherOrg:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:InexistentOrg:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedXv2:*", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OpenedX:CS101", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OtherOrg:CS102", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:InexistentOrg:CS500", True),
+        make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OpenedXv2:Demo", True),
+        # Permission denied
+        make_library_case("user2", VIEW_LIBRARY.identifier, "lib:OpenedX:CS101", False),
+        make_library_case("user2", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedX:CS101", False),
+    ]
+
+    @data(*CASES)
+    def test_platform_level_glob_enforcement(self, request: AuthRequest):
+        """Test that platform-level glob patterns in library scopes are enforced correctly."""
+        self._test_enforcement(self.POLICIES + self.ASSIGNMENTS, request)
+
+
 @pytest.mark.django_db
 @ddt
 class StaffSuperuserAccessTests(CasbinEnforcementTestCase):
@@ -859,6 +900,25 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
             make_course_key("course-v1:*"),
             False,
         ),
+        # PlatformContentLibraryGlobData scope
+        (
+            make_user_key("staff_user"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:*"),
+            True,
+        ),
+        (
+            make_user_key("superuser"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:*"),
+            True,
+        ),
+        (
+            make_user_key("regular_user"),
+            make_action_key("content_libraries.view_library"),
+            make_library_key("lib:*"),
+            False,
+        ),
     )
     @unpack
     def test_is_admin_or_superuser_check(
@@ -872,8 +932,8 @@ class AdminOrSuperuserMatcherTests(CasbinEnforcementTestCase):
 
         Verifies that:
         - Staff users are always allowed for ContentLibraryData, CourseOverviewData,
-          OrgContentLibraryGlobData, OrgCourseOverviewGlobData, and
-          PlatformCourseOverviewGlobData scopes.
+          OrgContentLibraryGlobData, OrgCourseOverviewGlobData,
+          PlatformContentLibraryGlobData, and PlatformCourseOverviewGlobData scopes.
         - Superusers are always allowed for the same scopes.
         - Regular users are denied when they have no role assignments.
         - Unsupported scope types (e.g., org) are denied even for staff/superusers.

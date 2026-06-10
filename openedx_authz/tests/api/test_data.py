@@ -14,6 +14,7 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PermissionData,
+    PlatformContentLibraryGlobData,
     PlatformCourseOverviewGlobData,
     RoleAssignmentData,
     RoleData,
@@ -271,12 +272,15 @@ class TestScopeMetaClass(TestCase):
         # Glob registries for platform-level scopes
         self.assertIn("course-v1", ScopeMeta.platform_glob_registry)
         self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
+        self.assertIn("lib", ScopeMeta.platform_glob_registry)
+        self.assertIs(ScopeMeta.platform_glob_registry["lib"], PlatformContentLibraryGlobData)
 
     @data(
         ("ccx-v1^ccx-v1:OpenedX+DemoX+DemoCourse+ccx@1", CCXCourseOverviewData),
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX*", OrgContentLibraryGlobData),
+        ("lib^lib:*", PlatformContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX*", OrgCourseOverviewGlobData),
         ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
         ("global^generic_scope", ScopeData),
@@ -299,6 +303,7 @@ class TestScopeMetaClass(TestCase):
         ("course-v1^course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib^lib:DemoX:CSPROB", ContentLibraryData),
         ("lib^lib:DemoX:*", OrgContentLibraryGlobData),
+        ("lib^lib:*", PlatformContentLibraryGlobData),
         ("course-v1^course-v1:OpenedX+*", OrgCourseOverviewGlobData),
         ("course-v1^course-v1:*", PlatformCourseOverviewGlobData),
         ("lib^*", ScopeData),
@@ -458,6 +463,7 @@ class TestScopeMetaClass(TestCase):
         ("course-v1:WGU+CS002+2025_T1", CourseOverviewData),
         ("lib:DemoX:CSPROB", ContentLibraryData),
         ("lib:DemoX:*", OrgContentLibraryGlobData),
+        ("lib:*", PlatformContentLibraryGlobData),
         ("course-v1:OpenedX+*", OrgCourseOverviewGlobData),
         ("course-v1:*", PlatformCourseOverviewGlobData),
         ("lib:edX:Demo", ContentLibraryData),
@@ -537,8 +543,11 @@ class TestScopeMetaClass(TestCase):
     def test_platform_glob_registration_does_not_override_scope_registry(self):
         """Platform globs register separately; concrete scopes keep scope_registry entries."""
         self.assertIs(ScopeData.scope_registry["course-v1"], CourseOverviewData)
+        self.assertIs(ScopeData.scope_registry["lib"], ContentLibraryData)
         self.assertIs(ScopeMeta.platform_glob_registry["course-v1"], PlatformCourseOverviewGlobData)
+        self.assertIs(ScopeMeta.platform_glob_registry["lib"], PlatformContentLibraryGlobData)
         self.assertNotIn(PlatformCourseOverviewGlobData, ScopeData.scope_registry.values())
+        self.assertNotIn(PlatformContentLibraryGlobData, ScopeData.scope_registry.values())
 
     def test_platform_glob_resolves_before_org_glob_for_course_namespace(self):
         """course-v1:* is a platform glob; course-v1:Org+* remains an org glob."""
@@ -557,16 +566,32 @@ class TestScopeMetaClass(TestCase):
         self.assertEqual(scope.external_key, "course-v1:*")
         self.assertEqual(scope.namespaced_key, "course-v1^course-v1:*")
 
+    def test_platform_glob_resolves_before_org_glob_for_lib_namespace(self):
+        """lib:* is a platform glob; lib:Org:* remains an org glob."""
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("lib:*"), PlatformContentLibraryGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_external_key("lib:DemoX:*"), OrgContentLibraryGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_namespaced_key("lib^lib:*"), PlatformContentLibraryGlobData)
+        self.assertIs(ScopeMeta.get_subclass_by_namespaced_key("lib^lib:DemoX:*"), OrgContentLibraryGlobData)
+
+    def test_dynamic_instantiation_via_external_key_for_lib_platform_glob(self):
+        """ScopeData(external_key='lib:*') instantiates PlatformContentLibraryGlobData."""
+        scope = ScopeData(external_key="lib:*")
+
+        self.assertIsInstance(scope, PlatformContentLibraryGlobData)
+        self.assertEqual(scope.external_key, "lib:*")
+        self.assertEqual(scope.namespaced_key, "lib^lib:*")
+
     def test_get_subclass_by_external_key_unknown_platform_glob_raises_value_error(self):
         """Namespace:* without a registered platform glob subclass raises ValueError."""
         with self.assertRaisesRegex(ValueError, "Unknown platform glob scope"):
-            ScopeMeta.get_subclass_by_external_key("lib:*")
+            ScopeMeta.get_subclass_by_external_key("ccx-v1:*")
 
     def test_get_all_registered_scopes_includes_platform_glob(self):
         """get_all_registered_scopes returns platform glob subclasses."""
         registered = ScopeMeta.get_all_registered_scopes()
 
         self.assertIn(PlatformCourseOverviewGlobData, registered)
+        self.assertIn(PlatformContentLibraryGlobData, registered)
         self.assertIn(OrgCourseOverviewGlobData, registered)
         self.assertIn(CourseOverviewData, registered)
 
@@ -1157,3 +1182,77 @@ class TestPlatformCourseOverviewGlobData(TestCase):
 
         self.assertIn("course-v1", platform_globs)
         self.assertIs(platform_globs["course-v1"], PlatformCourseOverviewGlobData)
+
+
+@ddt
+class TestPlatformContentLibraryGlobData(TestCase):
+    """Tests for the PlatformContentLibraryGlobData scope."""
+
+    PLATFORM_GLOB_EXTERNAL_KEY = "lib:*"
+    PLATFORM_GLOB_NAMESPACED_KEY = "lib^lib:*"
+
+    def test_build_external_key(self):
+        """build_external_key returns the platform-wide library glob pattern."""
+        self.assertEqual(PlatformContentLibraryGlobData.build_external_key(), self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    @data(
+        ("lib:*", True),
+        ("lib:DemoX:*", False),
+        ("lib:DemoX*", False),
+        ("lib:DemoX", False),
+        ("lib:*:*", False),
+        ("other:*", False),
+        ("course-v1:*", False),
+    )
+    @unpack
+    def test_validate_external_key(self, external_key, expected_valid):
+        """Validate platform-level library glob external keys."""
+        self.assertEqual(PlatformContentLibraryGlobData.validate_external_key(external_key), expected_valid)
+
+    def test_exists_always_true(self):
+        """exists() returns True without checking the database."""
+        scope = PlatformContentLibraryGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertTrue(scope.exists())
+
+    def test_get_object_returns_none(self):
+        """Platform glob scopes do not map to a concrete domain object."""
+        scope = PlatformContentLibraryGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsNone(scope.get_object())
+
+    def test_namespaced_key(self):
+        """namespaced_key includes namespace prefix and external key."""
+        scope = PlatformContentLibraryGlobData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertEqual(scope.namespaced_key, self.PLATFORM_GLOB_NAMESPACED_KEY)
+
+    def test_dynamic_instantiation_via_scope_data(self):
+        """ScopeData resolves lib:* to PlatformContentLibraryGlobData."""
+        scope = ScopeData(external_key=self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+        self.assertIsInstance(scope, PlatformContentLibraryGlobData)
+        self.assertEqual(scope.external_key, self.PLATFORM_GLOB_EXTERNAL_KEY)
+
+    def test_get_admin_view_permission(self):
+        """View permission matches library team view permission."""
+        self.assertEqual(PlatformContentLibraryGlobData.get_admin_view_permission(), permissions.VIEW_LIBRARY_TEAM)
+
+    def test_get_admin_manage_permission(self):
+        """Manage permission matches library team manage permission."""
+        self.assertEqual(
+            PlatformContentLibraryGlobData.get_admin_manage_permission(),
+            permissions.MANAGE_LIBRARY_TEAM,
+        )
+
+    def test_is_platform_glob(self):
+        """Platform library glob is flagged as a platform-level glob scope."""
+        self.assertTrue(PlatformContentLibraryGlobData.IS_PLATFORM_GLOB)
+        self.assertFalse(PlatformContentLibraryGlobData.IS_ORG_GLOB)
+
+    def test_get_all_platform_glob_namespaces(self):
+        """Platform glob namespace is registered in ScopeMeta."""
+        platform_globs = ScopeMeta.get_all_platform_glob_namespaces()
+
+        self.assertIn("lib", platform_globs)
+        self.assertIs(platform_globs["lib"], PlatformContentLibraryGlobData)

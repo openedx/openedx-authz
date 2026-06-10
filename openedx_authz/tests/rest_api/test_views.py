@@ -20,6 +20,7 @@ from openedx_authz.api.data import (
     CourseOverviewData,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
+    PlatformContentLibraryGlobData,
     PlatformCourseOverviewGlobData,
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
@@ -39,6 +40,9 @@ User = get_user_model()
 COURSE_SCOPE_ORG1 = "course-v1:Org1+COURSE1+2024"
 COURSE_ORG1_GLOB = OrgCourseOverviewGlobData.build_external_key(CourseOverviewData(external_key=COURSE_SCOPE_ORG1).org)
 PLATFORM_COURSE_GLOB = PlatformCourseOverviewGlobData.build_external_key()
+LIB_SCOPE_ORG1 = "lib:Org1:LIB1"
+LIB_ORG1_GLOB = OrgContentLibraryGlobData.build_external_key("Org1")
+PLATFORM_LIBRARY_GLOB = PlatformContentLibraryGlobData.build_external_key()
 
 
 class ViewTestMixin(BaseRolesTestCase):
@@ -155,12 +159,20 @@ class ViewTestMixin(BaseRolesTestCase):
             User.objects.get_or_create(username=username, defaults={"email": f"{username}@example.com"})
 
     @classmethod
+    def create_library_users(cls):
+        """Create library users (plain, non-staff)."""
+        users = ["library_admin", "library_admin_org", "library_admin_platform"]
+        for username in users:
+            User.objects.get_or_create(username=username, defaults={"email": f"{username}@example.com"})
+
+    @classmethod
     def setUpTestData(cls):
         """Set up test fixtures once for the entire test class."""
         super().setUpTestData()
         cls.create_admin_users(quantity=3)
         cls.create_regular_users(quantity=10)
         cls.create_course_users()
+        cls.create_library_users()
 
     def setUp(self):
         """Set up test fixtures."""
@@ -4213,5 +4225,96 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
         self.client.force_authenticate(user=user)
 
         response = self._put_course(scopes)
+
+        self.assertEqual(response.status_code, expected_status)
+
+
+@ddt
+class TestPlatformGlobLibraryRoleAssignment(ViewTestMixin):
+    """Test that a platform-level library_admin can assign library roles at lib:*.
+
+    Three users illustrate the difference between specific-scope, org-level, and
+    platform-level library permissions:
+      - library_admin: LIBRARY_ADMIN on LIB_SCOPE_ORG1 only (specific library).
+      - library_admin_org: LIBRARY_ADMIN on LIB_ORG1_GLOB (all libraries in Org1).
+      - library_admin_platform: LIBRARY_ADMIN on PLATFORM_LIBRARY_GLOB (all libraries).
+    """
+
+    _LIBRARY_ASSIGNMENTS = [
+        {
+            "subject_name": "library_admin",
+            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "scope_name": LIB_SCOPE_ORG1,
+        },
+        {
+            "subject_name": "library_admin_org",
+            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "scope_name": LIB_ORG1_GLOB,
+        },
+        {
+            "subject_name": "library_admin_platform",
+            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "scope_name": PLATFORM_LIBRARY_GLOB,
+        },
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("openedx_authz:role-user-list")
+        self._assign_roles_to_users(assignments=self._LIBRARY_ASSIGNMENTS)
+
+    def _put_lib(self, scopes, role):
+        """Send a bulk PUT assigning the given library role for the given scopes."""
+        request_data = {"role": role, "scopes": scopes, "users": ["regular_2"]}
+        with (
+            patch.object(api.ContentLibraryData, "exists", return_value=True),
+            patch.object(api.OrgContentLibraryGlobData, "exists", return_value=True),
+            patch.object(api.PlatformContentLibraryGlobData, "exists", return_value=True),
+        ):
+            return self.client.put(self.url, data=request_data, format="json")
+
+    @data(
+        roles.LIBRARY_ADMIN.external_key,
+        roles.LIBRARY_AUTHOR.external_key,
+        roles.LIBRARY_CONTRIBUTOR.external_key,
+        roles.LIBRARY_USER.external_key,
+    )
+    def test_platform_library_admin_can_assign_any_role_globally(self, role):
+        """A platform library_admin can assign any library role at lib:*."""
+        user = User.objects.get(username="library_admin_platform")
+        self.client.force_authenticate(user=user)
+
+        response = self._put_lib([PLATFORM_LIBRARY_GLOB], role)
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(len(response.data["completed"]), 1)
+        self.assertEqual(response.data["completed"][0]["scope"], PLATFORM_LIBRARY_GLOB)
+
+    @data(
+        # library_admin and library_admin_org lack permission at the platform glob.
+        ("library_admin", [PLATFORM_LIBRARY_GLOB], status.HTTP_403_FORBIDDEN),
+        ("library_admin", [LIB_SCOPE_ORG1, PLATFORM_LIBRARY_GLOB], status.HTTP_403_FORBIDDEN),
+        ("library_admin_org", [PLATFORM_LIBRARY_GLOB], status.HTTP_403_FORBIDDEN),
+        ("library_admin_org", [LIB_ORG1_GLOB, PLATFORM_LIBRARY_GLOB], status.HTTP_403_FORBIDDEN),
+        # library_admin_platform has LIBRARY_ADMIN on the platform glob.
+        # Via Casbin glob matching, this covers the platform glob and any org or library scope.
+        ("library_admin_platform", [PLATFORM_LIBRARY_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("library_admin_platform", [LIB_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+        ("library_admin_platform", [LIB_SCOPE_ORG1], status.HTTP_207_MULTI_STATUS),
+        ("library_admin_platform", [PLATFORM_LIBRARY_GLOB, LIB_ORG1_GLOB], status.HTTP_207_MULTI_STATUS),
+    )
+    @unpack
+    def test_scope_permission_vs_platform_permission(self, username, scopes, expected_status):
+        """Users with library- or org-level roles cannot assign at the platform glob.
+
+        library_admin (specific scope) and library_admin_org (org glob) fail on any scope
+        list that includes the platform glob, because they have no permission at that level.
+        library_admin_platform (platform glob) passes for the platform glob and any org or
+        specific library within it, thanks to Casbin's glob matching.
+        """
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+
+        response = self._put_lib(scopes, roles.LIBRARY_ADMIN.external_key)
 
         self.assertEqual(response.status_code, expected_status)

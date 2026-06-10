@@ -666,21 +666,29 @@ class PlatformGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
     all organizations on the platform.
     """
 
-    POLICIES = [make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE)]
+    POLICIES = [
+        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
+        make_policy(roles.LIBRARY_ADMIN.external_key, MANAGE_LIBRARY_TEAM.identifier, ContentLibraryData.NAMESPACE),
+    ]
 
     ASSIGNMENTS = [
         make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:*"),
     ]
 
     CASES = [
-        # Permission granted across organizations
+        # Permission granted
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedX:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OtherOrg:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:InexistentOrg:*", True),
+        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedXv2:*", True),
         make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OpenedX:CS101", True),
         make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OtherOrg:CS102", True),
         make_library_case("user1", VIEW_LIBRARY.identifier, "lib:InexistentOrg:CS500", True),
         make_library_case("user1", VIEW_LIBRARY.identifier, "lib:OpenedXv2:Demo", True),
         # Permission denied
-        make_library_case("user1", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedX:CS101", False),
         make_library_case("user2", VIEW_LIBRARY.identifier, "lib:OpenedX:CS101", False),
+        make_library_case("user2", MANAGE_LIBRARY_TEAM.identifier, "lib:OpenedX:CS101", False),
     ]
 
     @data(*CASES)

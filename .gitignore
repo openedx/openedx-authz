@@ -1,6 +1,8 @@
 *.py[cod]
 __pycache__
 .pytest_cache
+.ruff_cache
+.hypothesis
 
 # C extensions
 *.so
@@ -67,3 +69,4 @@ requirements/private.txt
 # Persistent database files
 *.sqlite3
 *.db
+pii_report/

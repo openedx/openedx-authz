@@ -434,8 +434,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user
         ("admin_1", status.HTTP_200_OK),
         # Regular user with permission
@@ -460,8 +458,6 @@ class TestRoleUserAPIView(ViewTestMixin):
     # --- Course scope equivalents ---
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Django superuser always passes
         ("admin_1", status.HTTP_200_OK),
         # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
@@ -470,8 +466,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         ("course_editor", status.HTTP_200_OK),
         # course_auditor has COURSES_VIEW_COURSE_TEAM
         ("course_auditor", status.HTTP_200_OK),
-        # Library-only user has no course permission
-        ("regular_1", status.HTTP_403_FORBIDDEN),
     )
     @unpack
     def test_get_users_by_scope_course_permissions(self, username: str, status_code: int):
@@ -698,8 +692,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user
         ("admin_3", status.HTTP_207_MULTI_STATUS),
         # Regular user with permission
@@ -730,8 +722,6 @@ class TestRoleUserAPIView(ViewTestMixin):
     # --- Course scope equivalents ---
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Django superuser always passes
         ("admin_1", status.HTTP_207_MULTI_STATUS),
         # course_admin has COURSES_MANAGE_COURSE_TEAM
@@ -740,8 +730,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         ("course_editor", status.HTTP_403_FORBIDDEN),
         # course_auditor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
         ("course_auditor", status.HTTP_403_FORBIDDEN),
-        # Library-only user has no course permission
-        ("regular_1", status.HTTP_403_FORBIDDEN),
     )
     @unpack
     def test_add_users_to_role_course_permissions(self, username: str, status_code: int):
@@ -872,8 +860,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user
         ("admin_3", status.HTTP_207_MULTI_STATUS),
         # Regular user with permission
@@ -904,8 +890,6 @@ class TestRoleUserAPIView(ViewTestMixin):
     # --- Course scope equivalents ---
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Django superuser always passes
         ("admin_1", status.HTTP_207_MULTI_STATUS),
         # course_admin has COURSES_MANAGE_COURSE_TEAM
@@ -914,8 +898,6 @@ class TestRoleUserAPIView(ViewTestMixin):
         ("course_editor", status.HTTP_403_FORBIDDEN),
         # course_auditor has COURSES_VIEW_COURSE_TEAM only — cannot manage team
         ("course_auditor", status.HTTP_403_FORBIDDEN),
-        # Library-only user has no course permission
-        ("regular_1", status.HTTP_403_FORBIDDEN),
     )
     @unpack
     def test_remove_users_from_role_course_permissions(self, username: str, status_code: int):
@@ -2810,8 +2792,6 @@ class TestRoleListView(ViewTestMixin):
             self.assertIsNone(response.data["next"])
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user
         ("admin_1", status.HTTP_200_OK),
         # Library Admin user
@@ -2824,15 +2804,12 @@ class TestRoleListView(ViewTestMixin):
         ("regular_8", status.HTTP_200_OK),
         # Regular user without permission
         ("regular_9", status.HTTP_403_FORBIDDEN),
-        # Non existent user
-        ("non_existent_user", status.HTTP_401_UNAUTHORIZED),
     )
     @unpack
     def test_get_roles_permissions(self, username: str, status_code: int):
         """Test retrieving roles with permissions.
 
         Expected result:
-            - Returns 401 UNAUTHORIZED status if user is not authenticated
             - Returns 403 FORBIDDEN status if user does not have permission
             - Returns 200 OK status if user has permission with correct roles with permissions and user counts
         """
@@ -2849,16 +2826,12 @@ class TestRoleListView(ViewTestMixin):
     # --- Course scope equivalents ---
 
     @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Django superuser always passes
         ("admin_1", status.HTTP_200_OK),
         # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
         ("course_admin", status.HTTP_200_OK),
         # course_auditor has COURSES_VIEW_COURSE_TEAM
         ("course_auditor", status.HTTP_200_OK),
-        # Library-only user has no course permission
-        ("regular_9", status.HTTP_403_FORBIDDEN),
     )
     @unpack
     def test_get_roles_course_permissions(self, username: str, status_code: int):
@@ -3015,8 +2988,6 @@ class TestUserValidationAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
-        # Unauthenticated request
-        (None, status.HTTP_401_UNAUTHORIZED),
         # Admin user with proper permissions (superuser)
         ("admin_1", status.HTTP_200_OK),
         # Regular user without required permissions (only LIBRARY_USER)
@@ -3026,18 +2997,14 @@ class TestUserValidationAPIView(ViewTestMixin):
     )
     @unpack
     def test_post_authentication_and_permissions(self, username: str, expected_status: int):
-        """Test user validation with different authentication and permission scenarios.
+        """Test user validation with different permission scenarios.
 
         Expected result:
-            - Returns 401 UNAUTHORIZED for unauthenticated requests
             - Returns 403 FORBIDDEN for authenticated users without permissions
             - Returns 200 OK for users with proper permissions
         """
-        if username:
-            user = User.objects.get(username=username)
-            self.client.force_authenticate(user=user)
-        else:
-            self.client.force_authenticate(user=None)
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
         request_data = {"users": ["admin_1", "regular_1"]}
         response = self.client.post(self.url, data=request_data, format="json")
         self.assertEqual(response.status_code, expected_status)

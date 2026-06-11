@@ -4,6 +4,7 @@
 
 -r test.txt               # Core and testing dependencies for this package
 
+bandit[toml]              # Security linter for static analysis
 edx-lint                  # edX pylint rules and plugins
 pydocstyle                # PEP 257 compliance validation
 ruff                      # Fast Python linter and formatter

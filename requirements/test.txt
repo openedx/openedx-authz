@@ -40,7 +40,7 @@ code-annotations==3.0.0
     # via -r requirements/test.in
 coverage[toml]==7.14.1
     # via pytest-cov
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -127,7 +127,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/base.txt
     #   openedx-events
-idna==3.17
+idna==3.18
     # via
     #   -r requirements/base.txt
     #   requests
@@ -185,7 +185,7 @@ pynacl==1.6.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
-pytest==9.0.3
+pytest==9.1.0
     # via
     #   pytest-cov
     #   pytest-django

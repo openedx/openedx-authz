@@ -20,7 +20,7 @@ babel==2.18.0
     # via
     #   pydata-sphinx-theme
     #   sphinx
-beautifulsoup4==4.14.3
+beautifulsoup4==4.15.0
     # via pydata-sphinx-theme
 bracex==2.6
     # via
@@ -54,14 +54,14 @@ coverage[toml]==7.14.1
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/test.txt
     #   pyjwt
     #   secretstorage
 ddt==1.7.2
     # via -r requirements/test.txt
-django==5.2.14
+django==5.2.15
     # via
     #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/test.txt
@@ -154,7 +154,7 @@ fastavro==1.12.2
     #   openedx-events
 id==1.6.1
     # via twine
-idna==3.17
+idna==3.18
     # via
     #   -r requirements/test.txt
     #   requests
@@ -259,7 +259,7 @@ pynacl==1.6.2
     #   edx-django-utils
 pyproject-hooks==1.2.0
     # via build
-pytest==9.0.3
+pytest==9.1.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -281,7 +281,7 @@ pyyaml==6.0.3
     #   -r requirements/test.txt
     #   code-annotations
     #   drf-yasg
-readme-renderer==44.0
+readme-renderer==45.0
     # via twine
 requests==2.34.2
     # via
@@ -314,7 +314,7 @@ six==1.17.0
     # via
     #   -r requirements/test.txt
     #   edx-ccx-keys
-snowballstemmer==3.1.0
+snowballstemmer==3.1.1
     # via sphinx
 soupsieve==2.8.4
     # via beautifulsoup4

@@ -54,6 +54,7 @@ __all__ = [
     "unassign_role_from_user",
     "batch_unassign_role_from_users",
     "get_user_role_assignments",
+    "get_user_role_assignments_per_scope_type",
     "get_user_role_assignments_in_scope",
     "get_user_role_assignments_for_role_in_scope",
     "get_user_role_assignments_filtered",
@@ -147,6 +148,29 @@ def get_user_role_assignments(user_external_key: str) -> list[RoleAssignmentData
         list[RoleAssignmentData]: A list of role assignments and all their metadata assigned to the user.
     """
     return get_subject_role_assignments(UserData(external_key=user_external_key))
+
+
+def get_user_role_assignments_per_scope_type(
+    user_external_key: str,
+    scope_types: tuple[type[ScopeData], ...],
+) -> list[RoleAssignmentData]:
+    """Get role assignments for a user matching any of the given scope types.
+
+    Casbin policies store full scope keys (e.g., 'course-v1^course-v1:Org+Course+Run'), so there is no
+    way to query by scope type directly; filtering happens here after fetching the user's assignments.
+
+    Args:
+        user_external_key: ID of the user (e.g., 'john_doe').
+        scope_types: ScopeData subclasses (not instances). Assignments matching any of the given types are returned.
+
+    Returns:
+        list[RoleAssignmentData]: The user's assignments whose scope is an instance of any of the given scope types.
+    """
+    return [
+        assignment
+        for assignment in get_user_role_assignments(user_external_key=user_external_key)
+        if isinstance(assignment.scope, scope_types)
+    ]
 
 
 def get_user_role_assignments_in_scope(user_external_key: str, scope_external_key: str) -> list[RoleAssignmentData]:

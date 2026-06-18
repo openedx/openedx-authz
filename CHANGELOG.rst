@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.19.0 - 2026-06-17
+*******************
+
+Added
+=====
+
+* Add ``get_user_role_assignments_per_scope_type`` API function to fetch a user's role assignments filtered by scope type.
+
 1.18.0 - 2026-06-09
 *******************
 

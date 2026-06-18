@@ -5,7 +5,17 @@ from unittest.mock import Mock, patch
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
 
-from openedx_authz.api.data import ContentLibraryData, RoleAssignmentData, RoleData, UserData
+from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
+    OrgContentLibraryGlobData,
+    OrgCourseOverviewGlobData,
+    PlatformContentLibraryGlobData,
+    PlatformCourseOverviewGlobData,
+    RoleAssignmentData,
+    RoleData,
+    UserData,
+)
 from openedx_authz.api.users import (
     _filter_allowed_assignments,
     _filter_candidate_assignments_by_params,
@@ -17,6 +27,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_filtered,
     get_user_role_assignments_for_role_in_scope,
     get_user_role_assignments_in_scope,
+    get_user_role_assignments_per_scope_type,
     get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
@@ -55,6 +66,76 @@ class UserAssignmentsSetupMixin(RolesTestSetupMixin):
                     assignment["role_name"],
                     assignment["scope_name"],
                 )
+
+
+@ddt
+class TestUserRoleAssignmentsPerScopeType(UserAssignmentsSetupMixin):
+    """Tests for get_user_role_assignments_per_scope_type including glob scope types."""
+
+    GLOB_SCOPE_TEST_ASSIGNMENTS = [
+        {
+            "subject_name": "nina",
+            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "scope_name": OrgContentLibraryGlobData.build_external_key("GlobTest"),
+        },
+        {
+            "subject_name": "nina",
+            "role_name": roles.COURSE_STAFF.external_key,
+            "scope_name": OrgCourseOverviewGlobData.build_external_key("GlobTest"),
+        },
+        {
+            "subject_name": "nina",
+            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "scope_name": PlatformContentLibraryGlobData.build_external_key(),
+        },
+        {
+            "subject_name": "nina",
+            "role_name": roles.COURSE_STAFF.external_key,
+            "scope_name": PlatformCourseOverviewGlobData.build_external_key(),
+        },
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._assign_roles_to_users(assignments=cls.GLOB_SCOPE_TEST_ASSIGNMENTS)
+
+    @data(
+        ("eve", (ContentLibraryData,), 3),
+        ("eve", (CourseOverviewData,), 0),
+        ("carlos", (CourseOverviewData,), 3),
+        ("carlos", (ContentLibraryData,), 0),
+        ("carlos", (CourseOverviewData, ContentLibraryData), 3),
+        ("nina", (OrgContentLibraryGlobData,), 1),
+        ("nina", (OrgCourseOverviewGlobData,), 1),
+        ("nina", (PlatformContentLibraryGlobData,), 1),
+        ("nina", (PlatformCourseOverviewGlobData,), 1),
+        ("nina", (OrgContentLibraryGlobData, OrgCourseOverviewGlobData), 2),
+        ("nina", (PlatformContentLibraryGlobData, PlatformCourseOverviewGlobData), 2),
+        (
+            "nina",
+            (
+                OrgContentLibraryGlobData,
+                OrgCourseOverviewGlobData,
+                PlatformContentLibraryGlobData,
+                PlatformCourseOverviewGlobData,
+            ),
+            4,
+        ),
+        ("nina", (ContentLibraryData,), 0),
+        ("nina", (CourseOverviewData,), 0),
+    )
+    @unpack
+    def test_get_user_role_assignments_per_scope_type(self, username, scope_types, expected_count):
+        """Test retrieving role assignments for a user filtered by scope type."""
+        role_assignments = get_user_role_assignments_per_scope_type(
+            user_external_key=username,
+            scope_types=scope_types,
+        )
+
+        self.assertEqual(len(role_assignments), expected_count)
+        for assignment in role_assignments:
+            self.assertIsInstance(assignment.scope, scope_types)
 
 
 @ddt

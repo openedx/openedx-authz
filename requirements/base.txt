@@ -14,7 +14,7 @@ bracex==2.6
     # via wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
-certifi==2026.5.20
+certifi==2026.6.17
     # via requests
 cffi==2.0.0
     # via
@@ -24,9 +24,9 @@ charset-normalizer==3.4.7
     # via requests
 click==8.4.1
     # via edx-django-utils
-cryptography==48.0.0
+cryptography==49.0.0
     # via pyjwt
-django==5.2.14
+django==5.2.15
     # via
     #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.in
@@ -96,7 +96,7 @@ edx-organizations==8.0.0
     # via -r requirements/base.in
 fastavro==1.12.2
     # via openedx-events
-idna==3.17
+idna==3.18
     # via requests
 inflection==0.5.1
     # via drf-yasg

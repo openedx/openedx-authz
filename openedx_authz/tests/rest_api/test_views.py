@@ -259,7 +259,6 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
     @data(
         # Single permission
-        [{"action": "edit_library"}],
         [{"scope": "lib:Org1:LIB1"}],
         [{"action": "edit_library", "scope": ""}],
         [{"action": "edit_library", "scope": "s" * 256}],
@@ -281,10 +280,6 @@ class TestPermissionValidationMeView(ViewTestMixin):
             {"action": "edit_library", "scope": "lib:Org1:LIB1"},
             {"scope": "lib:Org1:LIB1"},
         ],
-        [
-            {"action": "edit_library", "scope": "lib:Org1:LIB1"},
-            {"action": "edit_library"},
-        ],
     )
     def test_permission_validation_invalid_data(self, invalid_data: list[dict]):
         """Test permission validation with invalid request data.
@@ -295,6 +290,62 @@ class TestPermissionValidationMeView(ViewTestMixin):
         response = self.client.post(self.url, data=invalid_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
+        # Single action the user has in some scope (LIBRARY_USER on lib:Org1:LIB1) - allowed
+        ([{"action": permissions.VIEW_LIBRARY.identifier}], [True]),
+        # Single action the user has in no scope - denied
+        ([{"action": permissions.MANAGE_LIBRARY_TEAM.identifier}], [False]),
+        # Multiple actions - mixed results
+        (
+            [
+                {"action": permissions.VIEW_LIBRARY.identifier},
+                {"action": permissions.MANAGE_LIBRARY_TEAM.identifier},
+                {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier},
+            ],
+            [True, False, False],
+        ),
+    )
+    @unpack
+    def test_permission_validation_any_scope_success(self, request_data: list[dict], permission_map: list[bool]):
+        """Test permission validation without a scope (any-scope check).
+
+        When the scope is omitted, the permission is validated across any scope: the user
+        is allowed if they hold the permission in at least one scope.
+
+        Expected result:
+            - Returns 200 OK status
+            - Response omits the scope key and reports the any-scope result
+        """
+        self.client.force_authenticate(user=self.regular_user)
+        expected_response = [
+            {"action": perm["action"], "allowed": allowed}
+            for perm, allowed in zip(request_data, permission_map)
+        ]
+
+        response = self.client.post(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, expected_response)
+
+    def test_permission_validation_any_scope_staff_always_allowed(self):
+        """Staff/superusers are allowed for any action when no scope is provided.
+
+        Expected result:
+            - Returns 200 OK status
+            - Every action is allowed regardless of explicit assignments
+        """
+        self.client.force_authenticate(user=self.admin_user)
+        request_data = [
+            {"action": permissions.MANAGE_LIBRARY_TEAM.identifier},
+            {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier},
+        ]
+        expected_response = [{"action": perm["action"], "allowed": True} for perm in request_data]
+
+        response = self.client.post(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, expected_response)
 
     def test_permission_validation_unauthenticated(self):
         """Test permission validation without authentication.

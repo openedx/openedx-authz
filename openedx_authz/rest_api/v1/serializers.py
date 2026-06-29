@@ -64,13 +64,26 @@ class OrgMixin(serializers.Serializer):  # pylint: disable=abstract-method
 
 
 class PermissionValidationSerializer(ActionMixin, ScopeMixin):  # pylint: disable=abstract-method
-    """Serializer for permission validation request."""
+    """Serializer for permission validation request.
+
+    The ``scope`` is optional: when provided, the permission is validated against that
+    scope; when omitted, the permission is validated across any scope.
+    """
+
+    scope = serializers.CharField(max_length=255, required=False, allow_null=True)
 
 
 class PermissionValidationResponseSerializer(PermissionValidationSerializer):  # pylint: disable=abstract-method
     """Serializer for permission validation response."""
 
     allowed = serializers.BooleanField()
+
+    def to_representation(self, instance: dict) -> dict:
+        """Serialize the result, omitting ``scope`` when the request had no scope."""
+        representation = super().to_representation(instance)
+        if instance.get("scope") is None:
+            representation.pop("scope", None)
+        return representation
 
 
 class RoleScopeValidationMixin(serializers.Serializer):  # pylint: disable=abstract-method

@@ -12,13 +12,13 @@ attrs==26.1.0
     # via
     #   -r requirements/base.txt
     #   openedx-events
-bracex==2.6
+bracex==2.7
     # via
     #   -r requirements/base.txt
     #   wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.txt
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -r requirements/base.txt
     #   requests
@@ -31,16 +31,16 @@ charset-normalizer==3.4.7
     # via
     #   -r requirements/base.txt
     #   requests
-click==8.4.1
+click==8.4.2
     # via
     #   -r requirements/base.txt
     #   code-annotations
     #   edx-django-utils
 code-annotations==3.0.0
     # via -r requirements/test.in
-coverage[toml]==7.14.1
+coverage[toml]==7.14.3
     # via pytest-cov
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -70,7 +70,7 @@ django-model-utils==5.0.0
     # via
     #   -r requirements/base.txt
     #   edx-organizations
-django-simple-history==3.11.0
+django-simple-history==3.12.0
     # via
     #   -r requirements/base.txt
     #   edx-organizations
@@ -127,7 +127,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/base.txt
     #   openedx-events
-idna==3.17
+idna==3.18
     # via
     #   -r requirements/base.txt
     #   requests
@@ -185,7 +185,7 @@ pynacl==1.6.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   pytest-cov
     #   pytest-django

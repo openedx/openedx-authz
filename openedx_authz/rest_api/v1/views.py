@@ -1366,10 +1366,7 @@ class AssignmentsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        user_role_assignments: list[UserAssignmentData | SuperAdminAssignmentData] = []
-
-        # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
-        user_role_assignments += get_superadmin_assignments()
+        user_role_assignments: list[UserAssignmentData] = []
 
         users_with_assignments = api.get_visible_role_assignments_for_user(
             orgs=query_params.get("orgs"),

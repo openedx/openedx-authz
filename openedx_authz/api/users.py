@@ -311,7 +311,7 @@ def _filter_candidate_assignments_by_params(
 
     Args:
         assignments: The full assignment list to filter. Each entry has exactly one role
-            (one policy line = one RoleAssignmentData), as produced by get_role_assignments.
+            (one policy line), as produced by get_role_assignments.
         orgs: Optional list of org identifiers to keep (e.g., ['edX', 'MITx']), matched against scope.org.
         scopes: Optional list of scope external keys to keep (e.g., ['lib:DemoX:CSPROB']).
         roles: Optional list of role external keys to keep (e.g., ['library_admin', 'instructor']).

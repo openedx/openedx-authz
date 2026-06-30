@@ -14,6 +14,16 @@ Change Log
 Unreleased
 **********
 
+1.20.0 - 2026-07-01
+*******************
+
+Added
+=====
+
+* Make ``scope`` optional when validating actions: the permission validation API and
+  ``/permissions/validate/me`` endpoint now allow checking whether a user holds a
+  permission in any scope (via ``is_user_allowed_in_any_scope``) when no scope is provided.
+
 1.19.0 - 2026-06-17
 *******************
 

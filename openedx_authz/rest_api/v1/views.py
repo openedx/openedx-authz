@@ -104,14 +104,16 @@ class PermissionValidationMeView(APIView):
     Expects a list of permission objects, each containing:
 
     - action: The action to validate (e.g., 'content_libraries.edit_library_content')
-    - scope: The authorization scope (e.g., 'lib:DemoX:CSPROB')
+    - scope (Optional): The authorization scope (e.g., 'lib:DemoX:CSPROB'). When omitted,
+      the permission is validated across any scope (the user is allowed if they have the
+      permission in at least one scope).
 
     **Response Format**
 
     Returns a list of validation results, each containing:
 
     - action: The requested action
-    - scope: The requested scope
+    - scope: The requested scope (only present when a scope was provided in the request)
     - allowed: Boolean indicating if the user has the permission
 
     **Authentication and Permissions**
@@ -132,6 +134,22 @@ class PermissionValidationMeView(APIView):
         [
             {"action": "edit_library", "scope": "lib:DemoX:CSPROB", "allowed": true},
             {"action": "delete_library_content", "scope": "lib:OpenedX:CS50", "allowed": false}
+        ]
+
+    **Example Request (without scope)**
+
+    POST /api/authz/v1/permissions/validate/me::
+
+        [
+            {"action": "content_libraries.manage_library_team"},
+            {"action": "courses.manage_course_team"}
+        ]
+
+    **Example Response (without scope)**::
+
+        [
+            {"action": "content_libraries.manage_library_team", "allowed": true},
+            {"action": "courses.manage_course_team", "allowed": false}
         ]
     """
 
@@ -155,9 +173,13 @@ class PermissionValidationMeView(APIView):
         for permission in data:
             try:
                 action = permission["action"]
-                scope = permission["scope"]
-                allowed = api.is_user_allowed(username, action, scope)
-                response_data.append({"action": action, "scope": scope, "allowed": allowed})
+                scope = permission.get("scope")
+                if scope:
+                    allowed = api.is_user_allowed(username, action, scope)
+                    response_data.append({"action": action, "scope": scope, "allowed": allowed})
+                else:
+                    allowed = api.is_user_allowed_in_any_scope(username, action)
+                    response_data.append({"action": action, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)

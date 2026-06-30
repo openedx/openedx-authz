@@ -62,6 +62,7 @@ __all__ = [
     "get_visible_role_assignments_for_user",
     "get_visible_user_role_assignments_filtered_by_current_user",
     "is_user_allowed",
+    "is_user_allowed_in_any_scope",
     "get_scopes_for_user_and_permission",
     "get_users_for_role_in_scope",
     "unassign_all_roles_from_user",
@@ -411,6 +412,28 @@ def is_user_allowed(
         ActionData(external_key=action_external_key),
         ScopeData(external_key=scope_external_key),
     )
+
+
+def is_user_allowed_in_any_scope(
+    user_external_key: str,
+    action_external_key: str,
+) -> bool:
+    """Check if a user has a specific permission in at least one scope.
+
+    Staff and superusers are always allowed, since they implicitly have every
+    permission across all scopes.
+
+    Args:
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+        action_external_key (str): The action to check (e.g., 'manage_library_team').
+
+    Returns:
+        bool: True if the user is staff/superuser or has the specified permission
+            in any scope, False otherwise.
+    """
+    if is_user_staff_or_superuser(user_external_key):
+        return True
+    return bool(get_scopes_for_user_and_permission(user_external_key, action_external_key))
 
 
 def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str) -> list[UserData]:

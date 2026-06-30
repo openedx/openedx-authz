@@ -31,6 +31,7 @@ from openedx_authz.api.users import (
     get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
+    is_user_allowed_in_any_scope,
     unassign_all_roles_from_user,
     unassign_role_from_user,
     validate_users,
@@ -604,6 +605,68 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             scope_external_key=scope_name,
         )
         self.assertEqual(result, expected_result)
+
+    @data(
+        # alice is library_admin on lib:Org1:math_101, so she holds these in at least one scope.
+        ("alice", permissions.DELETE_LIBRARY.identifier, True),
+        ("alice", permissions.MANAGE_LIBRARY_TEAM.identifier, True),
+        # jane is library_user on lib:Org1:english_101, which never grants these permissions.
+        ("jane", permissions.DELETE_LIBRARY.identifier, False),
+        ("jane", permissions.MANAGE_LIBRARY_TEAM.identifier, False),
+        # daniel is course_staff on course-v1:TestOrg+TestCourse+2024_T1, so he holds the
+        # staff course permissions in at least one scope.
+        ("daniel", permissions.COURSES_VIEW_COURSE.identifier, True),
+        ("daniel", permissions.COURSES_EDIT_COURSE_CONTENT.identifier, True),
+        ("daniel", permissions.COURSES_PUBLISH_COURSE_CONTENT.identifier, True),
+        # course_staff never grants team management, so daniel holds it in no scope.
+        ("daniel", permissions.COURSES_MANAGE_COURSE_TEAM.identifier, False),
+        # carlos is course_staff on three different courses; he still holds these in some scope.
+        ("carlos", permissions.COURSES_VIEW_COURSE.identifier, True),
+        ("carlos", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, True),
+        # jane only holds a library role, so she has no course permission in any scope.
+        ("jane", permissions.COURSES_VIEW_COURSE.identifier, False),
+        # A user without any assignment is not allowed in any scope.
+        ("nonexistent_user", permissions.MANAGE_LIBRARY_TEAM.identifier, False),
+        ("nonexistent_user", permissions.COURSES_VIEW_COURSE.identifier, False),
+    )
+    @unpack
+    def test_is_user_allowed_in_any_scope(self, username, action, expected_result):
+        """Test checking if a user holds a permission in at least one scope.
+
+        Expected result:
+            - The function returns True when the user has the permission in any scope,
+              and False when the user has it in no scope.
+        """
+        result = is_user_allowed_in_any_scope(
+            user_external_key=username,
+            action_external_key=action,
+        )
+        self.assertEqual(result, expected_result)
+
+    @data(
+        # Staff-only user
+        ("staff_member", {"is_staff": True}),
+        # Superuser-only user
+        ("superuser_member", {"is_superuser": True}),
+        # Both staff and superuser
+        ("staff_superuser_member", {"is_staff": True, "is_superuser": True}),
+    )
+    @unpack
+    def test_is_user_allowed_in_any_scope_staff_always_allowed(self, username, flags):
+        """Staff/superusers are allowed for any action regardless of explicit assignments.
+
+        Expected result:
+            - The function returns True for a staff and/or superuser user that has no
+              role assignments.
+        """
+        User = get_user_model()
+        User.objects.create_user(username=username, email=f"{username}@example.com", **flags)
+
+        result = is_user_allowed_in_any_scope(
+            user_external_key=username,
+            action_external_key=permissions.MANAGE_LIBRARY_TEAM.identifier,
+        )
+        self.assertTrue(result)
 
 
 @ddt

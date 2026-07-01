@@ -1160,7 +1160,6 @@ class TeamMemberAssignmentsAPIView(APIView):
 
     - Requires authenticated user.
     - Results are filtered according to calling user's scope-level view permissions.
-    - Superadmin entries are always included when the target user is a staff/superuser.
 
     **Example Request**
 
@@ -1174,13 +1173,6 @@ class TeamMemberAssignmentsAPIView(APIView):
             "next": null,
             "previous": null,
             "results": [
-                {
-                    "is_superadmin": true,
-                    "role": "django.superuser",
-                    "org": "*",
-                    "scope": "*",
-                    "permission_count": null
-                },
                 {
                     "is_superadmin": false,
                     "role": "library_admin",
@@ -1311,16 +1303,6 @@ class AssignmentsAPIView(APIView):
                     "full_name": "",
                     "username": "contributor",
                     "email": "contributor@example.com"
-                },
-                {
-                    "is_superadmin": true,
-                    "role": "django.superuser",
-                    "org": "*",
-                    "scope": "*",
-                    "permission_count": null,
-                    "full_name": "",
-                    "username": "admin",
-                    "email": "admin@example.com"
                 },
             ]
         }

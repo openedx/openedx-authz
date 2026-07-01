@@ -3257,16 +3257,9 @@ class TestAssignmentsAPIView(ViewTestMixin):
 
     This endpoint returns one row per (user, assignment) pair — i.e. assignments are
     "unpacked" so each row carries user info alongside the assignment fields.
-
-    Superadmin entries:
-        admin_1..3 are staff/superusers. get_superadmin_assignments() returns one
-        SuperAdminAssignmentData per superadmin. These entries are only included when
-        the calling user is staff or superuser.
-
     Total rows when called by a staff user with no filters:
-        3 superadmin entries (admin_1, admin_2, admin_3)
         + 11 role assignments (see setup above)
-        = 14 rows
+        = 11 rows
 
     Visibility via get_visible_role_assignments_for_user:
         - Staff/superuser: sees all role assignments across all scopes.
@@ -3356,7 +3349,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         """Multiple orgs are OR-combined.
 
         Expected result:
-            - Returns role assignments matching any of the given orgs, plus superadmin entries.
+            - Returns role assignments matching any of the given orgs.
         """
         # Org1 has 3 role assignments, Org2 has 3 → 6
         response = self.client.get(self.url, {"orgs": "Org1,Org2"})
@@ -3396,7 +3389,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         """Multiple roles are OR-combined.
 
         Expected result:
-            - Returns role assignments matching any of the given roles, plus superadmin entries.
+            - Returns role assignments matching any of the given roles.
         """
         # library_admin (3) + library_author (1) = 4
         response = self.client.get(
@@ -3433,7 +3426,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         """Multiple scopes are OR-combined.
 
         Expected result:
-            - Returns role assignments matching any of the given scopes, plus superadmin entries.
+            - Returns role assignments matching any of the given scopes.
         """
         # Org1 (3) + Org2 (3) = 6
         response = self.client.get(self.url, {"scopes": "lib:Org1:LIB1,lib:Org2:LIB2"})
@@ -3986,7 +3979,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
         can see all course assignments in Org1.
 
         Expected result:
-            - Sees course assignments in Org1 + superadmin entries.
+            - Sees course assignments in Org1.
             - Does NOT see library assignments.
         """
         self._assign_roles_to_users(

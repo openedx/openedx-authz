@@ -1160,7 +1160,6 @@ class TeamMemberAssignmentsAPIView(APIView):
 
     - Requires authenticated user.
     - Results are filtered according to calling user's scope-level view permissions.
-    - Superadmin entries are always included when the target user is a staff/superuser.
 
     **Example Request**
 
@@ -1174,13 +1173,6 @@ class TeamMemberAssignmentsAPIView(APIView):
             "next": null,
             "previous": null,
             "results": [
-                {
-                    "is_superadmin": true,
-                    "role": "django.superuser",
-                    "org": "*",
-                    "scope": "*",
-                    "permission_count": null
-                },
                 {
                     "is_superadmin": false,
                     "role": "library_admin",
@@ -1312,16 +1304,6 @@ class AssignmentsAPIView(APIView):
                     "username": "contributor",
                     "email": "contributor@example.com"
                 },
-                {
-                    "is_superadmin": true,
-                    "role": "django.superuser",
-                    "org": "*",
-                    "scope": "*",
-                    "permission_count": null,
-                    "full_name": "",
-                    "username": "admin",
-                    "email": "admin@example.com"
-                },
             ]
         }
     """
@@ -1366,10 +1348,7 @@ class AssignmentsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        user_role_assignments: list[UserAssignmentData | SuperAdminAssignmentData] = []
-
-        # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
-        user_role_assignments += get_superadmin_assignments()
+        user_role_assignments: list[UserAssignmentData] = []
 
         users_with_assignments = api.get_visible_role_assignments_for_user(
             orgs=query_params.get("orgs"),

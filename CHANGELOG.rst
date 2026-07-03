@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.21.0 - 2026-07-03
+*******************
+
+Changed
+=======
+
+* Drop superadmin entries from the assignment list endpoint to avoid exposing sensitive information about superadmins to non-superadmin users.
+
 1.20.0 - 2026-07-01
 *******************
 

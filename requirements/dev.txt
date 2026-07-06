@@ -17,7 +17,7 @@ attrs==26.1.0
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-bracex==2.6
+bracex==3.0
     # via
     #   -r requirements/quality.txt
     #   wcmatch
@@ -31,7 +31,7 @@ cachetools==7.1.4
     #   tox
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/quality.txt
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -r requirements/quality.txt
     #   requests
@@ -46,7 +46,7 @@ charset-normalizer==3.4.7
     # via
     #   -r requirements/quality.txt
     #   requests
-click==8.4.1
+click==8.4.2
     # via
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
@@ -67,11 +67,11 @@ colorama==0.4.6
     # via
     #   -r requirements/ci.txt
     #   tox
-coverage[toml]==7.14.1
+coverage[toml]==7.15.0
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/quality.txt
     #   pyjwt
@@ -83,11 +83,11 @@ dill==0.4.1
     # via
     #   -r requirements/quality.txt
     #   pylint
-distlib==0.4.0
+distlib==0.4.3
     # via
     #   -r requirements/ci.txt
     #   virtualenv
-django==5.2.14
+django==5.2.15
     # via
     #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/quality.txt
@@ -113,7 +113,7 @@ django-model-utils==5.0.0
     # via
     #   -r requirements/quality.txt
     #   edx-organizations
-django-simple-history==3.11.0
+django-simple-history==3.12.0
     # via
     #   -r requirements/quality.txt
     #   edx-organizations
@@ -174,13 +174,13 @@ fastavro==1.12.2
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-filelock==3.29.0
+filelock==3.29.5
     # via
     #   -r requirements/ci.txt
     #   python-discovery
     #   tox
     #   virtualenv
-idna==3.17
+idna==3.18
     # via
     #   -r requirements/quality.txt
     #   requests
@@ -232,7 +232,7 @@ packaging==26.2
     #   wheel
 path==16.16.0
     # via edx-i18n-tools
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   -r requirements/quality.txt
     #   edx-organizations
@@ -280,7 +280,7 @@ pyjwt[crypto]==2.13.0
     #   -r requirements/quality.txt
     #   drf-jwt
     #   edx-drf-extensions
-pylint==4.0.5
+pylint==4.0.6
     # via
     #   -r requirements/quality.txt
     #   edx-lint
@@ -317,7 +317,7 @@ pyproject-hooks==1.2.0
     #   -r requirements/pip-tools.txt
     #   build
     #   pip-tools
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
@@ -326,7 +326,7 @@ pytest-cov==7.1.0
     # via -r requirements/quality.txt
 pytest-django==4.12.0
     # via -r requirements/quality.txt
-python-discovery==1.4.0
+python-discovery==1.4.3
     # via
     #   -r requirements/ci.txt
     #   tox
@@ -349,7 +349,7 @@ requests==2.34.2
     # via
     #   -r requirements/quality.txt
     #   edx-drf-extensions
-ruff==0.15.15
+ruff==0.15.20
     # via -r requirements/quality.txt
 semantic-version==2.10.0
     # via
@@ -364,7 +364,7 @@ six==1.17.0
     #   -r requirements/quality.txt
     #   edx-ccx-keys
     #   edx-lint
-snowballstemmer==3.1.0
+snowballstemmer==3.1.1
     # via
     #   -r requirements/quality.txt
     #   pydocstyle
@@ -372,7 +372,7 @@ sqlparse==0.5.5
     # via
     #   -r requirements/quality.txt
     #   django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   -r requirements/quality.txt
     #   code-annotations
@@ -391,9 +391,9 @@ tomlkit==0.15.0
     #   -r requirements/quality.txt
     #   edx-lint
     #   pylint
-tox==4.55.0
+tox==4.56.1
     # via -r requirements/ci.txt
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -r requirements/quality.txt
     #   edx-opaque-keys
@@ -405,11 +405,11 @@ urllib3==2.7.0
     # via
     #   -r requirements/quality.txt
     #   requests
-virtualenv==21.4.2
+virtualenv==21.5.1
     # via
     #   -r requirements/ci.txt
     #   tox
-wcmatch==10.1
+wcmatch==10.2.1
     # via
     #   -r requirements/quality.txt
     #   pycasbin

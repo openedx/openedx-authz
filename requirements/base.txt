@@ -10,11 +10,11 @@ attrs==26.1.0
     # via
     #   -r requirements/base.in
     #   openedx-events
-bracex==2.6
+bracex==3.0
     # via wcmatch
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/base.in
-certifi==2026.5.20
+certifi==2026.6.17
     # via requests
 cffi==2.0.0
     # via
@@ -22,11 +22,11 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.7
     # via requests
-click==8.4.1
+click==8.4.2
     # via edx-django-utils
-cryptography==48.0.0
+cryptography==49.0.0
     # via pyjwt
-django==5.2.14
+django==5.2.15
     # via
     #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/base.in
@@ -49,7 +49,7 @@ django-crum==0.7.9
     #   edx-django-utils
 django-model-utils==5.0.0
     # via edx-organizations
-django-simple-history==3.11.0
+django-simple-history==3.12.0
     # via edx-organizations
 django-waffle==5.0.0
     # via
@@ -96,7 +96,7 @@ edx-organizations==8.0.0
     # via -r requirements/base.in
 fastavro==1.12.2
     # via openedx-events
-idna==3.17
+idna==3.18
     # via requests
 inflection==0.5.1
     # via drf-yasg
@@ -106,7 +106,7 @@ openedx-events==11.2.0
     # via -r requirements/base.in
 packaging==26.2
     # via drf-yasg
-pillow==12.2.0
+pillow==12.3.0
     # via edx-organizations
 psutil==7.2.2
     # via edx-django-utils
@@ -138,17 +138,17 @@ six==1.17.0
     # via edx-ccx-keys
 sqlparse==0.5.5
     # via django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   edx-django-utils
     #   edx-opaque-keys
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via edx-opaque-keys
 uritemplate==4.2.0
     # via drf-yasg
 urllib3==2.7.0
     # via requests
-wcmatch==10.1
+wcmatch==10.2.1
     # via pycasbin
 
 # The following packages are considered to be unsafe in a requirements file:

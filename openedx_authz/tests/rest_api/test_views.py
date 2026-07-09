@@ -2171,6 +2171,129 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_django_staff_sees_all_orgs_regardless_of_assignments(self):
+        """Test that a Django staff/superuser sees every active org, not just the ones from their assignments.
+
+        admin_2's only role assignment is in scope "lib:Org2:LIB2" (org "Org2"), which doesn't match
+        any of the AlphaU/BetaI/GammaC fixtures, yet all 3 must still be returned.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns all 3 orgs
+        """
+        user = User.objects.get(username="admin_2")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+
+    @data(
+        # Specific (non-glob) scopes
+        ([("lib:AlphaU:LIB_ADMIN_TEST", roles.LIBRARY_USER.external_key)], {"AlphaU"}),
+        ([("course-v1:BetaI+COURSE1+2024", roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        # Org-level glob scopes
+        ([(OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key)], {"AlphaU"}),
+        ([(OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        # Multiple assignments across different orgs and scope types
+        (
+            [
+                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
+                (OrgContentLibraryGlobData.build_external_key("BetaI"), roles.LIBRARY_ADMIN.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+        # Two specific course scopes, different orgs
+        (
+            [
+                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
+                ("course-v1:BetaI+COURSE2+2024", roles.COURSE_STAFF.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+        # Two org-level glob scopes, different orgs
+        (
+            [
+                (OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key),
+                (OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+    )
+    @unpack
+    def test_non_staff_sees_only_assigned_orgs(self, assignments: list[tuple[str, str]], expected_orgs: set[str]):
+        """Test that a non-staff user only sees the orgs covered by their role assignments.
+
+        Test cases:
+            - Specific ContentLibraryData scope (a single library)
+            - Specific CourseOverviewData scope (a single course)
+            - Org-level OrgContentLibraryGlobData scope (all libraries in an org)
+            - Org-level OrgCourseOverviewGlobData scope (all courses in an org)
+            - A specific CourseOverviewData scope and an OrgContentLibraryGlobData scope together,
+              in different orgs
+            - Two specific CourseOverviewData scopes, in different orgs
+            - Two org-level glob scopes (OrgContentLibraryGlobData and OrgCourseOverviewGlobData),
+              in different orgs
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns only the orgs covered by the assignments
+            - GammaC, where the user has no assignment, is always excluded
+        """
+        self._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_1",
+                    "role_name": role_name,
+                    "scope_name": scope_name,
+                }
+                for scope_name, role_name in assignments
+            ]
+        )
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], len(expected_orgs))
+        result_short_names = {org["short_name"] for org in response.data["results"]}
+        self.assertEqual(result_short_names, expected_orgs)
+
+    @data(
+        (PLATFORM_COURSE_GLOB, roles.COURSE_STAFF.external_key),
+        (PLATFORM_LIBRARY_GLOB, roles.LIBRARY_ADMIN.external_key),
+    )
+    @unpack
+    def test_non_staff_with_platform_glob_sees_no_orgs(self, scope_name: str, role_name: str):
+        """Test that a platform-level glob assignment alone does not resolve to any org today.
+
+        Platform-level scopes (e.g. PlatformCourseOverviewGlobData) cover every org, so they have
+        no single `.org` to extract, and this endpoint doesn't special-case them like it does
+        staff/superusers.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns no orgs
+        """
+        self._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_1",
+                    "role_name": role_name,
+                    "scope_name": scope_name,
+                },
+            ]
+        )
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
 
 @ddt
 class TestTeamMembersAPIView(ViewTestMixin):

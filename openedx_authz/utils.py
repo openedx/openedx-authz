@@ -4,6 +4,22 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from edx_django_utils.cache import RequestCache
 
+try:
+    from openedx.core.djangoapps.waffle_utils.models import (
+        WaffleFlagCourseOverrideModel,
+        WaffleFlagOrgOverrideModel,
+    )
+    from openedx.core.toggles import AUTHZ_COURSE_AUTHORING_FLAG
+except ImportError:
+    WaffleFlagCourseOverrideModel = None
+    WaffleFlagOrgOverrideModel = None
+    AUTHZ_COURSE_AUTHORING_FLAG = None
+
+from waffle.models import Flag
+
+# Match handlers.py semantics: an override forces ON when override_choice == "on"
+WAFFLE_OVERRIDE_FORCE_ON = "on"
+
 User = get_user_model()
 
 _STAFF_SUPERUSER_CACHE_NAMESPACE = "rbac_is_staff_or_superuser"
@@ -50,3 +66,41 @@ def get_user_by_username_or_email(username_or_email: str) -> User:
     if hasattr(user, "userretirementrequest"):
         raise User.DoesNotExist
     return user
+
+
+def get_waffle_flag_states() -> dict:
+    """
+    Retrieve the enablement state of the course-authoring waffle flag across different scopes.
+
+    Returns:
+        dict: A dictionary mapping scopes to their activation status:
+            * 'global' (bool): True if the global waffle flag is enabled.
+            * 'org' (bool): True if at least one organization-level override is enabled.
+            * 'course' (bool): True if at least one course-level override is enabled.
+    """
+    # Global flag (falls back False if toggle not available)
+    global_enabled = False
+    if AUTHZ_COURSE_AUTHORING_FLAG is not None:
+        gf = Flag.objects.filter(name=AUTHZ_COURSE_AUTHORING_FLAG.name).first()
+        global_enabled = bool(gf and gf.everyone)
+
+    org_active = False
+    course_active = False
+
+    # Check if any org-level override currently forces the flag on (no org filter)
+    if WaffleFlagOrgOverrideModel is not None and AUTHZ_COURSE_AUTHORING_FLAG is not None:
+        org_active = WaffleFlagOrgOverrideModel.objects.current_set().filter(
+            waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG.name,
+            enabled=True,
+            override_choice=WAFFLE_OVERRIDE_FORCE_ON,
+        ).exists()
+
+    # Check if any course-level override currently forces the flag on (no course filter)
+    if WaffleFlagCourseOverrideModel is not None and AUTHZ_COURSE_AUTHORING_FLAG is not None:
+        course_active = WaffleFlagCourseOverrideModel.objects.current_set().filter(
+            waffle_flag=AUTHZ_COURSE_AUTHORING_FLAG.name,
+            enabled=True,
+            override_choice=WAFFLE_OVERRIDE_FORCE_ON,
+        ).exists()
+
+    return {"global": global_enabled, "org": org_active, "course": course_active}

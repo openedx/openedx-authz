@@ -20,4 +20,5 @@ urlpatterns = [
     ),
     path("assignments/", views.AssignmentsAPIView.as_view(), name="assignment-list"),
     path("scopes/", views.ScopesAPIView.as_view(), name="scope-list"),
+    path("waffle-flag-states/", views.WaffleFlagStatesAPIView.as_view(), name="waffle-flag-states"),
 ]

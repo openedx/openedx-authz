@@ -77,7 +77,7 @@ from openedx_authz.rest_api.v1.serializers import (
     UserValidationAPIViewResponseSerializer,
     UserValidationAPIViewSerializer,
 )
-from openedx_authz.utils import get_user_by_username_or_email
+from openedx_authz.utils import get_user_by_username_or_email, get_waffle_flag_states
 
 logger = logging.getLogger(__name__)
 
@@ -1374,3 +1374,33 @@ class AssignmentsAPIView(APIView):
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(assignments, request)
         return paginator.get_paginated_response(paginated_response_data)
+
+
+@view_auth_classes()
+class WaffleFlagStatesAPIView(APIView):
+    """
+    Simple API view that returns the waffle flag states from utils.get_waffle_flag_states.
+
+    **Endpoints**
+
+    - GET: Retrieve the enablement state of the course-authoring waffle flag across different scopes.
+
+    **Response Format**
+
+    * 'global' (bool): True if the global waffle flag is enabled.
+    * 'org' (bool): True if at least one organization-level override is enabled.
+    * 'course' (bool): True if at least one course-level override is enabled.
+    
+    **Example Request**
+    
+    GET /api/authz/v1/waffle-flag-states/
+    """
+
+    def get(self, request: HttpRequest) -> Response:
+        """Retrieve the enablement state of the course-authoring waffle flag across different scopes."""
+        try:
+            data = get_waffle_flag_states()
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as e:      # pylint: disable=broad-exception-caught
+            logger.exception("Error getting waffle flag states: %s", e)
+            return Response({"message": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

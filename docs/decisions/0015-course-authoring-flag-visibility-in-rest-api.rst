@@ -155,7 +155,7 @@ Decision
 ********
 
 1. Course-scoped REST API endpoints became flag-aware, starting with ``PermissionValidationMeView``, ahead of and independent from the separate effort to reduce this app's openedx-platform dependencies (`issue #360`_).
-2. Staff and superusers get no bypass for flag visibility. The flag's effective state applies the same way to every user.
+2. Staff and superusers bypass flag visibility entirely, the same way they already bypass the Casbin permission check.
 3. Every permission check backed by Casbin data should be short-circuited by the flag's effective state for that scope, so a stale Casbin grant never surfaces flag-disabled content.
 4. Make openedx-platform a temporary dependency of this repo, so that the flag's effective state can be read directly from the same models that openedx-platform itself uses. This is a stopgap until the app is fully decoupled from openedx-platform.
 
@@ -166,7 +166,7 @@ Consequences
 
 1. **One place defines flag visibility**, reused by every call site instead of each view re-deriving it or trusting stale Casbin data.
 2. **REST API behavior now matches openedx-platform's own enforcement points**, which already treat the flag as the source of truth.
-3. **No staff/superuser bypass.** Once an endpoint is wired up, a flag-disabled course stays hidden or denied for every user, regardless of role.
+3. **Staff/superuser bypass covers the flag too.** Once an endpoint is wired up, a flag-disabled course stays hidden or denied for regular users, but staff/superusers see it regardless, as an operational escape hatch.
 4. **Wired-up endpoints stop returning whatever Casbin holds.** A course-scoped result can now be hidden or denied even though Casbin still has a matching row, whenever the flag is off and a rollback migration hasn't run yet. The REST API and Django Admin's migration status can visibly disagree during that window; this should be called out in user-facing docs about the flag.
 5. **Per-row checks cost up to one flag resolution per distinct course/org in a response.** ``enable_authz_course_authoring`` reads models that are ``@request_cached()`` in openedx-platform, so repeat calls for the same course/org within one request are cheap, but a listing spanning N courses across M orgs still costs up to N + M + 1 lookups.
 6. **These views depend on** ``enable_authz_course_authoring`` **and** ``WaffleFlagOrgOverrideModel``, guarded by the same standalone-import pattern already used in ``handlers.py`` for ``CourseAccessRole``, so the app keeps loading outside openedx-platform. There's no fail-open fallback: this repo runs as an openedx-platform plugin, so these imports are always available at runtime.

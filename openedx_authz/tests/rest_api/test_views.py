@@ -324,17 +324,14 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, expected_response)
 
-    def test_permission_validation_any_scope_staff_bypasses_permission_not_visibility(self):
-        """Staff/superusers bypass the permission check, but not the visibility check, for any action.
+    def test_permission_validation_any_scope_staff_bypasses_permission_and_visibility(self):
+        """Staff/superusers bypass both the permission check and the flag visibility check, for any action.
 
         Expected result:
             - Returns 200 OK status
-            - The library action is allowed: admin fixtures already grant staff a
-              library-scoped Casbin policy, and library scopes are always visible.
-            - The course action is denied: this staff user has no course-scoped
-              Casbin grant at all, so there is no scope to check visibility
-              against, even though the permission check itself is bypassed for
-              staff.
+            - Both actions are allowed, even though this staff user has no
+              course-scoped Casbin grant at all: staff/superusers bypass flag
+              visibility the same way they bypass the permission check.
         """
         self.client.force_authenticate(user=self.admin_user)
         request_data = [
@@ -343,7 +340,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         ]
         expected_response = [
             {"action": permissions.MANAGE_LIBRARY_TEAM.identifier, "scope": None, "allowed": True},
-            {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier, "scope": None, "allowed": False},
+            {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier, "scope": None, "allowed": True},
         ]
 
         response = self.client.post(self.url, data=request_data, format="json")

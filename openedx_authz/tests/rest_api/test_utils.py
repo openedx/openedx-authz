@@ -197,9 +197,8 @@ class TestIsScopeVisible(TestCase):
 class TestHasVisibleScope(TestCase):
     """Test has_visible_scope, which resolves scope_value (course/library/org-glob/None) and dispatches.
 
-    The flag's effective state doesn't depend on who's asking, so there is
-    no staff/superuser special case here: staff bypass Casbin only for the
-    permission check (is_user_allowed_in_scope), not this one.
+    Staff/superusers bypass flag visibility entirely, the same way they
+    bypass the Casbin permission check (is_user_allowed_in_scope).
     """
 
     ACTION = "courses.view_course"
@@ -258,13 +257,28 @@ class TestHasVisibleScope(TestCase):
             self.assertFalse(has_visible_scope(self.USERNAME, self.ACTION, None))
 
     def test_any_scope_check_is_denied_when_user_has_no_granted_scopes(self):
-        """Test has_visible_scope with no scope given, and no granted scopes at all.
+        """Test has_visible_scope for a non-staff user with no scope given, and no granted scopes at all.
 
         Expected result:
-            - Not visible. A staff/superuser with no explicit Casbin grants gets the
-              same result as anyone else in that position.
+            - Not visible.
         """
         with patch(
             "openedx_authz.rest_api.utils.get_scopes_for_user_and_permission", return_value=[]
         ):
             self.assertFalse(has_visible_scope(self.USERNAME, self.ACTION, None))
+
+    @data(COURSE_SCOPE, None)
+    def test_staff_or_superuser_bypasses_flag_visibility(self, scope_value: str | None):
+        """Test has_visible_scope for a staff/superuser, with a flag-disabled course scope, or no scope at all.
+
+        Expected result:
+            - Visible, regardless of the flag's state or the user's granted scopes.
+        """
+        with patch(
+            "openedx_authz.rest_api.utils.is_user_staff_or_superuser", return_value=True
+        ), patch(
+            "openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=False
+        ), patch(
+            "openedx_authz.rest_api.utils.get_scopes_for_user_and_permission", return_value=[]
+        ):
+            self.assertTrue(has_visible_scope(self.USERNAME, self.ACTION, scope_value))

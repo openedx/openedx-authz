@@ -25,6 +25,7 @@ from openedx_authz.rest_api.decorators import authz_permissions, view_auth_class
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_generic_scope,
+    has_visible_scope,
     sort_users,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
@@ -110,8 +111,8 @@ class PermissionValidationMeView(APIView):
     **Example Response (without scope)**::
 
         [
-            {"action": "content_libraries.manage_library_team", "allowed": true},
-            {"action": "courses.manage_course_team", "allowed": false}
+            {"action": "content_libraries.manage_library_team", "allowed": true, "scope": null},
+            {"action": "courses.manage_course_team", "allowed": false, "scope": null}
         ]
     """
 
@@ -136,12 +137,10 @@ class PermissionValidationMeView(APIView):
             try:
                 action = permission["action"]
                 scope = permission.get("scope")
-                if scope:
-                    allowed = api.is_user_allowed(username, action, scope)
-                    response_data.append({"action": action, "scope": scope, "allowed": allowed})
-                else:
-                    allowed = api.is_user_allowed_in_any_scope(username, action)
-                    response_data.append({"action": action, "allowed": allowed})
+                allowed = api.is_user_allowed_in_scope(username, action, scope) and has_visible_scope(
+                    username, action, scope
+                )
+                response_data.append({"action": action, "scope": scope, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)

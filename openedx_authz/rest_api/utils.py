@@ -14,6 +14,7 @@ from openedx_authz.rest_api.data import (
     SortOrder,
     UserAssignmentSortField,
 )
+from openedx_authz.utils import is_user_staff_or_superuser
 
 try:
     # common.djangoapps.student.roles and openedx.core are edx-platform's own modules. This app
@@ -249,6 +250,8 @@ def has_visible_scope(username: str, action: str, scope_value: str | None) -> bo
     Returns:
         bool: True if the user has a visible scope for this action, False otherwise.
     """
+    if is_user_staff_or_superuser(username):
+        return True
     if scope_value:
         return is_scope_visible(api.ScopeData(external_key=scope_value))
     return any(is_scope_visible(scope) for scope in get_scopes_for_user_and_permission(username, action))

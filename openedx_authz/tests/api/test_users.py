@@ -32,6 +32,7 @@ from openedx_authz.api.users import (
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
     is_user_allowed_in_any_scope,
+    is_user_allowed_in_scope,
     unassign_all_roles_from_user,
     unassign_role_from_user,
     validate_users,
@@ -667,6 +668,73 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             action_external_key=permissions.MANAGE_LIBRARY_TEAM.identifier,
         )
         self.assertTrue(result)
+
+    @data(
+        # With a scope given, behaves like is_user_allowed.
+        ("alice", permissions.DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
+        ("charlie", permissions.DELETE_LIBRARY.identifier, "lib:Org1:science_301", False),
+        ("daniel", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", True),
+        ("judy", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T1", False),
+    )
+    @unpack
+    def test_is_user_allowed_in_scope_with_scope_given(self, username, action, scope_name, expected_result):
+        """Test checking if a user has a specific permission in a given scope, via is_user_allowed_in_scope.
+
+        Expected result:
+            - The function correctly identifies whether the user has the specified permission in the scope.
+        """
+        result = is_user_allowed_in_scope(
+            user_external_key=username,
+            action_external_key=action,
+            scope_external_key=scope_name,
+        )
+        self.assertEqual(result, expected_result)
+
+    @data(
+        # With no scope given, behaves like is_user_allowed_in_any_scope.
+        ("alice", permissions.DELETE_LIBRARY.identifier, True),
+        ("jane", permissions.DELETE_LIBRARY.identifier, False),
+        ("carlos", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, True),
+        ("nonexistent_user", permissions.MANAGE_LIBRARY_TEAM.identifier, False),
+    )
+    @unpack
+    def test_is_user_allowed_in_scope_without_scope_given(self, username, action, expected_result):
+        """Test checking if a user holds a permission in at least one scope, via is_user_allowed_in_scope.
+
+        Expected result:
+            - The function returns True when the user has the permission in any scope,
+              and False when the user has it in no scope.
+        """
+        result = is_user_allowed_in_scope(
+            user_external_key=username,
+            action_external_key=action,
+        )
+        self.assertEqual(result, expected_result)
+
+    @data(
+        # Staff/superuser bypass applies regardless of whether a scope is given, or which scope.
+        ("lib:Org1:math_101", True),
+        ("course-v1:TestOrg+TestCourse+2024_T1", True),
+        ("global:AnyScope1", True),
+        (None, True),
+    )
+    @unpack
+    def test_is_user_allowed_in_scope_staff_always_allowed(self, scope_name, expected_result):
+        """Test is_user_allowed_in_scope for a staff user with no explicit assignment.
+
+        Expected result:
+            - The function returns True for a staff user with no explicit assignment,
+              for any scope value, including no scope at all.
+        """
+        User = get_user_model()
+        User.objects.create_user(username="staff_member", email="staff_member@example.com", is_staff=True)
+
+        result = is_user_allowed_in_scope(
+            user_external_key="staff_member",
+            action_external_key=permissions.MANAGE_LIBRARY_TEAM.identifier,
+            scope_external_key=scope_name,
+        )
+        self.assertEqual(result, expected_result)
 
 
 @ddt

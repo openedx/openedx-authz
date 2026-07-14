@@ -1,5 +1,11 @@
 """Test utilities for creating namespaced keys using class constants."""
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+from ddt import data, ddt, unpack
+from django.test import TestCase
+
 from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ActionData,
@@ -9,6 +15,9 @@ from openedx_authz.api.data import (
     ScopeData,
     UserData,
 )
+from openedx_authz.utils import get_waffle_flag_states
+
+FLAG_NAME = "authz.enable_course_authoring"
 
 
 def make_policy(role_key: str, action_key: str, scope_key: str, effect: str = "allow") -> list[str]:
@@ -187,3 +196,105 @@ def make_wildcard_key(namespace: str) -> str:
         str: Wildcard pattern (e.g., 'lib^*', 'org^*', 'course^*')
     """
     return f"{namespace}{ScopeData.SEPARATOR}{GLOBAL_SCOPE_WILDCARD}"
+
+
+@ddt
+class TestGetWaffleFlagStates(TestCase):
+    """Test get_waffle_flag_states, which reports the course-authoring flag's state at each tier."""
+
+    def _mock_override_model(self, override_rows: list):
+        """Build a mock override model. override_rows is a list of (key, override_choice) tuples."""
+        mock_model = MagicMock()
+        mock_model.objects.current_set.return_value.filter.return_value.values_list.return_value = override_rows
+        return mock_model
+
+    @data(True, False)
+    def test_global_tier_follows_the_platform_flag(self, platform_enabled: bool):
+        """Test get_waffle_flag_states' global key.
+
+        Expected result:
+            - Matches enable_authz_course_authoring()'s platform-tier result.
+        """
+        with patch(
+            "openedx_authz.utils.enable_authz_course_authoring", return_value=platform_enabled
+        ), patch(
+            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
+        ), patch(
+            "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([])
+        ), patch(
+            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
+        ):
+            self.assertEqual(get_waffle_flag_states()["global"], platform_enabled)
+
+    @data(
+        ([("Org1", "on")], {"on": ["Org1"], "off": []}),
+        ([("Org1", "off")], {"on": [], "off": ["Org1"]}),
+        ([("Org1", "on"), ("Org2", "off")], {"on": ["Org1"], "off": ["Org2"]}),
+        ([], {"on": [], "off": []}),
+    )
+    @unpack
+    def test_org_tier_splits_active_overrides_by_choice(self, override_rows: list, expected: dict):
+        """Test get_waffle_flag_states' org key.
+
+        Expected result:
+            - Orgs with an enabled override are split into 'on' and 'off' lists,
+              by the override's choice.
+        """
+        with patch(
+            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+        ), patch(
+            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
+        ), patch(
+            "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model(override_rows)
+        ), patch(
+            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
+        ):
+            self.assertEqual(get_waffle_flag_states()["org_overrides"], expected)
+
+    @data(
+        ([("course-v1:Org1+COURSE1+2024", "on")], {"on": ["course-v1:Org1+COURSE1+2024"], "off": []}),
+        ([("course-v1:Org1+COURSE1+2024", "off")], {"on": [], "off": ["course-v1:Org1+COURSE1+2024"]}),
+        (
+            [("course-v1:Org1+COURSE1+2024", "on"), ("course-v1:Org1+COURSE2+2024", "off")],
+            {"on": ["course-v1:Org1+COURSE1+2024"], "off": ["course-v1:Org1+COURSE2+2024"]},
+        ),
+        ([], {"on": [], "off": []}),
+    )
+    @unpack
+    def test_course_tier_splits_active_overrides_by_choice(self, override_rows: list, expected: dict):
+        """Test get_waffle_flag_states' course key.
+
+        Expected result:
+            - Courses with an enabled override are split into 'on' and 'off' lists,
+              by the override's choice. Course keys are stringified.
+        """
+        with patch(
+            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+        ), patch(
+            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
+        ), patch(
+            "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([])
+        ), patch(
+            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model(override_rows)
+        ):
+            self.assertEqual(get_waffle_flag_states()["course_overrides"], expected)
+
+    def test_all_three_tiers_are_independent(self):
+        """Test get_waffle_flag_states with each tier in a different state.
+
+        Expected result:
+            - Each key reflects only its own tier, not a blend of the others.
+        """
+        with patch(
+            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+        ), patch(
+            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
+        ), patch(
+            "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([("Org1", "on")])
+        ), patch(
+            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
+        ):
+            self.assertEqual(
+                get_waffle_flag_states(),
+                {"global": False, "org_overrides": {"on": ["Org1"], "off": []}, "course_overrides": {"on": [], "off": []}},
+            )

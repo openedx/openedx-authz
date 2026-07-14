@@ -213,10 +213,15 @@ class TestGetWaffleFlagStates(TestCase):
         """Test get_waffle_flag_states' global key.
 
         Expected result:
-            - Matches enable_authz_course_authoring()'s platform-tier result.
+            - Matches global waffle flag result.
         """
         with patch(
-            "openedx_authz.utils.enable_authz_course_authoring", return_value=platform_enabled
+            "openedx_authz.utils.Flag",
+            MagicMock(objects=MagicMock(
+                filter=MagicMock(return_value=MagicMock(first=MagicMock(
+                    return_value=SimpleNamespace(everyone=platform_enabled)
+                )))
+            )),
         ), patch(
             "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
         ), patch(
@@ -241,7 +246,12 @@ class TestGetWaffleFlagStates(TestCase):
               by the override's choice.
         """
         with patch(
-            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+            "openedx_authz.utils.Flag",
+            MagicMock(objects=MagicMock(
+                filter=MagicMock(return_value=MagicMock(first=MagicMock(
+                    return_value=SimpleNamespace(everyone=False)
+                )))
+            )),
         ), patch(
             "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
         ), patch(
@@ -269,7 +279,12 @@ class TestGetWaffleFlagStates(TestCase):
               by the override's choice. Course keys are stringified.
         """
         with patch(
-            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+            "openedx_authz.utils.Flag",
+            MagicMock(objects=MagicMock(
+                filter=MagicMock(return_value=MagicMock(first=MagicMock(
+                    return_value=SimpleNamespace(everyone=False)
+                )))
+            )),
         ), patch(
             "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
         ), patch(
@@ -286,7 +301,12 @@ class TestGetWaffleFlagStates(TestCase):
             - Each key reflects only its own tier, not a blend of the others.
         """
         with patch(
-            "openedx_authz.utils.enable_authz_course_authoring", return_value=False
+            "openedx_authz.utils.Flag",
+            MagicMock(objects=MagicMock(
+                filter=MagicMock(return_value=MagicMock(first=MagicMock(
+                    return_value=SimpleNamespace(everyone=False)
+                )))
+            )),
         ), patch(
             "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
         ), patch(

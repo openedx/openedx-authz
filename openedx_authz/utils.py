@@ -5,21 +5,17 @@ from django.db.models import Q
 from edx_django_utils.cache import RequestCache
 
 try:
-    # common.djangoapps.student.roles and openedx.core are edx-platform's own modules. This app
-    # is an edx-platform plugin, so they're always available at runtime; the imports are only
-    # guarded so this module can still load under this repo's own standalone test suite
-    # (openedx_authz.settings.test, no edx-platform installed).
-    from common.djangoapps.student.roles import enable_authz_course_authoring
     from openedx.core.djangoapps.waffle_utils.models import (
         WaffleFlagCourseOverrideModel,
         WaffleFlagOrgOverrideModel,
     )
     from openedx.core.toggles import AUTHZ_COURSE_AUTHORING_FLAG
 except ImportError:
-    enable_authz_course_authoring = None
     WaffleFlagCourseOverrideModel = None
     WaffleFlagOrgOverrideModel = None
     AUTHZ_COURSE_AUTHORING_FLAG = None
+
+from waffle.models import Flag
 
 # Match handlers.py semantics: an override forces ON when override_choice == "on"
 WAFFLE_OVERRIDE_FORCE_ON = "on"
@@ -79,12 +75,16 @@ def get_waffle_flag_states() -> dict:
 
     Returns:
         dict: A dictionary mapping scopes to their activation status:
-            * 'global' (bool): True if the global waffle flag is enabled.
+            * 'global' (bool): True if the global waffle flag is enabled for everyone.
             * 'org_overrides' (dict): Orgs with an organization-level override, as 'on'
               (forces the flag on) and 'off' (forces the flag off) lists.
             * 'course_overrides' (dict): Courses with a course-level override, split the same way.
     """
-    global_enabled = bool(enable_authz_course_authoring())
+    # Global flag (falls back False if toggle not available)
+    global_enabled = False
+    if AUTHZ_COURSE_AUTHORING_FLAG is not None:
+        gf = Flag.objects.filter(name=AUTHZ_COURSE_AUTHORING_FLAG.name).first()
+        global_enabled = bool(gf and gf.everyone)
 
     # There's no public edx-platform API to get which orgs/courses have an override, only
     # override_value(name, key) for one specific org/course at a time, so this queries the

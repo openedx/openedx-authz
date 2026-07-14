@@ -316,5 +316,9 @@ class TestGetWaffleFlagStates(TestCase):
         ):
             self.assertEqual(
                 get_waffle_flag_states(),
-                {"global": False, "org_overrides": {"on": ["Org1"], "off": []}, "course_overrides": {"on": [], "off": []}},
+                {
+                    "global": False,
+                    "org_overrides": {"on": ["Org1"], "off": []},
+                    "course_overrides": {"on": [], "off": []},
+                },
             )

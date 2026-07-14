@@ -1388,9 +1388,10 @@ class WaffleFlagStatesAPIView(APIView):
     **Response Format**
 
     * 'global' (bool): True if the global waffle flag is enabled.
-    * 'org' (bool): True if at least one organization-level override is enabled.
-    * 'course' (bool): True if at least one course-level override is enabled.
-    
+    * 'org_overrides' (dict): Orgs with an organization-level override, as 'on'
+      (forces the flag on) and 'off' (forces the flag off) lists.
+    * 'course_overrides' (dict): Courses with a course-level override, split the same way.
+
     **Example Request**
     
     GET /api/authz/v1/waffle-flag-states/

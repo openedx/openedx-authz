@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.21.0 - 2026-07-14
+*******************
+
+Added
+=====
+
+* Introduced a new REST API endpoint and utility functions to fetch course authoring waffle flag states. (#358)
+
 1.20.1 - 2026-07-03
 *******************
 

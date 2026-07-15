@@ -15,7 +15,7 @@ Context
 
 `PR #361`_ attempted to enforce that full truth table directly inside ``PermissionValidationMeView`` and other REST API endpoints, checking the flag per scope on every request. Per `PR #361's own comment thread`_, those endpoints are release-blocking for Verawood, so baking precise per-scope flag logic into them risked correctness and performance on critical paths without enough test coverage across the framework to be confident in time for the release. That approach was reverted, and the team pivoted to `issue #358`_ instead, exposing the flag's raw state through a dedicated endpoint and letting the admin-console MFE apply the simpler #340/#341 rule itself, deferring precise per-scope filtering to a later cycle.
 
-Neither edx-toggles nor edx-platform expose a public API for this. ``/api/toggles/v0/state/`` (`edx_toggles source`_) only reports the global waffle flag's ``everyone`` value, with no awareness of course or org overrides. ``WaffleFlagOrgOverrideModel.override_value(name, key)`` and its course-level counterpart (`waffle_utils models source`_) each answer for one specific org or course, not "which orgs/courses have an override."
+Neither edx-toggles nor edx-platform expose a suitable public API for this client-facing use case. ``/api/toggles/v0/state/`` (`edx_toggles source`_) can expose override data, but it requires Django staff/admin access and exposes flag state broadly (not just ``authz.enable_course_authoring``). ``WaffleFlagOrgOverrideModel.override_value(name, key)`` and its course-level counterpart (`waffle_utils models source`_) each answer for one specific org or course, not "which orgs/courses have an override."
 
 Decision
 ********
@@ -41,7 +41,7 @@ Rejected Alternatives
   Correctness and performance across the whole framework weren't validated in time for a release-blocking change, per PR #361's own comment thread. The simpler #340/#341 rule doesn't need per-scope precision to ship.
 
 **Relying on** ``/api/toggles/v0/state/``
-  This edx-toggles endpoint only reports the global flag value. It has no awareness of ``WaffleFlagOrgOverrideModel``/``WaffleFlagCourseOverrideModel``, so it cannot answer whether any org or course has an override, and it requires Django staff to call.
+  This edx-toggles endpoint can expose override data, but it requires Django staff/admin access and is not suitable for this use case. It also exposes flag state broadly (not just ``authz.enable_course_authoring``), which is a security risk for this use case.
 
 References
 **********

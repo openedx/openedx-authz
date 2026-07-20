@@ -8,7 +8,7 @@ accessible-pygments==0.0.5
     # via pydata-sphinx-theme
 alabaster==1.0.0
     # via sphinx
-asgiref==3.11.1
+asgiref==3.12.1
     # via
     #   -r requirements/test.txt
     #   django
@@ -26,7 +26,7 @@ bracex==3.0
     # via
     #   -r requirements/test.txt
     #   wcmatch
-build==1.5.1
+build==1.5.0
     # via -r requirements/doc.in
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/test.txt
@@ -50,7 +50,7 @@ click==8.4.2
     #   edx-django-utils
 code-annotations==3.0.0
     # via -r requirements/test.txt
-coverage[toml]==7.15.1
+coverage[toml]==7.15.2
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -172,7 +172,7 @@ jaraco-classes==3.4.0
     # via keyring
 jaraco-context==6.1.2
     # via keyring
-jaraco-functools==4.5.0
+jaraco-functools==4.6.0
     # via keyring
 jeepney==0.9.0
     # via
@@ -182,6 +182,7 @@ jinja2==3.1.6
     # via
     #   -r requirements/test.txt
     #   code-annotations
+    #   pydata-sphinx-theme
     #   sphinx
 keyring==25.7.0
     # via twine
@@ -232,7 +233,7 @@ pycparser==3.0
     # via
     #   -r requirements/test.txt
     #   cffi
-pydata-sphinx-theme==0.16.1
+pydata-sphinx-theme==0.20.0
     # via sphinx-book-theme
 pygments==2.20.0
     # via
@@ -287,6 +288,7 @@ requests==2.34.2
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
+    #   pydata-sphinx-theme
     #   requests-toolbelt
     #   sphinx
     #   twine
@@ -316,14 +318,14 @@ six==1.17.0
     #   edx-ccx-keys
 snowballstemmer==3.1.1
     # via sphinx
-soupsieve==2.8.4
+soupsieve==2.9
     # via beautifulsoup4
 sphinx==9.1.0
     # via
     #   -r requirements/doc.in
     #   pydata-sphinx-theme
     #   sphinx-book-theme
-sphinx-book-theme==1.2.0
+sphinx-book-theme==1.4.0
     # via -r requirements/doc.in
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
@@ -359,7 +361,6 @@ typing-extensions==4.16.0
     #   -r requirements/test.txt
     #   beautifulsoup4
     #   edx-opaque-keys
-    #   pydata-sphinx-theme
 uritemplate==4.2.0
     # via
     #   -r requirements/test.txt

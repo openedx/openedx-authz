@@ -4,7 +4,7 @@
 #
 #    make upgrade
 #
-asgiref==3.11.1
+asgiref==3.12.1
     # via
     #   -r requirements/test.txt
     #   django
@@ -48,7 +48,7 @@ code-annotations==3.0.0
     # via
     #   -r requirements/test.txt
     #   edx-lint
-coverage[toml]==7.15.1
+coverage[toml]==7.15.2
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -181,7 +181,7 @@ pillow==12.3.0
     # via
     #   -r requirements/test.txt
     #   edx-organizations
-platformdirs==4.10.0
+platformdirs==4.10.1
     # via pylint
 pluggy==1.6.0
     # via
@@ -259,7 +259,7 @@ requests==2.34.2
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
-ruff==0.15.21
+ruff==0.15.22
     # via -r requirements/quality.in
 semantic-version==2.10.0
     # via
@@ -290,7 +290,7 @@ text-unidecode==1.3
     # via
     #   -r requirements/test.txt
     #   python-slugify
-tomlkit==0.15.0
+tomlkit==0.15.1
     # via
     #   edx-lint
     #   pylint

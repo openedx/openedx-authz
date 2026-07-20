@@ -4,7 +4,7 @@
 #
 #    make upgrade
 #
-asgiref==3.11.1
+asgiref==3.12.1
     # via
     #   -r requirements/quality.txt
     #   django
@@ -21,7 +21,7 @@ bracex==3.0
     # via
     #   -r requirements/quality.txt
     #   wcmatch
-build==1.5.1
+build==1.5.0
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools
@@ -67,7 +67,7 @@ colorama==0.4.6
     # via
     #   -r requirements/ci.txt
     #   tox
-coverage[toml]==7.15.1
+coverage[toml]==7.15.2
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
@@ -174,7 +174,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-filelock==3.29.7
+filelock==3.31.0
     # via
     #   -r requirements/ci.txt
     #   python-discovery
@@ -236,9 +236,9 @@ pillow==12.3.0
     # via
     #   -r requirements/quality.txt
     #   edx-organizations
-pip-tools==7.5.3
+pip-tools==7.6.0
     # via -r requirements/pip-tools.txt
-platformdirs==4.10.0
+platformdirs==4.10.1
     # via
     #   -r requirements/ci.txt
     #   -r requirements/quality.txt
@@ -349,7 +349,7 @@ requests==2.34.2
     # via
     #   -r requirements/quality.txt
     #   edx-drf-extensions
-ruff==0.15.21
+ruff==0.15.22
     # via -r requirements/quality.txt
 semantic-version==2.10.0
     # via
@@ -386,12 +386,12 @@ tomli-w==1.2.0
     # via
     #   -r requirements/ci.txt
     #   tox
-tomlkit==0.15.0
+tomlkit==0.15.1
     # via
     #   -r requirements/quality.txt
     #   edx-lint
     #   pylint
-tox==4.56.4
+tox==4.57.0
     # via -r requirements/ci.txt
 typing-extensions==4.16.0
     # via

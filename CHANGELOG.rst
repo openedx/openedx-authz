@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.21.1 - 2026-07-24
+*******************
+
+Fixed
+=====
+
+* Corrected a mismatched parameter in the queryset builder for scopes.
+
 1.21.0 - 2026-07-14
 *******************
 

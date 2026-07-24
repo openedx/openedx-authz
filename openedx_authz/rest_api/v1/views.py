@@ -840,7 +840,7 @@ class ScopesAPIView(generics.ListAPIView):
 
         has_platform_access = any(isinstance(s, PlatformGlobData) for s in allowed_scopes)
         if has_platform_access:
-            return queryset_builder(allowed_ids=None, allowed_orgs=None, search=search, orgs=orgs)
+            return queryset_builder(search=search, orgs=orgs)
 
         specific_scopes = [s for s in allowed_scopes if not s.IS_GLOB]
         allowed_ids = extract_ids(specific_scopes)

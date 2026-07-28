@@ -2266,16 +2266,16 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
         (PLATFORM_LIBRARY_GLOB, roles.LIBRARY_ADMIN.external_key),
     )
     @unpack
-    def test_non_staff_with_platform_glob_sees_no_orgs(self, scope_name: str, role_name: str):
-        """Test that a platform-level glob assignment alone does not resolve to any org today.
+    def test_non_staff_with_platform_glob_sees_all_orgs(self, scope_name: str, role_name: str):
+        """Test that a platform-level glob assignment grants visibility into every active org.
 
-        Platform-level scopes (e.g. PlatformCourseOverviewGlobData) cover every org, so they have
-        no single `.org` to extract, and this endpoint doesn't special-case them like it does
-        staff/superusers.
+        Platform-level scopes (e.g. PlatformCourseOverviewGlobData) cover every org, so a user
+        with a role there is treated like staff/superuser for this endpoint, regardless of which
+        orgs they'd otherwise be able to derive from `.org` on their other assignments.
 
         Expected result:
             - Returns 200 OK status
-            - Returns no orgs
+            - Returns all 3 orgs
         """
         self._assign_roles_to_users(
             [
@@ -2292,7 +2292,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["count"], 3)
 
 
 @ddt

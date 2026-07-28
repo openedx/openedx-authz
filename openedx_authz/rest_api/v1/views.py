@@ -609,19 +609,26 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
         """Return the active organizations visible to the requesting user, ordered by name."""
         user = self.request.user
 
+        orgs = Organization.objects.filter(active=True).order_by("name")
+
         # Staff/superusers bypass assignment-based filtering, same as elsewhere in the codebase
         # (see _filter_allowed_assignments and the Casbin matcher). TODO: this check is duplicated
         # at each call site that needs it; it should live once in the api layer instead of being
         # re-implemented in the REST API layer.
-        if not (user.is_staff or user.is_superuser):
-            assignments = get_user_role_assignments_per_scope_type(
-                user.username,
-                tuple(ScopeData.get_all_registered_scopes()),
-            )
-            short_names = {org for assignment in assignments if (org := getattr(assignment.scope, "org", None))}
-            return Organization.objects.filter(active=True, short_name__in=short_names).order_by("name")
+        # See https://github.com/openedx/openedx-authz/issues/347 to standardize this further.
+        if user.is_staff or user.is_superuser:
+            return orgs
 
-        return Organization.objects.filter(active=True).order_by("name")
+        assignments = get_user_role_assignments_per_scope_type(
+            user.username,
+            tuple(ScopeData.get_all_registered_scopes()),
+        )
+
+        if RoleAssignmentData.filter_platform_glob_assignments(assignments):
+            return orgs
+
+        short_names = {org for assignment in assignments if (org := getattr(assignment.scope, "org", None))}
+        return Organization.objects.filter(active=True, short_name__in=short_names).order_by("name")
 
 
 @view_auth_classes()

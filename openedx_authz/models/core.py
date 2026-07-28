@@ -117,6 +117,13 @@ class Scope(BaseRegistryModel):
 
     objects = ScopeManager()
 
+    # Canonical string form of the scope's key (e.g. a course-v1 course id), set on creation
+    # regardless of whether the backing object (CourseOverview, ContentLibrary, ...) exists yet.
+    # This is the only way to find a scope back again when its FK to that object is still null
+    # (see get_or_create_for_external_key() in openedx_authz/models/scopes.py) so it can be
+    # linked up once the object is created (see openedx_authz/handlers.py backfill receivers).
+    external_key = models.CharField(max_length=255, null=True, blank=True, unique=True, db_index=True)
+
     class Meta:
         abstract = False
 

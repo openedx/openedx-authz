@@ -84,6 +84,12 @@ class ContentLibraryScope(Scope):
     def get_or_create_for_external_key(cls, scope) -> "ContentLibraryScope":
         """Get or create a ContentLibraryScope for the given external key.
 
+        The backing ContentLibrary need not exist yet (e.g. it may be created
+        later as part of an in-progress operation): the scope is created with
+        ``content_library=None`` in that case and gets linked up automatically
+        once a ContentLibrary with a matching key is saved (see the backfill
+        signal receiver in openedx_authz/handlers.py).
+
         Args:
             scope: ScopeData object with an external_key attribute containing
                 a LibraryLocatorV2-compatible string.
@@ -93,8 +99,23 @@ class ContentLibraryScope(Scope):
                 or None if the scope is a glob pattern (contains wildcard).
         """
         library_key = LibraryLocatorV2.from_string(scope.external_key)
-        content_library = ContentLibrary.objects.get_by_key(library_key)
-        scope, _ = cls.objects.get_or_create(content_library=content_library)
+        try:
+            content_library = ContentLibrary.objects.get_by_key(library_key)
+        except ContentLibrary.DoesNotExist:
+            # The library doesn't exist yet: key the row by its external_key so it can be
+            # found and linked up later by the backfill signal in openedx_authz/handlers.py.
+            scope, _ = cls.objects.get_or_create(external_key=str(library_key))
+            return scope
+
+        # Look up by the FK first (as before this change) so scopes created before the
+        # external_key field existed are reused rather than duplicated.
+        scope, created = cls.objects.get_or_create(
+            content_library=content_library,
+            defaults={"external_key": str(library_key)},
+        )
+        if not created and not scope.external_key:
+            scope.external_key = str(library_key)
+            scope.save(update_fields=["external_key"])
         return scope
 
 
@@ -128,6 +149,13 @@ class CourseScope(Scope):
     def get_or_create_for_external_key(cls, scope) -> "CourseScope":
         """Get or create a CourseScope for the given external key.
 
+        The backing CourseOverview need not exist yet (e.g. during a course
+        rerun, the destination course id is known before the course is
+        cloned): the scope is created with ``course_overview=None`` in that
+        case and gets linked up automatically once a CourseOverview with a
+        matching id is saved (see the backfill signal receiver in
+        openedx_authz/handlers.py).
+
         Args:
             scope: ScopeData object with an external_key attribute containing
                 a CourseKey string.
@@ -137,6 +165,21 @@ class CourseScope(Scope):
                 or None if the scope is a glob pattern (contains wildcard).
         """
         course_key = CourseKey.from_string(scope.external_key)
-        course_overview = CourseOverview.get_from_id(course_key)
-        scope, _ = cls.objects.get_or_create(course_overview=course_overview)
+        try:
+            course_overview = CourseOverview.get_from_id(course_key)
+        except CourseOverview.DoesNotExist:
+            # The course doesn't exist yet: key the row by its external_key so it can be
+            # found and linked up later by the backfill signal in openedx_authz/handlers.py.
+            scope, _ = cls.objects.get_or_create(external_key=str(course_key))
+            return scope
+
+        # Look up by the FK first (as before this change) so scopes created before the
+        # external_key field existed are reused rather than duplicated.
+        scope, created = cls.objects.get_or_create(
+            course_overview=course_overview,
+            defaults={"external_key": str(course_key)},
+        )
+        if not created and not scope.external_key:
+            scope.external_key = str(course_key)
+            scope.save(update_fields=["external_key"])
         return scope

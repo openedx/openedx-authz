@@ -29,12 +29,19 @@ from django.test import TestCase, override_settings
 from organizations.api import ensure_organization
 from organizations.models import Organization
 
-from openedx_authz.api.data import ContentLibraryData, RoleData, SubjectData, UserData
+from opaque_keys.edx.locator import CourseLocator
+from openedx.core.djangoapps.content.course_overviews.tests.factories import (  # pylint: disable=import-error
+    CourseOverviewFactory,
+)
+
+from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, RoleData, SubjectData, UserData
 from openedx_authz.api.roles import assign_role_to_subject_in_scope
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import (
     ContentLibrary,
     ContentLibraryScope,
+    CourseOverview,
+    CourseScope,
     ExtendedCasbinRule,
     Scope,
     Subject,
@@ -1356,3 +1363,114 @@ class TestModelCascadeDeletionChain(TestCase):
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
 
         self.assertTrue(Scope.objects.filter(id=scope_id).exists())
+
+
+@pytest.mark.integration
+@override_settings(OPENEDX_AUTHZ_CONTENT_LIBRARY_MODEL="content_libraries.ContentLibrary")
+class TestScopeForPendingObjects(TestCase):
+    """Test cases for scopes whose backing object doesn't exist yet.
+
+    Covers https://github.com/openedx/openedx-authz/issues/352: role assignment must succeed
+    for a course/library key before the CourseOverview/ContentLibrary behind it is created (e.g.
+    during a course rerun, the destination course id is known before the course is cloned), and
+    the Scope must link up to the real object once it's created (see the backfill signal
+    receivers in openedx_authz/handlers.py).
+    """
+
+    def test_course_scope_created_without_course_overview(self):
+        """Assigning a role for a course that doesn't exist yet must not raise."""
+        course_key = CourseLocator("PendingOrg", "PendingCourse", "2024_T1")
+        scope_data = CourseOverviewData(external_key=str(course_key))
+
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        self.assertIsInstance(scope, CourseScope)
+        self.assertIsNone(scope.course_overview)
+        self.assertEqual(scope.external_key, str(course_key))
+
+    def test_course_scope_backfills_when_course_overview_created(self):
+        """Creating the CourseOverview later links up the previously-pending CourseScope."""
+        course_key = CourseLocator("PendingOrg2", "PendingCourse2", "2024_T1")
+        scope_data = CourseOverviewData(external_key=str(course_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+        self.assertIsNone(scope.course_overview)
+
+        course_overview = CourseOverviewFactory(id=course_key)
+
+        scope.refresh_from_db()
+        self.assertEqual(scope.course_overview, course_overview)
+
+    def test_course_scope_get_or_create_is_idempotent_while_pending(self):
+        """Calling get_or_create_for_external_key twice before the course exists reuses the same row."""
+        course_key = CourseLocator("PendingOrg3", "PendingCourse3", "2024_T1")
+        scope_data = CourseOverviewData(external_key=str(course_key))
+
+        scope1 = Scope.objects.get_or_create_for_external_key(scope_data)
+        scope2 = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        self.assertEqual(scope1.id, scope2.id)
+        self.assertEqual(CourseScope.objects.filter(external_key=str(course_key)).count(), 1)
+
+    def test_assign_role_succeeds_for_course_that_does_not_exist_yet(self):
+        """The public API assign_role_to_subject_in_scope must not crash for a not-yet-existing course."""
+        test_username = "pending_course_instructor"
+        User.objects.create_user(username=test_username)
+        course_key = CourseLocator("PendingOrg4", "PendingCourse4", "2024_T1")
+
+        subject_data = UserData(external_key=test_username)
+        role_data = RoleData(external_key="instructor")
+        scope_data = CourseOverviewData(external_key=str(course_key))
+
+        result = assign_role_to_subject_in_scope(subject_data, role_data, scope_data)
+
+        self.assertTrue(result)
+        scope = CourseScope.objects.get(external_key=str(course_key))
+        self.assertIsNone(scope.course_overview)
+
+        # The course gets created later (e.g. once course rerun finishes cloning).
+        course_overview = CourseOverviewFactory(id=course_key)
+        scope.refresh_from_db()
+        self.assertEqual(scope.course_overview, course_overview)
+
+    def test_content_library_scope_created_without_content_library(self):
+        """Assigning a role for a library that doesn't exist yet must not raise."""
+        library_key = "lib:PendingOrg:pendinglib"
+        scope_data = ContentLibraryData(external_key=library_key)
+
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        self.assertIsInstance(scope, ContentLibraryScope)
+        self.assertIsNone(scope.content_library)
+        self.assertEqual(scope.external_key, library_key)
+
+    def test_content_library_scope_backfills_when_library_created(self):
+        """Creating the ContentLibrary later links up the previously-pending ContentLibraryScope."""
+        org_short_name = "PendingLibOrg"
+        slug = "pendinglib2"
+        library_key = f"lib:{org_short_name}:{slug}"
+        scope_data = ContentLibraryData(external_key=library_key)
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+        self.assertIsNone(scope.content_library)
+
+        _, _, content_library = create_test_library(org_short_name=org_short_name, slug=slug)
+
+        scope.refresh_from_db()
+        self.assertEqual(scope.content_library, content_library)
+
+    def test_scope_created_before_external_key_field_is_reused_not_duplicated(self):
+        """A Scope row created before this fix (FK set, no external_key) isn't duplicated on reassignment.
+
+        Simulates a pre-existing row the way get_or_create_for_external_key used to create it:
+        keyed only by the FK, with no external_key.
+        """
+        course_key = CourseLocator("LegacyOrg", "LegacyCourse", "2024_T1")
+        course_overview = CourseOverviewFactory(id=course_key)
+        legacy_scope = CourseScope.objects.create(course_overview=course_overview)
+        self.assertIsNone(legacy_scope.external_key)
+
+        scope_data = CourseOverviewData(external_key=str(course_key))
+        scope = Scope.objects.get_or_create_for_external_key(scope_data)
+
+        self.assertEqual(scope.id, legacy_scope.id)
+        self.assertEqual(scope.external_key, str(course_key))
+        self.assertEqual(CourseScope.objects.filter(course_overview=course_overview).count(), 1)

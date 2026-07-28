@@ -20,6 +20,7 @@ from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.engine.utils import run_course_authoring_migration
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit
+from openedx_authz.models.scopes import ContentLibrary, ContentLibraryScope, CourseOverview, CourseScope
 from openedx_authz.models.subjects import UserSubject
 
 try:
@@ -139,6 +140,39 @@ if WaffleFlagCourseOverrideModel is not None:
 
 if WaffleFlagOrgOverrideModel is not None:
     post_save.connect(handle_org_waffle_flag_change, sender=WaffleFlagOrgOverrideModel)
+
+
+def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
+    """
+    Link a pending CourseScope to the CourseOverview that was just created for it.
+
+    CourseScope.get_or_create_for_external_key() (openedx_authz/models/scopes.py) allows
+    assigning a role for a course key before its CourseOverview exists, leaving
+    course_overview null and external_key set to the course id. This backfills that FK
+    once the course shows up, e.g. after a course rerun finishes cloning.
+    """
+    CourseScope.objects.filter(
+        external_key=str(instance.id), course_overview__isnull=True
+    ).update(course_overview=instance)
+
+
+def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
+    """
+    Link a pending ContentLibraryScope to the ContentLibrary that was just created for it.
+
+    See backfill_course_scope() above; same idea for content libraries.
+    """
+    ContentLibraryScope.objects.filter(
+        external_key=str(instance.library_key), content_library__isnull=True
+    ).update(content_library=instance)
+
+
+# Only register the handlers if the models are available (i.e., running in Open edX)
+if CourseOverview is not None:
+    post_save.connect(backfill_course_scope, sender=CourseOverview)
+
+if ContentLibrary is not None:
+    post_save.connect(backfill_content_library_scope, sender=ContentLibrary)
 
 
 # Match ``WaffleFlagCourseOverrideModel.OVERRIDE_CHOICES`` / ``override_value`` in edx-platform:

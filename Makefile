@@ -61,8 +61,8 @@ quality: ## check coding style with pycodestyle and pylint
 	tox -e quality
 
 format: ## format code with black and isort. Enable ruff to fix E (pycodestyle) and I (isort) issues
-	ruff format openedx_authz tests manage.py setup.py
-	ruff check --fix openedx_authz tests manage.py setup.py
+	ruff format src/openedx_authz tests manage.py
+	ruff check --fix src/openedx_authz tests manage.py
 
 pii_check: ## check for PII annotations on all Django models
 	tox -e pii_check
@@ -93,13 +93,13 @@ selfcheck: ## check that the Makefile is well-formed
 
 extract_translations: ## extract strings to be translated, outputting .mo files
 	rm -rf docs/_build
-	cd openedx_authz && i18n_tool extract --no-segment
+	cd src/openedx_authz && i18n_tool extract --no-segment
 
 compile_translations: ## compile translation files, outputting .po files for each supported language
-	cd openedx_authz && i18n_tool generate
+	cd src/openedx_authz && i18n_tool generate
 
 detect_changed_source_translations:
-	cd openedx_authz && i18n_tool changed
+	cd src/openedx_authz && i18n_tool changed
 
 ifeq ($(OPENEDX_ATLAS_PULL),)
 pull_translations: ## Pull translations from Transifex
@@ -107,15 +107,15 @@ pull_translations: ## Pull translations from Transifex
 else
 # Experimental: OEP-58 Pulls translations using atlas
 pull_translations:
-	find openedx_authz/conf/locale -mindepth 1 -maxdepth 1 -type d -exec rm -r {} \;
-	atlas pull $(OPENEDX_ATLAS_ARGS) translations/openedx-authz/openedx_authz/conf/locale:openedx_authz/conf/locale
+	find src/openedx_authz/conf/locale -mindepth 1 -maxdepth 1 -type d -exec rm -r {} \;
+	atlas pull $(OPENEDX_ATLAS_ARGS) translations/openedx-authz/openedx_authz/conf/locale:src/openedx_authz/conf/locale
 	python manage.py compilemessages
 
 	@echo "Translations have been pulled via Atlas and compiled."
 endif
 
 dummy_translations: ## generate dummy translation (.po) files
-	cd openedx_authz && i18n_tool dummy
+	cd src/openedx_authz && i18n_tool dummy
 
 build_dummy_translations: extract_translations dummy_translations compile_translations ## generate and compile dummy translation files
 

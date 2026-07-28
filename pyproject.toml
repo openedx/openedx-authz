@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openedx-authz"
+description = "Open edX AuthZ provides the architecture and foundations of the authorization framework."
+readme = "README.rst"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Open edX Project", email = "oscm@openedx.org"},
+]
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dynamic = ["version"]
+dependencies = [
+    "attrs",
+    "casbin-django-orm-adapter",
+    "Django>=4.2,<6.0",
+    "django-crum",
+    "django-waffle",
+    "djangorestframework",
+    "edx-api-doc-tools",
+    "edx-ccx-keys",
+    "edx-django-utils",
+    "edx-drf-extensions",
+    "edx-opaque-keys",
+    "edx-organizations",
+    "openedx-atlas",
+    "openedx-events",
+    "pycasbin",
+]
+
+[project.urls]
+Homepage = "https://github.com/openedx/openedx-authz"
+
+[project.entry-points."lms.djangoapp"]
+openedx_authz = "openedx_authz.apps:OpenedxAuthzConfig"
+
+[project.entry-points."cms.djangoapp"]
+openedx_authz = "openedx_authz.apps:OpenedxAuthzConfig"
+
+[tool.setuptools_scm]
+version_scheme = "only-version"
+local_scheme = "no-local-version"
+fallback_version = "0.0.0"
+
+[tool.setuptools]
+include-package-data = true
+# Packages live in src/ but are installed without the src prefix,
+# e.g. src/openedx_authz/ is installed as openedx_authz.
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["tests*", "*.tests*", "spec*", "*.spec*"]
+
+[tool.isort]
+include_trailing_comma = true
+indent = "    "
+line_length = 120
+multi_line_output = 3
+skip = ["migrations"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/openedx_authz"]
+omit = [
+    "*/migrations/*",
+    "*admin.py",
+    "*/static/*",
+    "*/templates/*",
+    "*/tests/*",
+    "*/settings/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"

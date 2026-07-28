@@ -99,3 +99,60 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[dependency-groups]
+# Base test packages, no version pins - let uv.lock handle it
+test-base = [
+    "code-annotations",
+    "coverage",
+    "ddt",
+    "pytest-cov",
+    "pytest-django",
+]
+# The currently supported/default Django version.
+test = [
+    {include-group = "test-base"},
+    "Django>=5.2,<6.0",
+]
+quality = [
+    {include-group = "test"},
+    "edx-lint",
+    "pydocstyle",
+    "ruff",
+]
+doc = [
+    {include-group = "test"},
+    "build",
+    "doc8",
+    "Sphinx",
+    "sphinx-book-theme",
+    "twine",
+]
+# Minimal CI group: just what's needed to invoke tox.
+ci = [
+    "tox",
+    "tox-uv",
+]
+dev = [
+    {include-group = "quality"},
+    {include-group = "ci"},
+    {include-group = "doc"},
+    "diff-cover",
+    "edx-i18n-tools",
+]
+
+[tool.uv]
+package = true
+
+#  DO NOT EDIT constraint-dependencies DIRECTLY.
+#  This list is managed by `edx_lint write_uv_constraints`
+#  and will be overwritten the next time `make upgrade` is run.
+#  - GLOBAL constraints: edit edx_lint/files/common_constraints.txt
+#  - REPO-SPECIFIC constraints: edit [tool.edx_lint].uv_constraints in this file
+constraint-dependencies = [
+    "Django<6.0",
+    "elasticsearch<7.14.0",
+]
+
+[tool.edx_lint]
+uv_constraints = []

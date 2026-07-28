@@ -137,7 +137,7 @@ class PermissionValidationMeView(APIView):
             try:
                 action = permission["action"]
                 scope = permission.get("scope")
-                allowed = api.is_user_allowed_in_scope(username, action, scope) and has_visible_scope(
+                allowed = has_visible_scope(username, action, scope) and api.is_user_allowed_in_scope(
                     username, action, scope
                 )
                 response_data.append({"action": action, "scope": scope, "allowed": allowed})

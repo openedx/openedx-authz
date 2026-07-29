@@ -122,7 +122,7 @@ class Scope(BaseRegistryModel):
     # This is the only way to find a scope back again when its FK to that object is still null
     # (see get_or_create_for_external_key() in openedx_authz/models/scopes.py) so it can be
     # linked up once the object is created (see openedx_authz/handlers.py backfill receivers).
-    external_key = models.CharField(max_length=255, null=True, blank=True, unique=True, db_index=True)
+    external_key = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     class Meta:
         abstract = False

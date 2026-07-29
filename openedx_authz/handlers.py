@@ -146,14 +146,12 @@ def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused
     """
     Link a pending CourseScope to the CourseOverview that was just created for it.
 
-    CourseScope.get_or_create_for_external_key() (openedx_authz/models/scopes.py) allows
-    assigning a role for a course key before its CourseOverview exists, leaving
-    course_overview null and external_key set to the course id. This backfills that FK
-    once the course shows up, e.g. after a course rerun finishes cloning.
+    get_or_create_for_external_key() (openedx_authz/models/scopes.py) allows assigning a
+    role for a course key before its CourseOverview exists, leaving course_overview null.
+    This backfills that FK once the course shows up, e.g. after a course rerun finishes
+    cloning. See CourseScope.link_pending_scope() for the actual lookup/update.
     """
-    CourseScope.objects.filter(
-        external_key=str(instance.id), course_overview__isnull=True
-    ).update(course_overview=instance)
+    CourseScope.link_pending_scope(instance)
 
 
 def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
@@ -162,9 +160,7 @@ def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disab
 
     See backfill_course_scope() above; same idea for content libraries.
     """
-    ContentLibraryScope.objects.filter(
-        external_key=str(instance.library_key), content_library__isnull=True
-    ).update(content_library=instance)
+    ContentLibraryScope.link_pending_scope(instance)
 
 
 # Only register the handlers if the models are available (i.e., running in Open edX)

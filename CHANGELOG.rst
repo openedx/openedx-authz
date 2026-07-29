@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.21.2 - 2026-07-29
+*******************
+
+Fixed
+=====
+
+* Exclude superadmin entries from the user-specific assignments endpoint following the same pattern as the global assignments endpoint.
+
 1.21.1 - 2026-07-24
 *******************
 

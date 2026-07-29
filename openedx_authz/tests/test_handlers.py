@@ -316,7 +316,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     @patch("openedx_authz.handlers.logger")
     def test_skips_when_automatic_migration_setting_disabled(
         self, sender_model, instance_kwargs, scope_key, mock_logger, mock_run
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """When the setting is off, the handler returns before scheduling work (course and org)."""
         instance = sender_model(**instance_kwargs)
 
@@ -345,7 +345,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     @patch("openedx_authz.handlers.logger")
     def test_course_scope_migration_depends_on_override_choice(
         self, override_choice, expected_migration_type, expect_migration, mock_logger, mock_run
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """Course override runs forward only when forced on, force-off is a no-op for migration."""
         instance = WaffleFlagCourseOverrideModel.objects.create(
             course_id=self.COURSE_KEY,
@@ -380,7 +380,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     @patch("openedx_authz.handlers.logger")
     def test_org_scope_migration_depends_on_override_choice(
         self, override_choice, expected_migration_type, expect_migration, mock_logger, mock_run
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """Org override runs forward only when forced on, force-off is a no-op for migration."""
         instance = WaffleFlagOrgOverrideModel.objects.create(
             org=self.ORG_KEY,
@@ -462,7 +462,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     @patch("openedx_authz.handlers.logger")
     def test_skips_when_previous_enabled_record_has_same_override_choice(
         self, sender_model, row_kwargs, scope_key, mock_logger, mock_run
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """Repeated history rows with the same active override choice do not trigger migration."""
         sender_model.objects.create(**row_kwargs)
         instance = sender_model.objects.create(**row_kwargs)
@@ -509,7 +509,7 @@ class TestTriggerCourseAuthoringMigration(TestCase):
     @unpack
     def test_runs_when_previous_record_disabled_even_if_same_override_choice(
         self, sender_model, prev_kwargs, instance_kwargs, scope_key, mock_run
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """If the prior row was inactive, a new active row still triggers migration (course and org)."""
         sender_model.objects.create(**prev_kwargs)
         instance = sender_model.objects.create(**instance_kwargs)

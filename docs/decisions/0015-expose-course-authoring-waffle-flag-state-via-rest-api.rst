@@ -4,7 +4,7 @@
 Status
 ******
 
-**Draft**
+**Accepted**
 
 Context
 *******
@@ -15,7 +15,7 @@ Context
 
 `PR #361`_ attempted to enforce that full truth table directly inside ``PermissionValidationMeView`` and other REST API endpoints, checking the flag per scope on every request. Per `PR #361's own comment thread`_, those endpoints are release-blocking for Verawood, so baking precise per-scope flag logic into them risked correctness and performance on critical paths without enough test coverage across the framework to be confident in time for the release. That approach was reverted, and the team pivoted to `issue #358`_ instead, exposing the flag's raw state through a dedicated endpoint and letting the admin-console MFE apply the simpler #340/#341 rule itself, deferring precise per-scope filtering to a later cycle.
 
-Neither edx-toggles nor edx-platform expose a suitable public API for this client-facing use case. ``/api/toggles/v0/state/`` (`edx_toggles source`_) can expose override data, but it requires Django staff/admin access and exposes flag state broadly (not just ``authz.enable_course_authoring``). ``WaffleFlagOrgOverrideModel.override_value(name, key)`` and its course-level counterpart (`waffle_utils models source`_) each answer for one specific org or course, not "which orgs/courses have an override."
+Neither edx-toggles nor openedx-platform expose a suitable public API to consume the flag's state for this use case. ``openedx/core/djangoapps/waffle_utils/views.py``'s ``ToggleStateView``, built on edx-toggles' reporting machinery (`edx_toggles source`_) and wired at ``/api/toggles/v0/state/``, requires ``IsStaff`` and reports the state of every registered toggle at once. ``WaffleFlagOrgOverrideModel.override_value(name, key)`` and its course-level counterpart (`waffle_utils models source`_) each require already knowing which specific org or course to check.
 
 Decision
 ********
@@ -31,8 +31,10 @@ Consequences
 #. **Release-blocking endpoints stay untouched.** ``PermissionValidationMeView`` and the other endpoints named in PR #361 keep their existing behavior. This endpoint is additive, isolated, low-risk.
 #. **One place answers "what's the flag's state right now."** ``get_waffle_flag_states()`` centralizes the lookup, reusing ``enable_authz_course_authoring()`` for the global tier and querying ``WaffleFlagOrgOverrideModel``/``WaffleFlagCourseOverrideModel`` directly for the org/course tiers, since no public API answers "which orgs/courses have an override."
 #. **The MFE bears the filtering complexity.** Applying the #340/#341 "any tier on" rule, and any future precise per-course/per-org filtering, is MFE-side logic from here on.
+#. **The response isn't scoped to the caller.** Any authenticated user gets every org/course override on the instance; there's no per-user filtering beyond ``IsAuthenticated``. Callers resolve their own course → org → global precedence from the raw lists, the way ``frontend-app-admin-console``'s ``useCourseAuthoringFlag`` hook (`frontend-app-admin-console#176`_) does.
 #. **These override queries scan the whole table, unfiltered by any specific org/course.** For instances with many overrides, this is a full-table read on every call. Not a problem at current scale, but worth revisiting if usage grows (see `issue #360`_).
-#. **``openedx_authz.utils`` now depends on** ``common.djangoapps.student.roles.enable_authz_course_authoring`` **and** ``openedx.core.djangoapps.waffle_utils.models``, guarded by the same standalone-import pattern already used elsewhere in this repo (``rest_api/utils.py``, ``handlers.py``). This is a temporary, direct edx-platform dependency, tracked as follow-up work under `issue #360`_ (moving the dependency direction so services depend on ``openedx_authz``).
+#. **``openedx_authz.utils`` now depends on** ``common.djangoapps.student.roles.enable_authz_course_authoring`` **and** ``openedx.core.djangoapps.waffle_utils.models``, guarded by the same standalone-import pattern already used elsewhere in this repo (``rest_api/utils.py``, ``handlers.py``). This is a temporary, direct openedx-platform dependency, tracked as follow-up work under `issue #360`_ (moving the dependency direction so services depend on ``openedx_authz``).
+#. **The exception has a planned end.** `Issue #377`_ tracks removing ``WaffleFlagStatesAPIView`` and ``get_waffle_flag_states()`` when ``authz.enable_course_authoring`` is deprecated. The flag's ``toggle_target_removal_date`` is 2027-06-09, tracked upstream at `openedx-platform#37927`_.
 
 Rejected Alternatives
 **********************
@@ -41,21 +43,40 @@ Rejected Alternatives
   Correctness and performance across the whole framework weren't validated in time for a release-blocking change, per PR #361's own comment thread. The simpler #340/#341 rule doesn't need per-scope precision to ship.
 
 **Relying on** ``/api/toggles/v0/state/``
-  This edx-toggles endpoint can expose override data, but it requires Django staff/admin access and is not suitable for this use case. It also exposes flag state broadly (not just ``authz.enable_course_authoring``), which is a security risk for this use case.
+  openedx-platform already exposes a generic toggle-state endpoint, ``ToggleStateView`` in ``openedx/core/djangoapps/waffle_utils/views.py``, wired at this URL. Its ``permission_classes`` require ``IsStaff``, which the admin-console MFE's calling user is not guaranteed to be, and it reports the state of every registered toggle at once.
+
+**Building a replacement endpoint outside openedx-authz now, and migrating the admin-console MFE to it.**
+  Authorization owns endpoints that expose roles, permissions, assignments, or scopes; a course-authoring flag's raw state is none of those, so this endpoint sits outside authorization's domain. But knowing it doesn't belong here doesn't tell us where it does belong, and that question is out of scope for this ADR. Moving the endpoint now would require a new owner, a new endpoint, and a migration in the admin-console MFE. That work is not justified for a flag with a ``toggle_target_removal_date`` of 2027-06-09 (tracked upstream at `openedx-platform#37927`_; see `Issue #377`_). If the flag remains in use past that date, revisit this alternative.
+
+Addendum (2026-07-28)
+*********************
+
+`ADR 0016`_ audits every endpoint in ``openedx_authz.rest_api`` by domain vocabulary. Authorization is a supporting subdomain (`ADR 0018 in openedx-events`_), the same tier as Analytics, consumed across learning, content authoring, and enterprise. Domain ownership (does the endpoint expose roles, permissions, assignments, or scopes?) and package placement (is it reusable or tailored to one workflow?) are separate questions. An Admin Console screen aggregating tasks from several domains isn't itself a domain; each task still belongs to whichever domain owns it.
+
+``WaffleFlagStatesAPIView`` fails the domain-ownership question, since a course-authoring flag's state isn't authorization data. ADR 0016 makes that a standing rule. Authorization endpoints must not compute or expose another domain's data, and this is the sole, named exception, kept here rather than moved elsewhere. The exception doesn't extend to any other endpoint.
+
+Whether these reusable endpoints would ever become flag-aware remained open until ADR 0016 settled it as a domain-boundary rule that doesn't depend on release timing. ``PermissionValidationMeView``, ``RoleUserAPIView``, and ``RoleListView`` must not depend on the course-authoring flag. Any future flag-aware behavior for these endpoints belongs to whichever domain ends up owning the flag.
 
 References
 **********
 
 * `ADR 0010`_
+* `ADR 0016`_
+* `ADR 0018 in openedx-events`_
 * `Issue #340`_
 * `Issue #341`_
 * `Issue #358`_
 * `Issue #360`_
+* `Issue #377`_
 * `PR #361`_
 * `PR #361's own comment thread`_
 * `A review comment on frontend-app-admin-console#176`_
+* `frontend-app-admin-console#176`_
+* `openedx-platform#37927`_
 
 .. _ADR 0010: 0010-course-authoring-flag.rst
+.. _ADR 0016: 0016-rest-api-domain-ownership-boundary.rst
+.. _ADR 0018 in openedx-events: https://github.com/openedx/openedx-events/blob/main/docs/decisions/0018-supporting-subdomain-modules.rst
 .. _Issue #340: https://github.com/openedx/openedx-authz/issues/340
 .. _issue #340: https://github.com/openedx/openedx-authz/issues/340
 .. _Issue #341: https://github.com/openedx/openedx-authz/issues/341
@@ -64,8 +85,11 @@ References
 .. _issue #358: https://github.com/openedx/openedx-authz/issues/358
 .. _Issue #360: https://github.com/openedx/openedx-authz/issues/360
 .. _issue #360: https://github.com/openedx/openedx-authz/issues/360
+.. _Issue #377: https://github.com/openedx/openedx-authz/issues/377
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _PR #361's own comment thread: https://github.com/openedx/openedx-authz/pull/361#issuecomment-4967053225
 .. _A review comment on frontend-app-admin-console#176: https://github.com/openedx/frontend-app-admin-console/pull/176#issuecomment-4900922914
+.. _frontend-app-admin-console#176: https://github.com/openedx/frontend-app-admin-console/pull/176
 .. _edx_toggles source: https://github.com/openedx/edx-toggles/blob/master/edx_toggles/toggles/state/internal/report.py
-.. _waffle_utils models source: https://github.com/openedx/edx-platform/blob/master/openedx/core/djangoapps/waffle_utils/models.py
+.. _waffle_utils models source: https://github.com/openedx/openedx-platform/blob/master/openedx/core/djangoapps/waffle_utils/models.py
+.. _openedx-platform#37927: https://github.com/openedx/openedx-platform/issues/37927

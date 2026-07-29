@@ -31,7 +31,9 @@ Consequences
 #. **Release-blocking endpoints stay untouched.** ``PermissionValidationMeView`` and the other endpoints named in PR #361 keep their existing behavior. This endpoint is additive, isolated, low-risk.
 #. **One place answers "what's the flag's state right now."** ``get_waffle_flag_states()`` centralizes the lookup, reusing ``enable_authz_course_authoring()`` for the global tier and querying ``WaffleFlagOrgOverrideModel``/``WaffleFlagCourseOverrideModel`` directly for the org/course tiers, since no public API answers "which orgs/courses have an override."
 #. **The MFE bears the filtering complexity.** Applying the #340/#341 "any tier on" rule, and any future precise per-course/per-org filtering, is MFE-side logic from here on.
+#. **Callers must resolve their own scope against the raw override lists.** The response lists every org and course override on the instance rather than filtering to the caller's context. Determining whether course authoring is enabled for one course requires checking that course's ID in ``course_overrides``, then its org in ``org_overrides``, then falling back to ``global``, in that precedence order. ``frontend-app-admin-console``'s ``useCourseAuthoringFlag`` hook (`frontend-app-admin-console#176`_) implements that resolution and is the reference for any other consumer building the same logic.
 #. **These override queries scan the whole table, unfiltered by any specific org/course.** For instances with many overrides, this is a full-table read on every call. Not a problem at current scale, but worth revisiting if usage grows (see `issue #360`_).
+#. **The endpoint takes no client-supplied parameters.** ``get_waffle_flag_states()`` reads no query params or request body, so there's no request shape to validate or malform. Access is gated by ``IsAuthenticated`` (session or JWT); CSRF protection doesn't apply here since GET is a safe method Django's CSRF middleware doesn't check.
 #. **``openedx_authz.utils`` now depends on** ``common.djangoapps.student.roles.enable_authz_course_authoring`` **and** ``openedx.core.djangoapps.waffle_utils.models``, guarded by the same standalone-import pattern already used elsewhere in this repo (``rest_api/utils.py``, ``handlers.py``). This is a temporary, direct openedx-platform dependency, tracked as follow-up work under `issue #360`_ (moving the dependency direction so services depend on ``openedx_authz``).
 #. **The exception has a planned end.** `Issue #377`_ tracks removing ``WaffleFlagStatesAPIView`` and ``get_waffle_flag_states()`` when ``authz.enable_course_authoring`` is deprecated. The flag's ``toggle_target_removal_date`` is 2027-06-09, tracked upstream at `openedx-platform#37927`_.
 
@@ -70,6 +72,7 @@ References
 * `PR #361`_
 * `PR #361's own comment thread`_
 * `A review comment on frontend-app-admin-console#176`_
+* `frontend-app-admin-console#176`_
 * `openedx-platform#37927`_
 
 .. _ADR 0010: 0010-course-authoring-flag.rst
@@ -87,6 +90,7 @@ References
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _PR #361's own comment thread: https://github.com/openedx/openedx-authz/pull/361#issuecomment-4967053225
 .. _A review comment on frontend-app-admin-console#176: https://github.com/openedx/frontend-app-admin-console/pull/176#issuecomment-4900922914
+.. _frontend-app-admin-console#176: https://github.com/openedx/frontend-app-admin-console/pull/176
 .. _edx_toggles source: https://github.com/openedx/edx-toggles/blob/master/edx_toggles/toggles/state/internal/report.py
 .. _waffle_utils models source: https://github.com/openedx/openedx-platform/blob/master/openedx/core/djangoapps/waffle_utils/models.py
 .. _openedx-platform#37927: https://github.com/openedx/openedx-platform/issues/37927

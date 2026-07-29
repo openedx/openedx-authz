@@ -59,6 +59,7 @@ class ContentLibraryScope(Scope):
     """
 
     NAMESPACE = "lib"
+    LINKED_OBJECT_FIELD = "content_library"
 
     # Link to the actual content library, if applicable. In other cases, this could be null.
     # Piggybacking on the existing ContentLibrary model to keep the ExtendedCasbinRule up to date
@@ -79,54 +80,9 @@ class ContentLibraryScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope) -> "ContentLibraryScope":
-        """Get or create a ContentLibraryScope for the given external key.
-
-        The backing ContentLibrary need not exist yet (e.g. it may be created
-        later as part of an in-progress operation): the scope is created with
-        ``content_library=None`` in that case and gets linked up automatically
-        once a ContentLibrary with a matching key is saved (see link_pending_scope()
-        and the backfill signal receiver in openedx_authz/handlers.py).
-
-        Args:
-            scope: ScopeData object with an external_key attribute containing
-                a LibraryLocatorV2-compatible string.
-
-        Returns:
-            ContentLibraryScope: The Scope instance for the given ContentLibrary,
-                or None if the scope is a glob pattern (contains wildcard).
-        """
-        content_library = scope.get_object()
-        if content_library is None:
-            # The library doesn't exist yet: key the row by its external_key so it can be
-            # found and linked up later by link_pending_scope().
-            row, _ = cls.objects.get_or_create(external_key=scope.external_key)
-            return row
-
-        # Look up by the FK first (as before this change) so scopes created before the
-        # external_key field existed are reused rather than duplicated.
-        row, created = cls.objects.get_or_create(
-            content_library=content_library,
-            defaults={"external_key": scope.external_key},
-        )
-        if not created and not row.external_key:
-            row.external_key = scope.external_key
-            row.save(update_fields=["external_key"])
-        return row
-
-    @classmethod
-    def link_pending_scope(cls, content_library) -> None:
-        """Link a pending ContentLibraryScope to the ContentLibrary that was just created for it.
-
-        Called from the ContentLibrary post_save signal receiver in openedx_authz/handlers.py
-        once a library with a matching external_key shows up.
-
-        Args:
-            content_library: The ContentLibrary instance that was just saved.
-        """
-        cls.objects.filter(
-            external_key=str(content_library.library_key), content_library__isnull=True
-        ).update(content_library=content_library)
+    def external_key_for_object(cls, linked_object) -> str:
+        """Return the canonical external_key string for a ContentLibrary instance."""
+        return str(linked_object.library_key)
 
 
 class CourseScope(Scope):
@@ -136,6 +92,7 @@ class CourseScope(Scope):
     """
 
     NAMESPACE = "course-v1"
+    LINKED_OBJECT_FIELD = "course_overview"
 
     # Link to the actual course, if applicable. In other cases, this could be null.
     # Piggybacking on the existing CourseOverview model to keep the ExtendedCasbinRule up to date
@@ -156,52 +113,6 @@ class CourseScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope) -> "CourseScope":
-        """Get or create a CourseScope for the given external key.
-
-        The backing CourseOverview need not exist yet (e.g. during a course
-        rerun, the destination course id is known before the course is
-        cloned): the scope is created with ``course_overview=None`` in that
-        case and gets linked up automatically once a CourseOverview with a
-        matching id is saved (see link_pending_scope() and the backfill
-        signal receiver in openedx_authz/handlers.py).
-
-        Args:
-            scope: ScopeData object with an external_key attribute containing
-                a CourseKey string.
-
-        Returns:
-            CourseScope: The Scope instance for the given CourseOverview,
-                or None if the scope is a glob pattern (contains wildcard).
-        """
-        course_overview = scope.get_object()
-        if course_overview is None:
-            # The course doesn't exist yet: key the row by its external_key so it can be
-            # found and linked up later by link_pending_scope().
-            row, _ = cls.objects.get_or_create(external_key=scope.external_key)
-            return row
-
-        # Look up by the FK first (as before this change) so scopes created before the
-        # external_key field existed are reused rather than duplicated.
-        row, created = cls.objects.get_or_create(
-            course_overview=course_overview,
-            defaults={"external_key": scope.external_key},
-        )
-        if not created and not row.external_key:
-            row.external_key = scope.external_key
-            row.save(update_fields=["external_key"])
-        return row
-
-    @classmethod
-    def link_pending_scope(cls, course_overview) -> None:
-        """Link a pending CourseScope to the CourseOverview that was just created for it.
-
-        Called from the CourseOverview post_save signal receiver in openedx_authz/handlers.py
-        once a course with a matching external_key shows up.
-
-        Args:
-            course_overview: The CourseOverview instance that was just saved.
-        """
-        cls.objects.filter(
-            external_key=str(course_overview.id), course_overview__isnull=True
-        ).update(course_overview=course_overview)
+    def external_key_for_object(cls, linked_object) -> str:
+        """Return the canonical external_key string for a CourseOverview instance."""
+        return str(linked_object.id)

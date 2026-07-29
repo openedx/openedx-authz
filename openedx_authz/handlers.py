@@ -11,6 +11,7 @@ from typing import Union
 
 from casbin_adapter.models import CasbinRule
 from django.conf import settings
+from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
@@ -150,17 +151,34 @@ def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused
     role for a course key before its CourseOverview exists, leaving course_overview null.
     This backfills that FK once the course shows up, e.g. after a course rerun finishes
     cloning. See CourseScope.link_pending_scope() for the actual lookup/update.
+
+    This runs on every CourseOverview save, so errors are logged rather than raised:
+    a problem backfilling a pending scope must not break the caller's save(). The query
+    runs in its own savepoint so a failure doesn't poison the caller's transaction.
     """
-    CourseScope.link_pending_scope(instance)
+    try:
+        with transaction.atomic():
+            CourseScope.link_pending_scope(instance)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Error linking pending CourseScope to CourseOverview %s", instance.pk, exc_info=exc,
+        )
 
 
 def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
     """
     Link a pending ContentLibraryScope to the ContentLibrary that was just created for it.
 
-    See backfill_course_scope() above; same idea for content libraries.
+    See backfill_course_scope() above; same idea for content libraries, including the
+    broad exception handling and the isolating savepoint.
     """
-    ContentLibraryScope.link_pending_scope(instance)
+    try:
+        with transaction.atomic():
+            ContentLibraryScope.link_pending_scope(instance)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Error linking pending ContentLibraryScope to ContentLibrary %s", instance.pk, exc_info=exc,
+        )
 
 
 # Only register the handlers if the models are available (i.e., running in Open edX)

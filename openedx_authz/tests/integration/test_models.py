@@ -40,7 +40,6 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models import (
     ContentLibrary,
     ContentLibraryScope,
-    CourseOverview,
     CourseScope,
     ExtendedCasbinRule,
     Scope,

@@ -1955,5 +1955,3 @@ class TestPlatformGlobLibraryRoleAssignment(ViewTestMixin):
         response = self._put_lib(scopes, roles.LIBRARY_ADMIN.external_key)
 
         self.assertEqual(response.status_code, expected_status)
-
-

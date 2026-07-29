@@ -628,7 +628,7 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
             return orgs
 
         short_names = {org for assignment in assignments if (org := getattr(assignment.scope, "org", None))}
-        return Organization.objects.filter(active=True, short_name__in=short_names).order_by("name")
+        return orgs.filter(short_name__in=short_names)
 
 
 @view_auth_classes()

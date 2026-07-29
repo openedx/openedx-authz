@@ -20,7 +20,6 @@ from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.v1.admin_console.views import ScopesAPIView
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission
 from openedx_authz.tests.rest_api.test_views import ViewTestMixin
 from openedx_authz.tests.stubs.models import LearningPackage
 
@@ -289,7 +288,9 @@ class TestScopesAPIView(ViewTestMixin):
 
     def test_staff_sees_all_scopes_without_permission_check(self):
         """Staff users bypass permission filtering and see all scopes."""
-        with patch("openedx_authz.rest_api.v1.admin_console.views.get_scopes_for_user_and_permission") as mock_get_scopes:
+        with patch(
+            "openedx_authz.rest_api.v1.admin_console.views.get_scopes_for_user_and_permission"
+        ) as mock_get_scopes:
             response = self.client.get(self.url)  # admin_1 is staff
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -1476,7 +1476,7 @@ class TestFieldIndexAndValues(TestCase):
         scope,
         expected_index,
         expected_values,
-    ):  # pylint: disable=too-many-positional-arguments
+    ):
         """Test that _get_field_index_and_values correctly builds field index and values.
 
         Expected result:

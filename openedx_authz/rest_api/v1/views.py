@@ -29,13 +29,10 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PlatformGlobData,
-    RoleAssignmentData,
-    SuperAdminAssignmentData,
     UserAssignmentData,
 )
 from openedx_authz.api.users import (
     get_scopes_for_user_and_permission,
-    get_superadmin_assignments,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
 from openedx_authz.api.utils import get_user_map
@@ -1151,10 +1148,10 @@ class TeamMemberAssignmentsAPIView(APIView):
     Returns a paginated list of assignment objects, each containing:
 
     - is_superadmin: Whether this entry denotes a superadmin (staff/superuser)
-    - role: The role name (e.g., 'library_admin', 'django.superuser')
-    - org: The org over which this role is applied ('*' for superadmins)
-    - scope: The scope over which this role is applied ('*' for superadmins)
-    - permission_count: The number of permissions that apply to this role (null for superadmins)
+    - role: The role name (e.g., 'library_admin')
+    - org: The org over which this role is applied
+    - scope: The scope over which this role is applied
+    - permission_count: The number of permissions that apply to this role
 
     **Authentication and Permissions**
 
@@ -1222,12 +1219,7 @@ class TeamMemberAssignmentsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        user_role_assignments: list[RoleAssignmentData | SuperAdminAssignmentData] = []
-
-        # Retrieve superadmin assignments (django staff or superuser users), as they always have access to everything
-        user_role_assignments += get_superadmin_assignments(user_external_keys=[username])
-
-        user_role_assignments += get_visible_user_role_assignments_filtered_by_current_user(
+        user_role_assignments = get_visible_user_role_assignments_filtered_by_current_user(
             user_external_key=username,
             orgs=query_params.get("orgs"),
             roles=query_params.get("roles"),

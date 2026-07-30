@@ -29,7 +29,6 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PlatformGlobData,
-    RoleAssignmentData,
     UserAssignmentData,
 )
 from openedx_authz.api.users import (
@@ -1220,9 +1219,7 @@ class TeamMemberAssignmentsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
 
-        user_role_assignments: list[RoleAssignmentData] = []
-
-        user_role_assignments += get_visible_user_role_assignments_filtered_by_current_user(
+        user_role_assignments = get_visible_user_role_assignments_filtered_by_current_user(
             user_external_key=username,
             orgs=query_params.get("orgs"),
             roles=query_params.get("roles"),

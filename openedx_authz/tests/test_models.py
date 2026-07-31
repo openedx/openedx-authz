@@ -14,7 +14,7 @@ polymorphism and registry patterns, see the integration tests in test_integratio
 which run against the real ContentLibrary model.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import UUID, uuid4
 
 from casbin_adapter.models import CasbinRule
@@ -25,7 +25,7 @@ from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, UserData
-from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.models import ContentLibraryScope, CourseScope, ExtendedCasbinRule, Scope, Subject
 from openedx_authz.models.authz_migration import (
     AuthzCourseAuthoringMigrationRun,
     MigrationType,
@@ -283,6 +283,60 @@ class TestCourseExtendedCasbinRuleModelWithStub(TestCase):
         self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule_id).exists())
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Subject.objects.filter(id=subject_id).exists())
+
+
+class TestScopeGetOrCreateForExternalKeyBranches(TestCase):
+    """Cover branches of Scope.get_or_create_for_external_key()/external_key_for_object()
+    that aren't reached by the happy-path tests above.
+
+    These use a mocked ScopeData-like object (only .external_key/.get_object() matter to the
+    method under test) instead of real CourseOverview/ContentLibrary lookups, so they run in
+    this stub-only environment. The same scenarios are also covered end-to-end against real
+    edx-platform objects in tests/integration/test_models.py.
+    """
+
+    def test_external_key_for_object_not_implemented_on_base_scope(self):
+        """The base Scope class has no backing object type, so it can't compute an external_key.
+
+        Expected Result:
+        - Calling external_key_for_object() directly on Scope (not a subclass) raises.
+        """
+        with self.assertRaises(NotImplementedError):
+            Scope.external_key_for_object(object())
+
+    def test_pending_object_creates_scope_with_null_fk(self):
+        """get_or_create_for_external_key() must not crash when get_object() returns None.
+
+        Expected Result:
+        - A CourseScope is created with course_overview left None.
+        - Its external_key matches the one on the (not yet existing) ScopeData.
+        """
+        scope_data = Mock(external_key="course-v1:TestOrg+Pending+2024", get_object=Mock(return_value=None))
+
+        scope = CourseScope.get_or_create_for_external_key(scope_data)
+
+        self.assertIsInstance(scope, CourseScope)
+        self.assertIsNone(scope.course_overview)
+        self.assertEqual(scope.external_key, scope_data.external_key)
+
+    def test_existing_fk_only_scope_gets_external_key_backfilled(self):
+        """A scope created before the external_key field existed (FK set, external_key null)
+        should be reused and have its external_key backfilled, not duplicated.
+
+        Expected Result:
+        - The same row (by id) is returned.
+        - Its external_key is populated after the call.
+        """
+        content_library = ContentLibrary.objects.get_by_key(LibraryLocatorV2.from_string("lib:TestOrg:Legacy"))
+        legacy_scope = ContentLibraryScope.objects.create(content_library=content_library)
+        self.assertIsNone(legacy_scope.external_key)
+
+        scope_data = Mock(external_key=str(content_library.library_key), get_object=Mock(return_value=content_library))
+        scope = ContentLibraryScope.get_or_create_for_external_key(scope_data)
+
+        self.assertEqual(scope.id, legacy_scope.id)
+        self.assertEqual(scope.external_key, str(content_library.library_key))
+        self.assertEqual(ContentLibraryScope.objects.filter(content_library=content_library).count(), 1)
 
 
 class TestPolicyCacheControlModel(TestCase):

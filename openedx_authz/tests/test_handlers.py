@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 from casbin_adapter.models import CasbinRule
 from ddt import data, ddt, unpack
 from django.test import TestCase, override_settings
+from opaque_keys.edx.keys import CourseKey
+from opaque_keys.edx.locator import LibraryLocatorV2
 from openedx_events.authz.data import RoleAssignmentData
 
 from openedx_authz.handlers import (
@@ -27,7 +29,9 @@ from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit, Scope, Subject
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
+    ContentLibrary,
     CourseAccessRole,
+    CourseOverview,
     WaffleFlagCourseOverrideModel,
     WaffleFlagOrgOverrideModel,
 )
@@ -243,6 +247,53 @@ class TestExtendedCasbinRuleDeletionSignalHandlers(TestCase):
         self.assertFalse(CasbinRule.objects.filter(id=casbin_rule_id).exists())
         self.assertFalse(Scope.objects.filter(id=scope_id).exists())
         self.assertTrue(Subject.objects.filter(id=subject_id).exists())
+
+
+class TestBackfillPendingScopeSignalHandlers(TestCase):
+    """Confirm the pending-scope backfill handlers stay resilient to failures.
+
+    A failure linking a pending CourseScope/ContentLibraryScope must not break the
+    CourseOverview/ContentLibrary save() that triggered it (see openedx_authz/handlers.py
+    backfill_course_scope/backfill_content_library_scope).
+    """
+
+    def test_course_scope_backfill_logs_exception_without_raising(self):
+        """A failure in CourseScope.link_pending_scope() should be logged, not raised.
+
+        Expected Result:
+        - Logger captures the exception raised by link_pending_scope().
+        - CourseOverview.get_from_id() (the caller) still returns normally.
+        """
+        with (
+            patch("openedx_authz.handlers.logger") as mock_logger,
+            patch("openedx_authz.handlers.CourseScope.link_pending_scope") as mock_link,
+        ):
+            mock_link.side_effect = RuntimeError("link failed")
+
+            course_overview = CourseOverview.get_from_id(CourseKey.from_string("course-v1:TestOrg+Resilient+2024"))
+
+            mock_link.assert_called_once_with(course_overview)
+            mock_logger.exception.assert_called_once()
+            self.assertIn("Error linking pending CourseScope", mock_logger.exception.call_args[0][0])
+
+    def test_content_library_scope_backfill_logs_exception_without_raising(self):
+        """A failure in ContentLibraryScope.link_pending_scope() should be logged, not raised.
+
+        Expected Result:
+        - Logger captures the exception raised by link_pending_scope().
+        - ContentLibrary.objects.get_by_key() (the caller) still returns normally.
+        """
+        with (
+            patch("openedx_authz.handlers.logger") as mock_logger,
+            patch("openedx_authz.handlers.ContentLibraryScope.link_pending_scope") as mock_link,
+        ):
+            mock_link.side_effect = RuntimeError("link failed")
+
+            content_library = ContentLibrary.objects.get_by_key(LibraryLocatorV2.from_string("lib:TestOrg:Resilient"))
+
+            mock_link.assert_called_once_with(content_library)
+            mock_logger.exception.assert_called_once()
+            self.assertIn("Error linking pending ContentLibraryScope", mock_logger.exception.call_args[0][0])
 
 
 @ddt

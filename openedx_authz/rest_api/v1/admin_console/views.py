@@ -40,6 +40,7 @@ from openedx_authz.api.users import (
     get_visible_user_role_assignments_filtered_by_current_user,
 )
 from openedx_authz.constants import permissions
+from openedx_authz.filters import AuthorizationDataRequested
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import ScopesQuerySetFields, ScopesTypeField
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
@@ -503,6 +504,25 @@ class ScopesAPIView(generics.ListAPIView):
         # Union the requested querysets and sort by org at the DB level.
         return self._build_queryset(courses_qs, libraries_qs)
 
+    def filter_queryset(self, queryset: QuerySet) -> list[dict]:
+        """Materialize the queryset and apply AuthorizationDataRequested before pagination.
+
+        Filtering has to happen here, before ``paginate_queryset`` runs, so the page's
+        ``count`` reflects the actually-visible total, not the pre-filter one. Each row
+        is given a temporary ``scope`` key, matching the filter's contract, computed the
+        same way ``ScopeSerializer.get_external_key`` does; the key is removed again
+        before returning, since ``ScopeSerializer`` derives it itself from the row's
+        existing fields, it isn't part of this endpoint's queryset shape.
+        """
+        rows = list(queryset)
+        get_external_key = ScopeSerializer().get_external_key
+        for row in rows:
+            row["scope"] = get_external_key(row)
+        rows = AuthorizationDataRequested.run_filter(items=rows, username=self.request.user.username)
+        for row in rows:
+            del row["scope"]
+        return rows
+
 
 @view_auth_classes()
 class TeamMembersAPIView(APIView):
@@ -721,6 +741,7 @@ class TeamMemberAssignmentsAPIView(APIView):
         )
 
         assignments = TeamMemberAssignmentSerializer(user_role_assignments, many=True).data
+        assignments = AuthorizationDataRequested.run_filter(items=assignments, username=request.user.username)
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 
@@ -853,6 +874,7 @@ class AssignmentsAPIView(APIView):
             ]
 
         assignments = TeamMemberUserAssignmentSerializer(user_role_assignments, many=True).data
+        assignments = AuthorizationDataRequested.run_filter(items=assignments, username=request.user.username)
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 

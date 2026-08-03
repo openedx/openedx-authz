@@ -28,9 +28,19 @@ Decision
 
 1. Authorization owns endpoints that expose roles, permissions, assignments, or scopes. This remains true whether an endpoint is reusable or tailored to one screen.
 2. The five endpoints tailored to Admin Console workflows (``AdminConsoleOrgsAPIView``, ``ScopesAPIView``, ``TeamMembersAPIView``, ``TeamMemberAssignmentsAPIView``, and ``AssignmentsAPIView``) move to ``openedx_authz/rest_api/v1/admin_console/``. This is a code-organization boundary, not a new domain boundary.
-3. The reusable endpoints ``PermissionValidationMeView``, ``RoleUserAPIView``, and ``RoleListView`` remain in ``openedx_authz/rest_api/v1/views.py``. Their guarantee is that they answer "what can this subject do" identically regardless of caller. Depending on another domain's concept, the course-authoring flag included, would make that answer depend on who's asking, breaking the guarantee for every other consumer. Any consumer that needs flag-aware behavior handles it on its own side, the way ``authz_permission_required`` already does in CMS.
-4. Authorization endpoints must not compute or expose data owned by another domain. ``WaffleFlagStatesAPIView`` is the sole current exception. `ADR 0015`_ documents why it will remain temporarily; the exception must not be extended to other endpoints.
+3. The reusable endpoints ``PermissionValidationMeView``, ``RoleUserAPIView``, and ``RoleListView`` remain in ``openedx_authz/rest_api/v1/views.py``. Their guarantee is that they answer "what can this subject do" identically regardless of caller. Their own code must not depend on another domain's concept, the course-authoring flag included, that would make the answer depend on who's asking, breaking the guarantee for every other consumer. They may call a domain-neutral extension point that a separate, optional implementation elsewhere fills in; `ADR 0018 (cross-domain filtering)`_ establishes that mechanism.
+4. Authorization endpoints' own code must not compute or expose data owned by another domain. ``WaffleFlagStatesAPIView`` remains the sole endpoint that does so directly. `ADR 0018 (cross-domain filtering)`_ documents a second, isolated exception to this rule, an opt-in filter implementation that computes course-authoring visibility without any generic endpoint depending on it; that exception does not extend to the endpoints' own code, only to the separate, disabled-by-default module that ADR names.
 5. This ADR does not decide the domain ownership of ``UserValidationAPIView`` or ``AdminConsoleOrgsAPIView``. They retain the package placement described above until that question is resolved separately.
+
+Example, the package layout decision 2 produces::
+
+   openedx_authz/rest_api/v1/
+       views.py               # PermissionValidationMeView, RoleUserAPIView, RoleListView, UserValidationAPIView
+       admin_console/
+           views.py           # AdminConsoleOrgsAPIView, ScopesAPIView, TeamMembersAPIView,
+                               # TeamMemberAssignmentsAPIView, AssignmentsAPIView
+       course_authoring/
+           views.py           # WaffleFlagStatesAPIView
 
 Consequences
 ************
@@ -56,6 +66,7 @@ References
 * `edX DDD Bounded Contexts`_
 * `ADR 0018 in openedx-events`_
 * `ADR 0015`_
+* `ADR 0018 (cross-domain filtering)`_
 * `Issue #360`_
 * `PR #361`_
 * `openedx_catalog`_
@@ -63,6 +74,7 @@ References
 .. _edX DDD Bounded Contexts: https://openedx.atlassian.net/wiki/spaces/AC/pages/663224968/edX+DDD+Bounded+Contexts
 .. _ADR 0018 in openedx-events: https://github.com/openedx/openedx-events/blob/main/docs/decisions/0018-supporting-subdomain-modules.rst
 .. _ADR 0015: 0015-expose-course-authoring-waffle-flag-state-via-rest-api.rst
+.. _ADR 0018 (cross-domain filtering): 0018-cross-domain-filtering-via-openedx-filters.rst
 .. _Issue #360: https://github.com/openedx/openedx-authz/issues/360
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _openedx_catalog: https://github.com/openedx/openedx-core/blob/main/src/openedx_catalog/api.py

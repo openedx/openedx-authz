@@ -20,12 +20,12 @@ from rest_framework.views import APIView
 from openedx_authz import api
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
+from openedx_authz.filters import AuthorizationDataRequested
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_generic_scope,
-    has_visible_scope,
     sort_users,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
@@ -137,9 +137,7 @@ class PermissionValidationMeView(APIView):
             try:
                 action = permission["action"]
                 scope = permission.get("scope")
-                allowed = has_visible_scope(username, action, scope) and api.is_user_allowed_in_scope(
-                    username, action, scope
-                )
+                allowed = api.is_user_allowed_in_scope(username, action, scope)
                 response_data.append({"action": action, "scope": scope, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
@@ -151,6 +149,7 @@ class PermissionValidationMeView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
+        response_data = AuthorizationDataRequested.run_filter(items=response_data, username=username)
         serializer = PermissionValidationResponseSerializer(response_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

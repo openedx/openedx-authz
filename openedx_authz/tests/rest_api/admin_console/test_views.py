@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from organizations.models import Organization
 from rest_framework import status
@@ -172,6 +173,40 @@ class TestScopesAPIView(ViewTestMixin):
             self.assertIn("external_key", item)
             self.assertIn("display_name", item)
             self.assertIn("org", item)
+
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    def test_hidden_course_scope_is_dropped_with_the_real_pipeline_step(self):
+        """Test with the real course-authoring pipeline step configured and the flag disabled.
+
+        Expected result:
+            - Returns 200 OK status
+            - The hidden course scope is dropped from the results and count
+            - Library scopes are unaffected
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_1"))
+
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        external_keys = {item["external_key"] for item in response.data["results"]}
+        self.assertNotIn(self.COURSE_ORG1, external_keys)
+        self.assertNotIn(self.COURSE_ORG2, external_keys)
+        self.assertIn(self.LIBRARY_ORG1, external_keys)
+        self.assertIn(self.LIBRARY_ORG2, external_keys)
+        self.assertEqual(response.data["count"], len(response.data["results"]))
 
     # ------------------------------------------------------------------ #
     # Sorted by org                                                       #
@@ -1771,6 +1806,40 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(any(item["is_superadmin"] for item in response.data["results"]))
 
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    def test_hidden_course_assignment_is_dropped_with_the_real_pipeline_step(self):
+        """Test with the real course-authoring pipeline step configured and the flag disabled.
+
+        Expected result:
+            - Returns 200 OK status
+            - The hidden course assignment is dropped from the results
+        """
+        assign_role_to_user_in_scope(
+            user_external_key="regular_5",
+            role_external_key=roles.COURSE_STAFF.external_key,
+            scope_external_key=COURSE_SCOPE_ORG1,
+        )
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.get(self._url("regular_5"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        scopes = {item["scope"] for item in response.data["results"]}
+        self.assertNotIn(COURSE_SCOPE_ORG1, scopes)
+
 
 @ddt
 class TestAssignmentsAPIView(ViewTestMixin):
@@ -2299,6 +2368,40 @@ class TestAssignmentsAPIView(ViewTestMixin):
         finally:
             inactive_user.is_active = True
             inactive_user.save()
+
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    def test_hidden_course_assignment_is_dropped_with_the_real_pipeline_step(self):
+        """Test with the real course-authoring pipeline step configured and the flag disabled.
+
+        Expected result:
+            - Returns 200 OK status
+            - The hidden course assignment is dropped from the results
+        """
+        assign_role_to_user_in_scope(
+            user_external_key="regular_1",
+            role_external_key=roles.COURSE_STAFF.external_key,
+            scope_external_key=COURSE_SCOPE_ORG1,
+        )
+        self.client.force_authenticate(user=User.objects.get(username="regular_1"))
+
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        scopes = {item["scope"] for item in response.data["results"]}
+        self.assertNotIn(COURSE_SCOPE_ORG1, scopes)
 
 
 @ddt

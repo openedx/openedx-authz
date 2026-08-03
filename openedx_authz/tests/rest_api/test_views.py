@@ -5,12 +5,12 @@ This test suite validates the functionality of the authorization REST API endpoi
 including permission validation, user-role management, and role listing capabilities.
 """
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from urllib.parse import urlencode
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -29,7 +29,6 @@ from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.views import UserValidationAPIView
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
-from openedx_authz.tests.rest_api.test_utils import CourseWaffleFlagMock
 
 User = get_user_model()
 
@@ -388,193 +387,45 @@ class TestPermissionValidationMeView(ViewTestMixin):
             self.assertEqual(response.status_code, status_code)
             self.assertEqual(response.data, {"message": message})
 
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    def test_permission_validation_marks_hidden_course_scope_as_disallowed(self):
+        """Test PermissionValidationMeView with the real course-authoring pipeline step configured.
 
-@ddt
-class TestPermissionValidationMeViewCourseAuthoringFlag(ViewTestMixin):
-    """Test PermissionValidationMeView's course-authoring flag awareness (ADR 0015)."""
-
-    def setUp(self):
-        """Set up test fixtures and assign a course role to the regular user."""
-        super().setUp()
-        self.url = reverse("openedx_authz:permission-validation-me")
+        Expected result:
+            - Returns 200 OK status
+            - The course item is marked allowed=False, since the flag is disabled for its scope
+            - The library item is unaffected, since course-authoring visibility never gates it
+        """
         self.client.force_authenticate(user=self.regular_user)
         assign_role_to_user_in_scope(
             user_external_key=self.regular_user.username,
             role_external_key=roles.COURSE_STAFF.external_key,
             scope_external_key=COURSE_SCOPE_ORG1,
         )
-
-    @data(
-        # (platform, org_override, course_override, expected_allowed) - ADR 0015 truth table, permission=True rows
-        # (this user always has the course_staff permission assigned, so we only test the "Yes" half of the truth table)
-        (False, None, None, False),
-        (True, None, None, True),
-        (False, True, None, True),
-        (True, True, None, True),
-        (False, False, None, False),
-        (True, False, None, False),
-        (False, None, True, True),
-        (True, None, True, True),
-        (False, None, False, False),
-        (True, None, False, False),
-    )
-    @unpack
-    def test_course_scope_flag_table(
-        self, platform: bool, org_override: bool | None, course_override: bool | None, expected_allowed: bool
-    ):
-        """Test PermissionValidationMeView with a course scope, through the real endpoint.
-
-        Expected result:
-            - Allowed exactly when the ADR 0015 truth table says so for the "Yes"
-              (user has permission) half: course override wins, else org
-              override, else platform default.
-        """
-        request_data = [{"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1}]
-
-        with patch(
-            "openedx_authz.rest_api.utils.enable_authz_course_authoring",
-            CourseWaffleFlagMock(platform, org_override, course_override),
-        ):
-            response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]["allowed"], expected_allowed)
-
-    @patch("openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=False)
-    def test_library_scope_unaffected_by_disabled_flag(self, _mock_flag):
-        """Test PermissionValidationMeView with a library scope, while the course-authoring flag is off.
-
-        Expected result:
-            - Allowed. A library permission isn't gated by the course-authoring flag.
-        """
-        assign_role_to_user_in_scope(
-            user_external_key=self.regular_user.username,
-            role_external_key=roles.LIBRARY_ADMIN.external_key,
-            scope_external_key=LIB_SCOPE_ORG1,
-        )
-        request_data = [{"action": permissions.VIEW_LIBRARY.identifier, "scope": LIB_SCOPE_ORG1}]
-
-        response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data[0]["allowed"])
-
-    @patch("openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=False)
-    def test_any_scope_check_excludes_disabled_course(self, _mock_flag):
-        """Test PermissionValidationMeView for a course-only permission, with no scope given, flag off.
-
-        Expected result:
-            - Denied. The user's only qualifying course is flag-disabled, so no
-              visible scope grants the permission.
-        """
-        request_data = [{"action": permissions.COURSES_VIEW_COURSE.identifier}]
-
-        response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data[0]["allowed"])
-
-    @patch("openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=True)
-    def test_any_scope_check_includes_enabled_course(self, _mock_flag):
-        """Test PermissionValidationMeView for a course-only permission, with no scope given, flag on.
-
-        Expected result:
-            - Allowed. The course's flag is on, so the visible scope grants the permission.
-        """
-        request_data = [{"action": permissions.COURSES_VIEW_COURSE.identifier}]
-
-        response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data[0]["allowed"])
-
-    @data(True, False)
-    def test_org_scope_validation(self, flag_enabled: bool):
-        """Test PermissionValidationMeView with an org-level (glob) scope and no org override.
-
-        Expected result:
-            - Allowed exactly when the platform tier is on, since the visibility
-              check falls back to the platform default with no org override set.
-        """
-        assign_role_to_user_in_scope(
-            user_external_key=self.regular_user.username,
-            role_external_key=roles.COURSE_ADMIN.external_key,
-            scope_external_key=COURSE_ORG1_GLOB,
-        )
-        request_data = [{"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_ORG1_GLOB}]
-
-        mock_org_model = MagicMock()
-        mock_org_model.ALL_CHOICES = SimpleNamespace(on="on", off="off", unset="unset")
-        mock_org_model.override_value.return_value = "unset"
-
-        with patch(
-            "openedx_authz.rest_api.utils.WaffleFlagOrgOverrideModel", mock_org_model
-        ), patch(
-            "openedx_authz.rest_api.utils.AUTHZ_COURSE_AUTHORING_FLAG",
-            SimpleNamespace(name="authz.enable_course_authoring"),
-        ), patch(
-            "openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=flag_enabled
-        ):
-            response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]["allowed"], flag_enabled)
-
-    @patch("openedx_authz.rest_api.utils.enable_authz_course_authoring", return_value=False)
-    def test_course_and_library_scope_validated_independently_in_one_request(self, _mock_flag):
-        """Test PermissionValidationMeView with a flag-disabled course item and a library item, same request.
-
-        Expected result:
-            - The course item is denied and the library item is allowed; each
-              item is validated independently, so one does not affect the other.
-        """
-        assign_role_to_user_in_scope(
-            user_external_key=self.regular_user.username,
-            role_external_key=roles.LIBRARY_ADMIN.external_key,
-            scope_external_key=LIB_SCOPE_ORG1,
-        )
         request_data = [
             {"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1},
             {"action": permissions.VIEW_LIBRARY.identifier, "scope": LIB_SCOPE_ORG1},
         ]
 
-        response = self.client.post(self.url, data=request_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data[0]["allowed"])
-        self.assertTrue(response.data[1]["allowed"])
-
-    def test_course_flag_off_for_one_course_does_not_affect_another_course_in_the_same_request(self):
-        """Test PermissionValidationMeView with two courses in one request, flag off for only one of them.
-
-        Expected result:
-            - The flag-disabled course is denied and the other course is allowed;
-              a course-level override for one course does not leak into a
-              sibling course in the same batch.
-        """
-        other_course_scope = "course-v1:Org1+COURSE2+2024"
-        assign_role_to_user_in_scope(
-            user_external_key=self.regular_user.username,
-            role_external_key=roles.COURSE_STAFF.external_key,
-            scope_external_key=other_course_scope,
-        )
-        request_data = [
-            {"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1},
-            {"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": other_course_scope},
-        ]
-
-        def flag_side_effect(course_key):
-            return str(course_key) != COURSE_SCOPE_ORG1
-
         with patch(
-            "openedx_authz.rest_api.utils.enable_authz_course_authoring",
-            side_effect=flag_side_effect,
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
         ):
             response = self.client.post(self.url, data=request_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data[0]["allowed"])
         self.assertTrue(response.data[1]["allowed"])
+
 
 
 @ddt

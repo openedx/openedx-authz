@@ -29,10 +29,13 @@ from openedx_authz.api.data import (
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PlatformGlobData,
+    RoleAssignmentData,
+    ScopeData,
     UserAssignmentData,
 )
 from openedx_authz.api.users import (
     get_scopes_for_user_and_permission,
+    get_user_role_assignments_per_scope_type,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
 from openedx_authz.api.utils import get_user_map
@@ -562,9 +565,12 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
     - name: The organization's name
     - short_name: The organization's short name
 
+    Results are limited to the orgs of the courses and libraries the requesting user has a
+    role assignment in. Staff and superusers see every active org.
+
     **Authentication and Permissions**
 
-    - Requires authenticated user.
+    - Requires authenticated user with either a content library or course view team permission.
 
     **Example Request**
 
@@ -598,8 +604,29 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
     permission_classes = [AnyScopePermission]
 
     def get_queryset(self) -> QuerySet:
-        """Return active organizations ordered by name."""
-        return Organization.objects.filter(active=True).order_by("name")
+        """Return the active organizations visible to the requesting user, ordered by name."""
+        user = self.request.user
+
+        orgs = Organization.objects.filter(active=True).order_by("name")
+
+        # Staff/superusers bypass assignment-based filtering, same as elsewhere in the codebase
+        # (see _filter_allowed_assignments and the Casbin matcher). TODO: this check is duplicated
+        # at each call site that needs it; it should live once in the api layer instead of being
+        # re-implemented in the REST API layer.
+        # See https://github.com/openedx/openedx-authz/issues/347 to standardize this further.
+        if user.is_staff or user.is_superuser:
+            return orgs
+
+        assignments = get_user_role_assignments_per_scope_type(
+            user.username,
+            tuple(ScopeData.get_all_registered_scopes()),
+        )
+
+        if RoleAssignmentData.filter_platform_glob_assignments(assignments):
+            return orgs
+
+        short_names = {org for assignment in assignments if (org := getattr(assignment.scope, "org", None))}
+        return orgs.filter(short_name__in=short_names)
 
 
 @view_auth_classes()

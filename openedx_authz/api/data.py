@@ -1545,6 +1545,22 @@ class RoleAssignmentData:
         role_keys = ", ".join(role.namespaced_key for role in self.roles)
         return f"{self.subject.namespaced_key} => [{role_keys}] @ {self.scope.namespaced_key}"
 
+    @staticmethod
+    def filter_platform_glob_assignments(
+        assignments: list["RoleAssignmentData"],
+    ) -> list["RoleAssignmentData"]:
+        """Filter a list of role assignments down to those in a platform-level glob scope.
+
+        Args:
+            assignments: Role assignments to filter.
+
+        Returns:
+            list[RoleAssignmentData]: The assignments whose scope is a platform-level glob
+                (e.g., PlatformCourseOverviewGlobData, PlatformContentLibraryGlobData).
+        """
+        platform_glob_scopes = tuple(ScopeData.get_all_platform_glob_namespaces().values())
+        return [assignment for assignment in assignments if isinstance(assignment.scope, platform_glob_scopes)]
+
 
 @define
 class SuperAdminAssignmentData:

@@ -855,6 +855,73 @@ class TestDataRepresentation(TestCase):
         expected_repr = "user^john_doe => [role^instructor, role^library_admin] @ lib^lib:DemoX:CSPROB"
         self.assertEqual(actual_repr, expected_repr)
 
+    def test_filter_platform_glob_assignments_keeps_only_platform_glob_scopes(self):
+        """Test that filter_platform_glob_assignments keeps only platform-level glob assignments.
+
+        Expected Result:
+            - Assignments scoped to PlatformCourseOverviewGlobData and PlatformContentLibraryGlobData
+              are kept
+            - Assignments scoped to a specific library, a specific course, and an org-level glob
+              are dropped
+        """
+        user = UserData(external_key="john_doe")
+        role = RoleData(external_key="instructor")
+        platform_course_assignment = RoleAssignmentData(
+            subject=user,
+            roles=[role],
+            scope=PlatformCourseOverviewGlobData(external_key=PlatformCourseOverviewGlobData.build_external_key()),
+        )
+        platform_library_assignment = RoleAssignmentData(
+            subject=user,
+            roles=[role],
+            scope=PlatformContentLibraryGlobData(external_key=PlatformContentLibraryGlobData.build_external_key()),
+        )
+        specific_library_assignment = RoleAssignmentData(
+            subject=user, roles=[role], scope=ContentLibraryData(external_key="lib:DemoX:CSPROB")
+        )
+        specific_course_assignment = RoleAssignmentData(
+            subject=user, roles=[role], scope=CourseOverviewData(external_key="course-v1:DemoX+CS101+2024")
+        )
+        org_glob_assignment = RoleAssignmentData(
+            subject=user, roles=[role], scope=OrgContentLibraryGlobData(external_key="lib:DemoX:*")
+        )
+
+        result = RoleAssignmentData.filter_platform_glob_assignments(
+            [
+                platform_course_assignment,
+                platform_library_assignment,
+                specific_library_assignment,
+                specific_course_assignment,
+                org_glob_assignment,
+            ]
+        )
+
+        self.assertEqual(result, [platform_course_assignment, platform_library_assignment])
+
+    def test_filter_platform_glob_assignments_empty_list(self):
+        """Test that filter_platform_glob_assignments returns an empty list when given no assignments.
+
+        Expected Result:
+            - Returns an empty list
+        """
+        self.assertEqual(RoleAssignmentData.filter_platform_glob_assignments([]), [])
+
+    def test_filter_platform_glob_assignments_no_matches(self):
+        """Test that filter_platform_glob_assignments returns an empty list when none match.
+
+        Expected Result:
+            - Returns an empty list when no assignment is scoped to a platform-level glob
+        """
+        user = UserData(external_key="john_doe")
+        role = RoleData(external_key="instructor")
+        specific_library_assignment = RoleAssignmentData(
+            subject=user, roles=[role], scope=ContentLibraryData(external_key="lib:DemoX:CSPROB")
+        )
+
+        result = RoleAssignmentData.filter_platform_glob_assignments([specific_library_assignment])
+
+        self.assertEqual(result, [])
+
 
 @ddt
 class TestContentLibraryData(TestCase):

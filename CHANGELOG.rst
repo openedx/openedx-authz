@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.21.3 - 2026-08-04
+*******************
+
+Fixed
+=====
+
+* Scoped the AdminConsole orgs endpoint to the orgs the requesting user has a course or library role in, including org-level and platform-level glob scopes, instead of returning every active org.
+
 1.21.2 - 2026-07-29
 *******************
 

@@ -31,12 +31,10 @@ from openedx_authz.api.data import (
     PlatformGlobData,
     RoleAssignmentData,
     ScopeData,
-    SuperAdminAssignmentData,
     UserAssignmentData,
 )
 from openedx_authz.api.users import (
     get_scopes_for_user_and_permission,
-    get_superadmin_assignments,
     get_user_role_assignments_per_scope_type,
     get_visible_user_role_assignments_filtered_by_current_user,
 )

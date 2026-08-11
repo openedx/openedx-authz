@@ -2171,6 +2171,129 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_django_staff_sees_all_orgs_regardless_of_assignments(self):
+        """Test that a Django staff/superuser sees every active org, not just the ones from their assignments.
+
+        admin_2's only role assignment is in scope "lib:Org2:LIB2" (org "Org2"), which doesn't match
+        any of the AlphaU/BetaI/GammaC fixtures, yet all 3 must still be returned.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns all 3 orgs
+        """
+        user = User.objects.get(username="admin_2")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+
+    @data(
+        # Specific (non-glob) scopes
+        ([("lib:AlphaU:LIB_ADMIN_TEST", roles.LIBRARY_USER.external_key)], {"AlphaU"}),
+        ([("course-v1:BetaI+COURSE1+2024", roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        # Org-level glob scopes
+        ([(OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key)], {"AlphaU"}),
+        ([(OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        # Multiple assignments across different orgs and scope types
+        (
+            [
+                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
+                (OrgContentLibraryGlobData.build_external_key("BetaI"), roles.LIBRARY_ADMIN.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+        # Two specific course scopes, different orgs
+        (
+            [
+                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
+                ("course-v1:BetaI+COURSE2+2024", roles.COURSE_STAFF.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+        # Two org-level glob scopes, different orgs
+        (
+            [
+                (OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key),
+                (OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key),
+            ],
+            {"AlphaU", "BetaI"},
+        ),
+    )
+    @unpack
+    def test_non_staff_sees_only_assigned_orgs(self, assignments: list[tuple[str, str]], expected_orgs: set[str]):
+        """Test that a non-staff user only sees the orgs covered by their role assignments.
+
+        Test cases:
+            - Specific ContentLibraryData scope (a single library)
+            - Specific CourseOverviewData scope (a single course)
+            - Org-level OrgContentLibraryGlobData scope (all libraries in an org)
+            - Org-level OrgCourseOverviewGlobData scope (all courses in an org)
+            - A specific CourseOverviewData scope and an OrgContentLibraryGlobData scope together,
+              in different orgs
+            - Two specific CourseOverviewData scopes, in different orgs
+            - Two org-level glob scopes (OrgContentLibraryGlobData and OrgCourseOverviewGlobData),
+              in different orgs
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns only the orgs covered by the assignments
+            - GammaC, where the user has no assignment, is always excluded
+        """
+        self._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_1",
+                    "role_name": role_name,
+                    "scope_name": scope_name,
+                }
+                for scope_name, role_name in assignments
+            ]
+        )
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], len(expected_orgs))
+        result_short_names = {org["short_name"] for org in response.data["results"]}
+        self.assertEqual(result_short_names, expected_orgs)
+
+    @data(
+        (PLATFORM_COURSE_GLOB, roles.COURSE_STAFF.external_key),
+        (PLATFORM_LIBRARY_GLOB, roles.LIBRARY_ADMIN.external_key),
+    )
+    @unpack
+    def test_non_staff_with_platform_glob_sees_all_orgs(self, scope_name: str, role_name: str):
+        """Test that a platform-level glob assignment grants visibility into every active org.
+
+        Platform-level scopes (e.g. PlatformCourseOverviewGlobData) cover every org, so a user
+        with a role there is treated like staff/superuser for this endpoint, regardless of which
+        orgs they'd otherwise be able to derive from `.org` on their other assignments.
+
+        Expected result:
+            - Returns 200 OK status
+            - Returns all 3 orgs
+        """
+        self._assign_roles_to_users(
+            [
+                {
+                    "subject_name": "regular_1",
+                    "role_name": role_name,
+                    "scope_name": scope_name,
+                },
+            ]
+        )
+        user = User.objects.get(username="regular_1")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+
 
 @ddt
 class TestTeamMembersAPIView(ViewTestMixin):
@@ -2439,18 +2562,14 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     URL: /api/authz/v1/users/<username>/assignments/
     Response fields per item: is_superadmin, role, org, scope, permission_count
 
-    Superadmin entry:
-        admin_1..3 are staff/superusers. Querying any of them always adds one
-        SuperAdminAssignmentData entry: role="django.superuser" (or "django.staff"),
-        org="*", scope="*", permission_count=None, is_superadmin=True.
-        This entry is always included regardless of org/role filters, since those
-        filters are applied only to the role assignments, not to the superadmin entry.
+    Superadmin entries:
+        admin_1..3 are staff/superusers, but this endpoint returns role assignments
+        only. Staff/superuser entries are not backed by Casbin policies and do not
+        pass through the org/role filter logic, so they are excluded entirely.
 
     Visibility via filter_allowed_assignments:
-        - Staff/superuser: sees all role assignments for any user, plus the superadmin
-          entry when the target is a superadmin.
-        - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 role assignments,
-          plus the superadmin entry when the target is a superadmin.
+        - Staff/superuser: sees all role assignments for any user.
+        - regular_1 (library_user in Org1:LIB1): sees only Org1:LIB1 role assignments.
         - regular_9 (no assignments): rejected with 403 by AnyScopePermission
           (requires at least one VIEW_LIBRARY_TEAM or COURSES_VIEW_COURSE_TEAM permission).
     """
@@ -2463,21 +2582,15 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     # -------------------------------------------------------------------- #
 
     @data(
-        # Staff/superuser targets get 1 superadmin entry + their role assignment(s)
-        ("admin_1", "admin_1", status.HTTP_200_OK, 2),  # superadmin entry + library_admin in Org1
-        ("admin_1", "admin_2", status.HTTP_200_OK, 2),  # superadmin entry + library_user in Org2
-        ("admin_1", "admin_3", status.HTTP_200_OK, 2),  # superadmin entry + library_admin in Org3
-        # Regular user targets get only their role assignments (no superadmin entry)
+        # Staff/superuser targets get only their role assignments
+        ("admin_1", "admin_1", status.HTTP_200_OK, 1),  # library_admin in Org1
+        ("admin_1", "admin_2", status.HTTP_200_OK, 1),  # library_user in Org2
+        ("admin_1", "admin_3", status.HTTP_200_OK, 1),  # library_admin in Org3
         ("admin_1", "regular_5", status.HTTP_200_OK, 1),
-        # The superadmin entry is always included for superadmin targets, visible to all callers
-        (
-            "regular_1",
-            "admin_1",
-            status.HTTP_200_OK,
-            2,
-        ),  # superadmin entry + library_admin in Org1 (visible via Org1 access)
-        # regular_1 cannot see admin_2's Org2 role assignment, but superadmin entry is still included
-        ("regular_1", "admin_2", status.HTTP_200_OK, 1),  # superadmin entry only
+        # regular_1 sees admin_1's library_admin in Org1 (visible via Org1 access)
+        ("regular_1", "admin_1", status.HTTP_200_OK, 1),
+        # regular_1 cannot see admin_2's Org2 role assignment
+        ("regular_1", "admin_2", status.HTTP_200_OK, 0),
         # regular_9 has no assignments → 403 (AnyScopePermission requires at least one relevant permission)
         ("regular_9", "admin_1", status.HTTP_403_FORBIDDEN, None),
     )
@@ -2487,13 +2600,9 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     ):
         """Calling user only sees role assignments for scopes it has view access to.
 
-        The superadmin entry is always included when the target is a superadmin,
-        regardless of the calling user's permissions.
-
         Expected result:
-            - Superadmin targets always include the superadmin entry.
             - Role assignments are filtered by the calling user's permissions.
-            - Regular user targets return only their visible role assignments.
+            - Superadmin targets return only their role assignments.
             - Users with no relevant permissions get 403.
         """
         self.client.force_authenticate(user=User.objects.get(username=caller))
@@ -2532,14 +2641,14 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     # ------------------------------------------------------------------ #
 
     @data(
-        # admin_3 has library_admin in lib:Org3:LIB3; superadmin entry is always included
-        ("admin_3", "Org3", 2),  # superadmin entry + Org3 role assignment
-        ("admin_3", "Org1", 1),  # superadmin entry only (no Org1 role assignment)
-        # regular_5 has library_admin in lib:Org3:LIB3 (no superadmin entry)
+        # admin_3 has library_admin in lib:Org3:LIB3
+        ("admin_3", "Org3", 1),
+        ("admin_3", "Org1", 0),  # no Org1 role assignment
+        # regular_5 has library_admin in lib:Org3:LIB3
         ("regular_5", "Org3", 1),
         ("regular_5", "Org1", 0),
-        # non-existent org: superadmin entry still included for admin targets
-        ("admin_1", "OrgX", 1),  # superadmin entry only
+        # non-existent org: no matches
+        ("admin_1", "OrgX", 0),
     )
     @unpack
     def test_filter_by_orgs(self, target: str, orgs: str, expected_count: int):
@@ -2574,14 +2683,13 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     # ------------------------------------------------------------------ #
 
     @data(
-        # role filter applies only to role assignments; superadmin entry is always included for admin targets
-        ("admin_1", roles.LIBRARY_ADMIN.external_key, 2),  # superadmin entry + library_admin
-        ("admin_1", roles.LIBRARY_USER.external_key, 1),  # superadmin entry only
+        ("admin_1", roles.LIBRARY_ADMIN.external_key, 1),
+        ("admin_1", roles.LIBRARY_USER.external_key, 0),
         ("regular_5", roles.LIBRARY_ADMIN.external_key, 1),
         ("regular_5", roles.LIBRARY_USER.external_key, 0),
         ("regular_6", roles.LIBRARY_AUTHOR.external_key, 1),
         ("regular_6", roles.LIBRARY_ADMIN.external_key, 0),
-        ("admin_1", "non_existent_role", 1),  # superadmin entry only
+        ("admin_1", "non_existent_role", 0),
     )
     @unpack
     def test_filter_by_roles(self, target: str, role_filter: str, expected_count: int):
@@ -2596,20 +2704,19 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         self.assertEqual(response.data["count"], expected_count)
 
     def test_filter_by_multiple_roles(self):
-        """Multiple roles are OR-combined for role assignments; superadmin entry always included.
+        """Multiple roles are OR-combined.
 
         Expected result:
-            - Returns assignments matching any of the given roles, plus the superadmin entry.
+            - Returns assignments matching any of the given roles.
         """
-        # admin_3 has library_admin in Org3:LIB3; filter for admin + author returns
-        # 1 role assignment + 1 superadmin entry = 2
+        # admin_3 has library_admin in Org3:LIB3; filter for admin + author returns 1 role assignment
         response = self.client.get(
             self._url("admin_3"),
             {"roles": f"{roles.LIBRARY_ADMIN.external_key},{roles.LIBRARY_AUTHOR.external_key}"},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["count"], 1)
 
     # ------------------------------------------------------------------ #
     # Sorting                                                            #
@@ -2627,16 +2734,17 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     def test_sorting(self, sort_by: str, order: str):
         """Results are sorted by role, org, or scope in asc/desc order.
 
-        Uses admin_3, who has 2 items in the response: a superadmin entry
-        (role="django.superuser", org="*", scope="*") and a role assignment
-        (role="library_admin", org="Org3", scope="lib:Org3:LIB3"). With two
-        distinct values per field the sort order is non-trivial and verifiable.
+        Assigns regular_8 a second role (library_admin in Org1:LIB1) on top of its
+        existing library_user in Org3:LIB3, so the response has 2 items with distinct
+        role, org and scope values, making the sort order non-trivial and verifiable.
 
         Expected result:
             - Returns 200 OK.
             - Results are ordered according to the requested field and direction.
         """
-        response = self.client.get(self._url("admin_3"), {"sort_by": sort_by, "order": order})
+        assign_role_to_user_in_scope("regular_8", roles.LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
+
+        response = self.client.get(self._url("regular_8"), {"sort_by": sort_by, "order": order})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(response.data["results"]), 1)
@@ -2720,10 +2828,8 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     def test_response_shape(self):
         """Each result item contains the expected fields.
 
-        admin_1 is a superuser, so the response contains two items:
-        - A superadmin entry with role="django.superuser", org="*", scope="*",
-          permission_count=None, is_superadmin=True
-        - A regular role assignment entry with concrete values and is_superadmin=False
+        admin_1 is a superuser, but the endpoint returns role assignments only, so
+        the response contains a single item: its library_admin assignment in Org1.
 
         Expected result:
             - Returns 200 OK.
@@ -2732,23 +2838,63 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         response = self.client.get(self._url("admin_1"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["count"], 1)
 
-        superadmin_item = next(item for item in response.data["results"] if item["is_superadmin"])
-        self.assertIn(superadmin_item["role"], ("django.superuser", "django.staff"))
-        self.assertEqual(superadmin_item["org"], "*")
-        self.assertEqual(superadmin_item["scope"], "*")
-        self.assertIsNone(superadmin_item["permission_count"])
-
-        role_item = next(item for item in response.data["results"] if not item["is_superadmin"])
-        self.assertIn("role", role_item)
-        self.assertIn("org", role_item)
-        self.assertIn("scope", role_item)
-        self.assertIn("permission_count", role_item)
+        role_item = response.data["results"][0]
+        self.assertEqual(
+            set(role_item.keys()),
+            {"is_superadmin", "role", "org", "scope", "permission_count"},
+        )
+        self.assertFalse(role_item["is_superadmin"])
         self.assertEqual(role_item["role"], roles.LIBRARY_ADMIN.external_key)
         self.assertEqual(role_item["org"], "Org1")
         self.assertEqual(role_item["scope"], "lib:Org1:LIB1")
         self.assertGreater(role_item["permission_count"], 0)
+
+    # ------------------------------------------------------------------ #
+    # Superadmin entries                                                 #
+    # ------------------------------------------------------------------ #
+
+    @data("admin_1", "admin_2", "admin_3")
+    def test_no_superadmin_entries_in_response(self, target: str):
+        """The endpoint never returns superadmin entries, even for staff/superuser targets.
+
+        staff/superuser entries are not backed by Casbin policies and do not pass
+        through the standard filter logic. They are excluded from this endpoint
+        entirely.
+
+        Expected result:
+            - All items in the response have is_superadmin=False.
+        """
+        response = self.client.get(self._url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in response.data["results"]:
+            self.assertFalse(item["is_superadmin"])
+
+    def test_no_superadmin_entries_when_filtering_by_org(self):
+        """No superadmin entries appear even when an org filter is active.
+
+        Expected result:
+            - No items with is_superadmin=True in the response.
+        """
+        response = self.client.get(self._url("admin_1"), {"orgs": "NonExistentOrg"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        superadmin_items = [item for item in response.data["results"] if item["is_superadmin"]]
+        self.assertEqual(len(superadmin_items), 0)
+
+    def test_no_superadmin_entries_when_filtering_by_role(self):
+        """No superadmin entries appear even when a role filter is active.
+
+        Expected result:
+            - No items with is_superadmin=True in the response.
+        """
+        response = self.client.get(self._url("admin_1"), {"roles": roles.LIBRARY_ADMIN.external_key})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        superadmin_items = [item for item in response.data["results"] if item["is_superadmin"]]
+        self.assertEqual(len(superadmin_items), 0)
 
 
 @ddt

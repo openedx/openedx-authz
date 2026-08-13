@@ -14,6 +14,15 @@ Change Log
 Unreleased
 **********
 
+1.22.0 - 2026-08-12
+*******************
+
+Added
+=====
+
+* Role assignment now succeeds for a course/library scope key before its CourseOverview/ContentLibrary
+  exists, and links up automatically once the object is created. (#369)
+
 1.21.3 - 2026-08-04
 *******************
 

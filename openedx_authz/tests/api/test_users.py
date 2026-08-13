@@ -580,6 +580,43 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
             "course-v1:TestOrg+TestCourse+2024_T3",
             True,
         ),
+        # View/manage permission split: editor and auditor should NOT get manage permissions
+        (
+            "editor_user",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "auditor_user",
+            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "editor_user",
+            permissions.COURSES_MANAGE_CERTIFICATES.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "auditor_user",
+            permissions.COURSES_MANAGE_CERTIFICATES.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "auditor_user",
+            permissions.COURSES_MANAGE_GROUP_CONFIGURATIONS.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
+        (
+            "auditor_user",
+            permissions.COURSES_MANAGE_LIBRARY_UPDATES.identifier,
+            "course-v1:TestOrg+TestCourse+2024_T1",
+            False,
+        ),
         # Library permissions
         ("alice", permissions.DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
         ("bob", permissions.PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", True),

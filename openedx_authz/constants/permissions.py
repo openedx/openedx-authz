@@ -78,6 +78,11 @@ COURSES_PUBLISH_COURSE_CONTENT = PermissionData(
     effect="allow",
 )
 
+COURSES_VIEW_LIBRARY_UPDATES = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_library_updates"),
+    effect="allow",
+)
+
 COURSES_MANAGE_LIBRARY_UPDATES = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_library_updates"),
     effect="allow",
@@ -158,13 +163,28 @@ COURSES_MANAGE_COURSE_TEAM = PermissionData(
     effect="allow",
 )
 
+COURSES_VIEW_GROUP_CONFIGURATIONS = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_group_configurations"),
+    effect="allow",
+)
+
 COURSES_MANAGE_GROUP_CONFIGURATIONS = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_group_configurations"),
     effect="allow",
 )
 
+COURSES_VIEW_ADVANCED_SETTINGS = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_advanced_settings"),
+    effect="allow",
+)
+
 COURSES_MANAGE_ADVANCED_SETTINGS = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_advanced_settings"),
+    effect="allow",
+)
+
+COURSES_VIEW_CERTIFICATES = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_certificates"),
     effect="allow",
 )
 

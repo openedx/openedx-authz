@@ -1,5 +1,5 @@
-0016: REST API Domain Ownership Boundary
-#########################################
+0016: REST API Ownership and Package Layout
+############################################
 
 Status
 ******
@@ -9,56 +9,96 @@ Status
 Context
 *******
 
-``openedx_authz.rest_api`` contains both reusable authorization endpoints and endpoints tailored to a specific Admin Console workflow. That difference in audience and shape does not, by itself, determine which domain owns an endpoint. Issue #360 raised the need for a clearer boundary after `PR #361`_ proposed making ``PermissionValidationMeView`` inspect a course-authoring flag stored in openedx-platform.
+This ADR applies domain-driven design to make the responsibility and placement of REST API code easier to decide in future work. The boundary keeps application-specific rules out of reusable authorization endpoints, gives reviewers a consistent way to place new code, and makes temporary integrations easier to find and remove later.
 
-An audit of all ten endpoints in ``openedx_authz.rest_api.v1`` classified each one against Open edX's existing domain vocabulary, instead of by who calls it today:
+``openedx_authz.rest_api`` currently keeps all API views in one ``views.py`` module. Some endpoints provide authorization data that several applications can use, some have request and response formats made for the Admin Console, and one exposes a course-authoring flag.
 
-- The `edX DDD Bounded Contexts`_ documentation classifies Open edX's subdomains as core, supporting, or generic.
-- `ADR 0018 in openedx-events`_ classifies authorization as a supporting subdomain, the same tier as Analytics. Both are independent of any single application, and both are consumed across learning, content authoring, enterprise, and other areas. ADR 0018 also establishes that a UI surface aggregating tasks from several domains, such as an admin console, is not itself a domain: "'Admin' describes a user role and an interface where tasks from multiple domains are aggregated, the tasks themselves belong to their respective domains."
+`PR #361`_ explored adding course-authoring flag checks to reusable authorization endpoints. That work raised two related questions. We need to know which concerns belong to authorization, and we need a package layout that makes those boundaries visible in the code.
 
-The audit therefore separates two independent questions:
+The `edX DDD Bounded Contexts`_ documentation supports separating code by responsibility. `ADR 0018 in openedx-events`_ describes authorization as a supporting part of the system and explains that an admin interface can combine work from several areas without owning all of those responsibilities.
 
-- **Domain ownership:** Does the endpoint expose authorization data, such as roles, permissions, assignments, or scopes?
-- **Package placement:** Is the endpoint reusable, or is it tailored to an Admin Console workflow?
+We reviewed the ten endpoints in ``openedx_authz.rest_api.v1``. Seven query or manage authorization data:
 
-Seven of the ten endpoints expose authorization data. Their domain ownership does not change when an Admin Console-specific response shape makes a separate package useful. ``WaffleFlagStatesAPIView`` exposes the state of a course-authoring flag instead, and this ADR does not need to decide which domain should own that flag; it only establishes that authorization does not. The ownership of ``UserValidationAPIView`` and ``AdminConsoleOrgsAPIView`` also remains unresolved because it is not necessary to settle the flag boundary.
+* ``PermissionValidationMeView``
+* ``RoleUserAPIView``
+* ``RoleListView``
+* ``ScopesAPIView``
+* ``TeamMembersAPIView``
+* ``TeamMemberAssignmentsAPIView``
+* ``AssignmentsAPIView``
+
+``WaffleFlagStatesAPIView`` reads and returns a course-authoring flag. It is a temporary exception in this repository because the data is not authorization data. `ADR 0015`_ records why the endpoint exists, while the formal ownership of the flag remains open.
+
+The ownership of ``UserValidationAPIView`` and ``AdminConsoleOrgsAPIView`` also remains open. We do not need to resolve those questions before separating authorization data from course-authoring data or placing the current endpoints.
+
+Ownership and placement answer different questions. Ownership describes what an endpoint is responsible for and where its data comes from, while placement describes where its code belongs in this repository. For example, an assignment endpoint can return a username and a course scope, but its purpose is to query role assignments from Casbin, the authorization data store. Authorization therefore owns it. The Admin Console may use that endpoint, but it does not become the owner of the assignment data.
 
 Decision
 ********
 
-1. Authorization owns endpoints that expose roles, permissions, assignments, or scopes. This remains true whether an endpoint is reusable or tailored to one screen.
-2. The five endpoints tailored to Admin Console workflows (``AdminConsoleOrgsAPIView``, ``ScopesAPIView``, ``TeamMembersAPIView``, ``TeamMemberAssignmentsAPIView``, and ``AssignmentsAPIView``) move to ``openedx_authz/rest_api/v1/admin_console/``. This is a code-organization boundary, not a new domain boundary.
-3. The reusable endpoints ``PermissionValidationMeView``, ``RoleUserAPIView``, and ``RoleListView`` remain in ``openedx_authz/rest_api/v1/views.py``. Their guarantee is that they answer "what can this subject do" identically regardless of caller. Their own code must not depend on another domain's concept, the course-authoring flag included, that would make the answer depend on who's asking, breaking the guarantee for every other consumer. They may call a domain-neutral extension point that a separate, optional implementation elsewhere fills in; `ADR 0018 (cross-domain filtering)`_ establishes that mechanism.
-4. Authorization endpoints' own code must not compute or expose data owned by another domain. ``WaffleFlagStatesAPIView`` remains the sole endpoint that does so directly. `ADR 0018 (cross-domain filtering)`_ documents a second, isolated exception to this rule, an opt-in filter implementation that computes course-authoring visibility without any generic endpoint depending on it; that exception does not extend to the endpoints' own code, only to the separate, disabled-by-default module that ADR names.
-5. This ADR does not decide the domain ownership of ``UserValidationAPIView`` or ``AdminConsoleOrgsAPIView``. They retain the package placement described above until that question is resolved separately.
+1. Authorization owns an endpoint when its main purpose is to query or manage authorization roles, permissions, assignments, or scopes.
+2. An authorization endpoint that serves several applications must expose the same authorization behavior to all of them. Its code must not contain course-authoring rules or read course-authoring data directly.
+3. A reusable authorization endpoint may call a general hook before returning its data. A separate implementation can then apply a rule based on data outside authorization without adding that rule to the endpoint itself. `ADR 0017 (authorization result extension)`_ defines this mechanism for course-authoring visibility.
+4. Place code according to these rules:
 
-Example, the package layout decision 2 produces::
+   * Keep a reusable authorization endpoint in ``rest_api/v1/views.py``.
+   * Put an authorization endpoint made for one application in a package named after that application. The Admin Console endpoints therefore belong in ``admin_console/``.
+   * Put a temporary endpoint that exposes data from another area in a package named after that area. ``WaffleFlagStatesAPIView`` therefore belongs in ``course_authoring/``, even though the Admin Console uses it.
+   * When the last two rules both appear to apply, the data exposed by the endpoint determines its placement. This keeps exceptions to the authorization boundary visible.
+
+5. Keep supporting code with the package that uses it. If more than one package uses the code, place it in their closest common parent directory. For example, code shared by ``admin_console/`` and ``course_authoring/`` belongs in ``rest_api/v1/``.
+6. Move these five Admin Console endpoints to ``openedx_authz/rest_api/v1/admin_console/``:
+
+   * ``AdminConsoleOrgsAPIView``
+   * ``ScopesAPIView``
+   * ``TeamMembersAPIView``
+   * ``TeamMemberAssignmentsAPIView``
+   * ``AssignmentsAPIView``
+
+   ``AdminConsoleOrgsAPIView`` moves with this group because its API is made for the Admin Console. This placement does not settle who owns its organization data.
+
+7. Keep ``PermissionValidationMeView``, ``RoleUserAPIView``, ``RoleListView``, and ``UserValidationAPIView`` in ``openedx_authz/rest_api/v1/views.py``.
+8. Move ``WaffleFlagStatesAPIView`` to ``openedx_authz/rest_api/v1/course_authoring/``. The package name describes the data that the endpoint exposes without settling who formally owns the flag.
+
+The proposed layout is shown below.
+
+.. code-block:: text
 
    openedx_authz/rest_api/v1/
-       views.py               # PermissionValidationMeView, RoleUserAPIView, RoleListView, UserValidationAPIView
+       views.py               # Reusable authorization endpoints
        admin_console/
-           views.py           # AdminConsoleOrgsAPIView, ScopesAPIView, TeamMembersAPIView,
-                               # TeamMemberAssignmentsAPIView, AssignmentsAPIView
+           views.py           # APIs made for Admin Console workflows
        course_authoring/
            views.py           # WaffleFlagStatesAPIView
 
 Consequences
 ************
 
-1. Future proposals cannot add another domain's logic or data to an authorization endpoint without revisiting this decision.
-2. Admin Console-specific endpoints have a clear package boundary without treating the Admin Console as a domain.
-3. The ownership of ``UserValidationAPIView`` and ``AdminConsoleOrgsAPIView`` remains open.
-4. The package move does not change any URLs, so ``frontend-app-admin-console`` is unaffected.
-5. This holds even while openedx-authz has few consumers and one exception looks cheap. `openedx_catalog`_, a generic library in openedx-core, defers the same kind of decision rather than building it early. Its API docstring says it "does not yet provide any 'list courses' methods" because visibility depends on "instance-specific logic (e.g. enterprise, subscriptions, white labelling)," left for a future pluggable extension point instead of the generic API absorbing it now. Taking on one consumer's condition today adds a responsibility the framework doesn't own, and makes the API harder to keep generic as more consumers arrive.
+1. Reviewers can place future endpoints by checking what they do, which data they read, and whether their APIs are reusable or made for one application.
+2. Rules based on data outside authorization, such as the course-authoring flag, remain separate from reusable endpoint code. A new rule must use a general hook or a later ADR must change this boundary.
+3. Application-specific serializers, filters, and views can change without adding those details to the reusable API modules.
+4. Temporary integrations have a named package, which makes their code and dependencies easier to find when the integration changes or is removed.
+5. The endpoint moves will not change their URLs, so clients will not need endpoint URL changes.
+6. ``WaffleFlagStatesAPIView`` will remain a named exception until `Issue #377`_ removes it.
+7. The ownership of ``UserValidationAPIView`` and ``AdminConsoleOrgsAPIView`` will remain open.
 
 Rejected Alternatives
 *********************
 
-**Treating the Admin Console as its own domain, on par with authorization or Course Authoring.**
-Per `ADR 0018 in openedx-events`_, a UI surface that aggregates tasks from several domains is not itself a domain; the tasks it aggregates belong to whichever domain already owns them. Classifying the Admin Console as a domain would misattribute ownership of tasks (role assignment, permission checks) that belong to authorization, and introduce vocabulary the rest of the Open edX architecture doesn't use.
+**Keeping all views in one module**
+  The module would continue to hide the difference between reusable authorization APIs, Admin Console-specific APIs, and the temporary course-authoring endpoint.
 
-**Moving the five Admin Console endpoints out of openedx-authz entirely, into a different repository or application.**
-Their data (roles, permissions, assignments, scopes) is authorization's own. A non-reusable shape is a package-organization concern, not a reason to relocate authorization's own data to a different codebase.
+**Deciding placement separately for each endpoint**
+  Similar endpoints could then follow different placement rules, and reviewers would have no shared test for new code.
+
+**Grouping every endpoint only by the application that uses it**
+  This would place ``WaffleFlagStatesAPIView`` under ``admin_console/`` and hide that it exposes course-authoring data as an exception to the authorization boundary.
+
+**Moving the five Admin Console endpoints to another repository or application**
+  Four of these endpoints query authorization roles, assignments, or scopes. Their Admin Console-specific APIs justify a separate package, but the authorization code still belongs in this repository. The ownership of ``AdminConsoleOrgsAPIView`` remains open.
+
+**Adding application-specific visibility rules to reusable endpoint code**
+  This would make reusable authorization code interpret data that authorization does not own. A general hook keeps the rule in a separate implementation, and `openedx_catalog`_ follows a related approach for installation-specific visibility rules.
 
 References
 **********
@@ -66,15 +106,15 @@ References
 * `edX DDD Bounded Contexts`_
 * `ADR 0018 in openedx-events`_
 * `ADR 0015`_
-* `ADR 0018 (cross-domain filtering)`_
-* `Issue #360`_
+* `ADR 0017 (authorization result extension)`_
+* `Issue #377`_
 * `PR #361`_
 * `openedx_catalog`_
 
 .. _edX DDD Bounded Contexts: https://openedx.atlassian.net/wiki/spaces/AC/pages/663224968/edX+DDD+Bounded+Contexts
 .. _ADR 0018 in openedx-events: https://github.com/openedx/openedx-events/blob/main/docs/decisions/0018-supporting-subdomain-modules.rst
 .. _ADR 0015: 0015-expose-course-authoring-waffle-flag-state-via-rest-api.rst
-.. _ADR 0018 (cross-domain filtering): 0018-cross-domain-filtering-via-openedx-filters.rst
-.. _Issue #360: https://github.com/openedx/openedx-authz/issues/360
+.. _ADR 0017 (authorization result extension): 0017-cross-domain-filtering-via-openedx-filters.rst
+.. _Issue #377: https://github.com/openedx/openedx-authz/issues/377
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _openedx_catalog: https://github.com/openedx/openedx-core/blob/main/src/openedx_catalog/api.py

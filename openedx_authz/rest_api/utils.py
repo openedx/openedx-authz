@@ -1,9 +1,11 @@
 """Utility functions for the Open edX AuthZ REST API."""
 
+from openedx_authz import api
 from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
 )
+from openedx_authz.api.users import get_scopes_for_user_and_permission
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
@@ -12,6 +14,19 @@ from openedx_authz.rest_api.data import (
     SortOrder,
     UserAssignmentSortField,
 )
+
+try:
+    # common.djangoapps.student.roles and openedx.core are edx-platform's own modules. This app
+    # is an edx-platform plugin, so they're always available at runtime; the imports are only
+    # guarded so this module can still load under this repo's own standalone test suite
+    # (openedx_authz.settings.test, no edx-platform installed).
+    from common.djangoapps.student.roles import enable_authz_course_authoring
+    from openedx.core.djangoapps.waffle_utils.models import WaffleFlagOrgOverrideModel
+    from openedx.core.toggles import AUTHZ_COURSE_AUTHORING_FLAG
+except ImportError:
+    enable_authz_course_authoring = None
+    WaffleFlagOrgOverrideModel = None
+    AUTHZ_COURSE_AUTHORING_FLAG = None
 
 
 def get_generic_scope(scope: ScopeData) -> ScopeData:
@@ -181,3 +196,59 @@ def sort_user_assignments(
         list[dict]: The sorted assignments.
     """
     return _sort_by_field(assignments, sort_by, order, UserAssignmentSortField)
+
+
+def is_scope_visible(scope: api.ScopeData) -> bool:
+    """Return whether a scope is visible under the course-authoring flag.
+
+    See ``docs/decisions/0015-course-authoring-flag-visibility-in-rest-api.rst``
+    for the reasoning: Casbin data cannot be trusted as a proxy for
+    ``authz.enable_course_authoring``'s effective state, since the migration
+    that is supposed to keep Casbin in sync with the flag is opt-in, off by
+    default, and never runs for platform-wide flag changes. Only the flag
+    itself, checked directly, can answer whether a scope is visible.
+
+    - Library and other non-course scopes (e.g. 'lib:DemoX:CSPROB'): always visible.
+    - Concrete course (e.g. 'course-v1:DemoX+CS101+2024'): full course/org/platform
+      cascade via ``enable_authz_course_authoring(course_key)``.
+    - Org-level course glob (e.g. 'course-v1:DemoX+*'): org override, else platform default.
+    - Platform-level course glob ('course-v1:*'): platform tier only, no course or org.
+
+    Args:
+        scope (ScopeData): A resolved scope instance.
+
+    Returns:
+        bool: True if the scope should count as visible.
+    """
+    if scope.NAMESPACE != api.CourseOverviewData.NAMESPACE:
+        return True
+    if isinstance(scope, api.CourseOverviewData):
+        return enable_authz_course_authoring(scope.course_key)
+    if isinstance(scope, api.OrgCourseOverviewGlobData):
+        # enable_authz_course_authoring only accepts a course key, and there's no public
+        # edx-platform API to check an org alone, so this checks the org override directly
+        # (see issue #360 for follow-up) when asked to check an org-level course glob
+        org_override = WaffleFlagOrgOverrideModel.override_value(AUTHZ_COURSE_AUTHORING_FLAG.name, scope.org)
+        if org_override == WaffleFlagOrgOverrideModel.ALL_CHOICES.on:
+            return True
+        if org_override == WaffleFlagOrgOverrideModel.ALL_CHOICES.off:
+            return False
+    return enable_authz_course_authoring()
+
+
+def has_visible_scope(username: str, action: str, scope_value: str | None) -> bool:
+    """Return whether the user has a course-authoring-visible scope for this action.
+
+    Args:
+        username (str): The user checking the action.
+        action (str): The action being validated.
+        scope_value (str | None): The external key of the scope being
+            validated, or None to check across any scope the user has the
+            action in.
+
+    Returns:
+        bool: True if the user has a visible scope for this action, False otherwise.
+    """
+    if scope_value:
+        return is_scope_visible(api.ScopeData(external_key=scope_value))
+    return any(is_scope_visible(scope) for scope in get_scopes_for_user_and_permission(username, action))

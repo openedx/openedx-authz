@@ -67,3 +67,6 @@ requirements/private.txt
 # Persistent database files
 *.sqlite3
 *.db
+
+# IDE
+.vscode/

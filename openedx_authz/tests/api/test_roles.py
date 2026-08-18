@@ -350,6 +350,17 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "role_name": roles.LIBRARY_CONTRIBUTOR.external_key,
                 "scope_name": "lib:Org6:project_zeta",
             },
+            # Course editor and auditor assignments for view/manage permission testing
+            {
+                "subject_name": "editor_user",
+                "role_name": roles.COURSE_EDITOR.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T1",
+            },
+            {
+                "subject_name": "auditor_user",
+                "role_name": roles.COURSE_AUDITOR.external_key,
+                "scope_name": "course-v1:TestOrg+TestCourse+2024_T1",
+            },
         ]
         cls._assign_roles_to_users(assignments=assignments)
 

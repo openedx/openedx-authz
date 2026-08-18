@@ -9,11 +9,13 @@ Status
 Context
 *******
 
+For the Verawood release, the Admin Console needs to hide course-authoring roles, scopes, and assignments when course authoring is disabled. This ADR records the temporary solution of giving the Admin Console the flag state so it can decide what to show.
+
 ``authz.enable_course_authoring`` is a three-tier flag (`ADR 0010`_), where a course override wins over an org override, which in turn wins over the platform default.
 
 `Issue #340`_ and `issue #341`_ report that the admin-console MFE keeps showing Authoring-related roles, scopes, and role assignments even when this flag is off, since nothing currently checks it. Both issues ask for a simpler rule than the full cascade. The Authoring UI should show if the flag is on at any level (platform, org, or course), and hide only if it's off at every level. `A review comment on frontend-app-admin-console#176`_ lays out the fuller course/org/platform truth table this problem could ideally follow.
 
-`PR #361`_ attempted to enforce that full truth table directly inside ``PermissionValidationMeView`` and other REST API endpoints, checking the flag per scope on every request. Per `PR #361's own comment thread`_, those endpoints are release-blocking for Verawood, so baking precise per-scope flag logic into them risked correctness and performance on critical paths without enough test coverage across the framework to be confident in time for the release. That approach was reverted, and the team pivoted to `issue #358`_ instead, exposing the flag's raw state through a dedicated endpoint and letting the admin-console MFE apply the simpler #340/#341 rule itself, deferring precise per-scope filtering to a later cycle.
+`PR #361`_ explored enforcing that full truth table inside ``PermissionValidationMeView`` and other REST API endpoints by checking the flag for each scope. Its review showed that these release-blocking endpoints needed more correctness and performance validation than the Verawood schedule allowed. The team chose the approach in `issue #358`_ for that release instead, exposing the raw flag state through a dedicated endpoint and letting the Admin Console apply the simpler #340/#341 rule. Precise filtering for each scope remained future work.
 
 Neither edx-toggles nor edx-platform expose a suitable public API for this client-facing use case. ``/api/toggles/v0/state/`` (`edx_toggles source`_) can expose override data, but it requires Django staff/admin access and exposes flag state broadly (not just ``authz.enable_course_authoring``). ``WaffleFlagOrgOverrideModel.override_value(name, key)`` and its course-level counterpart (`waffle_utils models source`_) each answer for one specific org or course, not "which orgs/courses have an override."
 
@@ -22,8 +24,8 @@ Decision
 
 1. Add ``GET /api/authz/v1/waffle-flag-states/``, backed by ``openedx_authz.utils.get_waffle_flag_states()``, returning the flag's global state plus every org and course that currently has an active override, split into 'on' and 'off' lists.
 2. The admin-console MFE decides what to show using this response, applying the #340/#341 rule for this release.
-3. This supersedes PR #361's approach of enforcing the full cascade inside REST API endpoints themselves, for this release. PR #361's per-scope logic (``is_scope_visible``/``has_visible_scope``) stays documented on that branch for a future cycle.
-4. Making the REST API endpoints themselves aware of the flag is still an open problem, and needs to be addressed on its own. Given the release timeline and the risk PR #361 surfaced, the team chose this more straightforward solution for now.
+3. For Verawood, use this solution instead of the approach explored in PR #361. The per-scope logic in that PR (``is_scope_visible`` and ``has_visible_scope``) remains available on its branch for later work.
+4. Filtering REST API results for each specific course or organization remains an open problem. Given the release timeline and the risk PR #361 surfaced, the team chose this more straightforward solution for now.
 
 Consequences
 ************

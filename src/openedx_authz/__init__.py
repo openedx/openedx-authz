@@ -3,7 +3,11 @@ Open edX AuthZ provides the architecture and foundations of the authorization fr
 """
 
 import os
-
-__version__ = "1.23.0"
+from importlib.metadata import PackageNotFoundError, version
 
 ROOT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+try:
+    __version__ = version("openedx-authz")
+except PackageNotFoundError:  # pragma: no cover
+    pass

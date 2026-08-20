@@ -8,8 +8,6 @@ within the Open edX platform.
 from django.apps import apps
 from django.conf import settings
 from django.db import models
-from opaque_keys.edx.keys import CourseKey
-from opaque_keys.edx.locator import LibraryLocatorV2
 
 from openedx_authz.models.core import Scope
 
@@ -61,6 +59,7 @@ class ContentLibraryScope(Scope):
     """
 
     NAMESPACE = "lib"
+    LINKED_OBJECT_FIELD = "content_library"
 
     # Link to the actual content library, if applicable. In other cases, this could be null.
     # Piggybacking on the existing ContentLibrary model to keep the ExtendedCasbinRule up to date
@@ -81,21 +80,9 @@ class ContentLibraryScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope) -> "ContentLibraryScope":
-        """Get or create a ContentLibraryScope for the given external key.
-
-        Args:
-            scope: ScopeData object with an external_key attribute containing
-                a LibraryLocatorV2-compatible string.
-
-        Returns:
-            ContentLibraryScope: The Scope instance for the given ContentLibrary,
-                or None if the scope is a glob pattern (contains wildcard).
-        """
-        library_key = LibraryLocatorV2.from_string(scope.external_key)
-        content_library = ContentLibrary.objects.get_by_key(library_key)
-        scope, _ = cls.objects.get_or_create(content_library=content_library)
-        return scope
+    def external_key_for_object(cls, linked_object) -> str:
+        """Return the canonical external_key string for a ContentLibrary instance."""
+        return str(linked_object.library_key)
 
 
 class CourseScope(Scope):
@@ -105,6 +92,7 @@ class CourseScope(Scope):
     """
 
     NAMESPACE = "course-v1"
+    LINKED_OBJECT_FIELD = "course_overview"
 
     # Link to the actual course, if applicable. In other cases, this could be null.
     # Piggybacking on the existing CourseOverview model to keep the ExtendedCasbinRule up to date
@@ -125,18 +113,6 @@ class CourseScope(Scope):
     )
 
     @classmethod
-    def get_or_create_for_external_key(cls, scope) -> "CourseScope":
-        """Get or create a CourseScope for the given external key.
-
-        Args:
-            scope: ScopeData object with an external_key attribute containing
-                a CourseKey string.
-
-        Returns:
-            CourseScope: The Scope instance for the given CourseOverview,
-                or None if the scope is a glob pattern (contains wildcard).
-        """
-        course_key = CourseKey.from_string(scope.external_key)
-        course_overview = CourseOverview.get_from_id(course_key)
-        scope, _ = cls.objects.get_or_create(course_overview=course_overview)
-        return scope
+    def external_key_for_object(cls, linked_object) -> str:
+        """Return the canonical external_key string for a CourseOverview instance."""
+        return str(linked_object.id)

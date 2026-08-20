@@ -39,6 +39,9 @@ class ContentLibraryManager(models.Manager):
     def get_by_key(self, library_key):
         """Get or create a ContentLibrary by its library key.
 
+        Populates org/slug from the parsed key (like the real manager, which always
+        returns a fully-formed library), so the library_key property never crashes.
+
         Args:
             library_key: The library key to look up.
 
@@ -47,11 +50,12 @@ class ContentLibraryManager(models.Manager):
         """
         if library_key is None:
             raise ValueError("library_key must not be None")
-        try:
-            key = str(LibraryLocatorV2.from_string(str(library_key)))
-        except Exception:  # pylint: disable=broad-exception-caught
-            key = str(library_key)
-        obj, _ = self.get_or_create(locator=key)
+        parsed_key = LibraryLocatorV2.from_string(str(library_key))
+        org, _ = Organization.objects.get_or_create(short_name=parsed_key.org)
+        obj, _ = self.get_or_create(
+            locator=str(parsed_key),
+            defaults={"org": org, "slug": parsed_key.slug},
+        )
         return obj
 
 

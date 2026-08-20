@@ -11,6 +11,7 @@ from typing import Union
 
 from casbin_adapter.models import CasbinRule
 from django.conf import settings
+from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_CREATED, ROLE_ASSIGNMENT_DELETED
@@ -20,6 +21,7 @@ from openedx_authz.api.users import unassign_all_roles_from_user
 from openedx_authz.engine.utils import run_course_authoring_migration
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit
+from openedx_authz.models.scopes import ContentLibrary, ContentLibraryScope, CourseOverview, CourseScope
 from openedx_authz.models.subjects import UserSubject
 
 try:
@@ -139,6 +141,52 @@ if WaffleFlagCourseOverrideModel is not None:
 
 if WaffleFlagOrgOverrideModel is not None:
     post_save.connect(handle_org_waffle_flag_change, sender=WaffleFlagOrgOverrideModel)
+
+
+def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
+    """
+    Link a pending CourseScope to the CourseOverview that was just created for it.
+
+    get_or_create_for_external_key() (openedx_authz/models/scopes.py) allows assigning a
+    role for a course key before its CourseOverview exists, leaving course_overview null.
+    This backfills that FK once the course shows up, e.g. after a course rerun finishes
+    cloning. See CourseScope.link_pending_scope() for the actual lookup/update.
+
+    This runs on every CourseOverview save, so errors are logged rather than raised:
+    a problem backfilling a pending scope must not break the caller's save(). The query
+    runs in its own savepoint so a failure doesn't poison the caller's transaction.
+    """
+    try:
+        with transaction.atomic():
+            CourseScope.link_pending_scope(instance)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Error linking pending CourseScope to CourseOverview %s", instance.pk, exc_info=exc,
+        )
+
+
+def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
+    """
+    Link a pending ContentLibraryScope to the ContentLibrary that was just created for it.
+
+    See backfill_course_scope() above; same idea for content libraries, including the
+    broad exception handling and the isolating savepoint.
+    """
+    try:
+        with transaction.atomic():
+            ContentLibraryScope.link_pending_scope(instance)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Error linking pending ContentLibraryScope to ContentLibrary %s", instance.pk, exc_info=exc,
+        )
+
+
+# Only register the handlers if the models are available (i.e., running in Open edX)
+if CourseOverview is not None:
+    post_save.connect(backfill_course_scope, sender=CourseOverview)
+
+if ContentLibrary is not None:
+    post_save.connect(backfill_content_library_scope, sender=ContentLibrary)
 
 
 # Match ``WaffleFlagCourseOverrideModel.OVERRIDE_CHOICES`` / ``override_value`` in edx-platform:

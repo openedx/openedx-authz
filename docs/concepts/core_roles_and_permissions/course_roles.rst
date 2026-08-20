@@ -42,6 +42,7 @@ Course Access & Content
 
 Library Updates
 ========================
+- **View library updates** (``courses.view_library_updates``): Allows users to view library updates in read-only mode.
 - **Manage library updates** (``courses.manage_library_updates``): Allows users to accept or reject library updates in Studio.
 
 Course Updates & Handouts
@@ -76,6 +77,7 @@ Course Team & Groups
 ====================
 - **View course team** (``courses.view_course_team``): Allows users to view the course team roster.
 - **Manage course team** (``courses.manage_course_team``): Allows users to edit course team membership and roles.
+- **View group configurations** (``courses.view_group_configurations``): Allows users to view content groups.
 - **Manage group configuration** (``courses.manage_group_configurations``): Allows users to manage content groups.
 
 Tags & Taxonomies
@@ -85,8 +87,10 @@ Tags & Taxonomies
 
 Advanced & Certificates
 =======================
-- **Manage advanced settings** (``courses.manage_advanced_settings``): Allows users to access and edit advanced settings.
-- **Manage certificates** (``courses.manage_certificates``): Allows users to access and edit certificates.
+- **View advanced settings** (``courses.view_advanced_settings``): Allows users to view advanced settings.
+- **Manage advanced settings** (``courses.manage_advanced_settings``): Allows users to edit advanced settings.
+- **View certificates** (``courses.view_certificates``): Allows users to view certificates.
+- **Manage certificates** (``courses.manage_certificates``): Allows users to edit certificates.
 
 Import / Export
 ================
@@ -121,7 +125,9 @@ Roles and Permissions Summary Table
    courses.manage_course_updates                 ✅             ✅             ✅                    ❌
    **Advanced & Certificates**
    --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_advanced_settings                ✅             ✅             ✅                    ✅
    courses.manage_advanced_settings              ✅             ✅             ❌                    ❌
+   courses.view_certificates                     ✅             ✅             ✅                    ✅
    courses.manage_certificates                   ✅             ✅             ❌                    ❌
    **Access & Content**
    --------------------------------------------- -------------- -------------- --------------------- --------------
@@ -142,6 +148,7 @@ Roles and Permissions Summary Table
    courses.edit_details                          ✅             ✅             ✅                    ❌
    **Library Updates**
    --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_library_updates                  ✅             ✅             ✅                    ✅
    courses.manage_library_updates                ✅             ✅             ✅                    ❌
    **Grading**
    --------------------------------------------- -------------- -------------- --------------------- --------------
@@ -159,6 +166,7 @@ Roles and Permissions Summary Table
    **Team & Groups**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_course_team                      ✅             ✅             ✅                    ✅
+   courses.view_group_configurations             ✅             ✅             ✅                    ✅
    courses.manage_group_configurations           ✅             ✅             ✅                    ❌
    courses.manage_course_team                    ✅             ❌             ❌                    ❌
    **Other**

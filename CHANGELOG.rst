@@ -14,6 +14,27 @@ Change Log
 Unreleased
 **********
 
+1.23.0 - 2026-08-13
+*******************
+
+Added
+=====
+
+* Added ``courses.view_advanced_settings`` permission for read-only access to advanced settings.
+* Added ``courses.view_certificates`` permission for read-only access to certificates.
+* Added ``courses.view_group_configurations`` permission for read-only access to group configurations.
+* Added ``courses.view_library_updates`` permission for read-only access to library updates.
+* All four view permissions are granted to all four course roles (Admin, Staff, Editor, Auditor).
+
+1.22.0 - 2026-08-12
+*******************
+
+Added
+=====
+
+* Role assignment now succeeds for a course/library scope key before its CourseOverview/ContentLibrary
+  exists, and links up automatically once the object is created. (#369)
+
 1.21.3 - 2026-08-04
 *******************
 

@@ -76,10 +76,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         Expected Result:
             - All policies from the file are loaded into the database
-            - The file contains 116 regular policies (p rules)
+            - The file contains 132 regular policies (p rules)
             - Policy content matches expected file content
         """
-        expected_policy_count = 116
+        expected_policy_count = 132
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -208,7 +208,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """Test that all policy types from the file are migrated correctly.
 
         Expected Result:
-            - All regular policies (p) are migrated (116 rules)
+            - All regular policies (p) are migrated (132 rules)
             - No role assignments (g) - these come from database
             - All action inheritance rules (g2) are migrated (10 rules)
         """
@@ -216,8 +216,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         self.assertEqual(
             len(self.target_enforcer.get_policy()),
-            116,
-            "Should have 116 regular policies from file",
+            132,
+            "Should have 132 regular policies from file",
         )
         self.assertEqual(
             len(self.target_enforcer.get_grouping_policy()),
@@ -250,8 +250,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
             len(target_policies),
-            116,
-            "Should have 116 policies total, with no duplicates",
+            132,
+            "Should have 132 policies total, with no duplicates",
         )
 
         duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
@@ -346,7 +346,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 117, "Should have 116 file policies + 1 custom policy")
+        self.assertEqual(len(target_policies), 133, "Should have 132 file policies + 1 custom policy")
         self.assertIn(custom_policy, target_policies, "Custom database policy should be preserved")
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
@@ -382,4 +382,4 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 116, "All 116 policies from file should be loaded")
+        self.assertEqual(len(target_policies), 132, "All 132 policies from file should be loaded")

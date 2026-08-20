@@ -111,14 +111,94 @@ class Scope(BaseRegistryModel):
     This model can be extended to represent different types of scopes,
     such as courses or content libraries.
 
-    Subclasses should define a NAMESPACE class attribute (e.g., 'lib' for content libraries)
-    and implement get_or_create_for_external_key() classmethod.
+    Subclasses should define a NAMESPACE class attribute (e.g., 'lib' for content libraries),
+    a LINKED_OBJECT_FIELD naming their FK to the backing object (e.g. 'content_library'), and
+    implement external_key_for_object().
     """
 
     objects = ScopeManager()
 
+    # Name of the subclass's FK field pointing at its backing object (e.g. "content_library",
+    # "course_overview"), used by get_or_create_for_external_key()/link_pending_scope() below
+    # to work generically across scope types.
+    LINKED_OBJECT_FIELD: ClassVar[str] = None
+
+    # Canonical string form of the scope's key (e.g. a course-v1 course id), set on creation
+    # regardless of whether the backing object (CourseOverview, ContentLibrary, ...) exists yet.
+    # This is the only way to find a scope back again when its FK to that object is still null
+    # so it can be linked up once the object is created (see link_pending_scope() below and the
+    # backfill signal receivers in openedx_authz/handlers.py).
+    external_key = models.CharField(max_length=255, null=True, blank=True, unique=True)
+
     class Meta:
         abstract = False
+
+    @classmethod
+    def external_key_for_object(cls, linked_object) -> str:
+        """Return the canonical external_key string for one of this scope's backing objects.
+
+        Subclasses must override this to match how their ScopeData computes external_key
+        (e.g. the course id, or the library key).
+
+        Args:
+            linked_object: An instance of the model named by LINKED_OBJECT_FIELD.
+
+        Returns:
+            str: The canonical external_key for that instance.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def get_or_create_for_external_key(cls, scope) -> "Scope":
+        """Get or create a scope instance for the given external key.
+
+        The backing object (CourseOverview, ContentLibrary, ...) need not exist yet (e.g.
+        during a course rerun, the destination course id is known before the course is
+        cloned): the scope is created with its LINKED_OBJECT_FIELD left ``None`` in that
+        case, and gets linked up automatically once a matching object is saved (see
+        link_pending_scope() below and the backfill signal receivers in
+        openedx_authz/handlers.py).
+
+        Args:
+            scope: ScopeData object with an external_key attribute.
+
+        Returns:
+            Scope: The (possibly newly created) scope instance for this subclass.
+        """
+        external_key = scope.external_key
+        linked_object = scope.get_object()
+        if linked_object is None:
+            # The object doesn't exist yet: key the row by its external_key so it can be
+            # found and linked up later by link_pending_scope().
+            scope, _ = cls.objects.get_or_create(external_key=external_key)
+            return scope
+
+        # Look up by the FK first (as before the external_key field existed) so scopes
+        # created before this change are reused rather than duplicated.
+        scope, created = cls.objects.get_or_create(
+            **{cls.LINKED_OBJECT_FIELD: linked_object},
+            defaults={"external_key": external_key},
+        )
+        if not created and not scope.external_key:
+            scope.external_key = external_key
+            scope.save(update_fields=["external_key"])
+        return scope
+
+    @classmethod
+    def link_pending_scope(cls, linked_object) -> None:
+        """Link a pending scope to the object that was just created for it.
+
+        Called from the relevant post_save signal receiver in openedx_authz/handlers.py
+        once an object with a matching external_key shows up.
+
+        Args:
+            linked_object: The model instance (CourseOverview, ContentLibrary, ...) that
+                was just saved.
+        """
+        cls.objects.filter(
+            external_key=cls.external_key_for_object(linked_object),
+            **{f"{cls.LINKED_OBJECT_FIELD}__isnull": True},
+        ).update(**{cls.LINKED_OBJECT_FIELD: linked_object})
 
 
 class Subject(BaseRegistryModel):

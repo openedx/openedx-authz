@@ -3,17 +3,23 @@ Tests for the `enforcement` Django management command.
 """
 
 import io
+import json
+import os
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from ddt import data, ddt
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import TestCase as DjangoTestCase
+from organizations.models import Organization
 
 from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
 from openedx_authz.api.data import ContentLibraryData
+from openedx_authz.api.users import get_user_role_assignments_filtered
 from openedx_authz.constants.permissions import (
     DELETE_LIBRARY,
     MANAGE_LIBRARY_TEAM,
@@ -509,3 +515,71 @@ class LoadPoliciesCommandTests(TestCase):
         command._delete_existing_roles.assert_not_called()
         command._delete_permissions_inheritance.assert_not_called()
         command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+
+
+class SeedSandboxDataCommandTests(DjangoTestCase):
+    """
+    Tests for the `seed_sandbox_data` Django management command.
+
+    Uses a real database (organizations, users, and the Casbin adapter) since the
+    command's whole point is idempotent creation of that data, not something a mock
+    could verify.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.buffer = io.StringIO()
+        self.username = "seed_test_user"
+        seed_data = {
+            "organizations": [{"name": "Seed Test Org", "short_name": "SeedTestOrg"}],
+            "users": [
+                {
+                    "username": self.username,
+                    "email": "seed_test_user@example.com",
+                    "roles": [{"role": LIBRARY_ADMIN.external_key, "scope": "lib:SeedTestOrg:*"}],
+                }
+            ],
+        }
+        self.data_file = NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(seed_data, self.data_file)
+        self.data_file.close()
+        self.addCleanup(os.remove, self.data_file.name)
+
+    def _call(self, **options):
+        call_command("seed_sandbox_data", data_file=self.data_file.name, stdout=self.buffer, **options)
+
+    def test_seed_creates_org_user_and_role_assignment(self):
+        """Seeding creates the organization, user, and role assignment from the fixture."""
+        self._call()
+
+        user = get_user_model().objects.get(username=self.username)
+        assert user.check_password("edx")
+        assert Organization.objects.filter(short_name="SeedTestOrg").exists()
+
+        assignments = get_user_role_assignments_filtered(user_external_key=self.username)
+        assert any(role.external_key == LIBRARY_ADMIN.external_key for a in assignments for role in a.roles)
+        assert "Seeding complete: 2 created, 0 skipped, 0 failed." in self.buffer.getvalue()
+
+    def test_seed_is_idempotent(self):
+        """Running the command twice does not duplicate the org, user, or role assignment."""
+        self._call()
+        self.buffer = io.StringIO()
+        self._call()
+
+        assert get_user_model().objects.filter(username=self.username).count() == 1
+        assert Organization.objects.filter(short_name="SeedTestOrg").count() == 1
+        assignments = get_user_role_assignments_filtered(user_external_key=self.username)
+        matches = [role for a in assignments for role in a.roles if role.external_key == LIBRARY_ADMIN.external_key]
+        assert len(matches) == 1
+        assert "Seeding complete: 0 created, 2 skipped, 0 failed." in self.buffer.getvalue()
+
+    def test_reset_removes_previously_seeded_user(self):
+        """--reset deletes users from the fixture before re-seeding them."""
+        self._call()
+        user_id = get_user_model().objects.get(username=self.username).id
+
+        self.buffer = io.StringIO()
+        self._call(reset=True)
+
+        new_user = get_user_model().objects.get(username=self.username)
+        assert new_user.id != user_id

@@ -16,17 +16,17 @@
     {
       "username": "authz_course_staff",
       "email": "authz_course_staff@example.com",
-      "roles": [{"role": "course_staff", "scope": "course-v1:OpenedX+DemoX+Demo_Course"}]
+      "roles": [{"role": "course_staff", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
     },
     {
       "username": "authz_course_editor",
       "email": "authz_course_editor@example.com",
-      "roles": [{"role": "course_editor", "scope": "course-v1:OpenedX+DemoX+Demo_Course"}]
+      "roles": [{"role": "course_editor", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
     },
     {
       "username": "authz_course_auditor",
       "email": "authz_course_auditor@example.com",
-      "roles": [{"role": "course_auditor", "scope": "course-v1:OpenedX+DemoX+Demo_Course"}]
+      "roles": [{"role": "course_auditor", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
     },
     {
       "username": "authz_library_admin",

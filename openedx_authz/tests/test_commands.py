@@ -583,3 +583,29 @@ class SeedSandboxDataCommandTests(DjangoTestCase):
 
         new_user = get_user_model().objects.get(username=self.username)
         assert new_user.id != user_id
+
+    @patch("openedx_authz.management.commands.seed_sandbox_data.add_organization")
+    def test_seed_reports_and_raises_on_organization_failure(self, mock_add_organization):
+        """A failed organization creation is counted, logged, and turns into a CommandError."""
+        mock_add_organization.side_effect = ValueError("boom")
+
+        with self.assertRaises(CommandError) as ctx:
+            self._call()
+
+        assert "1 seed item(s) failed" in str(ctx.exception)
+        assert "Seeding complete: 1 created, 0 skipped, 1 failed." in self.buffer.getvalue()
+        assert not Organization.objects.filter(short_name="SeedTestOrg").exists()
+
+    @patch("openedx_authz.management.commands.seed_sandbox_data.assign_role_to_user_in_scope")
+    def test_seed_reports_and_raises_on_role_assignment_failure(self, mock_assign_role):
+        """A failed role assignment is counted, logged, and turns into a CommandError."""
+        mock_assign_role.side_effect = ValueError("boom")
+
+        with self.assertRaises(CommandError) as ctx:
+            self._call()
+
+        assert "1 seed item(s) failed" in str(ctx.exception)
+        assert "Seeding complete: 2 created, 0 skipped, 1 failed." in self.buffer.getvalue()
+        assert get_user_model().objects.filter(username=self.username).exists()
+        assignments = get_user_role_assignments_filtered(user_external_key=self.username)
+        assert not any(role.external_key == LIBRARY_ADMIN.external_key for a in assignments for role in a.roles)

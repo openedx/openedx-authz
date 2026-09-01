@@ -14,14 +14,14 @@ Applications, such as Django apps or IDAs, need a standard way to provide their 
 Decision
 ********
 
-#. Python entry point and package resources
+1. Python entry point and package resources
 ===========================================
 
 An application contributes one or more authz schema resources through a Python entry point defined by ``openedx-authz``. Discovery resolves those resources with ``importlib.resources`` and returns all contributions in a defined order, since Python package discovery order may vary.
 
 For example, a ``course_authoring`` package can register ``course_authoring.authz:get_schema_resources`` and return ``authz/course_roles.authz.yaml`` and ``authz/course_permissions.authz.yaml``.
 
-#. Static source information
+2. Static source information
 ============================
 
 For every contribution, the compiler records:
@@ -35,14 +35,14 @@ Together, these values identify the same source across deployment layouts. The l
 
 The compiler records this information for each definition and role-permission assignment. For example, ``openedx-authz:openedx_authz/definitions/core.authz.yaml`` may assign ``courses.view_course`` to ``course_admin``, while ``course-authoring:course_authoring/authz/course_authoring.authz.yaml`` assigns ``courses.edit_schedule`` to the same role. Because both resources contributed to the compiled role, it keeps both source records.
 
-#. Deployment command
+3. Deployment command
 =====================
 
 ``openedx-authz`` exposes one non-interactive command that discovers, validates, compiles, reports, and applies the static schema. For CI and local development, the same command can accept explicit resources or directories.
 
 Tutor calls the command via for example a plugin initialization task, while other deployment systems call it before their application processes begin serving traffic. Each integration chooses the appropriate hook, but all of them use the same compiler.
 
-#. Removed applications
+4. Removed applications
 =======================
 
 When an application is disabled or removed, the next deployment removes the static definitions that came only from that application. If users are assigned to one of its roles, deployment stops and reports those assignments so that an operator can remove them or move the users to another role. Shared definitions remain available when another application still provides them.

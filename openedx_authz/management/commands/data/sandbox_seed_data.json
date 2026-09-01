@@ -1,0 +1,37 @@
+{
+  "organizations": [
+    {"name": "OpenedX Sandbox Org", "short_name": "OpenedX"}
+  ],
+  "users": [
+    {
+      "username": "authz_platform_admin",
+      "email": "authz_platform_admin@example.com",
+      "roles": [{"role": "course_admin", "scope": "course-v1:*"}]
+    },
+    {
+      "username": "authz_org_admin",
+      "email": "authz_org_admin@example.com",
+      "roles": [{"role": "course_admin", "scope": "course-v1:OpenedX+*"}]
+    },
+    {
+      "username": "authz_course_staff",
+      "email": "authz_course_staff@example.com",
+      "roles": [{"role": "course_staff", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
+    },
+    {
+      "username": "authz_course_editor",
+      "email": "authz_course_editor@example.com",
+      "roles": [{"role": "course_editor", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
+    },
+    {
+      "username": "authz_course_auditor",
+      "email": "authz_course_auditor@example.com",
+      "roles": [{"role": "course_auditor", "scope": "course-v1:OpenedX+DemoX+DemoCourse"}]
+    },
+    {
+      "username": "authz_library_admin",
+      "email": "authz_library_admin@example.com",
+      "roles": [{"role": "library_admin", "scope": "lib:OpenedX:*"}]
+    }
+  ]
+}

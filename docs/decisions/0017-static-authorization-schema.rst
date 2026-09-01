@@ -102,7 +102,7 @@ Validation first checks each file against the published schema. It rejects:
 * invalid YAML, unknown fields, missing required fields, and values with the wrong type;
 * unsupported schema versions;
 * IDs that contain uppercase letters or unsupported punctuation;
-* icon names that are unavailable from ``@openedx/paragon/icons``; and
+* icon names that don't follow the available icons from ``@openedx/paragon/icons``; and
 * display fields that exceed the agreed size limits.
 
 After loading every file, validation checks the combined definitions. It rejects:

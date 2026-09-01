@@ -16,7 +16,7 @@ Copying the complete role definition would make the deployment responsible for e
 Decision
 ********
 
-#. Role extension fields
+1. Role extension fields
 ========================
 
 A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. It may use:
@@ -46,19 +46,19 @@ For example:
 
 Fields that are not present keep their current value. An extension cannot change the role ID or replace its complete definition.
 
-#. Hiding a role
+2. Hiding a role
 ================
 
 Setting ``hidden: true`` removes the role from the normal API results used to discover roles and create assignments. It does not delete the role, remove existing assignments, or change permission checks. This keeps hiding separate from removing a role, whose assignment checks are defined in `ADR 0018`_.
 
-#. Validation and priority
+3. Validation and priority
 ==========================
 
 The compiler resolves extensions after it loads every static role and permission. It rejects an extension when the target role or one of the permissions does not exist. Adding a permission that the role already has or removing one it does not have produces a warning and leaves the result unchanged.
 
 Several applications or deployment files may extend the same role. Changes to different fields are combined, while priority resolves changes to the same metadata field or permission. If two contributions with the same priority disagree, validation stops before the database changes.
 
-#. Tutor patch
+4. Tutor patch
 ==============
 
 The Tutor integration for ``openedx-authz`` provides a named ``openedx-authz-schema`` patch. A Tutor operator can create a small plugin that uses this patch to contribute the same YAML accepted from application packages.

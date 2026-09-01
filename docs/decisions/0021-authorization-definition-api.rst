@@ -14,12 +14,12 @@ Context
 Decision
 ********
 
-#. Stored definitions
+1. Stored definitions
 =====================
 
 The AuthZ API reads static and user-defined roles from the authz model, where both kinds are stored after deployment. It returns roles, permissions, and categories in the format clients need, without exposing the Casbin rows used for permission checks.
 
-#. Extend the roles endpoint
+2. Extend the roles endpoint
 ============================
 
 Role listing and assignment screens continue to use the existing scope-based roles endpoint, with each role gaining:
@@ -35,7 +35,7 @@ The response keeps ``user_count`` alongside the new fields, so existing clients 
 
 Because a static role is owned by its schema, clients cannot edit or delete it through the user-defined role API.
 
-#. Permission and category definitions
+3. Permission and category definitions
 ======================================
 
 The API also provides the information needed to display permissions and categories, including:
@@ -44,7 +44,7 @@ The API also provides the information needed to display permissions and categori
 * permissions with the complete stable ID, separate ``namespace`` and ``name`` fields, translated display fields, categories, supported scopes, and optional icons; and
 * normalized permission categories with translated display fields.
 
-#. Source information
+4. Source information
 =====================
 
 Responses may identify a role as ``static`` or ``user_defined`` so clients can tell where it came from. Whether the API should expose more detailed source information, such as the application and schema path behind a static role, remains an open question.
@@ -63,7 +63,7 @@ The standard roles endpoint may return the following object.
 
 The exact field name and whether it belongs in the default response remain open API-contract decisions.
 
-#. Role assignment and localization
+5. Role assignment and localization
 ===================================
 
 Assignment and validation endpoints read the roles available for the requested scope from the authz model instead of a static Python list. When returning those roles, the API translates static display fields into the requested language but keeps role and permission IDs unchanged.

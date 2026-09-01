@@ -21,8 +21,6 @@ Decision
 
 The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
-The :ref:`Authorization Schema Reference` describes every field, the naming conventions, and complete configuration examples.
-
 #. Permissions and categories
 =============================
 

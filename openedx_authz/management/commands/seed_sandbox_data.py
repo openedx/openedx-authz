@@ -71,6 +71,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(summary))
 
     def _seed_organizations(self, organizations, counts):
+        """Create any organization from the fixture that doesn't already exist, tallying counts."""
         existing = {org["short_name"] for org in get_organizations()}
         for org in organizations:
             if org["short_name"] in existing:
@@ -79,11 +80,13 @@ class Command(BaseCommand):
             try:
                 add_organization(org)
                 counts["created"] += 1
-            except Exception:
+            # One bad organization shouldn't stop the rest of the fixture from seeding.
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.exception("Failed to create organization %s", org.get("short_name"))
                 counts["failed"] += 1
 
     def _seed_users(self, users, user_model, counts):
+        """Create/update each user from the fixture and assign their roles, tallying counts."""
         for user_data in users:
             username = user_data["username"]
             user, was_created = user_model.objects.get_or_create(
@@ -102,7 +105,8 @@ class Command(BaseCommand):
             for assignment in user_data.get("roles", []):
                 try:
                     assign_role_to_user_in_scope(username, assignment["role"], assignment["scope"])
-                except Exception:
+                # One bad role assignment shouldn't stop the rest of the fixture from seeding.
+                except Exception:  # pylint: disable=broad-exception-caught
                     log.exception(
                         "Failed to assign role %s to %s in scope %s",
                         assignment["role"],

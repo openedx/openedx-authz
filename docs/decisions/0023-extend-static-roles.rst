@@ -9,9 +9,9 @@ Status
 Context
 *******
 
-Applications define static roles in the authz schema, but operators may need to adapt those roles for a deployment. For example, a deployment may allow course editors to export courses, remove their access to tag management, change the text shown to users, or hide the course auditor role when that role does not apply to the site.
+Applications (Django applications, IDAs, etc.) define static roles in the authz schema, but operators may need to adapt those roles for a deployment. For example, a deployment may allow course editors to export courses, remove their access to tag management, change the text shown to users, or hide the course auditor role when that role does not apply to the site.
 
-Copying the complete role definition would make the deployment responsible for every field and permission in the original role. It would also make application updates harder to adopt because the copied definition could drift from the role shipped by the application. `ADR 0017`_ therefore introduced ``role_extensions``, but it did not define every operation or show how an operator can provide an extension through Tutor.
+Copying the complete role definition would make the deployment responsible for every field and permission in the original role. It would also make application updates harder to adopt because the copied definition could drift from the role shipped by the application. `ADR 0017`_ therefore introduced ``role_extensions``, and this ADR explains how to use them in more detail.
 
 Decision
 ********
@@ -19,7 +19,7 @@ Decision
 #. Role extension fields
 ========================
 
-A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. It may use:
+A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. The :ref:`Authorization Schema Reference` describes these fields and includes complete examples for applications and Tutor configuration. An entry may use:
 
 * ``add_permissions`` to add complete permission IDs;
 * ``remove_permissions`` to remove complete permission IDs;
@@ -40,7 +40,7 @@ For example:
        remove_permissions:
          - courses.manage_tags
        display_name: Course author
-       description: Creates and exports course content for this site.
+       description: Creates and exports course content.
      - role: course_auditor
        hidden: true
 
@@ -93,7 +93,7 @@ The operator then enables the plugin and saves the Tutor configuration:
    tutor plugins enable openedx-authz-overrides
    tutor config save
 
-The next deployment passes the patch content to the compiler defined in `ADR 0019`_. After compilation, ``course_editor`` includes ``courses.export_course``, no longer includes ``courses.manage_tags``, and appears as “Course author.” The ``course_auditor`` role remains valid for existing assignments but no longer appears in normal role discovery.
+The next deployment passes the patch content to the compiler defined in `ADR 0019`_. After compilation, ``course_editor`` includes ``courses.export_course``, no longer includes ``courses.manage_tags``, and appears as "Course author." The ``course_auditor`` role remains valid for existing assignments but no longer appears in normal role discovery.
 
 After deployment, the operator can check the resulting policy with the existing ``enforcement`` management command. Assuming ``alice`` has ``course_editor`` for ``course-v1:OpenedX+DemoX+DemoCourse``, the operator runs:
 
@@ -129,6 +129,7 @@ References
 * `ADR 0017`_
 * `ADR 0018`_
 * `ADR 0019`_
+* :ref:`Authorization Schema Reference`
 * `Tutor plugin development`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst

@@ -21,6 +21,8 @@ Decision
 
 The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
+The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
+
 #. Permissions and categories
 =============================
 
@@ -108,6 +110,7 @@ Validation first checks each file against the published schema. It rejects:
 After loading every file, validation checks the combined definitions. It rejects:
 
 * references to permissions or categories that do not exist;
+* a role extension whose role does not exist in the combined definitions;
 * a role used in a scope where one of its permissions cannot apply;
 * conflicting definitions or role extensions with the same priority; and
 * unsupported combinations of schema versions.

@@ -23,7 +23,7 @@ Applications, such as Django apps or IDAs, define static roles in the Open edX A
 
 Administrators create dynamic roles through the application, and the authz model stores both their definitions and their user assignments. This keeps administrator-managed data separate from the static definitions in the authz schema.
 
-For example, an application may define ``course_admin`` in the authz schema, while an administrator creates ``course_reviewer`` through the application. The authz model stores ``course_reviewer``, but ``course_admin`` remains part of the application's schema.
+For example, an application may define ``course_admin`` in the authz schema (defined in more detail in `ADR 0017`_), while an administrator creates ``course_reviewer`` through the application. The authz model stores ``course_reviewer``, but ``course_admin`` remains part of the application's schema.
 
 Consequences
 ************
@@ -31,3 +31,5 @@ Consequences
 * Operators can create roles without changing or redeploying applications.
 * Applications and operators can change the roles they own independently.
 * The authz model must store dynamic role definitions.
+
+.. _ADR 0017: 0017-static-authorization-schema.rst

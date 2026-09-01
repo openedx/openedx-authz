@@ -23,6 +23,8 @@ The authz schema is a versioned YAML format for static permissions, permission c
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
+The :ref:`Authorization Schema Reference` describes every field, the naming conventions, and complete configuration examples.
+
 2. Permissions and categories
 =============================
 

@@ -14,14 +14,14 @@ Permission categories group definitions for display, whereas permission implicat
 Decision
 ********
 
-#. First schema version
+1. First schema version
 =======================
 
 The first authz schema version supports explicit role-permission assignments, so every role lists each assigned permission.
 
 For example, a role that needs both ``courses.manage_course_team`` and ``courses.view_course_team`` lists both permission IDs. The compiler does not infer that one permission includes the other.
 
-#. Requirements for a later version
+2. Requirements for a later version
 ===================================
 
 A later schema version may add implications or inheritance, but documents written for version 1 will keep their current meaning. Before introducing either feature, the new version must define:

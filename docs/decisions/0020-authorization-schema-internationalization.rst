@@ -16,22 +16,22 @@ Open edX already manages translations through OEP-58, with Atlas pulling transla
 Decision
 ********
 
-#. Translate static fields through OEP-58
+1. Translate static fields through OEP-58
 ==========================================
 
 Contributing packages write the source-language text in their schema. The extraction command then adds those fields to the OEP-58 input so they pass through ``openedx-translations`` and Atlas with the other Open edX strings.
 
-#. Schema string extraction
+2. Schema string extraction
 ===========================
 
 The extraction command keeps enough context to distinguish each schema field. For example, a permission's display name and description remain separate translation messages even when they contain the same English text.
 
-#. Store and return translated fields
+3. Store and return translated fields
 =====================================
 
 The API returns static display fields in the requested language and follows Django's normal fallback rules. Permission IDs, role IDs, and Paragon icon names keep the same value in every language because applications use them as identifiers.
 
-#. User-defined role names
+4. User-defined role names
 ==========================
 
 The static extraction command reads schema files from packages and therefore has no access to role names created later by administrators. Translation for those names belongs with the dynamic role model and API rather than the static OEP-58 process.

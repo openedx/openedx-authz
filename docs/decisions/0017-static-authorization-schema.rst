@@ -16,14 +16,14 @@ Casbin remains the authorization engine, and its adapter continues to read and w
 Decision
 ********
 
-#. Schema format and boundary
+1. Schema format and boundary
 =============================
 
 The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
-#. Permissions and categories
+2. Permissions and categories
 =============================
 
 A permission contains:
@@ -61,7 +61,7 @@ For example:
 
 Here, ``course_content`` groups the two permissions for display. The complete permission IDs are ``courses.view_course`` and ``courses.delete_course``, while ``course-v1`` is the scope namespace where they apply. Application code uses the complete permission ID, so changing ``display_name`` does not change permission checks.
 
-#. Roles and role extensions
+3. Roles and role extensions
 ============================
 
 A role contains a stable identifier, display name, description, supported scope namespaces, and a list of complete permission identifiers. When an application needs to change an existing role, it uses ``role_extensions``. An extension may add or remove permissions and may replace the role's display name or description.
@@ -96,7 +96,7 @@ The compiler also creates a row that links ``course_admin`` to ``courses.delete_
 
 The schema contains static definitions, while user assignments and user-defined roles stay in the application database. Casbin's ``model.conf`` and matcher also remain owned by ``openedx-authz``.
 
-#. Validation and conflicts
+4. Validation and conflicts
 ===========================
 
 Validation first checks each file against the published schema. It rejects:

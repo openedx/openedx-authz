@@ -16,7 +16,7 @@ The loader of the schema also needs to account for data that is already in the C
 Decision
 ********
 
-#. Lifecycle vocabulary
+1. Lifecycle vocabulary
 =======================
 
 The authz schema lifecycle uses these terms:
@@ -38,7 +38,7 @@ The following example shows how one file moves through the lifecycle:
 5. **Apply** writes the row, the compiled definition, and its source information to the database.
 6. **Consume** begins after Casbin reloads the policy and the API can return the updated role.
 
-#. Deployment-time compilation
+2. Deployment-time compilation
 ==============================
 
 Before the application starts serving traffic, deployment completes every step from discover through apply. Permission checks can then use the stored policy without compiling the schema again.
@@ -47,33 +47,33 @@ Together, the schema documents define the static roles and permissions that shou
 
 For example, if deployment runs twice with the same ``course_observer`` definition, the database still contains one role-permission row and the second run reports that the policy is unchanged.
 
-#. Storage ownership
+3. Storage ownership
 ====================
 
 Each part of the system updates the records it owns. The schema loader manages generated static rows and their source information, the dynamic role API manages roles created by administrators, and the role-assignment API manages user assignments.
 
 For example, the loader may update the static row that links ``courses.view_course`` to ``course_observer``, but it must preserve the assignment that gives Alice that role in ``course-v1:OpenedX+DemoX+DemoCourse`` as well as any dynamic roles created by an administrator.
 
-#. Role identifier conflicts
+4. Role identifier conflicts
 ============================
 
 Static and dynamic roles share the same set of names, so neither kind can reuse a name that already exists. The dynamic role API rejects a name used by a static role, and deployment stops when a new static role conflicts with an existing dynamic role.
 
 For example, an administrator cannot create a dynamic ``course_observer`` role when an application already defines a static role with that name. If the dynamic role existed first, a deployment that introduces the static role stops and reports both the contributing package and the conflicting database record, leaving both definitions unchanged.
 
-#. Apply related changes together
+5. Apply related changes together
 =================================
 
 Validation and rendering finish before the database changes. Once they succeed, the loader updates the generated policy, compiled definitions, and source information in one operation; if that operation fails, Casbin continues to use the last working version.
 
-#. Change report and removed roles
+6. Change report and removed roles
 ==================================
 
 Before writing to the database, the compiler reports the categories, permissions, roles, and role-permission relationships that will change, including changes caused by a higher-priority contribution. Validation errors and failed tests stop deployment before the database changes.
 
 Removing a static role also removes its role-permission relationships. If users still have that role, deployment stops and reports the assignments that must be removed or moved to another role. For example, ``course_observer`` cannot be removed while Alice still has that role.
 
-#. Administrative fallback
+7. Administrative fallback
 ==========================
 
 Application and plugin code cannot edit generated static rows directly. During an incident, however, an administrator may use the Django admin, which records who changed what and why, and explains whether the next schema deployment will replace the change.

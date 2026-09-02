@@ -15,31 +15,21 @@ import os
 import re
 import sys
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_version
 from subprocess import check_call
 
 from django import setup as django_setup
 
-
-def get_version(*file_paths):
-    """
-    Extract the version string from the file.
-
-    Input:
-     - file_paths: relative path fragments to file with
-                   version string
-    """
-    filename = os.path.join(os.path.dirname(__file__), *file_paths)
-    version_file = open(filename, encoding="utf8").read()
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
-    if version_match:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
-
+try:
+    VERSION = get_version("openedx-authz")
+except PackageNotFoundError:
+    VERSION = "0.0.0"
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(REPO_ROOT)
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
 
-VERSION = get_version("../openedx_authz", "__init__.py")
 # Configure Django for autodoc usage
 os.environ["DJANGO_SETTINGS_MODULE"] = "openedx_authz.settings.test"
 django_setup()
@@ -568,9 +558,9 @@ def on_init(app):  # pylint: disable=unused-argument
             apidoc_path,
             "-o",
             docs_path,
-            os.path.join(root_path, "openedx_authz"),
-            os.path.join(root_path, "openedx_authz/migrations"),
-            os.path.join(root_path, "openedx_authz/tests"),
+            os.path.join(root_path, "src/openedx_authz"),
+            os.path.join(root_path, "src/openedx_authz/migrations"),
+            os.path.join(root_path, "src/openedx_authz/tests"),
         ],
         env=env
     )

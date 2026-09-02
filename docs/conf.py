@@ -15,13 +15,14 @@ import os
 import re
 import sys
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError, version as get_distribution_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_version
 from subprocess import check_call
 
 from django import setup as django_setup
 
 try:
-    VERSION = get_distribution_version("openedx-authz")
+    VERSION = get_version("openedx-authz")
 except PackageNotFoundError:
     VERSION = "0.0.0"
 

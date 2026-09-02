@@ -19,7 +19,21 @@ Decision
 
 An application contributes one or more authz schema resources through a Python entry point defined by ``openedx-authz``. Discovery resolves those resources with the available mechanisms (like we discover Django applications or using ``importlib.resources``) and returns all contributions in a defined order, since package discovery order may vary.
 
-For example, the ``course_authoring`` package can register ``course_authoring.authz:get_schema_resources`` under an entry-point group such as ``authz.schema``. The compiler loads that group to discover ``authz/course_authoring.authz.yaml`` and the schema resources provided by other applications.
+For example, the ``course_authoring`` package can register its schema function in ``pyproject.toml``:
+
+.. code-block:: toml
+
+   [project.entry-points."authz.schema"]
+   course_authoring = "course_authoring.authz:get_schema_resources"
+
+The function returns the schema resources provided by the package:
+
+.. code-block:: python
+
+   def get_schema_resources():
+       return ["authz/course_authoring.authz.yaml"]
+
+The compiler loads the ``authz.schema`` entry-point group and calls each registered function to discover the available schema resources.
 
 2. Static source information
 ============================

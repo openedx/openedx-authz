@@ -28,8 +28,7 @@ Role listing and assignment screens continue to use the existing scope-based rol
 * localized display name and description;
 * supported scope namespaces;
 * complete permission identifiers;
-* whether the role is ``static`` or ``user_defined``; and
-* whether the caller may edit or delete the definition.
+* whether the role is ``static`` or ``user_defined``.
 
 The response keeps ``user_count`` alongside the new fields, so existing clients that read only ``role``, ``permissions``, and ``user_count`` remain compatible.
 

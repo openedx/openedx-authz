@@ -17,9 +17,9 @@ Decision
 1. Python entry point and package resources
 ===========================================
 
-An application contributes one or more authz schema resources through a Python entry point defined by ``openedx-authz``. Discovery resolves those resources with ``importlib.resources`` and returns all contributions in a defined order, since Python package discovery order may vary.
+An application contributes one or more authz schema resources through a Python entry point defined by ``openedx-authz``. Discovery resolves those resources with the available mechanisms (like we discover Django applications or using ``importlib.resources``) and returns all contributions in a defined order, since package discovery order may vary.
 
-For example, a ``course_authoring`` package can register ``course_authoring.authz:get_schema_resources`` and return ``authz/course_roles.authz.yaml`` and ``authz/course_permissions.authz.yaml``.
+For example, a ``course_authoring`` package can register ``course_authoring.authz:get_schema_resources`` and return ``authz/course_authoring.authz.yaml``.
 
 2. Static source information
 ============================

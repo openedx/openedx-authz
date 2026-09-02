@@ -17,23 +17,44 @@ Decision
 1. Python entry point and package resources
 ===========================================
 
-An application contributes one or more authz schema resources through a Python entry point defined by ``openedx-authz``. Discovery resolves those resources with the available mechanisms (like we discover Django applications or using ``importlib.resources``) and returns all contributions in a defined order, since package discovery order may vary.
-
-For example, the ``course_authoring`` package can register its schema function in ``pyproject.toml``:
-
-.. code-block:: toml
-
-   [project.entry-points."authz.schema"]
-   course_authoring = "course_authoring.authz:get_schema_resources"
-
-The function returns the schema resources provided by the package:
+Applications can register schema resources through a Python entry point defined by ``openedx-authz``, following the pattern used to register LMS and CMS Django apps. For example, the ``course_authoring`` package can add an ``authz.schema`` entry point in ``setup.py``:
 
 .. code-block:: python
 
+   entry_points={
+       "authz.schema": [
+           "course_authoring = course_authoring.authz:get_schema_resources",
+       ],
+   }
+
+The registered function returns the package resources that contain its schema:
+
+.. code-block:: python
+
+   ...
    def get_schema_resources():
        return ["authz/course_authoring.authz.yaml"]
 
-The compiler loads the ``authz.schema`` entry-point group and calls each registered function to discover the available schema resources.
+The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and uses ``importlib.resources`` or a similar mechanism to find the files. It then validates the schemas, compiles them into Casbin rows, and applies them to the database.
+
+Site operators can contribute a schema through the ``openedx-authz-schema`` Tutor patch:
+
+.. code-block:: yaml
+
+   name: openedx-authz-overrides
+   version: 0.1.0
+
+   patches:
+     openedx-authz-schema: |
+       schema_version: "1.0"
+       priority: 200
+
+       role_extensions:
+         - role: course_editor
+           add_permissions:
+             - courses.export_course
+
+The compiler combines schemas from application entry points and Tutor patches in a defined order because discovery order may vary.
 
 2. Static source information
 ============================

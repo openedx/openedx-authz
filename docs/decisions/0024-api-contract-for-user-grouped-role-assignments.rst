@@ -74,6 +74,7 @@ are filtered according to the calling user's scope-level view permissions.
 Query Parameters:
 """""""""""""""""
 
+-  ``roles`` (optional): Comma-separated list of roles to filter by (e.g. ``course_auditor,library_admin``).
 -  ``scopes`` (optional): Comma-separated list of scopes to filter by (e.g.
    ``lib:Org1:LIB1``).
 -  ``orgs`` (optional): Comma-separated list of orgs to filter by (e.g. ``Org1,Org2``).
@@ -91,7 +92,7 @@ Example:
 
 .. code::
 
-   GET /api/authz/v1/users/?orgs=Org1&search=john&assignments_limit=3&sort_by=username&order=asc&page=1&page_size=10
+   GET /api/authz/v1/users/?roles=library_admin&orgs=Org1&search=john&assignments_limit=3&sort_by=username&order=asc&page=1&page_size=10
 
 Response Body:
 """"""""""""""
@@ -114,6 +115,7 @@ Format:
                role: string
                org: string
                scope: string
+               scope_display_name: string
                permission_count: number
            }>
        }>
@@ -122,6 +124,29 @@ Format:
 The ``assignments`` array is populated with up to ``assignments_limit`` entries
 (default 3), while ``assignment_count`` always reflects the user's total number of
 assignments regardless of the limit.
+
+Each assignment includes a ``scope_display_name`` field alongside the existing
+``scope`` key. This is a new field relative to the current assignment-shaped
+endpoints (``GET /api/authz/v1/assignments/`` and
+``GET /api/authz/v1/users/<username>/assignments/``), which only return the
+``scope`` key. The UI needs the human-readable name to label each assignment, so
+``scope_display_name`` carries it while ``scope`` remains the stable machine
+identifier.
+
+The display name is not stored in the authorization policy store; it lives in the
+platform models (``CourseOverview.display_name`` for courses and the library's
+``learning_package.title`` for content libraries). Because assignments are read
+from the policy store, resolving names requires reading those models. Implementers
+must fetch the names in bulk (a single batched lookup per scope type per page,
+keyed by scope), following the batching pattern already used for user data
+(``get_user_map``) and for scope display names in ``ScopesAPIView``. Resolving the
+name per assignment row would introduce N+1 queries and must be avoided.
+
+For assignments that have no single concrete resource, such as superadmin entries
+or glob scopes, ``scope_display_name`` has no meaningful value and is returned as
+an empty string. If an assignment references a scope whose backing course or
+library no longer exists, the name cannot be resolved and is likewise returned as
+an empty string.
 
 Example:
 
@@ -143,6 +168,7 @@ Example:
                        "role": "library_admin",
                        "org": "Org1",
                        "scope": "lib:Org1:LIB1",
+                       "scope_display_name": "Intro to CS Library",
                        "permission_count": 11
                    },
                    {
@@ -150,6 +176,7 @@ Example:
                        "role": "library_user",
                        "org": "Org1",
                        "scope": "lib:Org1:LIB2",
+                       "scope_display_name": "Algorithms Library",
                        "permission_count": 4
                    },
                    {
@@ -157,6 +184,7 @@ Example:
                        "role": "library_admin",
                        "org": "Org2",
                        "scope": "lib:Org2:LIB1",
+                       "scope_display_name": "Data Structures Library",
                        "permission_count": 11
                    }
                ]
@@ -172,6 +200,7 @@ Example:
                        "role": "library_user",
                        "org": "Org1",
                        "scope": "lib:Org1:LIB1",
+                       "scope_display_name": "Intro to CS Library",
                        "permission_count": 4
                    }
                ]
@@ -193,6 +222,14 @@ Consequences
 - The existing /api/authz/v1/users/ endpoint will be extended to return the
   additional data: a nested ``assignments`` array per user and the renamed
   ``assignment_count`` field.
+- Each nested assignment gains a ``scope_display_name`` field, which is an addition
+  compared to the existing assignment-shaped endpoints that return only the
+  ``scope`` key. Since display names are not held in the policy store, this field
+  requires reading the platform course/library models. Implementation must resolve
+  these names with batched, per-page lookups to avoid N+1 query performance issues.
+- The endpoint gains a new ``roles`` query parameter that filters the returned
+  users by a comma-separated list of roles, supporting the role filter in the
+  Team Members view.
 - Renaming ``assignation_count`` to ``assignment_count`` is technically a breaking
   change to the response body. It is low-risk here because
   frontend-app-admin-console does not call the ``GET /api/authz/v1/users/`` endpoint

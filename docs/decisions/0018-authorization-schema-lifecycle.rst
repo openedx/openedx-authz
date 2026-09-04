@@ -59,7 +59,7 @@ For example, the loader may update the static row that links ``courses.view_cour
 
 Static and dynamic roles share the same set of names, so neither kind can reuse a name that already exists. The dynamic role API rejects a name used by a static role, and deployment stops when a new static role conflicts with an existing dynamic role.
 
-Static and dynamic roles have separate naming conventions. The authz schema defines the convention for static roles. The convention for dynamic roles remains open and should be documented separately.
+Because this ADR covers the lifecycle of static definitions, it establishes that static role IDs follow the authz schema's naming conventions. Naming conventions for dynamic roles are outside its scope.
 
 For example, an administrator cannot create a dynamic ``course_observer`` role when an application already defines a static role with that name. If the dynamic role existed first, a deployment that introduces the static role stops and reports both the contributing package and the conflicting database record, leaving both definitions unchanged.
 

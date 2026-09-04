@@ -19,7 +19,7 @@ Decision
 1. Schema format and boundary
 =============================
 
-The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
+The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
@@ -92,7 +92,7 @@ In these examples, ``courses.view_course`` appears under ``course_content`` in t
 
    p, role^course_observer, act^courses.view_course, course-v1^*, allow
 
-The compiler also creates a row that links ``course_admin`` to ``courses.delete_course``. Priority resolves conflicts between definitions and role extensions; it does not control how roles or permissions appear in the UI.
+The compiler also creates a row that links ``course_admin`` to ``courses.delete_course``. Priority resolves conflicts between role extensions; it does not apply to individual permissions or control how roles or permissions appear in the UI.
 
 The schema contains static definitions, while user assignments and user-defined roles stay in the application database. Casbin's ``model.conf`` and matcher also remain owned by ``openedx-authz``.
 
@@ -103,19 +103,22 @@ Validation first checks each file against the published schema. It rejects:
 
 * invalid YAML, unknown fields, missing required fields, and values with the wrong type;
 * unsupported schema versions;
-* IDs that contain uppercase letters or unsupported punctuation;
+* permission namespaces and names, role IDs, or category IDs that do not use lowercase ASCII ``snake_case``;
 * icon names that don't follow the available icons from ``@openedx/paragon/icons``; and
 * display fields that exceed the agreed size limits.
+
+When Paragon renames or removes an icon, the schema follows the same deprecation process as other consumers of ``@openedx/paragon/icons``.
 
 After loading every file, validation checks the combined definitions. It rejects:
 
 * references to permissions or categories that do not exist;
 * a role extension whose role does not exist in the combined definitions;
 * a role used in a scope where one of its permissions cannot apply;
-* conflicting definitions or role extensions with the same priority; and
+* conflicting static definitions;
+* conflicting role extensions with the same priority; and
 * unsupported combinations of schema versions.
 
-The validator warns about duplicate definitions, including identical definitions, and about definitions or role extensions that do not take effect because another file has a higher priority. The highest-priority contribution resolves a conflict. If several files add the same permission to the same role, the compiler creates one Casbin row and records each contributing source.
+The validator warns about duplicate definitions, including identical definitions, and about role extensions that do not take effect because another file has a higher priority. The highest-priority role extension resolves a conflict. If several files add the same permission to the same role, the compiler creates one Casbin row and records each contributing source.
 
 Unit tests can load schema fixtures into an in-memory Casbin enforcer and check allowed and denied requests. This follows the model-testing approach used by OpenFGA and the schema assertions used by SpiceDB, while keeping the tests in normal application test suites.
 

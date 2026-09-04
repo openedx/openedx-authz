@@ -23,8 +23,8 @@ username, email, a single scope the related assigned role, along with a control 
 expand the row and reveal up to three assigned roles and the user's total number
 of assigned roles.
 
-The table can be searched by username, email, or full name; sorted by username or
-full name; filtered by organization, role, or scope; and is paginated.
+The table can be searched by username, email, or full name; sorted by username,
+full name or email; filtered by organization, role, or scope; and is paginated.
 
 Decision
 **********
@@ -148,7 +148,12 @@ an empty string. If an assignment references a scope whose backing course or
 library no longer exists, the name cannot be resolved and is likewise returned as
 an empty string.
 
-Example:
+The example below shows the different scope kinds an assignment can reference at
+the time of writing: a specific library, a specific course, an organization-level
+glob (all libraries or all courses in an org), and a platform-level glob (all
+libraries or all courses platform-wide). Specific scopes resolve to a
+``scope_display_name``; glob scopes have no single backing resource, so
+``scope_display_name`` is an empty string.
 
 .. code:: json
 
@@ -173,18 +178,18 @@ Example:
                    },
                    {
                        "is_superadmin": false,
-                       "role": "library_user",
+                       "role": "course_staff",
                        "org": "Org1",
-                       "scope": "lib:Org1:LIB2",
-                       "scope_display_name": "Algorithms Library",
-                       "permission_count": 4
+                       "scope": "course-v1:Org1+CS101+2024",
+                       "scope_display_name": "Introduction to Computer Science",
+                       "permission_count": 27
                    },
                    {
                        "is_superadmin": false,
                        "role": "library_admin",
-                       "org": "Org2",
-                       "scope": "lib:Org2:LIB1",
-                       "scope_display_name": "Data Structures Library",
+                       "org": "Org1",
+                       "scope": "lib:Org1:*",
+                       "scope_display_name": "",
                        "permission_count": 11
                    }
                ]
@@ -193,20 +198,37 @@ Example:
                "username": "john_doe",
                "full_name": "John Doe",
                "email": "john_doe@example.com",
-               "assignment_count": 1,
+               "assignment_count": 2,
                "assignments": [
                    {
                        "is_superadmin": false,
+                       "role": "course_staff",
+                       "org": "Org2",
+                       "scope": "course-v1:Org2+*",
+                       "scope_display_name": "",
+                       "permission_count": 27
+                   },
+                   {
+                       "is_superadmin": false,
                        "role": "library_user",
-                       "org": "Org1",
-                       "scope": "lib:Org1:LIB1",
-                       "scope_display_name": "Intro to CS Library",
+                       "org": "*",
+                       "scope": "lib:*",
+                       "scope_display_name": "",
                        "permission_count": 4
                    }
                ]
            }
        ]
    }
+
+Notes on the scope kinds shown above:
+
+-  ``lib:Org1:LIB1`` and ``course-v1:Org1+CS101+2024`` are specific scopes, so
+   their ``scope_display_name`` is resolved from the backing library/course.
+-  ``lib:Org1:*`` and ``course-v1:Org2+*`` are organization-level globs; ``org``
+   reflects the org (``Org1``, ``Org2``) and ``scope_display_name`` is empty.
+-  ``lib:*`` is a platform-level glob; ``org`` is ``"*"`` and
+   ``scope_display_name`` is empty.
 
 Possible response codes:
 """"""""""""""""""""""""

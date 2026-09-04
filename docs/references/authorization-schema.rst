@@ -11,6 +11,17 @@ Use this reference when creating or reviewing an authz schema file. The examples
    :depth: 2
    :local:
 
+Machine-readable schema
+***********************
+
+The :download:`authz JSON Schema <../../openedx_authz/schema/authz-schema-v1.json>` describes the fields, types, required values, and identifier formats for schema version ``1.0``. Editors and validation tools can use it to check YAML files because JSON Schema applies to the data represented by both JSON and YAML.
+
+The JSON Schema checks the structure of one file. The compiler also checks references across the combined schema, registered scope namespaces, available Paragon icons, and conflicts between contributions.
+
+.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json
+   :auto_target:
+   :auto_reference:
+
 Complete example
 ****************
 

@@ -37,6 +37,8 @@ The registered function returns the package resources that contain its schema:
 
 The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and uses ``importlib.resources`` or a similar mechanism to find the files. It then validates the schemas, compiles them into Casbin rows, and applies them to the database.
 
+If a registered function raises an exception, discovery stops and reports which application failed. This prevents deployment from continuing with an incomplete set of static definitions.
+
 Site operators can contribute a schema through the ``openedx-authz-schema`` Tutor patch:
 
 .. code-block:: yaml
@@ -82,12 +84,14 @@ Tutor calls the command via for example a plugin initialization task, while othe
 
 When an application is disabled or removed, the next deployment removes the static definitions that came only from that application. If users are assigned to one of its roles, deployment stops and reports those assignments so that an operator can remove them or move the users to another role. Shared definitions remain available when another application still provides them.
 
+Deployment also stops if a remaining schema refers to a role, permission, or category that would be removed with the application. An operator may allow the removal through explicit deployment configuration. Without that configuration, the stored definitions remain unchanged.
+
 Consequences
 ************
 
 * An application can ship authorization definitions with its code.
 * Tutor and other deployment systems use the same mechanism to discover and load the definitions.
-* Source information remains consistent across container.
+* Source information remains consistent across containers.
 * Authorization changes after the deployment command runs successfully.
 * Packaging checks must verify that schema resources are included in wheels and source distributions.
 * Deployment integrations need to pass database settings and run the command at a point where all contributing packages are installed.

@@ -29,7 +29,7 @@ full name; filtered by organization, role, or scope; and is paginated.
 Decision
 **********
 
-Extend the existing /api/authz/v1/users/ endpoint, defined in TeamMembersAPIView,
+Extend the existing ``/api/authz/v1/users/`` endpoint, defined in ``TeamMembersAPIView``,
 to include a list of assignments for each user.
 
 This endpoint was originally created for an earlier version of the Team Members

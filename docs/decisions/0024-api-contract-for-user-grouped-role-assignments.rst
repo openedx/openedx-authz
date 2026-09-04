@@ -58,7 +58,7 @@ query parameter.
 REST API for Team Members view
 =================================
 
-The existing /api/authz/v1/users/ endpoint will be extended to return a list of
+The existing ``/api/authz/v1/users/`` endpoint will be extended to return a list of
 assignments per user. The number of assignments returned is capped by the
 assignments_limit parameter, which defaults to 3.
 

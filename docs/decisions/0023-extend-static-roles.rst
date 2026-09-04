@@ -49,7 +49,7 @@ Fields that are not present keep their current value. An extension cannot change
 2. Hiding a role
 ================
 
-Setting ``hidden: true`` removes the role from the normal API results used to discover roles and create assignments. It does not delete the role, remove existing assignments, or change permission checks. This keeps hiding separate from removing a role, whose assignment checks are defined in `ADR 0018`_.
+Setting ``hidden: true`` removes the role from the normal API results used to discover roles and create assignments. It does not delete the role, remove existing assignments, or change permission checks, so its ID remains reserved and cannot be used for a dynamic role. This keeps hiding separate from removing a role, whose assignment checks are defined in `ADR 0018`_.
 
 3. Validation and priority
 ==========================
@@ -61,36 +61,38 @@ Several applications or deployment files may extend the same role. Changes to di
 4. Tutor patch
 ==============
 
-The Tutor integration for ``openedx-authz`` provides a named ``openedx-authz-schema`` patch. A Tutor operator can create a small plugin that uses this patch to contribute the same YAML accepted from application packages.
+The Tutor integration for ``openedx-authz`` provides a named ``openedx-authz-schema`` patch. A Tutor operator can create a small Python plugin that uses this patch to contribute the same YAML accepted from application packages.
 
-First, the operator runs ``tutor plugins printroot`` to find the local plugin directory and creates ``openedx-authz-overrides.yml`` there:
+First, the operator runs ``tutor plugins printroot`` to find the local plugin directory and creates ``openedx_authz_overrides.py`` there:
 
-.. code-block:: yaml
+.. code-block:: python
 
-   name: openedx-authz-overrides
-   version: 0.1.0
+   from tutor import hooks
 
-   patches:
-     openedx-authz-schema: |
-       schema_version: "1.0"
-       priority: 200
+   hooks.Filters.ENV_PATCHES.add_item((
+       "openedx-authz-schema",
+       """
+   schema_version: "1.0"
+   priority: 200
 
-       role_extensions:
-         - role: course_editor
-           add_permissions:
-             - courses.export_course
-           remove_permissions:
-             - courses.manage_tags
-           display_name: Course author
-           description: Creates and exports course content for this site.
-         - role: course_auditor
-           hidden: true
+   role_extensions:
+     - role: course_editor
+       add_permissions:
+         - courses.export_course
+       remove_permissions:
+         - courses.manage_tags
+       display_name: Course author
+       description: Creates and exports course content for this site.
+     - role: course_auditor
+       hidden: true
+       """,
+   ))
 
 The operator then enables the plugin and saves the Tutor configuration:
 
 .. code-block:: console
 
-   tutor plugins enable openedx-authz-overrides
+   tutor plugins enable openedx_authz_overrides
    tutor config save
 
 The next deployment passes the patch content to the compiler defined in `ADR 0019`_. After compilation, ``course_editor`` includes ``courses.export_course``, no longer includes ``courses.manage_tags``, and appears as "Course author." The ``course_auditor`` role remains valid for existing assignments but no longer appears in normal role discovery.

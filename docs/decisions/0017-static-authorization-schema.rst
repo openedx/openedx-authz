@@ -19,7 +19,7 @@ Decision
 1. Schema format and boundary
 =============================
 
-The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a YAML Schema for this format so that editors, CI, and the compiler all apply the same field and validation rules.
+The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a :download:`machine-readable JSON Schema <../../openedx_authz/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
@@ -161,11 +161,11 @@ References
 * `ADR 0016`_
 * `ADR 0023`_
 * `Casbin adapters`_
-* `ASDF YAML Schema`_
+* `JSON Schema`_
 * `Paragon icons`_
 
 .. _ADR 0016: 0016-static-and-dynamic-roles.rst
 .. _ADR 0023: https://github.com/openedx/openedx-authz/pull/430
 .. _Casbin adapters: https://v3.casbin.org/docs/adapters
-.. _ASDF YAML Schema: https://www.asdf-format.org/projects/asdf-standard/en/1.0.2/schemas/yaml_schema.html
+.. _JSON Schema: https://json-schema.org/draft/2020-12/json-schema-core
 .. _Paragon icons: https://paragon-openedx.netlify.app/components/icon/

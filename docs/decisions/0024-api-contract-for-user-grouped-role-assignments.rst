@@ -51,7 +51,7 @@ the assignment-grouped ``GET /api/authz/v1/assignments/`` endpoint, so neither t
 endpoint nor the ``assignation_count`` field has any released consumer.
 
 The embedded assignments are not paginated. Each user includes only the first n
-assignments, where n defaults to 3 and can be overridden by the assignments_limit
+assignments, where n defaults to 3 and can be overridden by the ``assignments_limit``
 query parameter.
 
 

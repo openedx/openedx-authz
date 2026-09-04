@@ -9,7 +9,7 @@ Status
 Context
 *********
 
-The new Figma design and product requirements for the Team Members tab in the
+The new `Figma design`_ and product requirements for the Team Members tab in the
 Admin Console change how assignments are presented: instead of listing one row
 per assignment, the tab now groups assignments by user, showing one row per user
 with their assignments nested underneath. The existing endpoints for gathering
@@ -277,3 +277,11 @@ Rejected Alternatives
   /api/authz/v1/users/ response: This is suboptimal because it creates N+1 requests
   for a single page, increasing load time and placing unnecessary strain on the
   server.
+
+
+References
+**********
+
+- `Figma design`_ for the Team Members tab in the Admin Console.
+
+.. _Figma design: https://www.figma.com/design/xnmQJq1cTRVqNrs31R8zDM/AuthZ---v2?node-id=40000174-1081

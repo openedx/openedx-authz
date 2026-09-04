@@ -72,7 +72,7 @@ The version of the YAML format used by the file. Write it as a quoted ``major.mi
 ``priority``
 ============
 
-An integer used when several files change the same definition or role field. A higher number takes precedence. Contributions with the same priority may be combined when they agree or affect different fields, but conflicting values at the same priority fail validation.
+An integer used when several files extend the same role and change the same field or permission. A higher number takes precedence. Contributions with the same priority may be combined when they agree or affect different fields, but conflicting values at the same priority fail validation.
 
 Priority does not control the order shown in a user interface. Clients may sort roles, permissions, and categories for their own presentation.
 

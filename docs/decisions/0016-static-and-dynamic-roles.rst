@@ -19,11 +19,11 @@ Decision
 Static and dynamic definitions
 ==============================
 
-Applications, such as Django apps or IDAs, define static roles in the Open edX Authorization schema (authz schema). Because the application owns these roles, changes to them are made in the schema and released with the application.
+Applications, such as Django apps or IDAs, define static roles in the Open edX Authorization schema, or authz schema for short (defined in more detail in `ADR 0017`_). Because the application owns these roles, changes to them are made in the schema and released with the application.
 
 Administrators create dynamic roles through the application, and the authz model stores both their definitions and their user assignments. This keeps administrator-managed data separate from the static definitions in the authz schema.
 
-For example, an application may define ``course_admin`` in the authz schema (defined in more detail in `ADR 0017`_), while an administrator creates ``course_reviewer`` through the application. The authz model stores ``course_reviewer``, but ``course_admin`` remains part of the application's schema.
+For example, an application may define ``course_admin`` in the authz schema, while an administrator creates ``course_reviewer`` through the application. The authz model stores ``course_reviewer``, but ``course_admin`` remains part of the application's schema.
 
 Consequences
 ************

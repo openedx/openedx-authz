@@ -35,28 +35,26 @@ The registered function returns the package resources that contain its schema:
    def get_schema_resources():
        return ["authz/course_authoring.authz.yaml"]
 
-The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and uses ``importlib.resources`` or a similar mechanism to find the files. It then validates the schemas, compiles them into Casbin rows, and applies them to the database.
+The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and resolves the returned paths with ``importlib.resources``.
 
 If a registered function raises an exception, discovery stops and reports which application failed. This prevents deployment from continuing with an incomplete set of static definitions.
 
-Site operators can contribute a schema through the ``openedx-authz-schema`` Tutor patch:
+Site operators can use a Tutor patch to add a schema that belongs to their deployment:
 
-.. code-block:: yaml
+.. code-block:: python
 
-   name: openedx-authz-overrides
-   version: 0.1.0
+   from tutor import hooks
 
-   patches:
-     openedx-authz-schema: |
-       schema_version: "1.0"
-       priority: 200
+   hooks.Filters.ENV_PATCHES.add_item((
+       "openedx-common-settings",
+       """
+   OPENEDX_AUTHZ_SCHEMA_RESOURCES += [
+       ("site_authorization", "authz/site.authz.yaml"),
+   ]
+   """,
+   ))
 
-       role_extensions:
-         - role: course_editor
-           add_permissions:
-             - courses.export_course
-
-The compiler combines schemas from application entry points and Tutor patches in a defined order because discovery order may vary.
+Both options pass package names and resource paths to the same compiler. The compiler returns all contributions in a defined order because package discovery order may vary.
 
 2. Static source information
 ============================

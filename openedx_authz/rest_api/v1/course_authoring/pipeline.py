@@ -9,11 +9,13 @@ plugin patch. Deleting this file and the patch that registers it removes the mec
 no endpoint code depends on it existing.
 """
 
+from django.contrib.auth.models import AbstractBaseUser
 from openedx_filters.filters import PipelineStep
 
 from openedx_authz import api
-from openedx_authz.filters import ScopedItem
-from openedx_authz.utils import is_user_staff_or_superuser
+from openedx_authz.filters import AuthorizationData, ScopedItem
+
+SCOPE_NOT_AVAILABLE_ERROR = "scope_not_available"
 
 try:
     # common.djangoapps.student.roles and openedx.core are edx-platform's own modules. This app
@@ -71,23 +73,30 @@ class CourseAuthoringVisibilityFilter(PipelineStep):
     - The item has an ``allowed`` key: kept, with ``allowed`` set to ``False`` if hidden.
       Preserves 1:1 correspondence for endpoints like ``PermissionValidationMeView`` that
       must return exactly one result per request.
-    - Otherwise: dropped entirely if hidden.
-
     Staff and superusers see everything, regardless of the flag's state.
     """
 
-    def run_filter(self, items: list[ScopedItem], username: str, **kwargs) -> dict:
+    def run_filter(
+        self,
+        items: AuthorizationData,
+        user: AbstractBaseUser,
+        **kwargs,
+    ) -> dict:
         """Apply course-authoring visibility to each item, per its own shape.
 
         Args:
-            items (list[ScopedItem]): serialized items, each carrying a ``scope`` key.
-            username (str): the user the items were computed for.
+            items (AuthorizationData): scope-bearing response items or validated
+                role-operation data.
+            user: the authenticated Django user requesting the data.
 
         Returns:
-            dict: ``{"items": ...}``, the items that should remain, marked or dropped.
+            dict: the modified ``items`` and unchanged requesting ``user``.
         """
-        if is_user_staff_or_superuser(username):
-            return {"items": items}
+        if user.is_staff or user.is_superuser:
+            return {"items": items, "user": user}
+
+        if isinstance(items, dict):
+            return {**self._filter_role_operations(items), "user": user}
 
         result = []
         for item in items:
@@ -96,5 +105,41 @@ class CourseAuthoringVisibilityFilter(PipelineStep):
                 result.append(item)
             elif "allowed" in item:
                 result.append({**item, "allowed": False})
-            # else: the scope is hidden and there's no allowed key to flip, drop the item.
-        return {"items": result}
+            else:
+                result.append(item)
+        return {"items": result, "user": user}
+
+    @staticmethod
+    def _filter_role_operations(items: dict) -> dict:
+        """Remove unavailable role operations and return their response errors."""
+        result = {**items}
+        errors = []
+        users = items["users"]
+
+        if "scopes" in items:
+            available_scopes = []
+            for scope in items["scopes"]:
+                if _is_scope_visible(api.ScopeData(external_key=scope)):
+                    available_scopes.append(scope)
+                else:
+                    errors.extend(
+                        {
+                            "user_identifier": user_identifier,
+                            "scope": scope,
+                            "error": SCOPE_NOT_AVAILABLE_ERROR,
+                        }
+                        for user_identifier in users
+                    )
+            result["scopes"] = available_scopes
+        elif not _is_scope_visible(api.ScopeData(external_key=items["scope"])):
+            errors.extend(
+                {
+                    "user_identifier": user_identifier,
+                    "scope": items["scope"],
+                    "error": SCOPE_NOT_AVAILABLE_ERROR,
+                }
+                for user_identifier in users
+            )
+            result["users"] = []
+
+        return {"items": result, "errors": errors}

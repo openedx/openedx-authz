@@ -310,11 +310,11 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
         Expected result:
             - Returns 200 OK status
-            - Response reports scope as None and reports the any-scope result
+            - Response omits the scope key and reports the any-scope result
         """
         self.client.force_authenticate(user=self.regular_user)
         expected_response = [
-            {"action": perm["action"], "scope": None, "allowed": allowed}
+            {"action": perm["action"], "allowed": allowed}
             for perm, allowed in zip(request_data, permission_map)
         ]
 
@@ -323,24 +323,19 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, expected_response)
 
-    def test_permission_validation_any_scope_staff_bypasses_permission_and_visibility(self):
-        """Staff/superusers bypass both the permission check and the flag visibility check, for any action.
+    def test_permission_validation_any_scope_staff_always_allowed(self):
+        """Staff/superusers are allowed for any action when no scope is provided.
 
         Expected result:
             - Returns 200 OK status
-            - Both actions are allowed, even though this staff user has no
-              course-scoped Casbin grant at all: staff/superusers bypass flag
-              visibility the same way they bypass the permission check.
+            - Every action is allowed regardless of explicit assignments
         """
         self.client.force_authenticate(user=self.admin_user)
         request_data = [
             {"action": permissions.MANAGE_LIBRARY_TEAM.identifier},
             {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier},
         ]
-        expected_response = [
-            {"action": permissions.MANAGE_LIBRARY_TEAM.identifier, "scope": None, "allowed": True},
-            {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier, "scope": None, "allowed": True},
-        ]
+        expected_response = [{"action": perm["action"], "allowed": True} for perm in request_data]
 
         response = self.client.post(self.url, data=request_data, format="json")
 
@@ -377,7 +372,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
             - Generic Exception: Returns 500 INTERNAL SERVER ERROR with appropriate message
             - ValueError: Returns 400 BAD REQUEST with scope format error message
         """
-        with patch.object(api, "is_user_allowed_in_scope", side_effect=exception):
+        with patch.object(api, "is_user_allowed", side_effect=exception):
             response = self.client.post(
                 self.url,
                 data=[{"action": "edit_library", "scope": "lib:Org1:LIB1"}],
@@ -867,6 +862,46 @@ class TestRoleUserAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status_code)
 
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    @patch.object(api, "assign_role_to_user_in_scope")
+    def test_add_users_to_role_reports_hidden_scope_without_writing(self, mock_assign_role_to_user_in_scope):
+        """A scope hidden by the configured filter is reported and never written."""
+        self.client.force_authenticate(user=User.objects.get(username="course_admin"))
+        request_data = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": ["regular_2"],
+        }
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(response.data["completed"], [])
+        self.assertEqual(
+            response.data["errors"],
+            [
+                {
+                    "user_identifier": "regular_2",
+                    "scope": COURSE_SCOPE_ORG1,
+                    "error": "scope_not_available",
+                }
+            ],
+        )
+        mock_assign_role_to_user_in_scope.assert_not_called()
+
     @data(
         # With username -----------------------------
         # Single user - success (admin user)
@@ -1040,6 +1075,46 @@ class TestRoleUserAPIView(ViewTestMixin):
             response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
         self.assertEqual(response.status_code, status_code)
+
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.authorization_data.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    @patch.object(api, "unassign_role_from_user")
+    def test_remove_users_from_role_reports_hidden_scope_without_writing(self, mock_unassign_role_from_user):
+        """A scope hidden by the configured filter is reported and never written."""
+        self.client.force_authenticate(user=User.objects.get(username="course_admin"))
+        query_params = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": "regular_2",
+        }
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(response.data["completed"], [])
+        self.assertEqual(
+            response.data["errors"],
+            [
+                {
+                    "user_identifier": "regular_2",
+                    "scope": COURSE_SCOPE_ORG1,
+                    "error": "scope_not_available",
+                }
+            ],
+        )
+        mock_unassign_role_from_user.assert_not_called()
 
 
 @ddt

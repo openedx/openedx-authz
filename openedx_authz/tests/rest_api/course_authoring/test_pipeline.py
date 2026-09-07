@@ -6,6 +6,7 @@ in this repo's standalone test suite. ``CourseWaffleFlagMock`` stands in for
 it, so the truth table can still be exercised end to end.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from ddt import data, ddt, unpack
@@ -110,23 +111,8 @@ class TestIsScopeVisible(TestCase):
 class TestCourseAuthoringVisibilityFilter(TestCase):
     """Test CourseAuthoringVisibilityFilter, the pipeline step for AuthorizationDataRequested."""
 
-    def test_drops_items_whose_scope_is_hidden(self):
-        """Test run_filter with a mix of visible and hidden scopes.
-
-        Expected result:
-            - Only the item with a visible scope survives.
-        """
-        items = [{"scope": COURSE_SCOPE}, {"scope": LIB_SCOPE}]
-        with patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
-        ), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.is_user_staff_or_superuser", return_value=False
-        ):
-            result = CourseAuthoringVisibilityFilter(
-                filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, username="someuser")
-
-        self.assertEqual(result, {"items": [{"scope": LIB_SCOPE}]})
+    regular_user = SimpleNamespace(is_staff=False, is_superuser=False)
+    staff_user = SimpleNamespace(is_staff=True, is_superuser=False)
 
     def test_staff_or_superuser_bypasses_visibility(self):
         """Test run_filter for a staff/superuser with a hidden course scope.
@@ -137,14 +123,12 @@ class TestCourseAuthoringVisibilityFilter(TestCase):
         items = [{"scope": COURSE_SCOPE}]
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
-        ), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.is_user_staff_or_superuser", return_value=True
         ):
             result = CourseAuthoringVisibilityFilter(
                 filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, username="admin")
+            ).run_filter(items=items, user=self.staff_user)
 
-        self.assertEqual(result, {"items": items})
+        self.assertEqual(result, {"items": items, "user": self.staff_user})
 
     def test_marks_allowed_false_instead_of_dropping_when_the_item_has_an_allowed_key(self):
         """Test run_filter with an item that carries an ``allowed`` key, mirroring PermissionValidationMeView.
@@ -155,14 +139,15 @@ class TestCourseAuthoringVisibilityFilter(TestCase):
         items = [{"scope": COURSE_SCOPE, "action": "view", "allowed": True}]
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
-        ), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.is_user_staff_or_superuser", return_value=False
         ):
             result = CourseAuthoringVisibilityFilter(
                 filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, username="someuser")
+            ).run_filter(items=items, user=self.regular_user)
 
-        self.assertEqual(result, {"items": [{"scope": COURSE_SCOPE, "action": "view", "allowed": False}]})
+        self.assertEqual(
+            result,
+            {"items": [{"scope": COURSE_SCOPE, "action": "view", "allowed": False}], "user": self.regular_user},
+        )
 
     def test_leaves_any_scope_items_untouched(self):
         """Test run_filter with an item whose scope is None (an any-scope check).
@@ -173,11 +158,9 @@ class TestCourseAuthoringVisibilityFilter(TestCase):
         items = [{"scope": None, "action": "view", "allowed": True}]
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
-        ), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.is_user_staff_or_superuser", return_value=False
         ):
             result = CourseAuthoringVisibilityFilter(
                 filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, username="someuser")
+            ).run_filter(items=items, user=self.regular_user)
 
-        self.assertEqual(result, {"items": items})
+        self.assertEqual(result, {"items": items, "user": self.regular_user})

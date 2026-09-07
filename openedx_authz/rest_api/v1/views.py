@@ -111,8 +111,8 @@ class PermissionValidationMeView(APIView):
     **Example Response (without scope)**::
 
         [
-            {"action": "content_libraries.manage_library_team", "allowed": true, "scope": null},
-            {"action": "courses.manage_course_team", "allowed": false, "scope": null}
+            {"action": "content_libraries.manage_library_team", "allowed": true},
+            {"action": "courses.manage_course_team", "allowed": false}
         ]
     """
 
@@ -137,8 +137,12 @@ class PermissionValidationMeView(APIView):
             try:
                 action = permission["action"]
                 scope = permission.get("scope")
-                allowed = api.is_user_allowed_in_scope(username, action, scope)
-                response_data.append({"action": action, "scope": scope, "allowed": allowed})
+                if scope:
+                    allowed = api.is_user_allowed(username, action, scope)
+                    response_data.append({"action": action, "scope": scope, "allowed": allowed})
+                else:
+                    allowed = api.is_user_allowed_in_any_scope(username, action)
+                    response_data.append({"action": action, "allowed": allowed})
             except ValueError as e:
                 logger.error(f"Error validating permission for user {username}: {e}")
                 return Response(data={"message": "Invalid scope format"}, status=status.HTTP_400_BAD_REQUEST)
@@ -149,7 +153,7 @@ class PermissionValidationMeView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-        response_data = AuthorizationDataRequested.run_filter(items=response_data, username=username)
+        response_data, _ = AuthorizationDataRequested.run_filter(items=response_data, user=request.user)
         serializer = PermissionValidationResponseSerializer(response_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -311,7 +315,8 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        completed, errors = [], []
+        data, errors = AuthorizationDataRequested.run_filter(items=data, user=request.user)
+        completed = []
         for scope_value in data["scopes"]:
             for user_identifier in data["users"]:
                 response_dict = {"user_identifier": user_identifier, "scope": scope_value}
@@ -358,7 +363,8 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        completed, errors = [], []
+        data, errors = AuthorizationDataRequested.run_filter(items=data, user=request.user)
+        completed = []
         for user_identifier in data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:

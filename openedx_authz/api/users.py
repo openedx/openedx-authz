@@ -68,6 +68,7 @@ __all__ = [
     "unassign_all_roles_from_user",
     "validate_users",
     "get_superadmin_assignments",
+    "is_user_allowed_in_scope",
 ]
 
 
@@ -434,6 +435,33 @@ def is_user_allowed_in_any_scope(
     if is_user_staff_or_superuser(user_external_key):
         return True
     return bool(get_scopes_for_user_and_permission(user_external_key, action_external_key))
+
+
+def is_user_allowed_in_scope(
+    user_external_key: str,
+    action_external_key: str,
+    scope_external_key: str = None,
+) -> bool:
+    """Check if a user has a specific permission in a given scope or in any scope if none is provided.
+
+    Staff and superusers are always allowed, since they implicitly have every
+    permission across all scopes.
+
+    Args:
+        user_external_key (str): ID of the user (e.g., 'john_doe').
+        action_external_key (str): The action to check (e.g., 'view_course').
+        scope_external_key (str, optional): The scope in which to check the permission.
+            If None, checks if the user has the permission in any scope.
+
+    Returns:
+        bool: True if the user is staff/superuser or has the specified permission
+            in the given scope (or any scope if none is provided), False otherwise.
+    """
+    if is_user_staff_or_superuser(user_external_key):
+        return True
+    if scope_external_key:
+        return is_user_allowed(user_external_key, action_external_key, scope_external_key)
+    return is_user_allowed_in_any_scope(user_external_key, action_external_key)
 
 
 def get_users_for_role_in_scope(role_external_key: str, scope_external_key: str) -> list[UserData]:

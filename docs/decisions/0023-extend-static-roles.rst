@@ -19,7 +19,7 @@ Decision
 1. Role extension fields
 ========================
 
-A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. It may use:
+A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. The :ref:`Authorization Schema Reference` describes these fields and includes complete examples for applications and Tutor configuration. An entry may use:
 
 * ``add_permissions`` to add complete permission IDs;
 * ``remove_permissions`` to remove complete permission IDs;
@@ -131,6 +131,7 @@ References
 * `ADR 0017`_
 * `ADR 0018`_
 * `ADR 0019`_
+* :ref:`Authorization Schema Reference`
 * `Tutor plugin development`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst

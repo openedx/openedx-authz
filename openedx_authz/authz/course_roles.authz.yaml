@@ -1,0 +1,172 @@
+schema_version: "1.0"
+priority: 100
+
+# Course role definitions for the platform-default (openedx-authz)
+# authorization schema.
+#
+# Display data (display_name, description) is sourced from
+# frontend-app-admin-console:
+#   src/authz-module/roles-permissions/course/constants.ts
+# Each role's permission list is taken from its `p` rows in
+# engine/config/authz.policy (the source of truth) and referenced by complete
+# permission identifier (namespace.name).
+#
+# `hidden: true` mirrors the `disabled: true` flag the admin console sets on
+# course_editor and course_auditor: the role stays valid for existing
+# assignments and permission checks but does not appear in normal role
+# discovery / selection interfaces (ADR 0023).
+
+roles:
+  - id: course_admin
+    display_name: Course Admin
+    description: Can manage the course team and all course settings.
+    scopes: [course-v1]
+    permissions:
+      - courses.legacy_instructor_role_permissions
+      - courses.view_course
+      - courses.view_course_updates
+      - courses.view_pages_and_resources
+      - courses.view_files
+      - courses.view_grading_settings
+      - courses.view_checklists
+      - courses.view_course_team
+      - courses.view_schedule_and_details
+      - courses.view_advanced_settings
+      - courses.view_certificates
+      - courses.view_group_configurations
+      - courses.view_library_updates
+      - courses.edit_course_content
+      - courses.manage_library_updates
+      - courses.manage_course_updates
+      - courses.manage_pages_and_resources
+      - courses.create_files
+      - courses.edit_files
+      - courses.edit_grading_settings
+      - courses.manage_group_configurations
+      - courses.edit_details
+      - courses.manage_tags
+      - courses.publish_course_content
+      - courses.delete_files
+      - courses.edit_schedule
+      - courses.manage_advanced_settings
+      - courses.manage_certificates
+      - courses.import_course
+      - courses.export_course
+      - courses.export_tags
+      - courses.manage_course_team
+      - courses.manage_taxonomies
+
+  - id: course_staff
+    display_name: Course Staff
+    description: Can publish content and manage the course lifecycle in Studio.
+    scopes: [course-v1]
+    permissions:
+      - courses.legacy_staff_role_permissions
+      - courses.view_course
+      - courses.view_course_updates
+      - courses.view_pages_and_resources
+      - courses.view_files
+      - courses.view_grading_settings
+      - courses.view_checklists
+      - courses.view_course_team
+      - courses.view_schedule_and_details
+      - courses.view_advanced_settings
+      - courses.view_certificates
+      - courses.view_group_configurations
+      - courses.view_library_updates
+      - courses.edit_course_content
+      - courses.manage_library_updates
+      - courses.manage_course_updates
+      - courses.manage_pages_and_resources
+      - courses.create_files
+      - courses.edit_files
+      - courses.edit_grading_settings
+      - courses.manage_group_configurations
+      - courses.edit_details
+      - courses.manage_tags
+      - courses.publish_course_content
+      - courses.delete_files
+      - courses.edit_schedule
+      - courses.manage_advanced_settings
+      - courses.manage_certificates
+      - courses.import_course
+      - courses.export_course
+      - courses.export_tags
+
+  - id: course_editor
+    display_name: Course Editor
+    description: Can create and edit course content, but cannot publish or change critical course settings.
+    scopes: [course-v1]
+    hidden: true
+    permissions:
+      - courses.view_course
+      - courses.view_course_updates
+      - courses.view_pages_and_resources
+      - courses.view_files
+      - courses.view_grading_settings
+      - courses.view_checklists
+      - courses.view_course_team
+      - courses.view_schedule_and_details
+      - courses.view_advanced_settings
+      - courses.view_certificates
+      - courses.view_group_configurations
+      - courses.view_library_updates
+      - courses.edit_course_content
+      - courses.manage_library_updates
+      - courses.manage_course_updates
+      - courses.manage_pages_and_resources
+      - courses.create_files
+      - courses.edit_files
+      - courses.edit_grading_settings
+      - courses.manage_group_configurations
+      - courses.edit_details
+      - courses.manage_tags
+
+  - id: course_auditor
+    display_name: Course Auditor
+    description: Can view course content and settings, but cannot make changes.
+    scopes: [course-v1]
+    hidden: true
+    permissions:
+      - courses.view_course
+      - courses.view_course_updates
+      - courses.view_pages_and_resources
+      - courses.view_files
+      - courses.view_grading_settings
+      - courses.view_checklists
+      - courses.view_course_team
+      - courses.view_schedule_and_details
+      - courses.view_advanced_settings
+      - courses.view_certificates
+      - courses.view_group_configurations
+      - courses.view_library_updates
+
+  # ------------------------------------------------------------
+  # Legacy course roles.
+  # These exist in engine/config/authz.policy but have NO frontend
+  # metadata. Each grants a single legacy compatibility permission.
+  # Display text is generated; hidden from normal discovery.
+  # ------------------------------------------------------------
+  - id: course_limited_staff
+    display_name: Course Limited Staff (legacy)
+    description: Legacy course role retained for backward compatibility. Grants the legacy limited staff compatibility permission.
+    scopes: [course-v1]
+    hidden: true
+    permissions:
+      - courses.legacy_limited_staff_role_permissions
+
+  - id: course_data_researcher
+    display_name: Course Data Researcher (legacy)
+    description: Legacy course role retained for backward compatibility. Grants the legacy data researcher compatibility permission.
+    scopes: [course-v1]
+    hidden: true
+    permissions:
+      - courses.legacy_data_researcher_permissions
+
+  - id: course_beta_tester
+    display_name: Course Beta Tester (legacy)
+    description: Legacy course role retained for backward compatibility. Grants the legacy beta tester compatibility permission.
+    scopes: [course-v1]
+    hidden: true
+    permissions:
+      - courses.legacy_beta_tester_permissions

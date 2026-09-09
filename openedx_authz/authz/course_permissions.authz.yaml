@@ -1,0 +1,337 @@
+schema_version: "1.0"
+priority: 100
+
+# Course permission and category definitions for the platform-default
+# (openedx-authz) authorization schema.
+#
+# Display data (display_name, description, icon, category) is sourced from
+# frontend-app-admin-console:
+#   src/authz-module/roles-permissions/course/constants.ts
+# Permission identifiers are reconciled against engine/config/authz.policy so the
+# schema covers every action referenced by a role definition there.
+#
+# Icons are Paragon icon names (@openedx/paragon/icons).
+
+permission_categories:
+  - id: course_access_content
+    display_name: Course access & content
+    description: Permissions related to accessing the course and managing core course content, including creating, editing, and publishing materials.
+    icon: BookOpen
+  - id: course_library_updates
+    display_name: Library updates
+    description: Permissions for reviewing and managing updates made to content libraries connected to the course.
+    icon: LibraryBooks
+  - id: course_updates_handouts
+    display_name: Course updates & handouts
+    description: Permissions for viewing and managing course updates and handouts that are visible to learners.
+    icon: Sync
+  - id: course_pages_resources
+    display_name: Pages & resources
+    description: Permissions for viewing and managing course pages and additional learning resources.
+    icon: Article
+  - id: course_files
+    display_name: Files
+    description: Permissions for viewing and managing files and assets uploaded to the course.
+    icon: Folder
+  - id: course_schedule_details
+    display_name: Schedule & details
+    description: Permissions for viewing and editing the course schedule and course information.
+    icon: Calendar
+  - id: course_grading
+    display_name: Grading
+    description: Permissions related to viewing and managing grading configuration and grading policies.
+    icon: Award
+  - id: course_team_group
+    display_name: Course team & groups
+    description: Permissions for viewing and managing the course team, learner groups, and group configurations.
+    icon: Group
+  - id: course_tags_taxonomies
+    display_name: Tags
+    description: Permissions for managing tags used to organize course content.
+    icon: LocalOffer
+  - id: course_advanced_certificates
+    display_name: Advanced & certificates
+    description: Permissions for managing advanced course settings and course certificates.
+    icon: CheckCircle
+  - id: course_import_export
+    display_name: Import / export
+    description: Permissions for importing and exporting course content and related data.
+    icon: Download
+  - id: course_other
+    display_name: Other
+    description: Additional permissions not included in other categories, such as viewing checklists.
+    icon: DrawShapes
+  # Backend-only category for legacy compatibility actions that have no frontend
+  # display metadata. These are referenced by legacy roles in authz.policy.
+  - id: course_legacy
+    display_name: Legacy compatibility
+    description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.
+    icon: DrawShapes
+
+permissions:
+  - namespace: courses
+    name: view_course
+    display_name: View course
+    description: See the course in the Studio home and access the course outline in read-only mode. Includes the "View Live" option to preview the course as a learner in the LMS.
+    category: course_access_content
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: edit_course_content
+    display_name: Edit course content
+    description: Edit the course outline, units, and components.
+    category: course_access_content
+    scopes: [course-v1]
+    icon: EditOutline
+  - namespace: courses
+    name: publish_course_content
+    display_name: Publish course content
+    description: Make course content visible to learners.
+    category: course_access_content
+    scopes: [course-v1]
+    icon: DownloadDone
+  - namespace: courses
+    name: view_library_updates
+    display_name: View library updates
+    description: View pending updates from content libraries linked to this course.
+    category: course_library_updates
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_library_updates
+    display_name: Manage library updates
+    description: Accept or reject pending updates from content libraries linked to this course.
+    category: course_library_updates
+    scopes: [course-v1]
+    icon: Checklist
+  - namespace: courses
+    name: view_course_updates
+    display_name: View course updates
+    description: See course announcements and handouts visible to learners.
+    category: course_updates_handouts
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_course_updates
+    display_name: Manage course updates
+    description: Create, edit, and delete course announcements and handouts.
+    category: course_updates_handouts
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: view_pages_and_resources
+    display_name: View pages & resources
+    description: See the Pages & Resources section in Studio.
+    category: course_pages_resources
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_pages_and_resources
+    display_name: Manage pages & resources
+    description: Enable or disable course features such as Discussions, the Wiki, Notes, Calculator, and Live. Create and edit Textbooks and Custom pages, and manage their configurations.
+    category: course_pages_resources
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: view_files
+    display_name: View files
+    description: See the list of files and assets uploaded to the course.
+    category: course_files
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: create_files
+    display_name: Create files
+    description: Upload new files and assets to the course.
+    category: course_files
+    scopes: [course-v1]
+    icon: Plus
+  - namespace: courses
+    name: edit_files
+    display_name: Edit files
+    description: Perform non-destructive actions on files, such as locking or unlocking them.
+    category: course_files
+    scopes: [course-v1]
+    icon: EditOutline
+  - namespace: courses
+    name: delete_files
+    display_name: Delete files
+    description: Permanently remove files and assets from the course.
+    category: course_files
+    scopes: [course-v1]
+    icon: Delete
+  - namespace: courses
+    name: view_schedule_and_details
+    display_name: View schedule & details
+    description: See the course schedule (start and end dates, enrollment dates, and pacing settings) and course details (summary, pacing, and prerequisites).
+    category: course_schedule_details
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: edit_schedule
+    display_name: Edit schedule
+    description: Update course start and end dates, enrollment dates, and pacing settings.
+    category: course_schedule_details
+    scopes: [course-v1]
+    icon: EditOutline
+  - namespace: courses
+    name: edit_details
+    display_name: Edit course details
+    description: Update course information including the course summary, pacing, and prerequisites.
+    category: course_schedule_details
+    scopes: [course-v1]
+    icon: EditOutline
+  - namespace: courses
+    name: view_grading_settings
+    display_name: View grading settings
+    description: See the grading configuration for the course, including assignment types and grading scale.
+    category: course_grading
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: edit_grading_settings
+    display_name: Edit grading settings
+    description: Update the grading configuration for the course, including assignment types and grading scale.
+    category: course_grading
+    scopes: [course-v1]
+    icon: EditOutline
+  - namespace: courses
+    name: view_course_team
+    display_name: View course team
+    description: See the list of users with a role assigned to this course.
+    category: course_team_group
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_course_team
+    display_name: Manage course team
+    description: Add, change, or remove role assignments for this course from the Roles and Permissions console.
+    category: course_team_group
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: view_group_configurations
+    display_name: View group configurations
+    description: See the list of content groups and their configurations for this course.
+    category: course_team_group
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_group_configurations
+    display_name: Manage group configurations
+    description: Create and manage content groups used to target course content to specific learners.
+    category: course_team_group
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: manage_tags
+    display_name: Manage tags
+    description: Create, edit, and delete tags on this course.
+    category: course_tags_taxonomies
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: view_advanced_settings
+    display_name: View advanced settings
+    description: Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
+    category: course_advanced_certificates
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_advanced_settings
+    display_name: Manage advanced settings
+    description: Edit technical course configurations in the Advanced Settings page in Studio.
+    category: course_advanced_certificates
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: view_certificates
+    display_name: View certificates
+    description: See the course certificate settings.
+    category: course_advanced_certificates
+    scopes: [course-v1]
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_certificates
+    display_name: Manage certificates
+    description: Create and edit course certificates, including certificate design and eligibility settings.
+    category: course_advanced_certificates
+    scopes: [course-v1]
+    icon: Settings
+  - namespace: courses
+    name: import_course
+    display_name: Import course
+    description: Import course content from a file. This is a high-privilege action that can overwrite most course content and settings.
+    category: course_import_export
+    scopes: [course-v1]
+    icon: Download
+  - namespace: courses
+    name: export_course
+    display_name: Export course
+    description: Download the course content as a file for backup or reuse in another platform.
+    category: course_import_export
+    scopes: [course-v1]
+    icon: Upload
+  - namespace: courses
+    name: export_tags
+    display_name: Export tags
+    description: Download the tag data associated with this course.
+    category: course_import_export
+    scopes: [course-v1]
+    icon: Upload
+  - namespace: courses
+    name: view_checklists
+    display_name: View checklists
+    description: See the course launch checklist in Studio.
+    category: course_other
+    scopes: [course-v1]
+    icon: RemoveRedEye
+
+  # ------------------------------------------------------------
+  # Backend-only course permissions.
+  # These appear in engine/config/authz.policy but have NO display
+  # metadata in the frontend constants. Included so the schema fully
+  # covers every action referenced by a role definition.
+  # ------------------------------------------------------------
+  - namespace: courses
+    name: manage_taxonomies
+    display_name: Manage taxonomies
+    description: Manage taxonomies associated with this course. (Granted to course_admin; not currently surfaced in the admin console.)
+    category: course_tags_taxonomies
+    scopes: [course-v1]
+    icon: LocalOffer
+  - namespace: courses
+    name: legacy_instructor_role_permissions
+    display_name: Legacy instructor permissions
+    description: Compatibility action mapping the legacy course instructor role into the authorization system.
+    category: course_legacy
+    scopes: [course-v1]
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_staff_role_permissions
+    display_name: Legacy staff permissions
+    description: Compatibility action mapping the legacy course staff role into the authorization system.
+    category: course_legacy
+    scopes: [course-v1]
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_limited_staff_role_permissions
+    display_name: Legacy limited staff permissions
+    description: Compatibility action mapping the legacy course limited staff role into the authorization system.
+    category: course_legacy
+    scopes: [course-v1]
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_data_researcher_permissions
+    display_name: Legacy data researcher permissions
+    description: Compatibility action mapping the legacy course data researcher role into the authorization system.
+    category: course_legacy
+    scopes: [course-v1]
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_beta_tester_permissions
+    display_name: Legacy beta tester permissions
+    description: Compatibility action mapping the legacy course beta tester role into the authorization system.
+    category: course_legacy
+    scopes: [course-v1]
+    icon: DrawShapes

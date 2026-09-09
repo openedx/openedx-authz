@@ -1,0 +1,77 @@
+schema_version: "1.0"
+priority: 100
+
+# Content library role definitions for the platform-default (openedx-authz)
+# authorization schema.
+#
+# Display data (display_name, description) is sourced from
+# frontend-app-admin-console:
+#   src/authz-module/roles-permissions/library/constants.ts
+# Each role's permission list is taken from its `p` rows in
+# engine/config/authz.policy (the source of truth) and referenced by complete
+# permission identifier (namespace.name).
+
+roles:
+  - id: library_admin
+    display_name: Library Admin
+    description: >-
+      The Library Admin has full control over the library, including managing
+      users, modifying content, and handling publishing workflows. They ensure
+      content is properly maintained and accessible as needed.
+    scopes: [lib]
+    permissions:
+      - content_libraries.view_library
+      - content_libraries.manage_library_tags
+      - content_libraries.delete_library
+      - content_libraries.edit_library_content
+      - content_libraries.publish_library_content
+      - content_libraries.reuse_library_content
+      - content_libraries.view_library_team
+      - content_libraries.manage_library_team
+      - content_libraries.create_library_collection
+      - content_libraries.edit_library_collection
+      - content_libraries.delete_library_collection
+
+  - id: library_author
+    display_name: Library Author
+    description: >-
+      The Library Author is responsible for creating, editing, and publishing
+      content within a library. They can manage tags and collections but cannot
+      delete libraries or manage users.
+    scopes: [lib]
+    permissions:
+      - content_libraries.view_library
+      - content_libraries.manage_library_tags
+      - content_libraries.edit_library_content
+      - content_libraries.publish_library_content
+      - content_libraries.reuse_library_content
+      - content_libraries.view_library_team
+      - content_libraries.create_library_collection
+      - content_libraries.edit_library_collection
+      - content_libraries.delete_library_collection
+
+  - id: library_contributor
+    display_name: Library Contributor
+    description: >-
+      The Library Contributor can create and edit content within a library but
+      cannot publish it. They support the authoring process while leaving final
+      publishing to Authors or Admins.
+    scopes: [lib]
+    permissions:
+      - content_libraries.view_library
+      - content_libraries.manage_library_tags
+      - content_libraries.edit_library_content
+      - content_libraries.reuse_library_content
+      - content_libraries.view_library_team
+      - content_libraries.create_library_collection
+      - content_libraries.edit_library_collection
+      - content_libraries.delete_library_collection
+
+  - id: library_user
+    display_name: Library User
+    description: The Library User can view and reuse content but cannot edit or delete any resource.
+    scopes: [lib]
+    permissions:
+      - content_libraries.view_library
+      - content_libraries.reuse_library_content
+      - content_libraries.view_library_team

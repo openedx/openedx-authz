@@ -165,5 +165,12 @@ setup(
         "cms.djangoapp": [
             "openedx_authz = openedx_authz.apps:OpenedxAuthzConfig",
         ],
+        # Static authorization schema resources contributed by this package
+        # (ADR 0019). openedx-authz is a schema provider like any other
+        # distribution; the callable returns resource paths relative to the
+        # openedx_authz.authz module.
+        "authz.schema": [
+            "openedx_authz = openedx_authz.authz:get_schema_resources",
+        ],
     },
 )

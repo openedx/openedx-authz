@@ -1,9 +1,0 @@
-# Requirements for code quality checks
-
--c constraints.txt
-
--r test.txt               # Core and testing dependencies for this package
-
-edx-lint                  # edX pylint rules and plugins
-pydocstyle                # PEP 257 compliance validation
-ruff                      # Fast Python linter and formatter

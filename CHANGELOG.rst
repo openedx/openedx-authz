@@ -14,6 +14,54 @@ Change Log
 Unreleased
 **********
 
+1.24.0 - 2026-09-17
+*******************
+
+Added
+=====
+
+* Added the static authorization schema, a versioned YAML format for declaring permissions,
+  permission categories, roles, and role extensions (ADR 0017). The permissions and roles that
+  ``authz.policy`` defines are now also expressed as schema files under
+  ``openedx_authz/authz/schema/``.
+* Added the schema loading pipeline in ``openedx_authz/engine/schema/``, covering the discover,
+  load, validate and compile phases of the lifecycle (ADR 0018), plus render and apply in
+  ``openedx_authz/engine/renderer.py``.
+* Added schema discovery through the ``authz.schema`` entry-point group and the
+  ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` setting, so applications can ship authorization definitions
+  with their code and operators can contribute them through deployment configuration (ADR 0019).
+* Added the ``load_authz_schema`` management command, the single non-interactive deployment entry
+  point, with ``--dry-run`` to print the change report without writing, ``--force`` to allow
+  removing roles that still have assignments, and repeatable ``--dir`` for CI and local runs.
+* Added ``role_extensions`` support: an application or deployment can add or remove permissions and
+  replace the display metadata or ``hidden`` flag of an existing static role without copying its
+  definition. ``priority`` resolves conflicts; an unresolvable equal-priority conflict stops the run
+  before any database change (ADR 0023).
+* Added first-class tables for compiled definitions and their provenance, in migration
+  ``0011_authz_schema_definitions``: permission categories, permission definitions, role
+  definitions, role-permission grants, schema sources, and one source-link table per definition kind
+  recording whether a contribution was a base definition or an extension (ADR 0025).
+* Added source attribution at the role-permission grain, so contributions from different
+  applications to the same role remain distinguishable and queryable through
+  ``origins_for_role``, ``origins_for_permission``, ``origins_for_category`` and
+  ``origin_for_role_permission``.
+* Added a change report before any write: the command lists the policy rows and the definitions that
+  would be added, updated or removed, including metadata-only edits that change no policy row
+  (ADR 0018 §6).
+
+Notes
+=====
+
+* No authorization behavior changes in this release. Loading ``authz.policy`` works as before, and
+  the new pipeline runs only when ``load_authz_schema`` is invoked.
+* Applying a schema is idempotent and preserves data the loader does not own: user assignments,
+  dynamic roles, legacy ``g2`` action-inheritance rows, and pre-existing policy rows that no schema
+  declares. Rows that already exist are adopted, gaining definition and source records rather than
+  being rewritten (ADR 0025 §6).
+* Removing a static role that still has user assignments stops the deployment and reports the
+  assignments. ``--force`` removes the role together with its assignments and writes a
+  ``RoleAssignmentAudit`` record for each one.
+
 1.23.0 - 2026-08-13
 *******************
 

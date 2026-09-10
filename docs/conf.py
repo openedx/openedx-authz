@@ -15,16 +15,12 @@ import os
 import re
 import sys
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 from subprocess import check_call
 
 from django import setup as django_setup
 
-try:
-    VERSION = get_version("openedx-authz")
-except PackageNotFoundError:
-    VERSION = "0.0.0"
+VERSION = get_version("openedx-authz")
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)

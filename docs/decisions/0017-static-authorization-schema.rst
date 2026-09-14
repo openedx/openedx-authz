@@ -49,14 +49,16 @@ For example:
        display_name: View course
        description: View course configuration and content.
        category: course_content
-       scopes: [course-v1]
+       scopes:
+         - course-v1
        icon: Visibility
      - namespace: courses
        name: delete_course
        display_name: Delete course
        description: Delete a course.
        category: course_content
-       scopes: [course-v1]
+       scopes:
+         - course-v1
        icon: Delete
 
 Here, ``course_content`` groups the two permissions for display. The complete permission IDs are ``courses.view_course`` and ``courses.delete_course``, while ``course-v1`` is the scope namespace where they apply. Application code uses the complete permission ID, so changing ``display_name`` does not change permission checks.
@@ -77,7 +79,8 @@ Version 1 does not define display order for roles, permissions, or categories. C
      - id: course_observer
        display_name: Course observer
        description: Can review a course without changing it.
-       scopes: [course-v1]
+       scopes:
+         - course-v1
        permissions:
          - courses.view_course
 

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Open edX Authorization schema",
+  "description": "Static authorization definitions contributed by applications and deployment configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "priority"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "priority": {
+      "type": "integer"
+    },
+    "permission_categories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_category"
+      },
+      "minItems": 1
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      },
+      "minItems": 1
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/role"
+      },
+      "minItems": 1
+    },
+    "role_extensions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/role_extension"
+      },
+      "minItems": 1
+    }
+  },
+  "anyOf": [
+    {"required": ["permission_categories"]},
+    {"required": ["permissions"]},
+    {"required": ["roles"]},
+    {"required": ["role_extensions"]}
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "permission_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+    },
+    "scope_namespace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permission_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_id"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "scope_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scope_namespace"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "permission_category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "description"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/display_name"},
+        "description": {"$ref": "#/$defs/description"},
+        "icon": {"$ref": "#/$defs/icon"}
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "name", "display_name", "description", "category", "scopes"],
+      "properties": {
+        "namespace": {"$ref": "#/$defs/identifier"},
+        "name": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/display_name"},
+        "description": {"$ref": "#/$defs/description"},
+        "category": {"$ref": "#/$defs/identifier"},
+        "scopes": {"$ref": "#/$defs/scope_list"},
+        "icon": {"$ref": "#/$defs/icon"}
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "description", "scopes", "permissions"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/display_name"},
+        "description": {"$ref": "#/$defs/description"},
+        "scopes": {"$ref": "#/$defs/scope_list"},
+        "permissions": {"$ref": "#/$defs/permission_list"},
+        "icon": {"$ref": "#/$defs/icon"},
+        "hidden": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "role_extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role"],
+      "properties": {
+        "role": {"$ref": "#/$defs/identifier"},
+        "add_permissions": {"$ref": "#/$defs/permission_list"},
+        "remove_permissions": {"$ref": "#/$defs/permission_list"},
+        "display_name": {"$ref": "#/$defs/display_name"},
+        "description": {"$ref": "#/$defs/description"},
+        "icon": {"$ref": "#/$defs/icon"},
+        "hidden": {"type": "boolean"}
+      },
+      "anyOf": [
+        {"required": ["add_permissions"]},
+        {"required": ["remove_permissions"]},
+        {"required": ["display_name"]},
+        {"required": ["description"]},
+        {"required": ["icon"]},
+        {"required": ["hidden"]}
+      ]
+    }
+  }
+}

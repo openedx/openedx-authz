@@ -32,7 +32,7 @@ The architecture consists of several key components:
 - **Policy Store**: The database (via Django ORM) where all authorization policies are persisted. The policy store holds two categories of policies:
 
   1. **Static policies**: Default role-permission definitions (e.g., the built-in permissions for ``library_admin`` or ``course_staff``) and action groupings. These are defined in the ``authz.policy`` file shipped with the package, and loaded into the policy store via the ``load_policies`` management command at deployment time. They are not meant to be edited by operators. A parallel Python representation exists in ``openedx_authz.constants`` (``roles.py``, ``permissions.py``) for use in code (e.g., migration scripts, API views).
-  2. **Dynamic policies**: Created at runtime through the Policy Management API or Django Admin. These include role assignments (granting a user a role in a scope) and any operator-defined policy additions.
+  2. **Dynamic policies**: Created at runtime through the Role Management API or Django Admin. These include role assignments (granting a user a role in a scope) and any operator-defined policy additions.
 
   Both categories are stored in the same ``CasbinRule`` table and are loaded into the engine uniformly. The distinction is organizational, not structural.
 
@@ -73,7 +73,7 @@ A Dedicated Open edX Layer for Authorization
 ---------------------------------------------
 - Implement an Open edX-specific layer that encapsulates all authorization logic by interacting with the Authorization Engine, ensuring that services interact with a consistent interface.
 - The Open edX Layer provides a stable Enforcement API that abstracts Casbin internals, allowing services to request authorization decisions without needing to understand Casbin specifics.
-- Implement a Policy Management API within the Open edX Layer to allow administrators to manage and update authorization policies centrally.
+- Implement a Role Management API within the Open edX Layer to allow administrators to manage and update authorization policies centrally.
 - The Open edX Layer is implemented as a Django app (``openedx_authz``) installable as a pip dependency. It registers as both an LMS and CMS plugin via ``entry_points`` for automatic discovery. It may also serve as a shared library for other services.
 - All modifications to the Authorization Engine configuration (model, adapters, etc.) are done through the Open edX Layer, so no forks of Casbin are needed.
 
@@ -236,7 +236,7 @@ Consequences
 #. **New Components in the Open edX Ecosystem**: There are several new components introduced as part of this architecture:
    - Policy Store: The database tables (``CasbinRule``, ``ExtendedCasbinRule``, ``PolicyCacheControl``, ``Scope`` subclasses, ``Subject`` subclasses) managed through the Django ORM.
    - Enforcement API: The Public Python API and REST API for enforcing authorization policies and making authorization decisions.
-   - Policy Management API: Functions for creating, updating, and deleting dynamic policies in the Policy Store.
+   - Role Management API: Functions for creating, updating, and deleting dynamic policies in the Policy Store.
    - Open edX Layer: The ``openedx_authz`` Django app that abstracts access to the Policy Store and provides a unified interface for authorization.
    - Authorization Engine: The Casbin-based ``AuthzEnforcer`` singleton that evaluates authorization requests based on defined policies.
 
@@ -271,6 +271,7 @@ Consequences
 References
 **********
 
+- :doc:`/references/glossary` — definitions of :term:`Authorization Engine`, :term:`Policy Store`, :term:`Enforcement API`, :term:`Open edX Layer`, :term:`Static Policy`, :term:`Dynamic Policy`, :term:`Scope`, :term:`Subject`, and other terms used in this ADR.
 - `Authorization Model Foundations ADR`_
 - `Technology Selection ADR`_
 - `ADR 0007`_

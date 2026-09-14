@@ -2531,21 +2531,257 @@ class TestTeamMembersAPIView(ViewTestMixin):
     # ------------------------------------------------------------------ #
 
     def test_response_shape(self):
-        """Each result item contains the expected fields.
+        """Each result item contains the expected top-level and nested assignment fields.
 
         Expected result:
             - Returns 200 OK.
-            - Each item has username, full_name, email, and assignation_count.
+            - Each item has username, full_name, email, assignment_count, and assignments.
+            - Each nested assignment has role, org, scope, scope_display_name, permission_count.
         """
         response = self.client.get(self.url, {"scopes": "lib:Org1:LIB1"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_assignment_fields = {"role", "org", "scope", "scope_display_name", "permission_count"}
         for item in response.data["results"]:
             self.assertIn("username", item)
             self.assertIn("full_name", item)
             self.assertIn("email", item)
-            self.assertIn("assignation_count", item)
-            self.assertEqual(item["assignation_count"], 1)
+            self.assertIn("assignment_count", item)
+            self.assertEqual(item["assignment_count"], 1)
+            self.assertIn("assignments", item)
+            self.assertIsInstance(item["assignments"], list)
+            self.assertGreater(len(item["assignments"]), 0)
+            for assignment in item["assignments"]:
+                self.assertEqual(set(assignment.keys()), expected_assignment_fields)
+
+    # ------------------------------------------------------------------ #
+    # assignments_limit: default and cap                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_assignments_limit_defaults_to_three(self):
+        """When assignments_limit is not provided, at most 3 assignments are returned per user.
+
+        Setup:
+            Assign 5 roles to regular_1 across different scopes so that the user
+            has more assignments than the default limit.
+
+        Expected result:
+            - assignments array has exactly 3 entries (the default limit).
+            - assignment_count is greater than 3, proving truncation occurred.
+        """
+        # regular_1 already has library_user in lib:Org1:LIB1 from setUpClass.
+        # Add 4 more assignments so total >= 5, exceeding the default limit of 3.
+        extra_scopes = ["lib:Org2:LIB2", "lib:Org3:LIB3", "lib:Org4:LIB4", "lib:Org5:LIB5"]
+        for scope in extra_scopes:
+            assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, scope)
+
+        response = self.client.get(self.url, {"search": "regular_1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        user_data = results[0]
+        self.assertGreater(user_data["assignment_count"], 3, "Need >3 assignments to prove the default limit")
+        self.assertEqual(len(user_data["assignments"]), 3)
+
+    def test_assignments_limit_custom_value(self):
+        """assignments_limit=2 returns at most 2 assignment entries.
+
+        Expected result:
+            - assignments array has at most 2 entries.
+            - assignment_count still reflects the full total.
+        """
+        # Assign enough to exceed the requested limit.
+        extra_scopes = ["lib:Org2:LIB2", "lib:Org3:LIB3", "lib:Org4:LIB4"]
+        for scope in extra_scopes:
+            assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, scope)
+
+        response = self.client.get(self.url, {"search": "regular_1", "assignments_limit": 2})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        self.assertLessEqual(len(results[0]["assignments"]), 2)
+        self.assertGreater(results[0]["assignment_count"], 2)
+
+    def test_assignments_limit_capped_at_ten(self):
+        """assignments_limit values above 10 are silently capped to 10.
+
+        Setup:
+            Assign 12 roles to regular_2 so the user has more assignments than
+            the hard maximum of 10.
+
+        Expected result:
+            - Request with assignments_limit=50 succeeds (200 OK).
+            - assignment_count is greater than 10 (confirming enough data exists).
+            - assignments array has exactly 10 entries (the hard cap).
+        """
+        # Add 12 more assignments so total >= 12, which exceeds the hard cap of 10.
+        extra_scopes = [f"lib:CapOrg{i}:CAPLIB{i}" for i in range(1, 12)]
+        for scope in extra_scopes:
+            assign_role_to_user_in_scope("regular_2", roles.LIBRARY_USER.external_key, scope)
+
+        response = self.client.get(self.url, {"search": "regular_2", "assignments_limit": 50})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_2"]
+        self.assertEqual(len(results), 1)
+        user_data = results[0]
+        self.assertGreater(user_data["assignment_count"], 10, "Need >10 assignments to prove the cap works")
+        self.assertEqual(len(user_data["assignments"]), 10)
+
+    # ------------------------------------------------------------------ #
+    # scope_display_name resolution                                      #
+    # ------------------------------------------------------------------ #
+
+    def test_scope_display_name_resolved_for_libraries(self):
+        """scope_display_name is resolved from ContentLibrary.learning_package.title.
+
+        Setup:
+            Create ContentLibrary DB records with learning_package titles for
+            the scopes used in the fixture.
+
+        Expected result:
+            - Assignments for lib:Org1:LIB1 have scope_display_name matching
+              the learning_package title.
+        """
+        lib_scope = "lib:Org1:LIB1"
+        org1, _ = Organization.objects.get_or_create(name="Org1", short_name="Org1")
+        lp1, _ = LearningPackage.objects.get_or_create(title="Intro to CS Library")
+        ContentLibrary.objects.get_or_create(
+            slug="LIB1",
+            org=org1,
+            defaults={"locator": lib_scope, "title": "Intro to CS Library", "learning_package": lp1},
+        )
+
+        response = self.client.get(self.url, {"scopes": lib_scope})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        lib_assignments = [a for a in results[0]["assignments"] if a["scope"] == lib_scope]
+        self.assertGreater(len(lib_assignments), 0, "Expected at least one library assignment")
+        for assignment in lib_assignments:
+            self.assertEqual(assignment["scope_display_name"], "Intro to CS Library")
+
+    def test_scope_display_name_resolved_for_courses(self):
+        """scope_display_name is resolved from CourseOverview.display_name.
+
+        Setup:
+            Create a CourseOverview DB record with a display_name, then assign
+            a course role to regular_1 in that scope.
+
+        Expected result:
+            - The assignment for the course scope has scope_display_name matching
+              the CourseOverview display_name.
+        """
+        course_scope = "course-v1:Org1+CS101+2024"
+        CourseOverview.objects.get_or_create(
+            id=course_scope, defaults={"org": "Org1", "display_name": "Introduction to Computer Science"}
+        )
+        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+
+        response = self.client.get(self.url, {"search": "regular_1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        course_assignments = [a for a in results[0]["assignments"] if a["scope"] == course_scope]
+        self.assertGreater(len(course_assignments), 0, "Expected at least one course assignment")
+        for assignment in course_assignments:
+            self.assertEqual(assignment["scope_display_name"], "Introduction to Computer Science")
+
+    def test_scope_display_name_empty_for_missing_resource(self):
+        """scope_display_name is an empty string when the backing library/course no longer exists.
+
+        Setup:
+            Assign regular_1 to a scope (lib:OrgX:GONE_LIB) that has no backing
+            ContentLibrary DB record, simulating a deleted library.
+
+        Expected result:
+            - The assignment has scope_display_name == "" because the scope cannot
+              be resolved to a DB record.
+        """
+        orphan_scope = "lib:OrgX:GONE_LIB"
+        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, orphan_scope)
+
+        response = self.client.get(self.url, {"search": "regular_1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        orphan_assignments = [a for a in results[0]["assignments"] if a["scope"] == orphan_scope]
+        self.assertGreater(len(orphan_assignments), 0, "Expected the orphan scope assignment to be present")
+        for assignment in orphan_assignments:
+            self.assertEqual(assignment["scope_display_name"], "")
+
+    def test_scope_display_name_empty_for_glob_scopes(self):
+        """scope_display_name is an empty string for glob scopes (org-level or platform-level).
+
+        Setup:
+            Assign regular_1 an org-level glob scope (lib:Org1:*).
+
+        Expected result:
+            - The glob assignment has scope_display_name == "".
+        """
+        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, "lib:Org1:*")
+
+        response = self.client.get(self.url, {"search": "regular_1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        glob_assignments = [a for a in results[0]["assignments"] if a["scope"] == "lib:Org1:*"]
+        self.assertGreater(len(glob_assignments), 0, "Expected at least one glob scope assignment")
+        for assignment in glob_assignments:
+            self.assertEqual(assignment["scope_display_name"], "")
+
+    # ------------------------------------------------------------------ #
+    # scope_display_name: DB query exception handling                     #
+    # ------------------------------------------------------------------ #
+
+    @patch("openedx_authz.api.utils.ContentLibrary")
+    def test_scope_display_name_graceful_on_library_db_error(self, mock_content_library):
+        """When the ContentLibrary query raises, scope_display_name falls back to empty string.
+
+        Expected result:
+            - The endpoint still returns 200 OK.
+            - scope_display_name is "" for the affected library scopes.
+        """
+        mock_content_library.objects.filter.return_value.select_related.side_effect = Exception("DB error")
+
+        response = self.client.get(self.url, {"scopes": "lib:Org1:LIB1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        lib_assignments = [a for a in results[0]["assignments"] if a["scope"] == "lib:Org1:LIB1"]
+        self.assertGreater(len(lib_assignments), 0, "Expected at least one library assignment")
+        for assignment in lib_assignments:
+            self.assertEqual(assignment["scope_display_name"], "")
+
+    @patch("openedx_authz.api.utils.CourseOverview")
+    def test_scope_display_name_graceful_on_course_db_error(self, mock_course_overview):
+        """When the CourseOverview query raises, scope_display_name falls back to empty string.
+
+        Setup:
+            Assign regular_1 a course role so there's a CourseOverviewData scope.
+
+        Expected result:
+            - The endpoint still returns 200 OK.
+            - scope_display_name is "" for the affected course scopes.
+        """
+        mock_course_overview.objects.filter.side_effect = Exception("DB error")
+        course_scope = "course-v1:Org1+CS101+2024"
+
+        response = self.client.get(self.url, {"search": "regular_1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = [r for r in response.data["results"] if r["username"] == "regular_1"]
+        self.assertEqual(len(results), 1)
+        course_assignments = [a for a in results[0]["assignments"] if a["scope"] == course_scope]
+        for assignment in course_assignments:
+            self.assertEqual(assignment["scope_display_name"], "")
 
 
 @ddt

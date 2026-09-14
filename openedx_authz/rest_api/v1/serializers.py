@@ -306,9 +306,18 @@ class ListTeamMembersSerializer(OrderMixin):  # pylint: disable=abstract-method
     In this content, a team member is anyone with studio access.
     """
 
+    ASSIGNMENTS_LIMIT_DEFAULT = 3
+    ASSIGNMENTS_LIMIT_MAX = 10
+
+    roles = LowercaseCharField(required=False, default=[])
     scopes = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     search = LowercaseCharField(required=False, default=None)
+    assignments_limit = serializers.IntegerField(required=False, default=ASSIGNMENTS_LIMIT_DEFAULT, min_value=1)
+
+    def validate_assignments_limit(self, value: int) -> int:
+        """Cap assignments_limit to the maximum allowed value."""
+        return min(value, self.ASSIGNMENTS_LIMIT_MAX)
 
 
 class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-method
@@ -321,7 +330,8 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
     username = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
-    assignation_count = serializers.SerializerMethodField()
+    assignment_count = serializers.SerializerMethodField()
+    assignments = serializers.SerializerMethodField()
 
     def get_username(self, obj: UserAssignments) -> str:
         """Get the username for the given role assignment."""
@@ -335,9 +345,19 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
         """Get the email for the given role assignment."""
         return getattr(obj.user, "email", "") if obj.user else ""
 
-    def get_assignation_count(self, obj: UserAssignments) -> int:
-        """Get the assignation count for the given role assignment."""
+    def get_assignment_count(self, obj: UserAssignments) -> int:
+        """Get the assignment count for the given role assignment."""
         return len(obj.assignments)
+
+    def get_assignments(self, obj: UserAssignments) -> list[dict]:
+        """Return the first N assignment records, limited by assignments_limit from context."""
+        limit = self.context.get("assignments_limit", ListTeamMembersSerializer.ASSIGNMENTS_LIMIT_DEFAULT)
+        limited_assignments = obj.assignments[:limit]
+        return TeamMemberAssignmentInlineSerializer(
+            limited_assignments,
+            many=True,
+            context={"scope_display_name_map": self.context.get("scope_display_name_map", {})},
+        ).data
 
 
 class UserValidationAPIViewSerializer(serializers.Serializer):  # pylint: disable=abstract-method
@@ -432,6 +452,27 @@ class TeamMemberAssignmentSerializer(serializers.Serializer):  # pylint: disable
                 return None
             case api.RoleAssignmentData():
                 return len(obj.roles[0].permissions) if obj.roles else 0
+
+
+class TeamMemberAssignmentInlineSerializer(TeamMemberAssignmentSerializer):  # pylint: disable=abstract-method
+    """Compact serializer for assignment records inlined into the team-members response.
+
+    Reuses role, org, scope, and permission_count from TeamMemberAssignmentSerializer.
+    Adds scope_display_name (placeholder) and drops is_superadmin which is not needed inline.
+    """
+
+    scope_display_name = serializers.SerializerMethodField()
+
+    def get_scope_display_name(self, obj: api.RoleAssignmentData) -> str:
+        """Look up the scope display name from the pre-fetched map, defaulting to empty string."""
+        scope_display_name_map = self.context.get("scope_display_name_map", {})
+        return scope_display_name_map.get(obj.scope.external_key, "")
+
+    def to_representation(self, instance):
+        """Remove is_superadmin from the serialized output."""
+        data = super().to_representation(instance)
+        data.pop("is_superadmin", None)
+        return data
 
 
 class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pylint: disable=abstract-method

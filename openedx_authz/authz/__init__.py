@@ -1,9 +1,10 @@
 """openedx-authz's own static authorization schema resources.
 
-This package ships the platform-default ``.authz.yaml`` files and exposes them
-through the ``authz.schema`` entry point (ADR 0019). openedx-authz is a schema
-provider like any other distribution; its files are discovered the same way a
-third-party application's would be.
+This package ships the platform-default schema files under ``authz/schema`` and
+exposes that directory through the ``authz.schema`` entry point (ADR 0019).
+openedx-authz is a schema provider like any other distribution; its directory is
+discovered the same way a third-party application's would be, and the loader
+reads every ``.yaml`` file inside it.
 
 Register in setup.py / pyproject.toml::
 
@@ -16,20 +17,17 @@ Register in setup.py / pyproject.toml::
 
 from __future__ import annotations
 
-# Resource paths are relative to this module (``openedx_authz.authz``), which
-# keeps discovery independent of virtualenv/container layout (ADR 0019).
-SCHEMA_RESOURCES: tuple[str, ...] = (
-    "library_permissions.authz.yaml",
-    "library_roles.authz.yaml",
-    "course_permissions.authz.yaml",
-    "course_roles.authz.yaml",
-)
+# Directory paths (relative to an importable top-level package) that contain
+# this distribution's ``.yaml`` schema files. Per ADR 0019, providers return
+# directories, not individual files.
+SCHEMA_DIRECTORIES: tuple[str, ...] = ("openedx_authz/authz/schema",)
 
 
 def get_schema_resources() -> list[str]:
-    """Return this package's schema resource paths (relative to this module).
+    """Return this package's schema directory paths.
 
     The ``authz.schema`` entry point points at this callable; the discovery
-    step resolves the returned paths via ``importlib.resources``.
+    step resolves each returned directory via ``importlib.resources`` and loads
+    every ``.yaml`` file it contains.
     """
-    return list(SCHEMA_RESOURCES)
+    return list(SCHEMA_DIRECTORIES)

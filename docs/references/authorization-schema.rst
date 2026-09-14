@@ -301,7 +301,7 @@ Applications can keep schema resources under an ``authz/schema`` package directo
            ├── permissions.yaml
            └── roles.yaml
 
-The application exposes these package resources through the ``openedx-authz`` schema entry point described in :doc:`ADR 0019 <../decisions/0019-authorization-schema-discovery>`. Resource paths are relative to the Python module, which keeps discovery independent of virtual-environment and container paths.
+The application exposes the ``authz/schema`` directory through the ``openedx-authz`` schema entry point described in :doc:`ADR 0019 <../decisions/0019-authorization-schema-discovery>`. The directory path is relative to the Python module, which keeps discovery independent of virtual-environment and container paths. The compiler loads every ``.yaml`` file in that directory.
 
 Tutor configuration for site operators
 **************************************

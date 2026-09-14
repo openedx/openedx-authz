@@ -19,24 +19,27 @@ Decision
 1. Lifecycle vocabulary
 =======================
 
-The authz schema lifecycle uses these terms:
+The authz schema lifecycle has seven phases:
 
-* **discover** finds static schema resources contributed by applications;
-* **load** reads those resources into schema documents;
-* **validate** checks each document and the complete set of static definitions;
-* **compile** resolves references, extensions, and priority conflicts into one set of static definitions;
-* **render** creates Casbin policy rows from the compiled definitions without changing the database;
-* **apply** stores the compiled definitions, their sources, and the rows while preserving dynamic roles and assignments; and
-* **consume** uses the resulting policy for permission checks and exposes the stored definitions through APIs.
+1. **Discover** identifies the static schema resources contributed by installed applications. Its output is the set of resources that the deployment will process, together with enough source information to identify each contribution.
+2. **Load** reads the discovered resources and parses them into schema documents. This phase turns files into data that later phases can inspect, but it does not decide how contributions relate to each other.
+3. **Validate** checks each document and the complete set of contributed definitions. It rejects input that cannot form a valid authorization schema before any persistence-ready records are produced or stored.
+4. **Compile** resolves references, extensions, and priority conflicts across the validated documents. Its output is one compiled authorization definition that represents the contributions selected for this deployment.
+5. **Render** translates the compiled definition into the records required by the persistence layer. It determines what would be stored without changing the database, which allows the complete result to be checked and reported first.
+6. **Apply** stores the compiled definition, its source information, and the rendered records in one operation. It changes only schema-managed data and preserves dynamic roles and user assignments.
+7. **Consume** uses the stored result. Casbin uses the generated policy for permission checks, while APIs use the stored definitions to describe the available roles and permissions.
 
-The following example shows how one file moves through the lifecycle:
+The following example shows how an application contribution moves through the lifecycle:
 
-1. **Discover** finds ``course_authoring/authz/course_roles.authz.yaml``, and **load** parses it as an authz schema file.
-2. **Validate** checks the fields in the file and confirms that its references exist.
-3. **Compile** combines its ``course_admin`` extension with the original role definition.
-4. **Render** creates the Casbin ``p`` row for the added permission, but does not write it to the database.
-5. **Apply** writes the row, the compiled definition, and its source information to the database.
-6. **Consume** begins after Casbin reloads the policy and the API can return the updated role.
+1. **Discover** finds ``course_authoring/authz/course_roles.authz.yaml``, which contains an extension that adds a permission to ``course_admin``.
+2. **Load** parses the resource into a schema document.
+3. **Validate** checks the document and its place in the complete schema.
+4. **Compile** resolves the extension against the original ``course_admin`` definition.
+5. **Render** prepares the records for the resulting role-permission relationship.
+6. **Apply** stores those records with the compiled definition and source information.
+7. **Consume** begins once Casbin can use the updated policy and the API can return the updated role.
+
+These definitions establish the purpose and boundary of each phase. Their implementation details may require separate ADRs as the phases are built.
 
 2. Deployment-time compilation
 ==============================

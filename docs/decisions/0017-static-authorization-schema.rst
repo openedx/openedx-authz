@@ -64,7 +64,7 @@ Here, ``course_content`` groups the two permissions for display. The complete pe
 3. Roles and role extensions
 ============================
 
-A role contains a stable identifier, display name, description, supported scope namespaces, and a list of complete permission identifiers. When an application needs to change an existing role, it uses ``role_extensions``. An extension may add or remove permissions and may replace the role's display name or description.
+A role contains a stable identifier, display name, description, supported scope namespaces, and a list of complete permission identifiers. When an application needs to change an existing role, it uses ``role_extensions``. An extension may add or remove permissions and may replace the role's display name or description. `ADR 0023`_ defines the detailed behavior of role extensions.
 
 Version 1 does not define display order for roles, permissions, or categories. Clients may sort them alphabetically or apply another order that suits their interface.
 
@@ -154,11 +154,13 @@ References
 **********
 
 * `ADR 0016`_
+* `ADR 0023`_
 * `Casbin adapters`_
 * `ASDF YAML Schema`_
 * `Paragon icons`_
 
 .. _ADR 0016: 0016-static-and-dynamic-roles.rst
+.. _ADR 0023: https://github.com/openedx/openedx-authz/pull/430
 .. _Casbin adapters: https://v3.casbin.org/docs/adapters
 .. _ASDF YAML Schema: https://www.asdf-format.org/projects/asdf-standard/en/1.0.2/schemas/yaml_schema.html
 .. _Paragon icons: https://paragon-openedx.netlify.app/components/icon/

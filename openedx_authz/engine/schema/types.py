@@ -52,11 +52,16 @@ class SourceRecord:
     def source_id(self) -> str:
         """Stable, human-readable id.
 
-        Combines the distribution with the module path and resource path, e.g.
-        ``"openedx-authz:openedx_authz/authz/course_roles.authz.yaml"``.
+        Combines the distribution with the module directory path and the file
+        name, e.g. ``"openedx-authz:openedx_authz/authz/schema/roles.yaml"``.
+
+        ``module`` is the dotted path of the owning directory and ``resource_path``
+        is anchor-relative (so it may repeat the directory); only the file name
+        is appended here to avoid duplicating the directory segments.
         """
         module_path = self.module.replace(".", "/")
-        return f"{self.distribution}:{module_path}/{self.resource_path}"
+        filename = self.resource_path.rsplit("/", 1)[-1]
+        return f"{self.distribution}:{module_path}/{filename}"
 
 
 # ---------------------------------------------------------------------------

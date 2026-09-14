@@ -10,7 +10,7 @@ Usage::
     python manage.py load_authz_schema --dry-run       # report only, no writes
     python manage.py load_authz_schema --force         # allow role removals
     python manage.py load_authz_schema \\
-        --resource openedx_authz.authz:course_roles.authz.yaml   # explicit (CI/local)
+        --dir openedx_authz/authz/schema               # explicit directory (CI/local)
 
 The command must run at a point where all contributing packages are installed
 and Django settings/DB are available (ADR 0018 / plugin timing constraint).
@@ -43,13 +43,16 @@ class Command(BaseCommand):
             help="Allow removing static roles that still have user assignments (ADR 0018).",
         )
         parser.add_argument(
-            "--resource",
+            "--dir",
             action="append",
             default=None,
-            metavar="PACKAGE:RESOURCE_PATH",
+            dest="directories",
+            metavar="DIRECTORY",
             help=(
-                "Explicitly include a schema resource (repeatable), in addition to discovered "
-                "entry points and settings. Intended for CI and local development."
+                "Explicitly include a schema directory (repeatable), in addition to discovered "
+                "entry points and settings. The loader reads every .yaml file in it. "
+                "Path format is 'top_level_package/sub/dir' (e.g. 'openedx_authz/authz/schema'). "
+                "Intended for CI and local development."
             ),
         )
 
@@ -59,8 +62,8 @@ class Command(BaseCommand):
         Validation/compile/apply errors surface as CommandError so deployment
         stops before (or without partially applying) any database change.
         """
-        explicit = self._parse_resource_overrides(options.get("resource"))
-        discovery = SchemaDiscovery(explicit_resources=explicit) if explicit else SchemaDiscovery()
+        directories = options.get("directories") or []
+        discovery = SchemaDiscovery(explicit_directories=directories) if directories else SchemaDiscovery()
         pipeline = SchemaPipeline(discovery=discovery)
 
         try:
@@ -81,24 +84,6 @@ class Command(BaseCommand):
                     f"Authz schema applied: {result.added} row(s) added, {result.removed} removed."
                 )
             )
-
-    def _parse_resource_overrides(self, raw: list[str] | None) -> list[tuple[str, str]]:
-        """Parse ``PACKAGE:RESOURCE_PATH`` strings into tuples."""
-        if not raw:
-            return []
-        parsed: list[tuple[str, str]] = []
-        for item in raw:
-            if ":" not in item:
-                raise CommandError(
-                    f"--resource must be 'PACKAGE:RESOURCE_PATH', got {item!r}."
-                )
-            package, resource_path = item.split(":", 1)
-            if not package or not resource_path:
-                raise CommandError(
-                    f"--resource must be 'PACKAGE:RESOURCE_PATH', got {item!r}."
-                )
-            parsed.append((package, resource_path))
-        return parsed
 
     def _report_plan(self, plan) -> None:
         """Print the change report (added/removed rows, blocking assignments)."""

@@ -1,20 +1,19 @@
 """Discover static authz schema resources (the ``discover`` step, ADR 0019).
 
-Two contribution sources are merged, both expressed as
-``(package_name, resource_path)`` pairs:
+Providers register **directories** (not individual files); the loader reads
+every ``.yaml`` file inside them. Two contribution sources are merged:
 
 1. The ``authz.schema`` entry-point group. Each registered callable returns
-   resource paths relative to its own module (e.g. openedx-authz's
-   ``get_schema_resources``).
-2. The ``OPENEDX_AUTHZ_SCHEMA_RESOURCES`` Django setting, a list of
-   ``(package_name, resource_path)`` tuples. This is how the Tutor
-   ``openedx-authz-schema`` patch and other operators contribute schema
-   without shipping a package entry point.
+   directory paths relative to an importable top-level package (e.g.
+   openedx-authz's ``["openedx_authz/authz/schema"]``).
+2. The ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` Django setting, a list of directory
+   path strings in the same format. This lets operators and CI contribute
+   directories without shipping a package entry point.
 
-Resource paths are resolved with ``importlib.resources`` so discovery does not
-depend on virtualenv or container filesystem layout. If any provider raises,
-discovery stops and reports the failing application (ADR 0019): deployment must
-not proceed with an incomplete set of static definitions.
+Directory paths are resolved with ``importlib.resources`` so discovery does not
+depend on virtualenv or container layout. If any provider raises, discovery
+stops and reports the failing application (ADR 0019): deployment must not
+proceed with an incomplete set of static definitions.
 
 Timing: call only after Django settings are available (from the management
 command or ``AppConfig.ready()``), never at module import. Django is imported
@@ -29,127 +28,145 @@ from dataclasses import dataclass
 from importlib import metadata, resources
 
 ENTRY_POINT_GROUP = "authz.schema"
-SETTINGS_RESOURCES_NAME = "OPENEDX_AUTHZ_SCHEMA_RESOURCES"
+SETTINGS_DIRECTORIES_NAME = "OPENEDX_AUTHZ_SCHEMA_DIRECTORIES"
+SCHEMA_FILE_SUFFIXES = (".yaml", ".yml")
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class DiscoveredResource:
-    """A single located schema resource with enough info to build a source.
+    """A single located schema file discovered inside a contributed directory.
 
     Attributes:
-        package: Importable package/module the resource lives in (the anchor
-            passed to ``importlib.resources``).
-        resource_path: Path to the resource within that package.
-        origin: Where this contribution came from, ``"entry_point"``,
-            ``"settings"``, or ``"explicit"`` (used for diagnostics).
+        package: Importable top-level package used as the ``importlib.resources``
+            anchor (e.g. ``openedx_authz``).
+        resource_path: Path to the file within that anchor
+            (e.g. ``authz/schema/course_roles.authz.yaml``).
+        module: Dotted path of the owning directory, used as the source-record
+            module and provenance identity (e.g. ``openedx_authz.authz.schema``).
+        origin: Where the contribution came from: ``"entry_point"``,
+            ``"settings"``, or ``"explicit"`` (diagnostics only).
     """
 
     package: str
     resource_path: str
+    module: str
     origin: str
 
 
 class SchemaDiscoveryError(Exception):
-    """Raised when a provider fails; names the failing contribution."""
+    """Raised when a provider fails or a declared directory cannot be read."""
 
 
 class SchemaDiscovery:
-    """Enumerates registered schema contributions into discovered resources."""
+    """Enumerates registered schema directories into discovered files."""
 
-    def __init__(self, *, explicit_resources: list[tuple[str, str]] | None = None):
+    def __init__(self, *, explicit_directories: list[str] | None = None):
         """Initialize discovery.
 
         Args:
-            explicit_resources: Optional ``(package, resource_path)`` pairs
-                supplied directly (the ADR 0019 CI/local mode where explicit
-                resources are passed to the command). Discovered in addition to
-                entry points and settings.
+            explicit_directories: Optional directory path strings supplied
+                directly (the ADR 0019 CI/local mode where directories are
+                passed to the command). Discovered in addition to entry points
+                and settings.
         """
-        self._explicit_resources = explicit_resources or []
+        self._explicit_directories = explicit_directories or []
 
     def discover(self) -> list[DiscoveredResource]:
-        """Return every discovered resource in a deterministic order.
+        """Return every discovered schema file in a deterministic order.
 
-        Merges entry-point providers, the settings list, and any explicit
-        resources, then de-duplicates and sorts. Order is normalized here
-        because discovery order may vary across environments (ADR 0019);
-        priority — not discovery order — drives conflict resolution later.
+        Expands entry-point directories, settings directories, and explicit
+        directories into individual ``.yaml`` files, then de-duplicates and
+        sorts. Order is normalized here because discovery order may vary across
+        environments (ADR 0019); priority — not discovery order — drives
+        conflict resolution later.
 
         Raises:
             SchemaDiscoveryError: If a provider callable raises or a declared
-                resource cannot be located.
+                directory cannot be located/read.
         """
-        resources_found: list[DiscoveredResource] = []
-        resources_found.extend(self._discover_entry_points())
-        resources_found.extend(self._discover_settings_resources())
-        resources_found.extend(
-            DiscoveredResource(package=pkg, resource_path=path, origin="explicit")
-            for pkg, path in self._explicit_resources
-        )
+        found: list[DiscoveredResource] = []
+        found.extend(self._discover_entry_points())
+        found.extend(self._discover_settings_directories())
+        for directory in self._explicit_directories:
+            found.extend(self._iter_directory(directory, origin="explicit"))
 
-        # De-duplicate on (package, resource_path) while keeping the first origin
-        # seen, then sort for deterministic downstream processing.
         seen: dict[tuple[str, str], DiscoveredResource] = {}
-        for resource in resources_found:
-            key = (resource.package, resource.resource_path)
-            seen.setdefault(key, resource)
+        for resource in found:
+            seen.setdefault((resource.package, resource.resource_path), resource)
 
         return sorted(seen.values(), key=lambda r: (r.package, r.resource_path))
 
     def _discover_entry_points(self) -> list[DiscoveredResource]:
-        """Load the ``authz.schema`` group and call each provider.
-
-        Uses ``importlib.metadata.entry_points`` to find providers and invokes
-        each callable to get its resource paths, anchoring them to the module
-        that owns the callable. Any provider exception is wrapped in
-        :class:`SchemaDiscoveryError` identifying the entry-point name.
-        """
+        """Load the ``authz.schema`` group; each provider returns directories."""
         discovered: list[DiscoveredResource] = []
         for entry_point in metadata.entry_points(group=ENTRY_POINT_GROUP):
             try:
                 provider = entry_point.load()
-                paths = provider()
+                directories = provider()
             except Exception as exc:  # noqa: BLE001 - re-raised with context below
                 raise SchemaDiscoveryError(
                     f"authz.schema provider {entry_point.name!r} "
                     f"({entry_point.value}) failed during discovery: {exc}"
                 ) from exc
-
-            # The module that owns the callable is the resource anchor; the
-            # provider returns paths relative to it.
-            package = entry_point.module
-            for path in paths:
-                discovered.append(
-                    DiscoveredResource(package=package, resource_path=path, origin="entry_point")
-                )
+            for directory in directories:
+                discovered.extend(self._iter_directory(directory, origin="entry_point"))
         return discovered
 
-    def _discover_settings_resources(self) -> list[DiscoveredResource]:
-        """Read ``OPENEDX_AUTHZ_SCHEMA_RESOURCES`` from Django settings.
+    def _discover_settings_directories(self) -> list[DiscoveredResource]:
+        """Read ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` from Django settings.
 
-        Each item is a ``(package, resource_path)`` tuple. An absent, empty, or
-        unconfigured setting yields no resources. Django is imported lazily so
-        this module does not require a configured environment to import.
+        Each item is a directory path string. Absent/empty/unconfigured setting
+        yields nothing. Django is imported lazily.
         """
         try:
             from django.conf import settings  # pylint: disable=import-outside-toplevel
         except ImportError:
             return []
 
-        raw = getattr(settings, SETTINGS_RESOURCES_NAME, None) or []
+        directories = getattr(settings, SETTINGS_DIRECTORIES_NAME, None) or []
         discovered: list[DiscoveredResource] = []
-        for item in raw:
-            try:
-                package, resource_path = item
-            except (ValueError, TypeError) as exc:
-                raise SchemaDiscoveryError(
-                    f"{SETTINGS_RESOURCES_NAME} entries must be (package, resource_path) "
-                    f"tuples; got {item!r}."
-                ) from exc
+        for directory in directories:
+            discovered.extend(self._iter_directory(directory, origin="settings"))
+        return discovered
+
+    def _iter_directory(self, directory: str, *, origin: str) -> list[DiscoveredResource]:
+        """Resolve a directory path and yield a resource per ``.yaml`` file.
+
+        The path's first segment is an importable top-level package used as the
+        anchor; the remainder is a subdirectory within it. For example
+        ``"openedx_authz/authz/schema"`` anchors on ``openedx_authz`` and reads
+        the ``authz/schema`` subdirectory.
+        """
+        parts = [segment for segment in directory.strip("/").split("/") if segment]
+        if not parts:
+            raise SchemaDiscoveryError(f"Empty schema directory path: {directory!r}.")
+
+        anchor = parts[0]
+        subpath = "/".join(parts[1:])
+        module = ".".join(parts)
+
+        try:
+            base = resources.files(anchor)
+            target = base.joinpath(subpath) if subpath else base
+            entries = sorted(target.iterdir(), key=lambda entry: entry.name)
+        except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError, OSError) as exc:
+            raise SchemaDiscoveryError(
+                f"Could not read schema directory {directory!r}: {exc}"
+            ) from exc
+
+        discovered: list[DiscoveredResource] = []
+        for entry in entries:
+            if not entry.name.endswith(SCHEMA_FILE_SUFFIXES):
+                continue
+            if not entry.is_file():
+                continue
+            resource_path = f"{subpath}/{entry.name}" if subpath else entry.name
             discovered.append(
-                DiscoveredResource(package=package, resource_path=resource_path, origin="settings")
+                DiscoveredResource(
+                    package=anchor, resource_path=resource_path, module=module, origin=origin
+                )
             )
         return discovered
 

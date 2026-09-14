@@ -103,7 +103,12 @@ class StubDiscovery:
 
     def discover(self):
         return [
-            DiscoveredResource(package=pkg, resource_path=path, origin="explicit")
+            DiscoveredResource(
+                package=pkg,
+                resource_path=path,
+                module=pkg.replace("/", "."),
+                origin="explicit",
+            )
             for (pkg, path) in self._contents
         ]
 

@@ -83,12 +83,12 @@ class SchemaLoader:
         digest. Falls back to ``"unknown"`` when the package is not tied to an
         installed distribution (e.g. operator-supplied settings resources).
         """
-        distribution, version = self._resolve_distribution(resource.package)
+        distribution, version = self._resolve_distribution(resource.module)
         content_digest = hashlib.sha256(contents).hexdigest()
         return SourceRecord(
             distribution=distribution,
             distribution_version=version,
-            module=resource.package,
+            module=resource.module,
             resource_path=resource.resource_path,
             schema_version=schema_version,
             content_digest=content_digest,

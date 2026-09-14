@@ -8,7 +8,8 @@ roles:
   - id: course_admin
     display_name: Course Admin
     description: Can manage the course team and all course settings.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     permissions:
       - courses.legacy_instructor_role_permissions
       - courses.view_course
@@ -47,7 +48,8 @@ roles:
   - id: course_staff
     display_name: Course Staff
     description: Can publish content and manage the course lifecycle in Studio.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     permissions:
       - courses.legacy_staff_role_permissions
       - courses.view_course
@@ -84,7 +86,8 @@ roles:
   - id: course_editor
     display_name: Course Editor
     description: Can create and edit course content, but cannot publish or change critical course settings.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     hidden: true
     permissions:
       - courses.view_course
@@ -113,7 +116,8 @@ roles:
   - id: course_auditor
     display_name: Course Auditor
     description: Can view course content and settings, but cannot make changes.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     hidden: true
     permissions:
       - courses.view_course
@@ -136,7 +140,8 @@ roles:
   - id: course_limited_staff
     display_name: Course Limited Staff (legacy)
     description: Legacy course role retained for backward compatibility. Grants the legacy limited staff compatibility permission.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     hidden: true
     permissions:
       - courses.legacy_limited_staff_role_permissions
@@ -144,7 +149,8 @@ roles:
   - id: course_data_researcher
     display_name: Course Data Researcher (legacy)
     description: Legacy course role retained for backward compatibility. Grants the legacy data researcher compatibility permission.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     hidden: true
     permissions:
       - courses.legacy_data_researcher_permissions
@@ -152,7 +158,8 @@ roles:
   - id: course_beta_tester
     display_name: Course Beta Tester (legacy)
     description: Legacy course role retained for backward compatibility. Grants the legacy beta tester compatibility permission.
-    scopes: [course-v1]
+    scopes:
+      - course-v1
     hidden: true
     permissions:
       - courses.legacy_beta_tester_permissions

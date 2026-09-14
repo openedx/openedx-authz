@@ -306,35 +306,37 @@ The application exposes these package resources through the ``openedx-authz`` sc
 Tutor configuration for site operators
 **************************************
 
-A site operator can provide an authz schema through the ``openedx-authz-schema`` patch. Run ``tutor plugins printroot`` to find the local plugin directory, then create ``openedx-authz-overrides.yml`` there:
+A site operator can provide an authz schema through a Python Tutor plugin that uses the ``openedx-authz-schema`` patch. Run ``tutor plugins printroot`` to find the local plugin directory, then create ``openedx_authz_overrides.py`` there:
 
-.. code-block:: yaml
+.. code-block:: python
 
-   name: openedx-authz-overrides
-   version: 0.1.0
+   from tutor import hooks
 
-   patches:
-     openedx-authz-schema: |
-       schema_version: "1.0"
-       priority: 200
+   hooks.Filters.ENV_PATCHES.add_item((
+       "openedx-authz-schema",
+       """
+   schema_version: "1.0"
+   priority: 200
 
-       role_extensions:
-         - role: course_editor
-           add_permissions:
-             - courses.export_course
-           remove_permissions:
-             - courses.manage_tags
-           display_name: Course author
-           description: Creates and exports course content.
+   role_extensions:
+     - role: course_editor
+       add_permissions:
+         - courses.export_course
+       remove_permissions:
+         - courses.manage_tags
+       display_name: Course author
+       description: Creates and exports course content.
 
-         - role: course_auditor
-           hidden: true
+     - role: course_auditor
+       hidden: true
+       """,
+   ))
 
 Enable the plugin and save the rendered Tutor configuration:
 
 .. code-block:: console
 
-   tutor plugins enable openedx-authz-overrides
+   tutor plugins enable openedx_authz_overrides
    tutor config save
 
 The next deployment validates and compiles the patch with the schema files provided by applications.

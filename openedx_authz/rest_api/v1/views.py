@@ -38,7 +38,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_per_scope_type,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
-from openedx_authz.api.utils import get_user_map
+from openedx_authz.api.utils import get_scope_display_name_map, get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, ScopesQuerySetFields, ScopesTypeField
@@ -970,6 +970,7 @@ class TeamMembersAPIView(APIView):
     - scopes (Optional): Comma-separated list of scopes to filter by (e.g., 'lib:Org1:LIB1')
     - orgs (Optional): Comma-separated list of orgs to filter by (e.g., 'Org1,Org2')
     - search (Optional): Search term to filter users by username, full name, or email
+    - assignments_limit (Optional): Maximum number of assignments for each user. Defaults to 3, maximum 10
     - sort_by (Optional): Field to sort by. Options: username, full_name, email. Defaults to username
     - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
     - page (Optional): Page number for pagination
@@ -982,7 +983,14 @@ class TeamMembersAPIView(APIView):
     - username: The user's username
     - full_name: The user's full name
     - email: The user's email address
-    - assignation_count: The number of role assignments the user has
+    - assignment_count: The number of role assignments the user has
+    - assignments: A list of the user's role assignments (limited by assignments_limit), each containing:
+        - role: The role name (e.g., 'library_admin')
+        - org: The org over which this role is applied
+        - scope: The scope over which this role is applied
+        - scope_display_name: The human-readable display name for the scope 
+          (empty string for glob scopes or unresolvable resources)
+        - permission_count: The number of permissions that apply to this role
 
     **Authentication and Permissions**
 
@@ -1004,13 +1012,52 @@ class TeamMembersAPIView(APIView):
                     "username": "jane_doe",
                     "full_name": "Jane Doe",
                     "email": "jane_doe@example.com",
-                    "assignation_count": 3
+                    "assignment_count": 3,
+                    "assignments": [
+                        {
+                            "role": "library_admin",
+                            "org": "Org1",
+                            "scope": "lib:Org1:LIB1",
+                            "scope_display_name": "Intro to CS Library",
+                            "permission_count": 11
+                        },
+                        {
+                            "role": "course_staff",
+                            "org": "Org1",
+                            "scope": "course-v1:Org1+CS101+2024",
+                            "scope_display_name": "Introduction to Computer Science",
+                            "permission_count": 27
+                        },
+                        {
+                            "role": "library_admin",
+                            "org": "Org1",
+                            "scope": "lib:Org1:*",
+                            "scope_display_name": "",
+                            "permission_count": 11
+                        }
+                    ]
                 },
                 {
                     "username": "john_doe",
                     "full_name": "John Doe",
                     "email": "john_doe@example.com",
-                    "assignation_count": 1
+                    "assignment_count": 2,
+                    "assignments": [
+                        {
+                            "role": "course_staff",
+                            "org": "Org2",
+                            "scope": "course-v1:Org2+*",
+                            "scope_display_name": "",
+                            "permission_count": 27
+                        },
+                        {
+                            "role": "library_user",
+                            "org": "*",
+                            "scope": "lib:*",
+                            "scope_display_name": "",
+                            "permission_count": 4
+                        }
+                    ]
                 }
             ]
         }
@@ -1022,9 +1069,11 @@ class TeamMembersAPIView(APIView):
 
     @apidocs.schema(
         parameters=[
+            apidocs.query_parameter("roles", str, description="The roles to query assignments for"),
             apidocs.query_parameter("scopes", str, description="The scopes to query assignments for"),
             apidocs.query_parameter("orgs", str, description="The orgs to query assignments for"),
             apidocs.query_parameter("search", str, description="The search query to filter users by"),
+            apidocs.query_parameter("assignments_limit", str, description="The limit number of assignments per user."),
             apidocs.query_parameter("sort_by", str, description="The field to sort by"),
             apidocs.query_parameter("order", str, description="The order to sort by"),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
@@ -1044,7 +1093,7 @@ class TeamMembersAPIView(APIView):
         ]
     )
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all users that have at least one assignation according to the filtering fields."""
+        """Retrieve all users that have at least one assignment according to the filtering fields."""
         serializer = ListTeamMembersSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
@@ -1052,10 +1101,22 @@ class TeamMembersAPIView(APIView):
         users_with_assignments = api.get_visible_role_assignments_for_user(
             orgs=query_params.get("orgs"),
             scopes=query_params.get("scopes"),
+            roles=query_params.get("roles"),
             allowed_for_user_external_key=request.user.username,
         )
 
-        team_members = TeamMemberSerializer(users_with_assignments, many=True).data
+        # Collect all assignments across users for a single batch query of display names.
+        all_assignments = [a for uwa in users_with_assignments for a in uwa.assignments]
+        scope_display_name_map = get_scope_display_name_map(all_assignments)
+
+        team_members = TeamMemberSerializer(
+            users_with_assignments,
+            many=True,
+            context={
+                "assignments_limit": query_params.get("assignments_limit"),
+                "scope_display_name_map": scope_display_name_map,
+            },
+        ).data
         for backend in self.filter_backends:
             team_members = backend().filter_queryset(request, team_members, self)
 

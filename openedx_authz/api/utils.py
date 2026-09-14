@@ -1,13 +1,25 @@
 """Utility functions used on api"""
 
+import logging
+import operator
+from functools import reduce
+
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 from openedx_authz.api.data import (
+    ContentLibraryData,
+    CourseOverviewData,
     RoleAssignmentData,
     UserAssignments,
 )
+from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
+
+log = logging.getLogger(__name__)
 
 User = get_user_model()
+ContentLibrary = get_content_library_model()
+CourseOverview = get_course_overview_model()
 
 
 def get_user_map(usernames: list[str]) -> dict[str, User]:
@@ -44,3 +56,63 @@ def get_user_assignment_map(role_assignments: list[RoleAssignmentData]) -> list[
         users_with_assignments.append(UserAssignments(user=user, assignments=assignments))
 
     return users_with_assignments
+
+
+def get_scope_display_name_map(assignments: list[RoleAssignmentData]) -> dict[str, str]:
+    """Build a mapping of scope external keys to their display names.
+
+    Partitions assignments into library and course scopes, batch-queries the
+    ContentLibrary and CourseOverview models, and returns a single dict that
+    maps each scope's external_key to its human-readable display name.
+
+    Glob scopes (org-level and platform-level wildcards) are skipped because
+    they don't correspond to a single DB record.
+
+    Args:
+        assignments: The role assignments whose scopes need display names.
+
+    Returns:
+        A dict mapping scope external_key strings to display name strings.
+        Scopes that could not be resolved (e.g. glob patterns, missing DB
+        records) are omitted from the result.
+    """
+    display_name_map: dict[str, str] = {}
+
+    # Partition concrete (non-glob) scopes by type.
+    library_scopes: list[ContentLibraryData] = []
+    course_scope_keys: set[str] = set()
+
+    for assignment in assignments:
+        scope = assignment.scope
+        if scope.IS_GLOB:
+            continue
+        if isinstance(scope, ContentLibraryData):
+            library_scopes.append(scope)
+        elif isinstance(scope, CourseOverviewData):
+            course_scope_keys.add(scope.external_key)
+
+    # Batch-query ContentLibrary display names.
+    if library_scopes and ContentLibrary is not None:
+        lib_pairs = {(s.library_key.org, s.library_key.slug) for s in library_scopes}
+        try:
+            lib_filter = reduce(
+                operator.or_, (Q(org__short_name=org, slug=slug) for org, slug in lib_pairs)
+            )
+            lib_qs = ContentLibrary.objects.filter(lib_filter).select_related("learning_package", "org")
+
+            for lib in lib_qs:
+                external_key = f"lib:{lib.org.short_name}:{lib.slug}"
+                display_name_map[external_key] = getattr(lib.learning_package, "title", "") or ""
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.exception("Failed to fetch ContentLibrary display names")
+
+    # Batch-query CourseOverview display names.
+    if course_scope_keys and CourseOverview is not None:
+        try:
+            course_qs = CourseOverview.objects.filter(id__in=course_scope_keys)
+            for course in course_qs:
+                display_name_map[str(course.id)] = course.display_name or ""
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.exception("Failed to fetch CourseOverview display names")
+
+    return display_name_map

@@ -14,6 +14,18 @@ Change Log
 Unreleased
 **********
 
+1.24.0 - 2026-09-14
+*******************
+
+Changed
+=======
+
+* Add assignments array to the response of GET /api/authz/v1/users/ endpoint.
+* Add `assignments_limit` query parameter (default 3, max 10) to control the number of inline assignments per user.
+* Rename `assignation_count`` to `assignment_count` for consistency with the rest of the codebase.
+* Add roles query parameter passthrough to the underlying API call.
+* Add get_scope_display_name_map batch helper to api/utils.py.
+
 1.23.0 - 2026-08-13
 *******************
 

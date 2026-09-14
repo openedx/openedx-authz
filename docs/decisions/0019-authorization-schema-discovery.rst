@@ -39,22 +39,24 @@ The compiler loads the ``authz.schema`` entry-point group, calls each registered
 
 If a registered function raises an exception, discovery stops and reports which application failed. This prevents deployment from continuing with an incomplete set of static definitions.
 
-Site operators can contribute a schema through the ``openedx-authz-schema`` Tutor patch:
+Site operators can contribute a schema through a Python Tutor plugin that uses the ``openedx-authz-schema`` patch:
 
-.. code-block:: yaml
+.. code-block:: python
 
-   name: openedx-authz-overrides
-   version: 0.1.0
+   from tutor import hooks
 
-   patches:
-     openedx-authz-schema: |
-       schema_version: "1.0"
-       priority: 200
+   hooks.Filters.ENV_PATCHES.add_item((
+       "openedx-authz-schema",
+       """
+   schema_version: "1.0"
+   priority: 200
 
-       role_extensions:
-         - role: course_editor
-           add_permissions:
-             - courses.export_course
+   role_extensions:
+     - role: course_editor
+       add_permissions:
+         - courses.export_course
+   """,
+   ))
 
 The compiler combines schemas from application entry points and Tutor patches in a defined order because discovery order may vary.
 

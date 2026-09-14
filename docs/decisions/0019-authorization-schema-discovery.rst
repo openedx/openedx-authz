@@ -27,15 +27,15 @@ Applications can register schema resources through a Python entry point defined 
        ],
    }
 
-The registered function returns the package resources that contain its schema:
+The registered function returns the package directories that contain its schema files:
 
 .. code-block:: python
 
    ...
    def get_schema_resources():
-       return ["authz/course_authoring.authz.yaml"]
+       return ["course_authoring/authz/schema"]
 
-The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and uses ``importlib.resources`` or a similar mechanism to find the files. It then validates the schemas, compiles them into Casbin rows, and applies them to the database.
+The compiler loads the ``authz.schema`` entry-point group, calls each registered function, and uses ``importlib.resources`` or a similar mechanism to find the directories. It loads every ``.yaml`` file in those directories, then validates the schemas, compiles them into Casbin rows, and applies them to the database.
 
 If a registered function raises an exception, discovery stops and reports which application failed. This prevents deployment from continuing with an incomplete set of static definitions.
 
@@ -72,7 +72,7 @@ For every contribution, the compiler records:
 
 Together, these values identify the same source across deployment layouts. The loader reads them from the package and uses them as the source record.
 
-The compiler records this information for each definition and role-permission assignment. For example, ``openedx-authz:openedx_authz/definitions/core.authz.yaml`` may assign ``courses.view_course`` to ``course_admin``, while ``course-authoring:course_authoring/authz/course_authoring.authz.yaml`` assigns ``courses.edit_schedule`` to the same role. Because both resources contributed to the compiled role, it keeps both source records.
+The compiler records this information for each definition and role-permission assignment. For example, ``openedx-authz:openedx_authz/authz/schema/roles.yaml`` may assign ``courses.view_course`` to ``course_admin``, while ``course-authoring:course_authoring/authz/schema/roles.yaml`` assigns ``courses.edit_schedule`` to the same role. Because both resources contributed to the compiled role, it keeps both source records.
 
 3. Deployment command
 =====================

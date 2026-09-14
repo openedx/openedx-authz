@@ -17,7 +17,7 @@ Decision
 1. First schema version
 =======================
 
-The first authz schema version supports explicit role-permission assignments, so every role lists each assigned permission.
+`ADR 0017`_ defines the first authz schema version with explicit role-permission assignments, so every role lists each assigned permission. This ADR records why permission implication and role inheritance remain outside that version.
 
 For example, a role that needs both ``courses.manage_course_team`` and ``courses.view_course_team`` lists both permission IDs. The compiler does not infer that one permission includes the other.
 

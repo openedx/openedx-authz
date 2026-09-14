@@ -31,7 +31,7 @@ The authz schema lifecycle has seven phases:
 
 The following example shows how an application contribution moves through the lifecycle:
 
-1. **Discover** finds ``course_authoring/authz/course_roles.authz.yaml``, which contains an extension that adds a permission to ``course_admin``.
+1. **Discover** finds ``course_authoring/authz/schema/roles.yaml``, which contains an extension that adds a permission to ``course_admin``.
 2. **Load** parses the resource into a schema document.
 3. **Validate** checks the document and its place in the complete schema.
 4. **Compile** resolves the extension against the original ``course_admin`` definition.

@@ -3,7 +3,6 @@
 import pytest
 
 from openedx_authz.engine.schema.discovery import (
-    DiscoveredResource,
     SchemaDiscovery,
     SchemaDiscoveryError,
 )

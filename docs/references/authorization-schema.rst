@@ -291,16 +291,17 @@ Scope namespaces follow the spelling registered by their ``ScopeData`` type and 
 Schema files in applications
 ****************************
 
-Applications keep schema resources under an ``authz`` package directory and use the ``.authz.yaml`` suffix. The filename describes the definitions in the file using lowercase snake case:
+Applications can keep schema resources under an ``authz/schema`` package directory. Filenames are chosen by the application, but separating permission and role definitions makes the resources easier to maintain:
 
 .. code-block:: text
 
    course_authoring/
    └── authz/
-       ├── course_permissions.authz.yaml
-       └── course_roles.authz.yaml
+       └── schema/
+           ├── permissions.yaml
+           └── roles.yaml
 
-The application exposes these package resources through the ``openedx-authz`` schema entry point. Resource paths are relative to the Python module, which keeps discovery independent of virtual-environment and container paths.
+The application exposes these package resources through the ``openedx-authz`` schema entry point described in :doc:`ADR 0019 <../decisions/0019-authorization-schema-discovery>`. Resource paths are relative to the Python module, which keeps discovery independent of virtual-environment and container paths.
 
 Tutor configuration for site operators
 **************************************

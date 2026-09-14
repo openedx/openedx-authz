@@ -1,6 +1,6 @@
 """Authorization schema pipeline.
 
-Turns on-disk ``.authz.yaml`` schema resources into a validated, compiled set of
+Turns on-disk ``.yaml`` schema resources into a validated, compiled set of
 static definitions, following the lifecycle defined in the authz ADRs:
 
     discover -> load -> validate -> compile   (this package, Casbin-free)

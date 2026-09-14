@@ -1,6 +1,6 @@
 """Read discovered resources into schema documents (the ``load`` step, ADR 0018).
 
-Parses each ``.authz.yaml`` resource into a :class:`SchemaDocument`, attaching
+Parses each ``.yaml`` schema resource into a :class:`SchemaDocument`, attaching
 its :class:`SourceRecord` (including a content digest computed from the exact
 bytes read). This step performs only parsing and structural shaping; semantic
 checks belong to :mod:`.validation` and cross-file resolution to

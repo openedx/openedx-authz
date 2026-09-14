@@ -10,10 +10,10 @@ from openedx_authz.engine.schema.discovery import (
 
 SCHEMA_DIR = "openedx_authz/authz/schema"
 EXPECTED_FILES = {
-    "course_permissions.authz.yaml",
-    "course_roles.authz.yaml",
-    "library_permissions.authz.yaml",
-    "library_roles.authz.yaml",
+    "course_permissions.yaml",
+    "course_roles.yaml",
+    "library_permissions.yaml",
+    "library_roles.yaml",
 }
 
 

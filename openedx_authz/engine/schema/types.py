@@ -144,7 +144,7 @@ class RoleExtension:
 
 @dataclass
 class SchemaDocument:
-    """One loaded ``.authz.yaml`` file plus its provenance and priority.
+    """One loaded ``.yaml`` schema file plus its provenance and priority.
 
     Output of the ``load`` step. Still per-file: cross-file references are not
     yet resolved (that happens during ``compile``).

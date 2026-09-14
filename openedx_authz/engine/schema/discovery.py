@@ -42,7 +42,7 @@ class DiscoveredResource:
         package: Importable top-level package used as the ``importlib.resources``
             anchor (e.g. ``openedx_authz``).
         resource_path: Path to the file within that anchor
-            (e.g. ``authz/schema/course_roles.authz.yaml``).
+            (e.g. ``authz/schema/course_roles.yaml``).
         module: Dotted path of the owning directory, used as the source-record
             module and provenance identity (e.g. ``openedx_authz.authz.schema``).
         origin: Where the contribution came from: ``"entry_point"``,

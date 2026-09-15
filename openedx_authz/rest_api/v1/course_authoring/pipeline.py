@@ -1,19 +1,20 @@
 """
 Pipeline step implementing course-authoring visibility for ``AuthorizationDataRequested``.
 
-This is the isolated, opt-in implementation of the exception ``docs/decisions/0016-rest-api-domain-ownership-boundary.rst``
-and ``docs/decisions/0018-cross-domain-filtering-via-openedx-filters.rst`` document. It's the only
-place in openedx_authz that computes course-authoring-flag visibility, and it's never registered
-unless a deployment's ``OPEN_EDX_FILTERS_CONFIG`` explicitly wires it in, typically via a Tutor
-plugin patch. Deleting this file and the patch that registers it removes the mechanism entirely;
-no endpoint code depends on it existing.
+This is the isolated, opt-in implementation of the exception documented in
+``docs/decisions/0016-rest-api-domain-ownership-boundary.rst`` and
+``docs/decisions/0018-cross-domain-filtering-via-openedx-filters.rst``. It's the only place in
+openedx_authz that computes course-authoring-flag visibility, and it's never registered unless a
+deployment's ``OPEN_EDX_FILTERS_CONFIG`` explicitly wires it in, typically via a Tutor plugin
+patch. Deleting this file and the patch that registers it removes the mechanism entirely; no
+endpoint code depends on it existing.
 """
 
 from django.contrib.auth.models import AbstractBaseUser
 from openedx_filters.filters import PipelineStep
 
 from openedx_authz import api
-from openedx_authz.filters import AuthorizationData, ScopedItem
+from openedx_authz.filters import AuthorizationData
 
 SCOPE_NOT_AVAILABLE_ERROR = "scope_not_available"
 
@@ -73,10 +74,11 @@ class CourseAuthoringVisibilityFilter(PipelineStep):
     - The item has an ``allowed`` key: kept, with ``allowed`` set to ``False`` if hidden.
       Preserves 1:1 correspondence for endpoints like ``PermissionValidationMeView`` that
       must return exactly one result per request.
+
     Staff and superusers see everything, regardless of the flag's state.
     """
 
-    def run_filter(
+    def run_filter(  # pylint: disable=arguments-differ
         self,
         items: AuthorizationData,
         user: AbstractBaseUser,

@@ -22,7 +22,6 @@ from rest_framework import filters, generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from openedx_authz import api
 from openedx_authz.api.data import (
     ContentLibraryData,
     CourseOverviewData,

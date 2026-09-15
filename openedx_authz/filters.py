@@ -9,7 +9,8 @@ from openedx_filters.tooling import OpenEdxPublicFilter
 
 
 class ScopedItem(TypedDict):
-    """A scope-bearing item handled by an openedx_authz REST API endpoint.
+    """
+    A scope-bearing item handled by an openedx_authz REST API endpoint.
 
     Endpoints may include additional keys beyond ``scope`` (e.g. ``role``, ``org``,
     or ``username``).
@@ -54,7 +55,8 @@ class AuthorizationDataRequested(OpenEdxPublicFilter):
     def run_filter(
         cls, items: AuthorizationData, user: AbstractBaseUser
     ) -> tuple[AuthorizationData, list[dict[str, Any]]]:
-        """Run the pipeline configured for this filter.
+        """
+        Run the pipeline configured for this filter.
 
         Args:
             items (AuthorizationData): scope-bearing response items or validated

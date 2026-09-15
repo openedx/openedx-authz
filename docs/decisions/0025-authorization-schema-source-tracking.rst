@@ -1,5 +1,5 @@
-0025: Track the Source of Compiled Authorization Definitions
-############################################################
+0025: Track the Source of Compiled Static Authorization Definitions
+###################################################################
 
 Status
 ******
@@ -9,13 +9,21 @@ Status
 Context
 *******
 
+.. note::
+
+   This ADR concerns only **static** authorization definitions — roles and permissions declared in
+   YAML schema files and compiled into policy rows during deployment. It does not cover **dynamic**
+   definitions created at runtime through the API or written directly to the database. Source
+   tracking for dynamically created definitions, if needed, is out of scope and left to a future
+   decision.
+
 `ADR 0019`_ discovers static schema resources from multiple applications and `ADR 0018`_
 compiles them into policy rows during deployment. Several requirements need to know *where*
 each compiled definition came from:
 
 * Multiple applications may contribute to the same role. When a module adds a permission to a
-  built-in role (for example ``courses.export_grades`` on ``course_admin``), the system must be
-  able to tell the core-provided grants apart from the module-provided grant even though both
+  pre-existing role (for example ``courses.export_grades`` on ``course_admin``), the system must be
+  able to tell the grants apart between the modules that defined them, even though both
   live in the same role.
 * Operators and developers benefit from seeing which application contributed a role or
   permission, for debugging and auditing.
@@ -38,7 +46,8 @@ Decision
 1. Store compiled definitions and their sources in dedicated tables
 ====================================================================
 
-The schema loader persists compiled definitions in first-class tables owned by ``openedx-authz``.
+The schema loader persists definitions compiled from static YAML schemas in first-class tables
+owned by ``openedx-authz``.
 Casbin ``p`` rows remain the enforcement representation and are rendered from these tables in the
 same transaction; the definition tables are the authoritative record that the API reads and that
 deployment diffs.
@@ -71,18 +80,20 @@ extension, and the contributing file's priority so the winning metadata source i
 common case is a single link; the many-to-many exists to represent shared ownership and to make
 removal precise.
 
-All sources are treated equally. ``openedx-authz`` is a schema provider like any other
-distribution, so there is no core-versus-module flag; callers that care about a particular origin
-compare the distribution name directly.
+All sources are treated equally. ``openedx-authz`` is a schema provider like any other module, so
+there is no core-versus-module flag; every definition originates from some module, including those
+that ship with ``openedx-authz`` itself. Callers that care about a particular origin compare the
+distribution name directly.
 
-3. Extending a built-in role keeps both origins distinct
-========================================================
+3. Extending a role keeps both origins distinct
+===============================================
 
-Because attribution lives at the role-permission grain, a core grant and a module-added grant on
-the same role remain individually attributed. For ``course_admin``:
+Because attribution lives at the role-permission grain, the grant that first defined a role and a
+later grant added by another module remain individually attributed. For ``course_admin``, assuming
+``openedx-authz`` defines it and its base permissions:
 
-* the role definition links to the distribution that defines it, as a base contribution;
-* each core permission links to that same distribution as a base contribution; and
+* the role definition links to the module that defines it, as a base contribution;
+* each base permission links to that same module as a base contribution; and
 * ``courses.export_grades`` links to the contributing module as an extension.
 
 The two coexist in one role, yet each relationship row carries its own origin. If two applications
@@ -97,6 +108,11 @@ authorization definition API (`ADR 0021`_) may expose these sources so a client 
 Administrative Console can show which application contributed a role or permission. Exposing the
 sources is an additive, optional API change and is not required by this decision.
 
+YAML schema files will always be the source of truth, display names and descriptions in the database
+will always follow what the schema defines. This means that any translation strings derived from the
+YAML files will match the text that the API will query, so the API can use those for applying
+translations. The details on this mechanism is out of scope for this ADR.
+
 5. Metadata changes update definitions in place
 ================================================
 
@@ -107,7 +123,7 @@ new definition row is created and relationships and assignments are unaffected.
 6. Adopt pre-existing policy rows; leave unmanaged rows untouched
 =================================================================
 
-On the first deployment after this feature ships, existing Casbin ``p`` rows are adopted rather
+On deployment, when policies are loaded, existing Casbin ``p`` rows are adopted rather
 than duplicated: for each rendered ``(role, permission, scope)`` that already exists as a policy
 row without a definition record, the loader creates the definition and relationship rows and links
 them to the contributing source. A pre-existing policy row that no schema declares is left in place
@@ -119,8 +135,8 @@ Consequences
 
 * Compiled definitions, including display metadata that previously had no home, are persisted and
   readable through the API.
-* The origin of any role, permission, or individual role-permission grant is queryable, and core
-  and module contributions to the same role remain distinguishable.
+* The origin of any role, permission, or individual role-permission grant is queryable, and the
+  contributions of different modules to the same role remain distinguishable.
 * Moving a definition between files in the same module does not change its recorded source.
 * Removing an application becomes tractable: relationships and definitions whose only source is the
   removed application can be pruned, while shared ones remain. Removal itself remains out of scope

@@ -104,6 +104,8 @@ openedx-atlas==0.7.0
     # via -r requirements/base.in
 openedx-events==11.2.0
     # via -r requirements/base.in
+openedx-filters==3.8.0
+    # via -r requirements/base.in
 packaging==26.2
     # via drf-yasg
 pillow==12.3.0

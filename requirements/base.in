@@ -15,4 +15,5 @@ edx-drf-extensions          # Extensions for Django Rest Framework used by Open 
 edx-organizations           # Organizations library for Open edX
 django-waffle               # Waffle library for feature flag management
 openedx-events              # Open edX Events library for emitting events related to role assignment changes
+openedx-filters              # Open edX Filters library, used to let another domain filter REST API list results
 django-crum                 # Current Request User Middleware for Django

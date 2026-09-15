@@ -11,6 +11,7 @@ from openedx_authz.api.data import (
     ContentLibraryData,
     CourseOverviewData,
     RoleAssignmentData,
+    ScopeData,
     UserAssignments,
 )
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
@@ -58,23 +59,24 @@ def get_user_assignment_map(role_assignments: list[RoleAssignmentData]) -> list[
     return users_with_assignments
 
 
-def get_scope_display_name_map(assignments: list[RoleAssignmentData]) -> dict[str, str]:
+def get_scope_display_name_map(scope_external_keys: set[str]) -> dict[str, str]:
     """Build a mapping of scope external keys to their display names.
 
-    Partitions assignments into library and course scopes, batch-queries the
-    ContentLibrary and CourseOverview models, and returns a single dict that
-    maps each scope's external_key to its human-readable display name.
+    Accepts a set of scope external key strings, partitions them into library
+    and course scopes via :class:`ScopeData`, batch-queries the ContentLibrary
+    and CourseOverview models, and returns a single dict that maps each key to
+    its human-readable display name.
 
     Glob scopes (org-level and platform-level wildcards) are skipped because
     they don't correspond to a single DB record.
 
     Args:
-        assignments: The role assignments whose scopes need display names.
+        scope_external_keys: The scope external key strings to resolve.
 
     Returns:
         A dict mapping scope external_key strings to display name strings.
         Scopes that could not be resolved (e.g. glob patterns, missing DB
-        records) are omitted from the result.
+        records, or unregistered keys) are omitted from the result.
     """
     display_name_map: dict[str, str] = {}
 
@@ -82,8 +84,11 @@ def get_scope_display_name_map(assignments: list[RoleAssignmentData]) -> dict[st
     library_scopes: list[ContentLibraryData] = []
     course_scope_keys: set[str] = set()
 
-    for assignment in assignments:
-        scope = assignment.scope
+    for key in scope_external_keys:
+        try:
+            scope = ScopeData(external_key=key)
+        except ValueError:
+            continue
         if scope.IS_GLOB:
             continue
         if isinstance(scope, ContentLibraryData):

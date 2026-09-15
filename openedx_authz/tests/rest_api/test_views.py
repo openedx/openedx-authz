@@ -2771,8 +2771,9 @@ class TestTeamMembersAPIView(ViewTestMixin):
             - The endpoint still returns 200 OK.
             - scope_display_name is "" for the affected course scopes.
         """
-        mock_course_overview.objects.filter.side_effect = Exception("DB error")
         course_scope = "course-v1:Org1+CS101+2024"
+        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+        mock_course_overview.objects.filter.side_effect = Exception("DB error")
 
         response = self.client.get(self.url, {"search": "regular_1"})
 
@@ -2780,6 +2781,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         results = [r for r in response.data["results"] if r["username"] == "regular_1"]
         self.assertEqual(len(results), 1)
         course_assignments = [a for a in results[0]["assignments"] if a["scope"] == course_scope]
+        self.assertGreater(len(course_assignments), 0, "Expected at least one course assignment")
         for assignment in course_assignments:
             self.assertEqual(assignment["scope_display_name"], "")
 

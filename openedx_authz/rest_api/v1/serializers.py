@@ -309,7 +309,7 @@ class ListTeamMembersSerializer(OrderMixin):  # pylint: disable=abstract-method
     ASSIGNMENTS_LIMIT_DEFAULT = 3
     ASSIGNMENTS_LIMIT_MAX = 10
 
-    roles = LowercaseCharField(required=False, default=[])
+    roles = CommaSeparatedListField(required=False, default=[])
     scopes = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     orgs = CaseSensitiveCommaSeparatedListField(required=False, default=[])
     search = LowercaseCharField(required=False, default=None)
@@ -333,13 +333,20 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
     assignment_count = serializers.SerializerMethodField()
     assignments = serializers.SerializerMethodField()
 
+    def _get_user(self, obj: UserAssignments) -> User | None:
+        """Get the user object from the pre-fetched user map in context."""
+        user_map = self.context.get("user_map", {})
+        username = getattr(obj.user, "username", None)
+        return user_map.get(username) if username else None
+
     def get_username(self, obj: UserAssignments) -> str:
         """Get the username for the given role assignment."""
         return getattr(obj.user, "username", "") if obj.user else ""
 
     def get_full_name(self, obj: UserAssignments) -> str:
         """Get the full name for the given role assignment."""
-        return obj.user.get_full_name() if obj.user else ""
+        user = self._get_user(obj)
+        return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
     def get_email(self, obj: UserAssignments) -> str:
         """Get the email for the given role assignment."""
@@ -356,7 +363,6 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
         return TeamMemberAssignmentInlineSerializer(
             limited_assignments,
             many=True,
-            context={"scope_display_name_map": self.context.get("scope_display_name_map", {})},
         ).data
 
 
@@ -458,15 +464,14 @@ class TeamMemberAssignmentInlineSerializer(TeamMemberAssignmentSerializer):  # p
     """Compact serializer for assignment records inlined into the team-members response.
 
     Reuses role, org, scope, and permission_count from TeamMemberAssignmentSerializer.
-    Adds scope_display_name (placeholder) and drops is_superadmin which is not needed inline.
+    Adds scope_display_name and drops is_superadmin which is not needed inline.
     """
 
     scope_display_name = serializers.SerializerMethodField()
 
-    def get_scope_display_name(self, obj: api.RoleAssignmentData) -> str:
-        """Look up the scope display name from the pre-fetched map, defaulting to empty string."""
-        scope_display_name_map = self.context.get("scope_display_name_map", {})
-        return scope_display_name_map.get(obj.scope.external_key, "")
+    def get_scope_display_name(self, _obj: api.RoleAssignmentData) -> str:
+        """Return an empty placeholder; the view injects the real value post-pagination."""
+        return ""
 
     def to_representation(self, instance):
         """Remove is_superadmin from the serialized output."""
@@ -482,9 +487,16 @@ class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pyl
     username = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
+    def _get_user(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> User | None:
+        """Get the user object from the pre-fetched user map in context."""
+        user_map = self.context.get("user_map", {})
+        username = getattr(obj.user, "username", None)
+        return user_map.get(username) if username else None
+
     def get_full_name(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
         """Get user full name."""
-        return obj.user.get_full_name() if obj.user else ""
+        user = self._get_user(obj)
+        return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
     def get_username(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
         """Get username."""

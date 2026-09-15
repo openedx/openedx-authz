@@ -1105,16 +1105,15 @@ class TeamMembersAPIView(APIView):
             allowed_for_user_external_key=request.user.username,
         )
 
-        # Collect all assignments across users for a single batch query of display names.
-        all_assignments = [a for uwa in users_with_assignments for a in uwa.assignments]
-        scope_display_name_map = get_scope_display_name_map(all_assignments)
+        usernames = {uwa.user.username for uwa in users_with_assignments if uwa.user}
+        user_map = get_user_map(usernames)
 
         team_members = TeamMemberSerializer(
             users_with_assignments,
             many=True,
             context={
                 "assignments_limit": query_params.get("assignments_limit"),
-                "scope_display_name_map": scope_display_name_map,
+                "user_map": user_map,
             },
         ).data
         for backend in self.filter_backends:
@@ -1122,6 +1121,21 @@ class TeamMembersAPIView(APIView):
 
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(team_members, request)
+
+        # Resolve scope display names only for the current page to avoid
+        # unnecessary DB lookups for assignments that are not in the response.
+        scope_keys: set[str] = set()
+        for member in paginated_response_data:
+            for assignment in member.get("assignments", []):
+                scope_key = assignment.get("scope", "")
+                if scope_key:
+                    scope_keys.add(scope_key)
+
+        scope_display_name_map = get_scope_display_name_map(scope_keys)
+        for member in paginated_response_data:
+            for assignment in member.get("assignments", []):
+                assignment["scope_display_name"] = scope_display_name_map.get(assignment.get("scope", ""), "")
+
         return paginator.get_paginated_response(paginated_response_data)
 
 
@@ -1446,7 +1460,14 @@ class AssignmentsAPIView(APIView):
                 for assignment in uwa.assignments
             ]
 
-        assignments = TeamMemberUserAssignmentSerializer(user_role_assignments, many=True).data
+        usernames = {ura.user.username for ura in user_role_assignments if ura.user}
+        user_map = get_user_map(usernames)
+
+        assignments = TeamMemberUserAssignmentSerializer(
+            user_role_assignments,
+            many=True,
+            context={"user_map": user_map},
+        ).data
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 

@@ -57,12 +57,15 @@ class FakeEnforcer:
         self._grouping = [list(row) for row in (grouping or [])]
 
     def get_policy(self):
+        """Return a copy of the stored ``p`` rows."""
         return [list(row) for row in self._policies]
 
     def get_grouping_policy(self):
+        """Return a copy of the stored ``g`` (grouping) rows."""
         return [list(row) for row in self._grouping]
 
     def add_policy(self, *args):
+        """Add a ``p`` row, ignoring exact duplicates. Returns True if added."""
         row = list(args)
         if row not in self._policies:
             self._policies.append(row)
@@ -70,13 +73,23 @@ class FakeEnforcer:
         return False
 
     def remove_policy(self, *args):
+        """Remove a ``p`` row if present. Returns True if removed."""
         row = list(args)
         if row in self._policies:
             self._policies.remove(row)
             return True
         return False
 
+    def add_grouping_policy(self, *args):
+        """Add a ``g`` row, ignoring exact duplicates. Returns True if added."""
+        row = list(args)
+        if row not in self._grouping:
+            self._grouping.append(row)
+            return True
+        return False
+
     def remove_grouping_policy(self, *args):
+        """Remove a ``g`` row if present. Returns True if removed."""
         row = list(args)
         if row in self._grouping:
             self._grouping.remove(row)
@@ -181,11 +194,12 @@ class TestForceGate:
     """Removal of a role that still has user assignments is force-gated."""
 
     def _assigned_enforcer(self):
+        """Build an enforcer holding a stored role plus one user assignment to it."""
         rendered = _render(_editor(("courses.view_course",)))
         enforcer = FakeEnforcer()
         SchemaApplier(enforcer=enforcer).apply(rendered, SchemaCompiler().compile([]))
         # A user is assigned the role (g row: [subject, role, scope]).
-        enforcer._grouping.append(["user^alice", "role^course_editor", "course-v1:OpenedX+DemoX+Demo"])
+        enforcer.add_grouping_policy("user^alice", "role^course_editor", "course-v1:OpenedX+DemoX+Demo")
         return enforcer
 
     def test_blocking_assignment_aborts_without_force(self):

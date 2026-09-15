@@ -80,9 +80,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; no rows written."))
         else:
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"Authz schema applied: {result.added} row(s) added, {result.removed} removed."
-                )
+                self.style.SUCCESS(f"Authz schema applied: {result.added} row(s) added, {result.removed} removed.")
             )
 
     def _report_plan(self, plan) -> None:
@@ -95,7 +93,7 @@ class Command(BaseCommand):
         for row in plan.added_rows:
             self.stdout.write(f"  + {row.as_policy()}")
 
-        self.stdout.write(f"Stale rows detected ({len(plan.removed_rows)}) — pruning deferred:")
+        self.stdout.write(f"Rows to remove ({len(plan.removed_rows)}):")
         for row in plan.removed_rows:
             self.stdout.write(f"  - {row.as_policy()}")
 

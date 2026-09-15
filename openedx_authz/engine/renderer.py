@@ -11,19 +11,23 @@ the ``render`` and ``apply`` lifecycle steps:
 
 Key semantics:
     * Idempotent (ADR 0018 §2): re-applying identical definitions changes
-      nothing and creates no duplicates.
+      nothing and creates no duplicates. After a successful apply the stored
+      policy equals the compiled definition — no stale rows remain.
     * Change report before write (ADR 0018 §6): :meth:`SchemaApplier.plan`
       reports the ``p`` rows that will be added or removed by comparing rendered
       output against the currently stored policy.
-    * Removal is force-gated (ADR 0018 §6): removing a role that still has
-      assignments requires an explicit force option.
+    * Removal is force-gated (ADR 0018 §6): a role slated for removal that still
+      has user assignments requires an explicit force option. Without force the
+      apply aborts before any write; with force the role's ``p`` rows and its
+      ``g`` assignment rows are removed together.
 
-Note on the current transition (see module TODOs): persistent storage of
-compiled definitions and their :class:`SourceRecord`s (the definition/source
-model of ADR 0018 §3) is not implemented yet, and precise "schema-owned" row
-ownership depends on it. Until then, :meth:`SchemaApplier.apply` performs an
-additive, idempotent write of rendered ``p`` rows and does not prune stale
-rows; :meth:`SchemaApplier.plan` still reports would-be removals for review.
+:meth:`SchemaApplier.apply` reconciles the stored policy to the rendered set:
+it adds missing rows, removes stale rows, and prunes definition/source records
+that the compiled schema no longer contains, all in one transaction. The
+definition/source model (ADR 0018 §3, ADR 0024) is the ownership record that
+makes precise pruning safe: only schema-owned ``p`` rows and definitions are
+touched, while dynamic roles, user assignments, and legacy ``g2`` action
+inheritance are preserved.
 
 ``render`` is pure and imports nothing from Casbin/Django. ``plan``/``apply``
 import the enforcer lazily so this module stays importable without a configured
@@ -182,16 +186,17 @@ class SchemaApplier:
         *,
         force: bool = False,
     ) -> ApplyResult:
-        """Persist rendered ``p`` rows in one transaction (additive, idempotent).
+        """Reconcile the stored policy to the rendered set in one transaction.
 
-        Adds rendered rows not already present and invalidates the policy cache
-        so the enforcer reloads. Preserves dynamic roles, assignments, and
-        ``g2`` rows.
+        Adds rendered rows not already present, removes stale schema-owned rows
+        no longer rendered, prunes definition/source records the compiled schema
+        no longer contains, and invalidates the policy cache so the enforcer
+        reloads. Preserves dynamic roles, user assignments, and ``g2`` rows.
 
-        Pruning of stale rows is deferred pending the definition/source storage
-        model (ADR 0018 §3); would-be removals are reported by :meth:`plan` and
-        logged here rather than applied. When a removal would drop a role that
-        still has assignments, ``force`` must be set to acknowledge it.
+        A role slated for removal that still has user assignments is blocking:
+        without ``force`` the apply aborts before any write; with ``force`` the
+        role's stale ``p`` rows and its ``g`` assignment rows are removed
+        together (ADR 0018 §6).
 
         Raises:
             SchemaApplyError: If the plan has blocking assignments and ``force``
@@ -212,30 +217,34 @@ class SchemaApplier:
 
         enforcer = self._resolve_enforcer()
 
-        # Persist definition/source rows and add any missing p rows atomically.
+        # Reconcile p rows and sync definition/source records atomically.
         # Definitions are synced even when p rows are unchanged so metadata-only
         # edits land and pre-existing p rows get adopted on first run.
         with transaction.atomic():
             for row in plan.added_rows:
                 enforcer.add_policy(*row.as_policy())
+            for row in plan.removed_rows:
+                enforcer.remove_policy(*row.as_policy())
+            if force and plan.blocking_assignments:
+                self._remove_assignments(enforcer, plan.blocking_assignments)
             self._store_sources(schema)
 
-        if plan.removed_rows:
-            logger.warning(
-                "Authz schema apply: %d stale p row(s) detected but NOT removed "
-                "(row pruning is deferred pending the definition/source storage model). "
-                "Rows: %s",
-                len(plan.removed_rows),
-                [row.as_policy() for row in plan.removed_rows],
-            )
-
-        if plan.added_rows:
+        changed = bool(plan.added_rows or plan.removed_rows)
+        if changed:
             AuthzEnforcer.invalidate_policy_cache()
-            logger.info("Authz schema apply: added %d p row(s).", len(plan.added_rows))
+            logger.info(
+                "Authz schema apply: added %d p row(s), removed %d p row(s).",
+                len(plan.added_rows),
+                len(plan.removed_rows),
+            )
         else:
             logger.info("Authz schema apply: policy rows unchanged; definitions synced.")
 
-        return ApplyResult(added=len(plan.added_rows), removed=0, unchanged=plan.unchanged)
+        return ApplyResult(
+            added=len(plan.added_rows),
+            removed=len(plan.removed_rows),
+            unchanged=plan.unchanged,
+        )
 
     # ---- helpers ----------------------------------------------------------
 
@@ -246,6 +255,21 @@ class SchemaApplier:
 
             self._enforcer = AuthzEnforcer.get_enforcer()
         return self._enforcer
+
+    @staticmethod
+    def _remove_assignments(enforcer, blocking_assignments: list[tuple[str, str]]) -> None:
+        """Remove the ``g`` assignment rows for force-removed roles (ADR 0018 §6).
+
+        ``blocking_assignments`` are ``(role_subject, assignment_subject)`` pairs
+        produced by :meth:`plan`. Each corresponds to a grouping row of the shape
+        ``[assignment_subject, role_subject, ...]``; the trailing scope segment
+        (if any) is preserved by matching against the live grouping policy so we
+        remove the exact stored row rather than a reconstructed one.
+        """
+        targets = set(blocking_assignments)
+        for grouping in list(enforcer.get_grouping_policy()):
+            if len(grouping) >= 2 and (grouping[1], grouping[0]) in targets:
+                enforcer.remove_grouping_policy(*grouping)
 
     @staticmethod
     def _find_blocking_assignments(enforcer, removed_subjects: set[str]) -> list[tuple[str, str]]:
@@ -271,12 +295,11 @@ class SchemaApplier:
 
         Upserts categories, permissions, roles, and each ``(role, permission,
         scope)`` grant, linking every definition and grant to its contributing
-        sources. Idempotent: re-applying identical schema is a no-op. Pre-existing
-        ``p`` rows are adopted because grants are upserted for every rendered
-        triple regardless of prior ``p``-row existence.
-
-        Stale-definition pruning is deferred (consistent with ``p``-row pruning);
-        this method only upserts.
+        sources, then prunes any definition rows the compiled schema no longer
+        contains (see :meth:`_prune_definitions`). Idempotent: re-applying an
+        identical schema is a no-op. Pre-existing ``p`` rows are adopted because
+        grants are upserted for every rendered triple regardless of prior
+        ``p``-row existence.
 
         Called inside the ``apply`` transaction.
         """
@@ -362,6 +385,9 @@ class SchemaApplier:
                 )
 
         # Role-permission grants (one per rendered role/permission/scope triple).
+        # Track the grant keys the schema still contains so stale grants can be
+        # pruned below.
+        live_grant_ids: set[int] = set()
         for rid, compiled in schema.roles.items():
             role_obj = role_objs[rid]
             definition = compiled.definition
@@ -373,6 +399,7 @@ class SchemaApplier:
                     grant, _ = m.AuthzRolePermission.objects.update_or_create(
                         role=role_obj, permission=permission_obj, scope=scope
                     )
+                    live_grant_ids.add(grant.pk)
                     for rel in schema.role_permission_sources.get((rid, perm_id), []):
                         m.AuthzRolePermissionSource.objects.update_or_create(
                             role_permission=grant,
@@ -380,9 +407,40 @@ class SchemaApplier:
                             defaults={"origin_kind": rel.origin_kind, "priority": rel.priority},
                         )
 
+        self._prune_definitions(m, schema, live_grant_ids)
+
         logger.info(
             "Authz schema apply: persisted %d role(s), %d permission(s), %d category(ies).",
             len(schema.roles),
             len(schema.permissions),
             len(schema.categories),
         )
+
+    @staticmethod
+    def _prune_definitions(m, schema: CompiledSchema, live_grant_ids: set[int]) -> None:
+        """Delete definition/source rows the compiled schema no longer contains.
+
+        Removes stale role-permission grants, roles, permissions, and categories
+        so the definition tables match the compiled schema (ADR 0018 §2). Source
+        link rows and per-source records cascade via their foreign keys; the
+        shared :class:`AuthzSchemaSource` rows are left in place because they may
+        still back other definitions and carry no access on their own.
+
+        Ordering matters: grants first (they reference roles and permissions),
+        then roles and permissions, then categories.
+        """
+        # Stale role-permission grants: any grant not re-created this run.
+        m.AuthzRolePermission.objects.exclude(pk__in=live_grant_ids).delete()
+
+        live_role_ids = {compiled.definition.id for compiled in schema.roles.values()}
+        m.AuthzRoleDefinition.objects.exclude(role_id__in=live_role_ids).delete()
+
+        live_permission_keys = {
+            (compiled.definition.namespace, compiled.definition.name) for compiled in schema.permissions.values()
+        }
+        for permission_obj in m.AuthzPermissionDefinition.objects.all():
+            if (permission_obj.namespace, permission_obj.name) not in live_permission_keys:
+                permission_obj.delete()
+
+        live_category_ids = {compiled.definition.id for compiled in schema.categories.values()}
+        m.AuthzPermissionCategory.objects.exclude(category_id__in=live_category_ids).delete()

@@ -225,9 +225,15 @@ class SchemaApplier:
                 enforcer.add_policy(*row.as_policy())
             for row in plan.removed_rows:
                 enforcer.remove_policy(*row.as_policy())
+            removed_assignments: list[tuple[str, str, str]] = []
             if force and plan.blocking_assignments:
-                self._remove_assignments(enforcer, plan.blocking_assignments)
+                removed_assignments = self._remove_assignments(enforcer, plan.blocking_assignments)
             self._store_sources(schema)
+            # Emit the audit events only if the transaction commits, mirroring
+            # unassign_role_from_subject_in_scope, so no audit row is written for
+            # an assignment removal that gets rolled back.
+            if removed_assignments:
+                transaction.on_commit(lambda: self._emit_assignment_deleted(removed_assignments))
 
         changed = bool(plan.added_rows or plan.removed_rows)
         if changed:
@@ -257,19 +263,59 @@ class SchemaApplier:
         return self._enforcer
 
     @staticmethod
-    def _remove_assignments(enforcer, blocking_assignments: list[tuple[str, str]]) -> None:
+    def _remove_assignments(enforcer, blocking_assignments: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
         """Remove the ``g`` assignment rows for force-removed roles (ADR 0018 §6).
 
         ``blocking_assignments`` are ``(role_subject, assignment_subject)`` pairs
         produced by :meth:`plan`. Each corresponds to a grouping row of the shape
-        ``[assignment_subject, role_subject, ...]``; the trailing scope segment
-        (if any) is preserved by matching against the live grouping policy so we
-        remove the exact stored row rather than a reconstructed one.
+        ``[assignment_subject, role_subject, scope]``; the scope segment is
+        preserved by matching against the live grouping policy so we remove the
+        exact stored row rather than a reconstructed one.
+
+        Returns the ``(subject, role, scope)`` triples that were removed so the
+        caller can emit a ``ROLE_ASSIGNMENT_DELETED`` audit event per removal.
         """
         targets = set(blocking_assignments)
+        removed: list[tuple[str, str, str]] = []
         for grouping in list(enforcer.get_grouping_policy()):
             if len(grouping) >= 2 and (grouping[1], grouping[0]) in targets:
                 enforcer.remove_grouping_policy(*grouping)
+                subject, role = grouping[0], grouping[1]
+                scope = grouping[2] if len(grouping) >= 3 else ""
+                removed.append((subject, role, scope))
+        return removed
+
+    @staticmethod
+    def _emit_assignment_deleted(removed_assignments: list[tuple[str, str, str]]) -> None:
+        """Emit ``ROLE_ASSIGNMENT_DELETED`` for each force-removed assignment.
+
+        Every assignment change must leave an audit trail: the
+        ``create_audit_record_on_role_assignment_change`` handler turns each event
+        into a :class:`RoleAssignmentAudit` row, matching the audit behavior of
+        ``unassign_role_from_subject_in_scope``. Imported lazily so the module
+        stays importable without Django/openedx-events configured.
+        """
+        if not removed_assignments:
+            return
+
+        # pylint: disable=import-outside-toplevel
+        from crum import get_current_user
+        from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
+        from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
+
+        from openedx_authz.models.core import RoleAssignmentAudit
+
+        actor_id = getattr(get_current_user(), "id", None)
+        for subject, role, scope in removed_assignments:
+            ROLE_ASSIGNMENT_DELETED.send_event(
+                role_assignment=RoleAssignmentEventData(
+                    operation=RoleAssignmentAudit.OPERATIONS.deleted,
+                    subject=subject,
+                    role=role,
+                    scope=scope,
+                    actor_id=actor_id,
+                )
+            )
 
     @staticmethod
     def _find_blocking_assignments(enforcer, removed_subjects: set[str]) -> list[tuple[str, str]]:

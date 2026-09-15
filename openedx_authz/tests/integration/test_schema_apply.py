@@ -53,6 +53,7 @@ from openedx_authz.engine.schema.types import (
     SchemaDocument,
     SourceRecord,
 )
+from openedx_authz.models.core import RoleAssignmentAudit
 from openedx_authz.models.schema import AuthzRoleDefinition, AuthzRolePermission
 
 
@@ -284,7 +285,9 @@ class SchemaApplyPruningIntegrationTests(TestCase):
         self.assertEqual(len(self._grouping_for_role()), 1)
         self.assertTrue(self.enforcer.enforce(USER_SUBJECT, VIEW_ACTION, COURSE_SCOPE))
 
-        result = self._apply(_document(roles=[]), force=True)
+        # Run on_commit hooks so the ROLE_ASSIGNMENT_DELETED audit event fires.
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self._apply(_document(roles=[]), force=True)
 
         self.assertEqual(result.removed, 1)
         # Access is revoked, and both the p rows and the g assignment are gone.
@@ -292,3 +295,9 @@ class SchemaApplyPruningIntegrationTests(TestCase):
         self.assertEqual(self._p_rows_for_role(), [])
         self.assertEqual(self._grouping_for_role(), [])
         self.assertFalse(AuthzRoleDefinition.objects.filter(role_id="schema_apply_editor").exists())
+
+        # Every assignment change leaves an audit trail: the force removal emits
+        # ROLE_ASSIGNMENT_DELETED, which is recorded as a 'deleted' audit row.
+        audit = RoleAssignmentAudit.objects.filter(subject=USER_SUBJECT, role=ROLE_SUBJECT, scope=COURSE_SCOPE)
+        self.assertEqual(audit.count(), 1)
+        self.assertEqual(audit.get().operation, RoleAssignmentAudit.OPERATIONS.deleted)

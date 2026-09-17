@@ -333,19 +333,13 @@ class TeamMemberSerializer(serializers.Serializer):  # pylint: disable=abstract-
     assignment_count = serializers.SerializerMethodField()
     assignments = serializers.SerializerMethodField()
 
-    def _get_user(self, obj: UserAssignments) -> User | None:
-        """Get the user object from the pre-fetched user map in context."""
-        user_map = self.context.get("user_map", {})
-        username = getattr(obj.user, "username", None)
-        return user_map.get(username) if username else None
-
     def get_username(self, obj: UserAssignments) -> str:
         """Get the username for the given role assignment."""
         return getattr(obj.user, "username", "") if obj.user else ""
 
     def get_full_name(self, obj: UserAssignments) -> str:
-        """Get the full name for the given role assignment."""
-        user = self._get_user(obj)
+        """Get the full name from the UserProfile."""
+        user = obj.user
         return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
     def get_email(self, obj: UserAssignments) -> str:
@@ -487,15 +481,9 @@ class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pyl
     username = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
-    def _get_user(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> User | None:
-        """Get the user object from the pre-fetched user map in context."""
-        user_map = self.context.get("user_map", {})
-        username = getattr(obj.user, "username", None)
-        return user_map.get(username) if username else None
-
     def get_full_name(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
-        """Get user full name."""
-        user = self._get_user(obj)
+        """Get the full name from the UserProfile."""
+        user = obj.user
         return getattr(user.profile, "name", "") if user and hasattr(user, "profile") else ""
 
     def get_username(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:

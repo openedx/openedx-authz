@@ -1073,7 +1073,7 @@ class TeamMembersAPIView(APIView):
             apidocs.query_parameter("scopes", str, description="The scopes to query assignments for"),
             apidocs.query_parameter("orgs", str, description="The orgs to query assignments for"),
             apidocs.query_parameter("search", str, description="The search query to filter users by"),
-            apidocs.query_parameter("assignments_limit", str, description="The limit number of assignments per user."),
+            apidocs.query_parameter("assignments_limit", int, description="The limit number of assignments per user."),
             apidocs.query_parameter("sort_by", str, description="The field to sort by"),
             apidocs.query_parameter("order", str, description="The order to sort by"),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
@@ -1105,15 +1105,11 @@ class TeamMembersAPIView(APIView):
             allowed_for_user_external_key=request.user.username,
         )
 
-        usernames = {uwa.user.username for uwa in users_with_assignments if uwa.user}
-        user_map = get_user_map(usernames)
-
         team_members = TeamMemberSerializer(
             users_with_assignments,
             many=True,
             context={
                 "assignments_limit": query_params.get("assignments_limit"),
-                "user_map": user_map,
             },
         ).data
         for backend in self.filter_backends:
@@ -1460,14 +1456,7 @@ class AssignmentsAPIView(APIView):
                 for assignment in uwa.assignments
             ]
 
-        usernames = {ura.user.username for ura in user_role_assignments if ura.user}
-        user_map = get_user_map(usernames)
-
-        assignments = TeamMemberUserAssignmentSerializer(
-            user_role_assignments,
-            many=True,
-            context={"user_map": user_map},
-        ).data
+        assignments = TeamMemberUserAssignmentSerializer(user_role_assignments, many=True).data
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 

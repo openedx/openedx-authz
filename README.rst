@@ -129,7 +129,7 @@ Please do not report security issues in public. Please email security@openedx.or
     :alt: Supported Python versions
 
 .. |license-badge| image:: https://img.shields.io/github/license/openedx/openedx-authz.svg
-    :target: https://github.com/openedx/openedx-authz/blob/main/LICENSE.txt
+    :target: https://github.com/openedx/openedx-authz/blob/main/LICENSE
     :alt: License
 
 .. |status-badge| image:: https://img.shields.io/badge/Status-Experimental-yellow

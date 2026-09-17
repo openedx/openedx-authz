@@ -3,7 +3,8 @@ Open edX AuthZ provides the architecture and foundations of the authorization fr
 """
 
 import os
-
-__version__ = "1.23.0"
+from importlib.metadata import version as get_version
 
 ROOT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+__version__ = get_version("openedx-authz")

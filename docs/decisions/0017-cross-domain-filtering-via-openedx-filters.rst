@@ -39,11 +39,11 @@ Each filter exposes the same calling convention with its own payload type:
 
 .. code-block:: python
 
-   PermissionValidationRequested.run_filter(items, user) -> (filtered_items, errors)
-   RoleAssignmentRequested.run_filter(items, user) -> (filtered_items, errors)
-   RoleRemovalRequested.run_filter(items, user) -> (filtered_items, errors)
+   PermissionValidationRequested.run_filter(items) -> (filtered_items, errors)
+   RoleAssignmentRequested.run_filter(items) -> (filtered_items, errors)
+   RoleRemovalRequested.run_filter(items) -> (filtered_items, errors)
 
-``user`` is the authenticated Django user. Each filter passes its data and user through its independently configured pipeline. With no pipeline configured for that filter, it returns the original items and an empty error list.
+Each filter passes its data through its independently configured pipeline. With no pipeline configured for that filter, it returns the original items and an empty error list.
 
 Each filter has a defined input shape and can be configured independently.
 
@@ -196,7 +196,7 @@ A deployment enables each operation independently in ``OPEN_EDX_FILTERS_CONFIG``
 
 This setting is typically added to edx-platform through a Tutor plugin patch. An operation without a configured pipeline retains its default behavior.
 
-Once configured, the pipeline reads the effective ``authz.enable_course_authoring`` state for each course scope. It leaves library scopes available, while Django staff and superusers bypass the flag check.
+Once configured, the pipeline reads the effective ``authz.enable_course_authoring`` state for each course scope and leaves library scopes available.
 
 Consequences
 ************

@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -380,6 +381,46 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
             self.assertEqual(response.status_code, status_code)
             self.assertEqual(response.data, {"message": message})
+
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.permission_validation.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringPermissionValidationFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    def test_permission_validation_marks_hidden_course_scope_as_disallowed(self):
+        """Test PermissionValidationMeView with the real course-authoring pipeline step configured.
+
+        Expected result:
+            - Returns 200 OK status
+            - The course item is marked allowed=False, since the flag is disabled for its scope
+            - The library item is unaffected, since course-authoring visibility never gates it
+        """
+        self.client.force_authenticate(user=self.regular_user)
+        assign_role_to_user_in_scope(
+            user_external_key=self.regular_user.username,
+            role_external_key=roles.COURSE_STAFF.external_key,
+            scope_external_key=COURSE_SCOPE_ORG1,
+        )
+        request_data = [
+            {"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1},
+            {"action": permissions.VIEW_LIBRARY.identifier, "scope": LIB_SCOPE_ORG1},
+        ]
+
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.post(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data[0]["allowed"])
+        self.assertTrue(response.data[1]["allowed"])
+
 
 
 @ddt
@@ -821,6 +862,46 @@ class TestRoleUserAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status_code)
 
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.role_assignment.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleAssignmentFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    @patch.object(api, "assign_role_to_user_in_scope")
+    def test_add_users_to_role_reports_hidden_scope_without_writing(self, mock_assign_role_to_user_in_scope):
+        """A scope hidden by the configured filter is reported and never written."""
+        self.client.force_authenticate(user=User.objects.get(username="course_admin"))
+        request_data = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": ["regular_2"],
+        }
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.put(self.url, data=request_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(response.data["completed"], [])
+        self.assertEqual(
+            response.data["errors"],
+            [
+                {
+                    "user_identifier": "regular_2",
+                    "scope": COURSE_SCOPE_ORG1,
+                    "error": "scope_not_available",
+                }
+            ],
+        )
+        mock_assign_role_to_user_in_scope.assert_not_called()
+
     @data(
         # With username -----------------------------
         # Single user - success (admin user)
@@ -994,6 +1075,46 @@ class TestRoleUserAPIView(ViewTestMixin):
             response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
         self.assertEqual(response.status_code, status_code)
+
+    @override_settings(
+        OPEN_EDX_FILTERS_CONFIG={
+            "org.openedx.authz.role_removal.requested.v1": {
+                "pipeline": [
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleRemovalFilter",
+                ],
+                "fail_silently": False,
+            },
+        },
+    )
+    @patch.object(api, "unassign_role_from_user")
+    def test_remove_users_from_role_reports_hidden_scope_without_writing(self, mock_unassign_role_from_user):
+        """A scope hidden by the configured filter is reported and never written."""
+        self.client.force_authenticate(user=User.objects.get(username="course_admin"))
+        query_params = {
+            "role": roles.COURSE_STAFF.external_key,
+            "scope": COURSE_SCOPE_ORG1,
+            "users": "regular_2",
+        }
+
+        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+            return_value=False,
+        ):
+            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(response.data["completed"], [])
+        self.assertEqual(
+            response.data["errors"],
+            [
+                {
+                    "user_identifier": "regular_2",
+                    "scope": COURSE_SCOPE_ORG1,
+                    "error": "scope_not_available",
+                }
+            ],
+        )
+        mock_unassign_role_from_user.assert_not_called()
 
 
 @ddt

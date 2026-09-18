@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 from openedx_authz import api
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
+from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
@@ -152,6 +153,9 @@ class PermissionValidationMeView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
+        response_data, _ = PermissionValidationRequested.run_filter(
+            items=response_data
+        )
         serializer = PermissionValidationResponseSerializer(response_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -313,7 +317,10 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        completed, errors = [], []
+        data, errors = RoleAssignmentRequested.run_filter(
+            items=data
+        )
+        completed = []
         for scope_value in data["scopes"]:
             for user_identifier in data["users"]:
                 response_dict = {"user_identifier": user_identifier, "scope": scope_value}
@@ -360,7 +367,10 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        completed, errors = [], []
+        data, errors = RoleRemovalRequested.run_filter(
+            items=data
+        )
+        completed = []
         for user_identifier in data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:

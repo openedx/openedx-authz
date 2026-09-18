@@ -11,14 +11,16 @@ Context
 
 Casbin assignments may remain after ``authz.enable_course_authoring`` is disabled because the migration that synchronizes them is optional and does not cover every flag change (`ADR 0013`_). As a result, permission checks and role assignment requests may refer to a course that is no longer available in the authoring experience.
 
-The Admin Console reads the flag state exposed in `ADR 0015`_ and filters course-authoring data before displaying it. Since this behavior will remain while the flag is in use, collection endpoints do not need backend filtering. However, frontend filtering cannot protect role assignment writes or prevent permission validation from reporting an unavailable course as allowed.
+The Admin Console reads the flag state exposed in `ADR 0015`_ and filters course-authoring data before displaying it. This proposal leaves collection filtering in the Admin Console. Frontend filtering cannot protect role assignment writes or prevent permission validation from reporting an unavailable course as allowed.
 
 These operations therefore need a backend extension point. Open edX Filters allows the views to expose authorization data to a separately configured pipeline, which keeps course-authoring state outside the shared authorization code and follows the boundary defined in `ADR 0016`_.
 
 Decision
 ********
 
-Call an Open edX Filter from the following operations:
+Add three operation-specific filters to the REST endpoints. The views pass data through their configured pipelines and continue with the returned data and errors. The course-authoring pipelines own visibility checks and rejection behavior.
+
+The filters cover these operations:
 
 * ``POST /validate/me/`` validates a user's permission in a scope.
 * ``PUT /roles/users/`` assigns a role to users in one or more scopes.
@@ -27,13 +29,25 @@ Call an Open edX Filter from the following operations:
 1. Filter contract
 ==================
 
-Define the public ``AuthorizationDataRequested`` filter with the filter type ``org.openedx.authz.authorization_data.requested.v1`` and the following signature:
+Define one public filter for each operation:
+
+* ``PermissionValidationRequested`` uses ``org.openedx.authz.permission_validation.requested.v1`` and receives computed permission results with ``action``, ``allowed``, and an optional ``scope``.
+* ``RoleAssignmentRequested`` uses ``org.openedx.authz.role_assignment.requested.v1`` and receives validated ``role``, ``users``, and ``scopes`` before assignment writes.
+* ``RoleRemovalRequested`` uses ``org.openedx.authz.role_removal.requested.v1`` and receives validated ``role``, ``users``, and ``scope`` before removal writes.
+
+Each filter exposes the same calling convention with its own payload type:
 
 .. code-block:: python
 
-   AuthorizationDataRequested.run_filter(items, user) -> (filtered_items, errors)
+   PermissionValidationRequested.run_filter(items, user) -> (filtered_items, errors)
+   RoleAssignmentRequested.run_filter(items, user) -> (filtered_items, errors)
+   RoleRemovalRequested.run_filter(items, user) -> (filtered_items, errors)
 
-``items`` contains the authorization data being processed, and ``user`` is the authenticated Django user. The filter passes both values through the configured pipeline, then returns the filtered items and the errors produced by that pipeline. The caller continues its existing response or write logic with those values. If no pipeline is configured, the filter returns the original items and an empty error list.
+``user`` is the authenticated Django user. Each filter passes its data and user through its independently configured pipeline. With no pipeline configured for that filter, it returns the original items and an empty error list.
+
+Each filter has a defined input shape and can be configured independently.
+
+The pipeline starts with an empty error list. Each step preserves errors from previous steps and appends its own.
 
 The public contract leaves rejection rules to each pipeline, which decides which items to keep and which errors to return. For example, a pipeline may receive validated role assignment data for two scopes, retain the available scope, and return an error for the rejected operation:
 
@@ -69,7 +83,7 @@ The view writes only the operations in ``filtered_items`` and returns ``errors``
 
 ``PermissionValidationMeView`` calls the filter after computing the permission results and before serializing the response. Because clients expect one result for every requested permission, the course-authoring pipeline keeps the item and changes ``allowed`` to ``False`` when its course scope is unavailable. An unscoped request remains unchanged because it does not provide a course for the pipeline to check.
 
-For example, the endpoint may receive this request:
+For a user subject to visibility filtering, a request to ``POST /validate/me/`` with an unavailable course scope:
 
 .. code-block:: json
 
@@ -80,7 +94,7 @@ For example, the endpoint may receive this request:
        }
    ]
 
-It then returns the following response:
+returns:
 
 .. code-block:: json
 
@@ -95,9 +109,11 @@ It then returns the following response:
 3. Role assignment writes
 ==========================
 
-``RoleUserAPIView.put`` and ``RoleUserAPIView.delete`` call the filter after request validation and before writing any assignment. The views iterate over the returned data, append the returned errors to any errors raised by the role assignment APIs, and use their existing ``207 Multi-Status`` response.
+``RoleUserAPIView.put`` and ``RoleUserAPIView.delete`` call their filters after request validation and before writing any assignment. The views process the returned data and combine pipeline errors with errors from the role assignment APIs in their existing ``207 Multi-Status`` response.
 
-For PUT, the course-authoring pipeline removes unavailable scopes and returns one error for each rejected user and scope pair. This allows a request that contains both available and unavailable scopes to complete the available operations, as shown in the following request:
+For PUT, the course-authoring pipeline excludes unavailable scopes and returns one error for each rejected user and scope pair, as shown in the contract example. The view can still assign roles in the remaining scopes.
+
+For example, ``PUT /roles/users/`` receives:
 
 .. code-block:: json
 
@@ -110,7 +126,7 @@ For PUT, the course-authoring pipeline removes unavailable scopes and returns on
        "users": ["jane"]
    }
 
-The available operation succeeds, while the rejected operation appears in ``errors``:
+If visibility filtering applies and the assignment in the available scope succeeds, the ``207 Multi-Status`` response is:
 
 .. code-block:: json
 
@@ -131,39 +147,64 @@ The available operation succeeds, while the rejected operation appears in ``erro
        ]
    }
 
-DELETE accepts one scope, so the pipeline removes all users when that scope is unavailable and returns one error for each rejected user. For example, ``DELETE /roles/users/?role=course_staff&scope=course-v1%3AOrg1%2BHIDDEN101%2B2024&users=jane`` produces the same error entry as the PUT example and does not call the role removal API.
+For DELETE, the pipeline returns an empty ``users`` list when the scope is unavailable and an error for each requested user, so the view performs no removals.
+
+For example, ``DELETE /roles/users/?role=course_staff&scope=course-v1%3AOrg1%2BHIDDEN101%2B2024&users=jane`` returns the following ``207 Multi-Status`` response when visibility filtering applies:
+
+.. code-block:: json
+
+   {
+       "completed": [],
+       "errors": [
+           {
+               "user_identifier": "jane",
+               "scope": "course-v1:Org1+HIDDEN101+2024",
+               "error": "scope_not_available"
+           }
+       ]
+   }
 
 4. Course-authoring pipeline
 ============================
 
-The course-authoring implementation lives in ``openedx_authz/rest_api/v1/course_authoring/pipeline.py``. A deployment enables it by registering its pipeline step under the public filter type in ``OPEN_EDX_FILTERS_CONFIG``:
+The course-authoring implementation lives in ``openedx_authz/rest_api/v1/course_authoring/pipeline.py``. Each operation has a separate pipeline step; the steps share visibility checks and error handling.
+
+A deployment enables each operation independently in ``OPEN_EDX_FILTERS_CONFIG``:
 
 .. code-block:: python
 
    OPEN_EDX_FILTERS_CONFIG = {
-       "org.openedx.authz.authorization_data.requested.v1": {
+       "org.openedx.authz.permission_validation.requested.v1": {
            "pipeline": [
-               "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+               "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringPermissionValidationFilter",
+           ],
+           "fail_silently": False,
+       },
+       "org.openedx.authz.role_assignment.requested.v1": {
+           "pipeline": [
+               "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleAssignmentFilter",
+           ],
+           "fail_silently": False,
+       },
+       "org.openedx.authz.role_removal.requested.v1": {
+           "pipeline": [
+               "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleRemovalFilter",
            ],
            "fail_silently": False,
        },
    }
 
-This setting is typically added to edx-platform through a Tutor plugin patch. Without this entry, ``AuthorizationDataRequested`` returns the original data and an empty error list, so the endpoints keep their default behavior.
+This setting is typically added to edx-platform through a Tutor plugin patch. An operation without a configured pipeline retains its default behavior.
 
 Once configured, the pipeline reads the effective ``authz.enable_course_authoring`` state for each course scope. It leaves library scopes available, while Django staff and superusers bypass the flag check.
 
 Consequences
 ************
 
-#. Shared views depend on the filter contract, while the pipeline owns the course-authoring rule.
-#. PUT and DELETE reject unavailable scopes before calling the role assignment APIs.
-#. ``PermissionValidationMeView`` reports an unavailable scoped permission with ``allowed`` set to ``false``.
-#. Collection endpoints continue to return Casbin data, and the Admin Console filters their responses using the flag-state endpoint.
-#. PUT may complete visible scope operations and report unavailable scopes in the same ``207 Multi-Status`` response.
-#. Pipeline errors are part of the filter output, but their values are defined by each pipeline.
-#. ``openedx-filters`` becomes a runtime dependency of this repository.
-#. The pipeline can be removed with the course-authoring flag, while the public filter remains available for other authorization rules.
+* Deployments must configure three filters to apply visibility rules to all three operations. Each operation can also be configured independently.
+* Permission filtering happens after authorization checks, so it does not avoid the work of computing results that the pipeline later denies. Role changes are filtered before writes.
+* ``openedx-filters`` becomes a runtime dependency of this repository.
+* The course-authoring implementation can be removed with the flag while the public filters remain available for other authorization rules.
 
 Alternatives Considered
 ***********************
@@ -181,7 +222,7 @@ Frontend checks control the Admin Console, but stale clients and direct API requ
 Filter collection responses in the API
 ======================================
 
-The Admin Console already filters these responses using the exposed flag states. Extending the backend filter to collection endpoints would add work to a temporary implementation and could change pagination and count behavior.
+The Admin Console already filters these responses using the exposed flag states. Backend collection filtering would also need to account for pagination and counts. This proposal is limited to permission validation and role changes.
 
 Return a flag-specific response from the view
 =============================================

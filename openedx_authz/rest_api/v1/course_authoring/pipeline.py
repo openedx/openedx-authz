@@ -10,7 +10,8 @@ patch. Deleting this file and the patch that registers it removes the mechanism 
 endpoint code depends on it existing.
 """
 
-from django.contrib.auth.models import AbstractBaseUser
+from collections.abc import Iterable
+
 from openedx_filters.filters import PipelineStep
 
 from openedx_authz import api
@@ -32,7 +33,7 @@ except ImportError:
     AUTHZ_COURSE_AUTHORING_FLAG = None
 
 
-def _is_scope_visible(scope: api.ScopeData) -> bool:
+def is_scope_visible(scope: api.ScopeData) -> bool:
     """Return whether a scope is visible under the course-authoring flag.
 
     - Library and other non-course scopes (e.g. 'lib:DemoX:CSPROB'): always visible.
@@ -66,82 +67,168 @@ def _is_scope_visible(scope: api.ScopeData) -> bool:
 class CourseAuthoringVisibilityFilter(PipelineStep):
     """Applies course-authoring visibility to items from ``AuthorizationDataRequested``.
 
-    Every item carries a ``scope``. What happens when that scope is hidden depends on the
-    item's own shape, not on which endpoint sent it:
+    Permission results have an optional ``scope``. Role assignments have ``scopes``,
+    and role removals have one ``scope``. Hidden scopes affect each kind of data differently:
 
-    - ``scope`` is ``None`` (an any-scope check): left untouched. There's no single scope
+    - ``scope`` is absent or ``None`` (an any-scope check): left untouched. There's no single scope
       to check visibility against, and no candidate list is provided.
-    - The item has an ``allowed`` key: kept, with ``allowed`` set to ``False`` if hidden.
-      Preserves 1:1 correspondence for endpoints like ``PermissionValidationMeView`` that
-      must return exactly one result per request.
-
-    Staff and superusers see everything, regardless of the flag's state.
+    - Permission results are kept, with ``allowed`` set to ``False`` for hidden scopes.
+    - Role assignments and removals exclude hidden scopes or users and return an error for each
+      affected user/scope pair.
     """
 
     def run_filter(  # pylint: disable=arguments-differ
         self,
         items: AuthorizationData,
-        user: AbstractBaseUser,
         **kwargs,
     ) -> dict:
-        """Apply course-authoring visibility to each item, per its own shape.
+        """Apply course-authoring visibility to permission results or role changes.
 
         Args:
-            items (AuthorizationData): scope-bearing response items or validated
-                role-operation data.
-            user: the authenticated Django user requesting the data.
+            items (AuthorizationData): Permission results or validated role assignment
+                or removal data, passed under the pipeline's ``items`` keyword.
+                Supported shapes include:
+
+                - Permission results, with a concrete scope or no ``scope`` for an
+                  any-scope check::
+
+                      [
+                          {
+                              "action": "courses.manage_course_team",
+                              "scope": "course-v1:DemoX+CS101+2024",
+                              "allowed": true
+                          },
+                          {
+                              "action": "courses.manage_course_team",
+                              "allowed": true
+                          }
+                      ]
+
+                - Validated role assignments, with a list of scopes::
+
+                      {
+                          "role": "<role identifier>",
+                          "users": [
+                              "alice"
+                          ],
+                          "scopes": [
+                              "course-v1:DemoX+CS101+2024",
+                              "course-v1:DemoX+*"
+                          ]
+                      }
+
+                - Validated role removals, with a single scope::
+
+                      {
+                          "role": "<role identifier>",
+                          "users": [
+                              "alice"
+                          ],
+                          "scope": "course-v1:DemoX+CS101+2024"
+                      }
+
+            **kwargs: Additional pipeline arguments, unused by this step.
 
         Returns:
-            dict: the modified ``items`` and unchanged requesting ``user``.
+            dict: Filtered ``items`` in the original shape, plus ``errors`` for role changes.
         """
-        if user.is_staff or user.is_superuser:
-            return {"items": items, "user": user}
-
         if isinstance(items, dict):
-            return {**self._filter_role_operations(items), "user": user}
-
-        result = []
-        for item in items:
-            scope = item.get("scope")
-            if scope is None or _is_scope_visible(api.ScopeData(external_key=scope)):
-                result.append(item)
-            elif "allowed" in item:
-                result.append({**item, "allowed": False})
-            else:
-                result.append(item)
-        return {"items": result, "user": user}
+            if "scopes" in items:
+                return self._filter_role_assignments(items)
+            return self._filter_role_removals(items)
+        return self._filter_permission_results(items)
 
     @staticmethod
-    def _filter_role_operations(items: dict) -> dict:
-        """Remove unavailable role operations and return their response errors."""
-        result = {**items}
-        errors = []
-        users = items["users"]
+    def _hidden_scopes(scopes: Iterable[str | None]) -> set[str]:
+        """Find scopes hidden by the course-authoring flag.
 
-        if "scopes" in items:
-            available_scopes = []
-            for scope in items["scopes"]:
-                if _is_scope_visible(api.ScopeData(external_key=scope)):
-                    available_scopes.append(scope)
-                else:
-                    errors.extend(
-                        {
-                            "user_identifier": user_identifier,
-                            "scope": scope,
-                            "error": SCOPE_NOT_AVAILABLE_ERROR,
-                        }
-                        for user_identifier in users
-                    )
-            result["scopes"] = available_scopes
-        elif not _is_scope_visible(api.ScopeData(external_key=items["scope"])):
-            errors.extend(
-                {
-                    "user_identifier": user_identifier,
-                    "scope": items["scope"],
-                    "error": SCOPE_NOT_AVAILABLE_ERROR,
-                }
-                for user_identifier in users
-            )
-            result["users"] = []
+        Args:
+            scopes (Iterable[str | None]): External scope keys. None represents an
+                any-scope check and is skipped.
 
-        return {"items": result, "errors": errors}
+        Returns:
+            set[str]: Scope keys hidden by the flag.
+        """
+        return {
+            scope
+            for scope in scopes
+            if scope and not is_scope_visible(api.ScopeData(external_key=scope))
+        }
+
+    def _filter_permission_results(self, permission_results: list[dict]) -> dict:
+        """Keep every permission result, denying those whose scopes are hidden.
+
+        Args:
+            permission_results (list[dict]): Permission checks with required ``allowed`` and an
+                optional ``scope``. Other fields, such as ``action``, are preserved.
+
+        Returns:
+            dict: ``items`` containing all results in order, with ``allowed=False``
+                for hidden scopes. Any-scope results are unchanged.
+        """
+        hidden = self._hidden_scopes(result.get("scope") for result in permission_results)
+        return {
+            "items": [
+                {**result, "allowed": False} if result.get("scope") in hidden else result
+                for result in permission_results
+            ]
+        }
+
+    def _filter_role_assignments(self, assignment_data: dict) -> dict:
+        """Exclude hidden scopes from the assignment batch.
+
+        Args:
+            assignment_data (dict): Validated ``role``, ``users`` (usernames or emails),
+                and ``scopes`` (external scope keys) for a role assignment batch.
+
+        Returns:
+            dict: ``items`` with only visible ``scopes``, in order, and ``errors`` for
+                each hidden scope/user pair.
+        """
+        scopes = assignment_data["scopes"]
+        hidden = self._hidden_scopes(scopes)
+        return {
+            "items": {**assignment_data, "scopes": [scope for scope in scopes if scope not in hidden]},
+            "errors": self._role_change_errors(
+                assignment_data["users"], (scope for scope in scopes if scope in hidden)
+            ),
+        }
+
+    def _filter_role_removals(self, removal_data: dict) -> dict:
+        """Skip all removals when the batch's single scope is hidden.
+
+        Args:
+            removal_data (dict): Validated ``role``, ``users`` (usernames or emails),
+                and one ``scope`` (an external scope key) for a role removal batch.
+
+        Returns:
+            dict: ``items`` with ``users`` cleared if the scope is hidden, and ``errors``
+                for each affected user. Otherwise, unchanged data and no errors.
+        """
+        hidden = self._hidden_scopes([removal_data["scope"]])
+        return {
+            "items": {**removal_data, "users": [] if hidden else removal_data["users"]},
+            "errors": self._role_change_errors(removal_data["users"], hidden),
+        }
+
+    @staticmethod
+    def _role_change_errors(user_identifiers: list[str], hidden_scopes: Iterable[str]) -> list[dict]:
+        """Build one error per affected user/scope pair.
+
+        Args:
+            user_identifiers (list[str]): Usernames or email addresses from the batch.
+            hidden_scopes (Iterable[str]): Hidden external scope keys, in error order.
+
+        Returns:
+            list[dict]: Errors containing ``user_identifier``, ``scope``, and
+                ``error="scope_not_available"``, ordered by scope then user as supplied.
+        """
+        return [
+            {
+                "user_identifier": user_identifier,
+                "scope": scope,
+                "error": SCOPE_NOT_AVAILABLE_ERROR,
+            }
+            for scope in hidden_scopes
+            for user_identifier in user_identifiers
+        ]

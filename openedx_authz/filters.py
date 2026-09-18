@@ -53,7 +53,7 @@ class AuthorizationDataRequested(OpenEdxPublicFilter):
 
     @classmethod
     def run_filter(
-        cls, items: AuthorizationData, user: AbstractBaseUser
+        cls, items: AuthorizationData
     ) -> tuple[AuthorizationData, list[dict[str, Any]]]:
         """
         Run the pipeline configured for this filter.
@@ -61,12 +61,10 @@ class AuthorizationDataRequested(OpenEdxPublicFilter):
         Args:
             items (AuthorizationData): scope-bearing response items or validated
                 role-operation data.
-            user (AbstractBaseUser): the authenticated user requesting the data,
-                available to any pipeline step that needs to make a per-user decision.
 
         Returns:
             tuple[AuthorizationData, list[dict]]: modified data and errors supplied
                 by the configured pipeline.
         """
-        data = super().run_pipeline(items=items, user=user)
+        data = super().run_pipeline(items=items)
         return data["items"], data.get("errors", [])

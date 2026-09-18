@@ -13,7 +13,7 @@ from ddt import data, ddt, unpack
 from django.test import TestCase
 
 from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, OrgCourseOverviewGlobData
-from openedx_authz.rest_api.v1.course_authoring.pipeline import CourseAuthoringVisibilityFilter, _is_scope_visible
+from openedx_authz.rest_api.v1.course_authoring.pipeline import CourseAuthoringVisibilityFilter, is_scope_visible
 
 COURSE_SCOPE = "course-v1:Org1+COURSE1+2024"
 OTHER_COURSE_SCOPE = "course-v1:Org1+COURSE2+2024"
@@ -39,7 +39,7 @@ class CourseWaffleFlagMock:
 
 @ddt
 class TestIsScopeVisible(TestCase):
-    """Test _is_scope_visible, dispatching to the right override tier depending on the scope's type."""
+    """Test is_scope_visible, dispatching to the right override tier depending on the scope's type."""
 
     @data(
         (False, None, None, False),
@@ -53,7 +53,7 @@ class TestIsScopeVisible(TestCase):
     def test_course_scope_follows_the_truth_table(
         self, platform: bool, org_override: bool | None, course_override: bool | None, expected: bool
     ):
-        """Test _is_scope_visible for a concrete course scope against override combinations.
+        """Test is_scope_visible for a concrete course scope against override combinations.
 
         Expected result:
             - The scope is visible exactly when course override wins, else org
@@ -63,10 +63,10 @@ class TestIsScopeVisible(TestCase):
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
             CourseWaffleFlagMock(platform, org_override, course_override),
         ):
-            self.assertEqual(_is_scope_visible(CourseOverviewData(external_key=COURSE_SCOPE)), expected)
+            self.assertEqual(is_scope_visible(CourseOverviewData(external_key=COURSE_SCOPE)), expected)
 
     def test_library_scope_is_always_visible_regardless_of_the_flag(self):
-        """Test _is_scope_visible for a library scope.
+        """Test is_scope_visible for a library scope.
 
         Expected result:
             - The scope is always visible, since it isn't course-authoring-gated.
@@ -74,7 +74,7 @@ class TestIsScopeVisible(TestCase):
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
         ):
-            self.assertTrue(_is_scope_visible(ContentLibraryData(external_key=LIB_SCOPE)))
+            self.assertTrue(is_scope_visible(ContentLibraryData(external_key=LIB_SCOPE)))
 
     @data(
         ("on", False, True),
@@ -85,7 +85,7 @@ class TestIsScopeVisible(TestCase):
     def test_org_glob_scope_org_override_takes_precedence(
         self, override_choice: str, platform_default: bool, expected: bool
     ):
-        """Test _is_scope_visible for an org-glob scope against org/platform combinations.
+        """Test is_scope_visible for an org-glob scope against org/platform combinations.
 
         Expected result:
             - The scope follows the org override when set, else the platform default.
@@ -105,7 +105,7 @@ class TestIsScopeVisible(TestCase):
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
             return_value=platform_default,
         ):
-            self.assertEqual(_is_scope_visible(scope), expected)
+            self.assertEqual(is_scope_visible(scope), expected)
 
 
 class TestCourseAuthoringVisibilityFilter(TestCase):

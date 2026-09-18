@@ -6,14 +6,19 @@ in this repo's standalone test suite. ``CourseWaffleFlagMock`` stands in for
 it, so the truth table can still be exercised end to end.
 """
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from ddt import data, ddt, unpack
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from openedx_authz.api.data import ContentLibraryData, CourseOverviewData, OrgCourseOverviewGlobData
-from openedx_authz.rest_api.v1.course_authoring.pipeline import CourseAuthoringVisibilityFilter, is_scope_visible
+from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
+from openedx_authz.rest_api.v1.course_authoring.pipeline import (
+    CourseAuthoringPermissionValidationFilter,
+    CourseAuthoringRoleAssignmentFilter,
+    CourseAuthoringRoleRemovalFilter,
+    is_scope_visible,
+)
 
 COURSE_SCOPE = "course-v1:Org1+COURSE1+2024"
 OTHER_COURSE_SCOPE = "course-v1:Org1+COURSE2+2024"
@@ -108,27 +113,9 @@ class TestIsScopeVisible(TestCase):
             self.assertEqual(is_scope_visible(scope), expected)
 
 
-class TestCourseAuthoringVisibilityFilter(TestCase):
-    """Test CourseAuthoringVisibilityFilter, the pipeline step for AuthorizationDataRequested."""
-
-    regular_user = SimpleNamespace(is_staff=False, is_superuser=False)
-    staff_user = SimpleNamespace(is_staff=True, is_superuser=False)
-
-    def test_staff_or_superuser_bypasses_visibility(self):
-        """Test run_filter for a staff/superuser with a hidden course scope.
-
-        Expected result:
-            - Every item survives, regardless of the flag's state.
-        """
-        items = [{"scope": COURSE_SCOPE}]
-        with patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
-        ):
-            result = CourseAuthoringVisibilityFilter(
-                filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, user=self.staff_user)
-
-        self.assertEqual(result, {"items": items, "user": self.staff_user})
+@ddt
+class TestCourseAuthoringPermissionValidationFilter(TestCase):
+    """Test operation-specific course-authoring visibility steps."""
 
     def test_marks_allowed_false_instead_of_dropping_when_the_item_has_an_allowed_key(self):
         """Test run_filter with an item that carries an ``allowed`` key, mirroring PermissionValidationMeView.
@@ -140,13 +127,15 @@ class TestCourseAuthoringVisibilityFilter(TestCase):
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
         ):
-            result = CourseAuthoringVisibilityFilter(
+            result = CourseAuthoringPermissionValidationFilter(
                 filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, user=self.regular_user)
+            ).run_filter(
+                items=items, errors=[]
+            )
 
         self.assertEqual(
             result,
-            {"items": [{"scope": COURSE_SCOPE, "action": "view", "allowed": False}], "user": self.regular_user},
+            {"items": [{"scope": COURSE_SCOPE, "action": "view", "allowed": False}], "errors": []},
         )
 
     def test_leaves_any_scope_items_untouched(self):
@@ -155,12 +144,66 @@ class TestCourseAuthoringVisibilityFilter(TestCase):
         Expected result:
             - The item survives unchanged; there's no single scope to check visibility against.
         """
-        items = [{"scope": None, "action": "view", "allowed": True}]
+        items = [
+            {"scope": None, "action": "view", "allowed": True},
+            {"action": "view", "allowed": True},
+            {"scope": "", "action": "view", "allowed": True},
+        ]
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
         ):
-            result = CourseAuthoringVisibilityFilter(
+            result = CourseAuthoringPermissionValidationFilter(
                 filter_type="test", running_pipeline=[]
-            ).run_filter(items=items, user=self.regular_user)
+            ).run_filter(
+                items=items, errors=[]
+            )
 
-        self.assertEqual(result, {"items": items, "user": self.regular_user})
+        self.assertEqual(result, {"items": items, "errors": []})
+
+    def test_assignment_keeps_visible_scopes_and_preserves_previous_errors(self):
+        """Partial rejection keeps available writes and earlier pipeline errors."""
+        items = {"role": "course_staff", "users": ["alice", "bob"], "scopes": [COURSE_SCOPE, LIB_SCOPE]}
+        previous_errors = [{"error": "previous_step"}]
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
+        ):
+            result = CourseAuthoringRoleAssignmentFilter(filter_type="test", running_pipeline=[]).run_filter(
+                items=items, errors=previous_errors
+            )
+
+        self.assertEqual(result["items"], {**items, "scopes": [LIB_SCOPE]})
+        self.assertEqual(result["errors"], [
+            {"error": "previous_step"},
+            {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+            {"user_identifier": "bob", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+        ])
+        self.assertEqual(previous_errors, [{"error": "previous_step"}])
+        self.assertEqual(items["scopes"], [COURSE_SCOPE, LIB_SCOPE])
+
+    def test_removal_preserves_extra_fields(self):
+        """Additional metadata must not turn a removal into an assignment."""
+        items = {"role": "course_staff", "users": ["alice"], "scope": COURSE_SCOPE, "scopes": [LIB_SCOPE]}
+        with patch(
+            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
+        ):
+            result = CourseAuthoringRoleRemovalFilter(filter_type="test", running_pipeline=[]).run_filter(
+                items=items, errors=[]
+            )
+
+        self.assertEqual(result["items"], {**items, "users": []})
+        self.assertEqual(result["errors"], [
+            {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+        ])
+
+    @data(
+        (PermissionValidationRequested, [{"action": "view", "allowed": True}]),
+        (RoleAssignmentRequested, {"role": "course_staff", "users": ["alice"], "scopes": [COURSE_SCOPE]}),
+        (RoleRemovalRequested, {"role": "course_staff", "users": ["alice"], "scope": COURSE_SCOPE}),
+    )
+    @unpack
+    @override_settings(OPEN_EDX_FILTERS_CONFIG={})
+    def test_unconfigured_hook_returns_original_data(self, filter_class, items):
+        """Each public hook passes through its payload when no pipeline is configured."""
+        filtered, errors = filter_class.run_filter(items=items)
+        self.assertEqual(filtered, items)
+        self.assertEqual(errors, [])

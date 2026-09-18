@@ -1,9 +1,9 @@
 """
-Pipeline step implementing course-authoring visibility for ``AuthorizationDataRequested``.
+Pipeline steps implementing course-authoring visibility for REST authorization filters.
 
 This is the isolated, opt-in implementation of the exception documented in
 ``docs/decisions/0016-rest-api-domain-ownership-boundary.rst`` and
-``docs/decisions/0018-cross-domain-filtering-via-openedx-filters.rst``. It's the only place in
+``docs/decisions/0017-cross-domain-filtering-via-openedx-filters.rst``. It's the only place in
 openedx_authz that computes course-authoring-flag visibility, and it's never registered unless a
 deployment's ``OPEN_EDX_FILTERS_CONFIG`` explicitly wires it in, typically via a Tutor plugin
 patch. Deleting this file and the patch that registers it removes the mechanism entirely; no
@@ -11,11 +11,17 @@ endpoint code depends on it existing.
 """
 
 from collections.abc import Iterable
+from typing import Generic
 
 from openedx_filters.filters import PipelineStep
 
 from openedx_authz import api
-from openedx_authz.filters import AuthorizationData
+from openedx_authz.filters import (
+    AuthorizationItems,
+    RoleAssignmentItems,
+    RoleRemovalItems,
+    ValidationItem,
+)
 
 SCOPE_NOT_AVAILABLE_ERROR = "scope_not_available"
 
@@ -34,7 +40,8 @@ except ImportError:
 
 
 def is_scope_visible(scope: api.ScopeData) -> bool:
-    """Return whether a scope is visible under the course-authoring flag.
+    """
+    Return whether a scope is visible under the course-authoring flag.
 
     - Library and other non-course scopes (e.g. 'lib:DemoX:CSPROB'): always visible.
     - Concrete course (e.g. 'course-v1:DemoX+CS101+2024'): full course/org/platform
@@ -64,87 +71,53 @@ def is_scope_visible(scope: api.ScopeData) -> bool:
     return enable_authz_course_authoring()
 
 
-class CourseAuthoringVisibilityFilter(PipelineStep):
-    """Applies course-authoring visibility to items from ``AuthorizationDataRequested``.
-
-    Permission results have an optional ``scope``. Role assignments have ``scopes``,
-    and role removals have one ``scope``. Hidden scopes affect each kind of data differently:
-
-    - ``scope`` is absent or ``None`` (an any-scope check): left untouched. There's no single scope
-      to check visibility against, and no candidate list is provided.
-    - Permission results are kept, with ``allowed`` set to ``False`` for hidden scopes.
-    - Role assignments and removals exclude hidden scopes or users and return an error for each
-      affected user/scope pair.
-    """
+class CourseAuthoringVisibilityFilter(PipelineStep, Generic[AuthorizationItems]):
+    """Share scope visibility and error accumulation across operations."""
 
     def run_filter(  # pylint: disable=arguments-differ
         self,
-        items: AuthorizationData,
+        items: AuthorizationItems,
+        errors: list[dict],
         **kwargs,
     ) -> dict:
-        """Apply course-authoring visibility to permission results or role changes.
+        """
+        Apply the subclass's transformation and preserve earlier pipeline errors.
 
         Args:
-            items (AuthorizationData): Permission results or validated role assignment
-                or removal data, passed under the pipeline's ``items`` keyword.
-                Supported shapes include:
-
-                - Permission results, with a concrete scope or no ``scope`` for an
-                  any-scope check::
-
-                      [
-                          {
-                              "action": "courses.manage_course_team",
-                              "scope": "course-v1:DemoX+CS101+2024",
-                              "allowed": true
-                          },
-                          {
-                              "action": "courses.manage_course_team",
-                              "allowed": true
-                          }
-                      ]
-
-                - Validated role assignments, with a list of scopes::
-
-                      {
-                          "role": "<role identifier>",
-                          "users": [
-                              "alice"
-                          ],
-                          "scopes": [
-                              "course-v1:DemoX+CS101+2024",
-                              "course-v1:DemoX+*"
-                          ]
-                      }
-
-                - Validated role removals, with a single scope::
-
-                      {
-                          "role": "<role identifier>",
-                          "users": [
-                              "alice"
-                          ],
-                          "scope": "course-v1:DemoX+CS101+2024"
-                      }
-
+            items (AuthorizationItems): Operation-specific input documented by the subclass.
+            errors (list[dict]): Errors from earlier steps, preserved before new errors.
             **kwargs: Additional pipeline arguments, unused by this step.
 
         Returns:
-            dict: Filtered ``items`` in the original shape, plus ``errors`` for role changes.
+            dict: Filtered ``items`` in the original shape and accumulated ``errors``.
         """
-        if isinstance(items, dict):
-            if "scopes" in items:
-                return self._filter_role_assignments(items)
-            return self._filter_role_removals(items)
-        return self._filter_permission_results(items)
+        filtered_items, new_errors = self._filter_items(items)
+        return {"items": filtered_items, "errors": [*errors, *new_errors]}
+
+    def _filter_items(self, items: AuthorizationItems) -> tuple[AuthorizationItems, list[dict]]:
+        """
+        Define the transformation implemented by each operation-specific step.
+
+        Args:
+            items (AuthorizationItems): The operation's input data.
+
+        Returns:
+            tuple[AuthorizationItems, list[dict]]: Transformed items in the original
+                shape and errors produced by this step, excluding earlier errors.
+
+        Raises:
+            NotImplementedError: The subclass has not implemented its transformation.
+        """
+        raise NotImplementedError("Subclasses must implement their operation's transformation.")
 
     @staticmethod
     def _hidden_scopes(scopes: Iterable[str | None]) -> set[str]:
-        """Find scopes hidden by the course-authoring flag.
+        """
+        Find scopes hidden by the course-authoring flag.
 
         Args:
-            scopes (Iterable[str | None]): External scope keys. None represents an
-                any-scope check and is skipped.
+            scopes (Iterable[str | None]): External scope keys. None and empty strings
+                represent any-scope checks and are skipped.
 
         Returns:
             set[str]: Scope keys hidden by the flag.
@@ -155,65 +128,10 @@ class CourseAuthoringVisibilityFilter(PipelineStep):
             if scope and not is_scope_visible(api.ScopeData(external_key=scope))
         }
 
-    def _filter_permission_results(self, permission_results: list[dict]) -> dict:
-        """Keep every permission result, denying those whose scopes are hidden.
-
-        Args:
-            permission_results (list[dict]): Permission checks with required ``allowed`` and an
-                optional ``scope``. Other fields, such as ``action``, are preserved.
-
-        Returns:
-            dict: ``items`` containing all results in order, with ``allowed=False``
-                for hidden scopes. Any-scope results are unchanged.
-        """
-        hidden = self._hidden_scopes(result.get("scope") for result in permission_results)
-        return {
-            "items": [
-                {**result, "allowed": False} if result.get("scope") in hidden else result
-                for result in permission_results
-            ]
-        }
-
-    def _filter_role_assignments(self, assignment_data: dict) -> dict:
-        """Exclude hidden scopes from the assignment batch.
-
-        Args:
-            assignment_data (dict): Validated ``role``, ``users`` (usernames or emails),
-                and ``scopes`` (external scope keys) for a role assignment batch.
-
-        Returns:
-            dict: ``items`` with only visible ``scopes``, in order, and ``errors`` for
-                each hidden scope/user pair.
-        """
-        scopes = assignment_data["scopes"]
-        hidden = self._hidden_scopes(scopes)
-        return {
-            "items": {**assignment_data, "scopes": [scope for scope in scopes if scope not in hidden]},
-            "errors": self._role_change_errors(
-                assignment_data["users"], (scope for scope in scopes if scope in hidden)
-            ),
-        }
-
-    def _filter_role_removals(self, removal_data: dict) -> dict:
-        """Skip all removals when the batch's single scope is hidden.
-
-        Args:
-            removal_data (dict): Validated ``role``, ``users`` (usernames or emails),
-                and one ``scope`` (an external scope key) for a role removal batch.
-
-        Returns:
-            dict: ``items`` with ``users`` cleared if the scope is hidden, and ``errors``
-                for each affected user. Otherwise, unchanged data and no errors.
-        """
-        hidden = self._hidden_scopes([removal_data["scope"]])
-        return {
-            "items": {**removal_data, "users": [] if hidden else removal_data["users"]},
-            "errors": self._role_change_errors(removal_data["users"], hidden),
-        }
-
     @staticmethod
     def _role_change_errors(user_identifiers: list[str], hidden_scopes: Iterable[str]) -> list[dict]:
-        """Build one error per affected user/scope pair.
+        """
+        Build one error per affected user/scope pair.
 
         Args:
             user_identifiers (list[str]): Usernames or email addresses from the batch.
@@ -232,3 +150,113 @@ class CourseAuthoringVisibilityFilter(PipelineStep):
             for scope in hidden_scopes
             for user_identifier in user_identifiers
         ]
+
+
+class CourseAuthoringPermissionValidationFilter(CourseAuthoringVisibilityFilter[list[ValidationItem]]):
+    """
+    Deny permission results whose scopes are hidden, retaining every result.
+
+    Input ``items`` contains computed permission results::
+
+        [
+            {
+                "action": "courses.manage_course_team",
+                "scope": "course-v1:DemoX+CS101+2024",
+                "allowed": True,
+            },
+            {"action": "courses.manage_course_team", "allowed": True},
+        ]
+
+    An absent, None, or empty ``scope`` represents an any-scope check and remains
+    unchanged. Hidden scopes receive ``allowed=False``; other fields are preserved.
+    """
+
+    def _filter_items(self, items: list[ValidationItem]) -> tuple[list[ValidationItem], list[dict]]:
+        """
+        Set hidden-scope permission results to disallowed without dropping items.
+
+        Args:
+            items (list[ValidationItem]): Computed results with ``action``, ``allowed``,
+                and an optional ``scope``; see the class docstring for an input example.
+
+        Returns:
+            tuple[list[ValidationItem], list[dict]]: Results in their original order,
+                with ``allowed=False`` for hidden scopes, and an empty error list.
+                Any-scope results and other fields remain unchanged.
+        """
+        hidden = self._hidden_scopes(item.get("scope") for item in items)
+        filtered: list[ValidationItem] = [
+            {**item, "allowed": False} if item.get("scope") in hidden else item
+            for item in items
+        ]
+        return filtered, []
+
+
+class CourseAuthoringRoleAssignmentFilter(CourseAuthoringVisibilityFilter[RoleAssignmentItems]):
+    """
+    Exclude hidden scopes from validated assignment data before writes.
+
+    Input ``items`` contains a role, user identifiers, and one or more scopes::
+
+        {
+            "role": "course_staff",
+            "users": ["alice"],
+            "scopes": ["course-v1:DemoX+CS101+2024", "course-v1:DemoX+*"],
+        }
+
+    Visible scopes remain in their original order. Each rejected user/scope pair
+    produces a ``scope_not_available`` error.
+    """
+
+    def _filter_items(self, items: RoleAssignmentItems) -> tuple[RoleAssignmentItems, list[dict]]:
+        """
+        Remove hidden scopes from an assignment batch and report affected users.
+
+        Args:
+            items (RoleAssignmentItems): Validated ``role``, ``users`` (usernames or
+                emails), and ``scopes``; see the class docstring for an input example.
+
+        Returns:
+            tuple[RoleAssignmentItems, list[dict]]: Assignment data containing only
+                visible scopes, in order, and one ``scope_not_available`` error for
+                each rejected user/scope pair.
+        """
+        scopes = items["scopes"]
+        hidden = self._hidden_scopes(scopes)
+        filtered: RoleAssignmentItems = {**items, "scopes": [scope for scope in scopes if scope not in hidden]}
+        errors = self._role_change_errors(items["users"], (scope for scope in scopes if scope in hidden))
+        return filtered, errors
+
+
+class CourseAuthoringRoleRemovalFilter(CourseAuthoringVisibilityFilter[RoleRemovalItems]):
+    """
+    Exclude users from validated removal data when its scope is hidden.
+
+    Input ``items`` contains a role, user identifiers, and a single scope::
+
+        {
+            "role": "course_staff",
+            "users": ["alice"],
+            "scope": "course-v1:DemoX+CS101+2024",
+        }
+
+    A hidden scope clears ``users`` and produces a ``scope_not_available`` error
+    for each affected user. Visible scopes leave the data unchanged.
+    """
+
+    def _filter_items(self, items: RoleRemovalItems) -> tuple[RoleRemovalItems, list[dict]]:
+        """
+        Clear the removal batch's users when its scope is hidden.
+
+        Args:
+            items (RoleRemovalItems): Validated ``role``, ``users`` (usernames or
+                emails), and ``scope``; see the class docstring for an input example.
+
+        Returns:
+            tuple[RoleRemovalItems, list[dict]]: Removal data with ``users`` cleared
+                and one ``scope_not_available`` error per user if the scope is hidden.
+                Otherwise, returns unchanged data and no errors.
+        """
+        hidden = self._hidden_scopes([items["scope"]])
+        filtered: RoleRemovalItems = {**items, "users": [] if hidden else items["users"]}
+        return filtered, self._role_change_errors(items["users"], hidden)

@@ -384,9 +384,9 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
     @override_settings(
         OPEN_EDX_FILTERS_CONFIG={
-            "org.openedx.authz.authorization_data.requested.v1": {
+            "org.openedx.authz.permission_validation.requested.v1": {
                 "pipeline": [
-                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringPermissionValidationFilter",
                 ],
                 "fail_silently": False,
             },
@@ -864,9 +864,9 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @override_settings(
         OPEN_EDX_FILTERS_CONFIG={
-            "org.openedx.authz.authorization_data.requested.v1": {
+            "org.openedx.authz.role_assignment.requested.v1": {
                 "pipeline": [
-                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleAssignmentFilter",
                 ],
                 "fail_silently": False,
             },
@@ -1078,9 +1078,9 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @override_settings(
         OPEN_EDX_FILTERS_CONFIG={
-            "org.openedx.authz.authorization_data.requested.v1": {
+            "org.openedx.authz.role_removal.requested.v1": {
                 "pipeline": [
-                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringVisibilityFilter",
+                    "openedx_authz.rest_api.v1.course_authoring.pipeline.CourseAuthoringRoleRemovalFilter",
                 ],
                 "fail_silently": False,
             },

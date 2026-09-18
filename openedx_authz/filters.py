@@ -1,70 +1,109 @@
-"""
-Open edX Filters exposed by openedx_authz's REST API.
-"""
+"""Open edX Filters exposed by openedx_authz's REST API."""
 
-from typing import Any, TypedDict
+from typing import Any, Generic, TypedDict, TypeVar
 
-from django.contrib.auth.models import AbstractBaseUser
 from openedx_filters.tooling import OpenEdxPublicFilter
 
 
-class ScopedItem(TypedDict):
-    """
-    A scope-bearing item handled by an openedx_authz REST API endpoint.
-
-    Endpoints may include additional keys beyond ``scope`` (e.g. ``role``, ``org``,
-    or ``username``).
-    """
+class ScopedItem(TypedDict, total=False):
+    """Optional scope on a permission result; omission represents an any-scope check."""
 
     scope: str | None
 
 
-class ValidationItem(ScopedItem, total=False):
-    """A ``ScopedItem`` from a permission-validation response, which also carries ``allowed``."""
+class ValidationItem(ScopedItem):
+    """A permission result, including the action and its authorization outcome."""
 
+    action: str
     allowed: bool
 
 
-AuthorizationData = list[ScopedItem] | dict[str, Any]
+class RoleAssignmentItems(TypedDict):
+    """Validated input for assigning a role to users in one or more scopes."""
+
+    role: str
+    users: list[str]
+    scopes: list[str]
 
 
-class AuthorizationDataRequested(OpenEdxPublicFilter):
+class RoleRemovalItems(TypedDict):
+    """Validated input for removing a role from users in one scope."""
+
+    role: str
+    users: list[str]
+    scope: str
+
+
+AuthorizationItems = TypeVar("AuthorizationItems", list[ValidationItem], RoleAssignmentItems, RoleRemovalItems)
+
+
+class AuthorizationDataRequested(OpenEdxPublicFilter, Generic[AuthorizationItems]):
     """
-    Filter used to modify scope-bearing Authorization data handled by a REST API endpoint.
+    Shared pipeline plumbing for operation-specific REST authorization filters.
 
-    Purpose:
-        This filter is triggered when an openedx_authz REST API endpoint needs another
-        domain to modify a list of items that each carry a ``scope``. The items may be
-        response data or scopes about to be used by an operation. Unconfigured (no pipeline step
-        registered in ``OPEN_EDX_FILTERS_CONFIG``), every item stays as given; this filter
-        carries no assumption about why a pipeline step might change an item.
-
-    Filter Type:
-        org.openedx.authz.authorization_data.requested.v1
-
-    Trigger:
-        - Repository: openedx/openedx-authz
-        - Path: openedx_authz/rest_api/v1/views.py
-        - Function or Method: PermissionValidationMeView.post, RoleUserAPIView.put,
-          RoleUserAPIView.delete
+    Subclasses declare their payload type and filter identifier. Pipeline steps own
+    rejection rules and return data in the original shape, preserving earlier errors.
     """
-
-    filter_type = "org.openedx.authz.authorization_data.requested.v1"
 
     @classmethod
     def run_filter(
-        cls, items: AuthorizationData
-    ) -> tuple[AuthorizationData, list[dict[str, Any]]]:
+        cls, items: AuthorizationItems,
+    ) -> tuple[AuthorizationItems, list[dict[str, Any]]]:
         """
-        Run the pipeline configured for this filter.
+        Run the operation's configured pipeline with an initially empty error list.
 
         Args:
-            items (AuthorizationData): scope-bearing response items or validated
-                role-operation data.
-
+            items (AuthorizationItems): Computed permission results or validated role
+                change data, using the payload type declared by the subclass.
         Returns:
-            tuple[AuthorizationData, list[dict]]: modified data and errors supplied
-                by the configured pipeline.
+            tuple[AuthorizationItems, list[dict[str, Any]]]: Items in their original
+                shape and accumulated pipeline errors. Without a configured pipeline,
+                returns the original items and an empty error list.
         """
-        data = super().run_pipeline(items=items)
-        return data["items"], data.get("errors", [])
+        data = super().run_pipeline(items=items, errors=[])
+        return data["items"], data["errors"]
+
+
+class PermissionValidationRequested(AuthorizationDataRequested[list[ValidationItem]]):
+    """
+    Filter computed permission results before response serialization.
+
+    Each item contains ``action`` and ``allowed``, with an optional ``scope``.
+
+    Trigger:
+        ``PermissionValidationMeView.post``, after authorization checks and before
+        response serialization.
+
+    Filter Type:
+        org.openedx.authz.permission_validation.requested.v1
+    """
+
+    filter_type = "org.openedx.authz.permission_validation.requested.v1"
+
+
+class RoleAssignmentRequested(AuthorizationDataRequested[RoleAssignmentItems]):
+    """
+    Filter validated ``role``, ``users``, and ``scopes`` before assignment writes.
+
+    Trigger:
+        ``RoleUserAPIView.put``, after request validation and before assigning roles.
+
+    Filter Type:
+        org.openedx.authz.role_assignment.requested.v1
+    """
+
+    filter_type = "org.openedx.authz.role_assignment.requested.v1"
+
+
+class RoleRemovalRequested(AuthorizationDataRequested[RoleRemovalItems]):
+    """
+    Filter validated ``role``, ``users``, and ``scope`` before removal writes.
+
+    Trigger:
+        ``RoleUserAPIView.delete``, after request validation and before removing roles.
+
+    Filter Type:
+        org.openedx.authz.role_removal.requested.v1
+    """
+
+    filter_type = "org.openedx.authz.role_removal.requested.v1"

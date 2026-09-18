@@ -43,11 +43,11 @@ def is_scope_visible(scope: api.ScopeData) -> bool:
     """
     Return whether a scope is visible under the course-authoring flag.
 
-    - Library and other non-course scopes (e.g. 'lib:DemoX:CSPROB'): always visible.
-    - Concrete course (e.g. 'course-v1:DemoX+CS101+2024'): full course/org/platform
+    - Library and other non-course scopes (e.g. ``lib:DemoX:CSPROB``): always visible.
+    - Concrete course (e.g. ``course-v1:DemoX+CS101+2024``): full course/org/platform
       cascade via ``enable_authz_course_authoring(course_key)``.
-    - Org-level course glob (e.g. 'course-v1:DemoX+*'): org override, else platform default.
-    - Platform-level course glob ('course-v1:*'): platform tier only, no course or org.
+    - Org-level course glob (e.g. ``course-v1:DemoX+*``): org override, else platform default.
+    - Platform-level course glob (``course-v1:*``): platform tier only, no course or org.
 
     Args:
         scope (ScopeData): A resolved scope instance.

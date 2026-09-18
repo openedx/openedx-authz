@@ -189,20 +189,6 @@ References
 Glossary
 ********
 
-* **Action**: The operation attempted on a resource (e.g., view, edit, delete).
-* **Attribute**: Property of a user or resource used in ABAC (e.g., user.profile.department == course.org).
-* **Authorization check**: The explicit way a service asks whether an operation is allowed, always expressed in S-A-O-C form.
-* **Authorization models**: Frameworks or approaches that define how to express who can do what, on which resource, and under which conditions. Common models include RBAC, ABAC, and ReBAC.
-
-  * **RBAC (Role-Based Access Control)**: Authorization model where access is granted based on roles assigned to users.
-  * **Scoped RBAC**: A variant of RBAC where roles apply within a specific scope (e.g., organization, course, library).
-  * **ABAC (Attribute-Based Access Control)**: Authorization model where access is granted based on attributes of the subject, object, and context (e.g., user's organization, resource type, time of day).
-  * **ReBAC (Relationship-Based Access Control)**: Authorization model where access decisions are based on explicit relationships between subjects and objects, often modeled as a graph.
-
-* **Permission**: Atomic unit of access (e.g., ``CREATE_COURSE``, ``EDIT_ROLE``).
-* **Policy**: A declarative rule that defines which subjects can perform which actions on which objects under which context. Policies are stored outside of code, versioned, and auditable.
-* **Relationship**: Link between entities granting access in ReBAC (e.g., user:alice#editor@course:math101).
-* **Resource**: The object being accessed (e.g., Course).
-* **Role**: A collection of permissions assigned to a user (e.g., Instructor).
-* **S-A-O-C (Subject-Action-Object-Context)**: The canonical shape of any authorization check: *is Subject allowed to perform Action on Object under Context?*
-* **Scope**: The boundary where a role applies (e.g., Instructor in Course A, Admin in Org B).
+See the :doc:`central glossary </references/glossary>` for definitions of all terms used across
+these ADRs, including :term:`Action`, :term:`Policy`, :term:`Role`, :term:`Scope`,
+:term:`S-A-O-C`, :term:`RBAC`, :term:`ABAC`, and :term:`ReBAC`.

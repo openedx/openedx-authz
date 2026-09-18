@@ -1,0 +1,267 @@
+"""Unit tests for the ``load_authz_schema`` management command.
+
+The command is a thin wrapper over :class:`SchemaPipeline`. These tests mock the
+pipeline (and, where relevant, discovery) at the command module so the command's
+own logic — option handling, apply vs. dry-run branching, report formatting, and
+error translation to CommandError — is verified without a database.
+"""
+
+from io import StringIO
+from unittest import mock
+
+import pytest
+from django.core.management import call_command
+from django.core.management.base import CommandError
+
+from openedx_authz.engine.renderer import (
+    ApplyResult,
+    ChangePlan,
+    DefinitionDiff,
+    PolicyRow,
+)
+from openedx_authz.engine.schema.discovery import SchemaDiscoveryError
+from openedx_authz.engine.schema.exceptions import (
+    SchemaApplyError,
+    SchemaCompileError,
+    SchemaValidationError,
+)
+
+COMMAND = "load_authz_schema"
+PIPELINE_PATH = "openedx_authz.management.commands.load_authz_schema.SchemaPipeline"
+DISCOVERY_PATH = "openedx_authz.management.commands.load_authz_schema.SchemaDiscovery"
+
+
+def _run(*args):
+    """Invoke the command, capturing stdout; returns the printed text."""
+    out = StringIO()
+    call_command(COMMAND, *args, stdout=out)
+    return out.getvalue()
+
+
+class TestApplyMode:
+    """Cover the default (apply) mode of the command."""
+
+    def test_apply_reports_changes(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(added=3, removed=1, unchanged=False)
+            output = _run()
+
+        pipeline_cls.return_value.apply.assert_called_once_with(force=False)
+        assert "3 row(s) added, 1 removed" in output
+
+    def test_apply_reports_unchanged(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(added=0, removed=0, unchanged=True)
+            output = _run()
+
+        assert "unchanged" in output.lower()
+
+    def test_force_flag_is_forwarded(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
+            _run("--force")
+
+        pipeline_cls.return_value.apply.assert_called_once_with(force=True)
+
+
+class TestDryRunMode:
+    """Cover the --dry-run mode and its change report formatting."""
+
+    def test_dry_run_calls_plan_not_apply(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
+            _run("--dry-run")
+
+        pipeline_cls.return_value.plan.assert_called_once_with()
+        pipeline_cls.return_value.apply.assert_not_called()
+
+    def test_dry_run_unchanged_report(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
+            output = _run("--dry-run")
+
+        assert "unchanged" in output.lower()
+
+    def test_dry_run_reports_added_and_removed_rows(self):
+        plan = ChangePlan(
+            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("p", "role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Rows to add (1)" in output
+        assert "Rows to remove (1)" in output
+        assert "role^r" in output
+        assert "role^old" in output
+
+    def test_dry_run_reports_blocking_assignments(self):
+        plan = ChangePlan(
+            added_rows=[],
+            removed_rows=[],
+            unchanged=False,
+            blocking_assignments=[("role^course_editor", "user^alice")],
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "requires --force" in output
+        assert "role^course_editor assigned to user^alice" in output
+
+
+class TestDefinitionReport:
+    """The dry-run report covers definition changes too (ADR 0018 §6).
+
+    Apply syncs the definition tables even when no ``p`` row changes, so a
+    metadata-only edit has to appear in the report.
+    """
+
+    def test_metadata_only_change_is_reported_without_any_rows(self):
+        plan = ChangePlan(
+            added_rows=[],
+            removed_rows=[],
+            unchanged=False,
+            roles=DefinitionDiff(updated=["course_editor"]),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Definition changes - role (1)" in output
+        assert "~ course_editor" in output
+
+    def test_added_and_removed_definitions_are_reported_per_kind(self):
+        plan = ChangePlan(
+            unchanged=False,
+            categories=DefinitionDiff(added=["course_content"]),
+            permissions=DefinitionDiff(removed=["courses.manage_tags"]),
+            grants=DefinitionDiff(added=["course_editor -> courses.view_course @ course-v1"]),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Definition changes - category (1)" in output
+        assert "+ course_content" in output
+        assert "Definition changes - permission (1)" in output
+        assert "- courses.manage_tags" in output
+        assert "Definition changes - role-permission (1)" in output
+
+    def test_untouched_kinds_are_omitted(self):
+        plan = ChangePlan(unchanged=False, roles=DefinitionDiff(added=["course_editor"]))
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Definition changes - role (1)" in output
+        assert "category" not in output
+        assert "permission" not in output
+
+    def test_row_only_change_says_definitions_unchanged(self):
+        plan = ChangePlan(
+            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Definitions unchanged." in output
+
+
+class TestDirectoryOption:
+    """Cover the --dir option wiring into SchemaDiscovery."""
+
+    def test_dir_builds_discovery_with_explicit_directories(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls, mock.patch(DISCOVERY_PATH) as discovery_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
+            _run("--dir", "pkg_a/authz/schema", "--dir", "pkg_b/authz/schema")
+
+        discovery_cls.assert_called_once_with(
+            explicit_directories=["pkg_a/authz/schema", "pkg_b/authz/schema"]
+        )
+        # The pipeline is built with that discovery instance.
+        pipeline_cls.assert_called_once_with(discovery=discovery_cls.return_value)
+
+    def test_no_dir_uses_default_discovery(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls, mock.patch(DISCOVERY_PATH) as discovery_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
+            _run()
+
+        # Default discovery (no explicit directories) is constructed.
+        discovery_cls.assert_called_once_with()
+
+
+class TestErrorHandling:
+    """Cover translation of pipeline errors into CommandError.
+
+    Deployment must stop with a readable message rather than a traceback, and
+    ``SchemaDiscoveryError`` needs handling separately because it does not
+    inherit from ``SchemaError``.
+    """
+
+    def test_schema_error_becomes_command_error(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.side_effect = SchemaValidationError([])
+            with pytest.raises(CommandError):
+                _run()
+
+    def test_dry_run_error_becomes_command_error(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.side_effect = SchemaValidationError([])
+            with pytest.raises(CommandError):
+                _run("--dry-run")
+
+    def test_discovery_error_becomes_command_error(self):
+        """ADR 0019 §1: a failing provider stops deployment, naming the app."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.side_effect = SchemaDiscoveryError(
+                "authz.schema provider 'broken_app' failed during discovery: boom"
+            )
+            with pytest.raises(CommandError, match="broken_app"):
+                _run()
+
+    def test_discovery_error_in_dry_run_becomes_command_error(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.side_effect = SchemaDiscoveryError("bad directory")
+            with pytest.raises(CommandError, match="bad directory"):
+                _run("--dry-run")
+
+    def test_compile_error_becomes_command_error(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.side_effect = SchemaCompileError("equal priority conflict")
+            with pytest.raises(CommandError, match="equal priority conflict"):
+                _run()
+
+    def test_apply_error_becomes_command_error(self):
+        """The force gate surfaces as a message, not a traceback."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.side_effect = SchemaApplyError("Refusing to proceed")
+            with pytest.raises(CommandError, match="Refusing to proceed"):
+                _run()
+
+
+class TestOptionCombinations:
+    """Options compose: a dry run can also take explicit directories."""
+
+    def test_dry_run_with_dir_plans_against_that_directory(self):
+        with mock.patch(PIPELINE_PATH) as pipeline_cls, mock.patch(DISCOVERY_PATH) as discovery_cls:
+            pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
+            _run("--dry-run", "--dir", "pkg_a/authz/schema")
+
+        discovery_cls.assert_called_once_with(explicit_directories=["pkg_a/authz/schema"])
+        pipeline_cls.assert_called_once_with(discovery=discovery_cls.return_value)
+        pipeline_cls.return_value.plan.assert_called_once_with()
+        pipeline_cls.return_value.apply.assert_not_called()
+
+    def test_dry_run_ignores_force(self):
+        """A dry run writes nothing, so force has nothing to authorize."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
+            _run("--dry-run", "--force")
+
+        pipeline_cls.return_value.plan.assert_called_once_with()
+        pipeline_cls.return_value.apply.assert_not_called()

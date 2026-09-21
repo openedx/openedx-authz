@@ -74,6 +74,10 @@ extensions = [
     "sphinx-jsonschema",
 ]
 
+jsonschema_options = {
+    "auto_reference": True,
+}
+
 # A list of warning types to suppress arbitrary warning messages.
 suppress_warnings = [
     "image.nonlocal_uri",

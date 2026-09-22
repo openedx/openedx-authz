@@ -407,6 +407,73 @@ class TestValidateCompiled:
         assert [i.source_id for i in issues] == [None]
 
 
+class TestIconRules:
+    """ADR 0017 §4: icon names must be valid @openedx/paragon/icons names."""
+
+    def test_valid_icon_has_no_errors(self):
+        """A real Paragon icon name passes validation."""
+        doc = make_document(categories=[category("cat", icon="BookOpen")])
+
+        assert not _errors(SchemaValidator().validate([doc]))
+
+    @pytest.mark.parametrize("icon", [None, ""])
+    def test_missing_icon_is_allowed(self, icon):
+        """Icons are optional on every definition."""
+        doc = make_document(categories=[category("cat", icon=icon)])
+
+        assert not _errors(SchemaValidator().validate([doc]))
+
+    @pytest.mark.parametrize("icon", ["remove_red_eye", "removeRedEye", "Remove-Red-Eye", "9Mp lowercase"])
+    def test_non_pascalcase_icon_is_error(self, icon):
+        """An icon name that is not PascalCase is rejected before the export check."""
+        doc = make_document(categories=[category("cat", icon=icon)])
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
+
+        assert any("must be a PascalCase Paragon icon name" in m for m in messages)
+
+    def test_unknown_but_wellformed_icon_is_error(self):
+        """A PascalCase name that Paragon does not export is rejected."""
+        doc = make_document(categories=[category("cat", icon="NotARealParagonIcon")])
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
+
+        assert any("is not a valid @openedx/paragon/icons name" in m for m in messages)
+
+    def test_permission_icon_is_validated(self):
+        """A permission's icon is validated and the error names the permission."""
+        doc = make_document(
+            categories=[category("cat")],
+            permissions=[permission(cat="cat", icon="totally_wrong")],
+        )
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
+
+        assert any("permission courses.view_course" in m and "PascalCase" in m for m in messages)
+
+    def test_role_icon_is_validated(self):
+        """A role's icon is validated and the error names the role."""
+        doc = make_document(roles=[role(icon="NotARealParagonIcon")])
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
+
+        assert any("role course_editor" in m and "not a valid @openedx/paragon/icons" in m for m in messages)
+
+    def test_role_extension_icon_is_validated(self):
+        """A role_extension may set an icon, so its value is checked too."""
+        base = make_document(
+            "base",
+            categories=[category("cat")],
+            permissions=[permission(cat="cat")],
+            roles=[role()],
+        )
+        ext = make_document("ext", role_extensions=[extension("course_editor", icon="not_valid")])
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([base, ext]))]
+
+        assert any("role_extension course_editor" in m for m in messages)
+
+
 class TestHasErrors:
     """The gate the pipeline uses to decide whether to stop."""
 

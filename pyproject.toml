@@ -63,6 +63,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["*tests*"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["tests*", "*.tests*", "spec*", "*.spec*"]

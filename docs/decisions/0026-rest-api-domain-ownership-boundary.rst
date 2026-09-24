@@ -1,4 +1,4 @@
-0016: REST API Ownership and Package Layout
+0026: REST API Ownership and Package Layout
 ############################################
 
 Status
@@ -38,7 +38,7 @@ Decision
 
 1. Authorization owns an endpoint when its main purpose is to query or manage authorization roles, permissions, assignments, or scopes.
 2. An authorization endpoint that serves several applications must expose the same authorization behavior to all of them. Its code must not contain course-authoring rules or read course-authoring data directly.
-3. A reusable authorization endpoint may call a general hook before returning its data. A separate implementation can then apply a rule based on data outside authorization without adding that rule to the endpoint itself. `ADR 0017 (authorization result extension)`_ defines this mechanism for course-authoring visibility.
+3. A reusable authorization endpoint may call a general hook before returning its data. A separate implementation can then apply a rule based on data outside authorization without adding that rule to the endpoint itself. `ADR 0027 (authorization result extension)`_ defines this mechanism for course-authoring visibility.
 4. Place code according to these rules:
 
    * Keep a reusable authorization endpoint in ``rest_api/v1/views.py``.
@@ -111,7 +111,7 @@ References
 * `edX DDD Bounded Contexts`_
 * `ADR 0018 in openedx-events`_
 * `ADR 0015`_
-* `ADR 0017 (authorization result extension)`_
+* `ADR 0027 (authorization result extension)`_
 * `Issue #377`_
 * `PR #361`_
 * `openedx_catalog`_
@@ -119,7 +119,7 @@ References
 .. _edX DDD Bounded Contexts: https://openedx.atlassian.net/wiki/spaces/AC/pages/663224968/edX+DDD+Bounded+Contexts
 .. _ADR 0018 in openedx-events: https://github.com/openedx/openedx-events/blob/main/docs/decisions/0018-supporting-subdomain-modules.rst
 .. _ADR 0015: 0015-expose-course-authoring-waffle-flag-state-via-rest-api.rst
-.. _ADR 0017 (authorization result extension): 0017-cross-domain-filtering-via-openedx-filters.rst
+.. _ADR 0027 (authorization result extension): 0027-cross-domain-filtering-via-openedx-filters.rst
 .. _Issue #377: https://github.com/openedx/openedx-authz/issues/377
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _openedx_catalog: https://github.com/openedx/openedx-core/blob/main/src/openedx_catalog/api.py

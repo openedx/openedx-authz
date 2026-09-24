@@ -1,4 +1,4 @@
-0017: Cross-Domain Filtering via Open edX Filters
+0027: Cross-Domain Filtering via Open edX Filters
 ##################################################
 
 Status
@@ -13,7 +13,7 @@ Casbin assignments may remain after ``authz.enable_course_authoring`` is disable
 
 The Admin Console reads the flag state exposed in `ADR 0015`_ and filters course-authoring data before displaying it. This proposal leaves collection filtering in the Admin Console. Frontend filtering cannot protect role assignment writes or prevent permission validation from reporting an unavailable course as allowed.
 
-These operations therefore need a backend extension point. Open edX Filters allows the views to expose authorization data to a separately configured pipeline, which keeps course-authoring state outside the shared authorization code and follows the boundary defined in `ADR 0016`_.
+These operations therefore need a backend extension point. Open edX Filters allows the views to expose authorization data to a separately configured pipeline, which keeps course-authoring state outside the shared authorization code and follows the boundary defined in `ADR 0026`_.
 
 Decision
 ********
@@ -234,12 +234,12 @@ References
 
 * `ADR 0013`_
 * `ADR 0015`_
-* `ADR 0016`_
+* `ADR 0026`_
 * `Issue #363`_
 * `PR #361`_
 
 .. _ADR 0013: 0013-course-authoring-automatic-migration.rst
 .. _ADR 0015: 0015-expose-course-authoring-waffle-flag-state-via-rest-api.rst
-.. _ADR 0016: 0016-rest-api-domain-ownership-boundary.rst
+.. _ADR 0026: 0026-rest-api-domain-ownership-boundary.rst
 .. _Issue #363: https://github.com/openedx/openedx-authz/issues/363
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361

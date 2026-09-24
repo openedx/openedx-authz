@@ -4491,6 +4491,261 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
         self.assertIn("course-v1", scope_types)
 
 
+class TestScopeHierarchyFiltering(ViewTestMixin):
+    """Test that filtering assignments by scope includes hierarchical ancestors.
+
+    The scope hierarchy is::
+
+        specific resource  →  organization glob  →  platform glob
+
+    When querying by a specific scope (e.g. ``course-v1:Org1+COURSE1+2024``), the
+    response must also include assignments at the org level (``course-v1:Org1+*``) and
+    platform level (``course-v1:*``).  Analogous rules apply to library scopes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Create assignments at every hierarchy level for courses and libraries.
+
+        Assignment matrix (each row is one assignment):
+
+        ======= ========================= =========================== ====
+        User    Role                        Scope                      #
+        ======= ========================= =========================== ====
+        Courses
+        regular_1  course_staff            course-v1:Org1+COURSE1+2024  1   ← specific
+        regular_2  course_staff            course-v1:Org1+*             1   ← org glob
+        regular_3  course_staff            course-v1:*                  1   ← platform glob
+
+        Libraries
+        regular_4  library_user            lib:Org1:LIB1                1   ← specific
+        regular_5  library_user            lib:Org1:*                   1   ← org glob
+        regular_6  library_user            lib:*                        1   ← platform glob
+        ======= ========================= =========================== ====
+
+        Note: the base ``ViewTestMixin.setUpClass`` also creates library assignments.
+        The hierarchy tests account for these additional assignments in their
+        expected counts.
+        """
+        super().setUpClass()
+
+        cls._assign_roles_to_users(
+            [
+                # -- Course hierarchy: Org1 --
+                {
+                    "subject_name": "regular_1",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": COURSE_SCOPE_ORG1,
+                },
+                {
+                    "subject_name": "regular_2",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": COURSE_ORG1_GLOB,
+                },
+                {
+                    "subject_name": "regular_3",
+                    "role_name": roles.COURSE_STAFF.external_key,
+                    "scope_name": PLATFORM_COURSE_GLOB,
+                },
+                # -- Library hierarchy: Org1 --
+                {
+                    "subject_name": "regular_4",
+                    "role_name": roles.LIBRARY_USER.external_key,
+                    "scope_name": LIB_SCOPE_ORG1,
+                },
+                {
+                    "subject_name": "regular_5",
+                    "role_name": roles.LIBRARY_USER.external_key,
+                    "scope_name": LIB_ORG1_GLOB,
+                },
+                {
+                    "subject_name": "regular_6",
+                    "role_name": roles.LIBRARY_USER.external_key,
+                    "scope_name": PLATFORM_LIBRARY_GLOB,
+                },
+            ]
+        )
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.url = reverse("openedx_authz:user-list")
+
+    # -- Helpers ----------------------------------------------------------- #
+
+    def _get_response(self, scopes: str):
+        """Query the team-members endpoint filtered by scopes and assert 200 OK."""
+        response = self.client.get(self.url, {"scopes": scopes})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response
+
+    def _collect_scopes_from_response(self, scopes: str) -> set[str]:
+        """Return the distinct scope values across all users' assignments."""
+        response = self._get_response(scopes)
+        result_scopes: set[str] = set()
+        for user_entry in response.data["results"]:
+            for assignment in user_entry.get("assignments", []):
+                result_scopes.add(assignment["scope"])
+        return result_scopes
+
+    def _get_user_count(self, scopes: str) -> int:
+        """Return the number of users (count) from the response."""
+        response = self._get_response(scopes)
+        return response.data["count"]
+
+    # ================================================================== #
+    # Course scopes                                                      #
+    # ================================================================== #
+
+    def test_course_specific_scope_includes_org_and_platform_ancestors(self):
+        """Filtering by a specific course returns users from org-glob and platform-glob too.
+
+        Querying ``course-v1:Org1+COURSE1+2024`` should include users with assignments at:
+            - course-v1:Org1+COURSE1+2024  (regular_1)
+            - course-v1:Org1+*             (regular_2)
+            - course-v1:*                  (regular_3)
+        Total users: 3
+        """
+        result_scopes = self._collect_scopes_from_response(COURSE_SCOPE_ORG1)
+
+        self.assertIn(COURSE_SCOPE_ORG1, result_scopes)
+        self.assertIn(COURSE_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_COURSE_GLOB, result_scopes)
+
+        self.assertEqual(self._get_user_count(COURSE_SCOPE_ORG1), 3)
+
+    def test_course_org_glob_includes_platform_ancestor(self):
+        """Filtering by an org-glob course scope returns users from platform-glob too.
+
+        Querying ``course-v1:Org1+*`` should include users with assignments at:
+            - course-v1:Org1+*  (regular_2)
+            - course-v1:*       (regular_3)
+        Total users: 2
+        """
+        result_scopes = self._collect_scopes_from_response(COURSE_ORG1_GLOB)
+
+        self.assertIn(COURSE_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_COURSE_GLOB, result_scopes)
+        # Must NOT include specific course assignment
+        self.assertNotIn(COURSE_SCOPE_ORG1, result_scopes)
+
+        self.assertEqual(self._get_user_count(COURSE_ORG1_GLOB), 2)
+
+    def test_course_platform_glob_returns_only_platform(self):
+        """Filtering by platform-glob returns only platform-level course users.
+
+        Querying ``course-v1:*`` should include only:
+            - course-v1:*  (regular_3)
+        Total users: 1
+        """
+        result_scopes = self._collect_scopes_from_response(PLATFORM_COURSE_GLOB)
+
+        self.assertIn(PLATFORM_COURSE_GLOB, result_scopes)
+        self.assertNotIn(COURSE_SCOPE_ORG1, result_scopes)
+        self.assertNotIn(COURSE_ORG1_GLOB, result_scopes)
+
+        self.assertEqual(self._get_user_count(PLATFORM_COURSE_GLOB), 1)
+
+    # ================================================================== #
+    # Library scopes                                                     #
+    # ================================================================== #
+
+    def test_library_specific_scope_includes_org_and_platform_ancestors(self):
+        """Filtering by a specific library returns users from org-glob and platform-glob too.
+
+        Querying ``lib:Org1:LIB1`` should include users with assignments at:
+            - lib:Org1:LIB1  (specific — includes base ViewTestMixin users)
+            - lib:Org1:*     (regular_5)
+            - lib:*          (regular_6)
+        """
+        result_scopes = self._collect_scopes_from_response(LIB_SCOPE_ORG1)
+
+        self.assertIn(LIB_SCOPE_ORG1, result_scopes)
+        self.assertIn(LIB_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_LIBRARY_GLOB, result_scopes)
+
+    def test_library_org_glob_includes_platform_ancestor(self):
+        """Filtering by an org-glob library scope returns users from platform-glob too.
+
+        Querying ``lib:Org1:*`` should include users with assignments at:
+            - lib:Org1:*  (regular_5)
+            - lib:*       (regular_6)
+        Total users: 2
+        """
+        result_scopes = self._collect_scopes_from_response(LIB_ORG1_GLOB)
+
+        self.assertIn(LIB_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_LIBRARY_GLOB, result_scopes)
+        # Must NOT include specific library assignments
+        self.assertNotIn(LIB_SCOPE_ORG1, result_scopes)
+
+        self.assertEqual(self._get_user_count(LIB_ORG1_GLOB), 2)
+
+    def test_library_platform_glob_returns_only_platform(self):
+        """Filtering by platform-glob returns only platform-level library users.
+
+        Querying ``lib:*`` should include only:
+            - lib:*  (regular_6)
+        Total users: 1
+        """
+        result_scopes = self._collect_scopes_from_response(PLATFORM_LIBRARY_GLOB)
+
+        self.assertIn(PLATFORM_LIBRARY_GLOB, result_scopes)
+        self.assertNotIn(LIB_SCOPE_ORG1, result_scopes)
+        self.assertNotIn(LIB_ORG1_GLOB, result_scopes)
+
+        self.assertEqual(self._get_user_count(PLATFORM_LIBRARY_GLOB), 1)
+
+    # ================================================================== #
+    # Cross-namespace isolation                                          #
+    # ================================================================== #
+
+    def test_course_scope_does_not_include_library_ancestors(self):
+        """Filtering by a course scope does not pull in library-namespace users.
+
+        Querying ``course-v1:Org1+COURSE1+2024`` must not return any ``lib:`` scopes.
+        """
+        result_scopes = self._collect_scopes_from_response(COURSE_SCOPE_ORG1)
+
+        lib_scopes = {s for s in result_scopes if s.startswith("lib:")}
+        self.assertEqual(lib_scopes, set())
+
+    def test_library_scope_does_not_include_course_ancestors(self):
+        """Filtering by a library scope does not pull in course-namespace users.
+
+        Querying ``lib:Org1:LIB1`` must not return any ``course-v1:`` scopes.
+        """
+        result_scopes = self._collect_scopes_from_response(LIB_SCOPE_ORG1)
+
+        course_scopes = {s for s in result_scopes if s.startswith("course-v1:")}
+        self.assertEqual(course_scopes, set())
+
+    # ================================================================== #
+    # Multiple scopes combined                                           #
+    # ================================================================== #
+
+    def test_multiple_scopes_each_expand_independently(self):
+        """Providing multiple scopes expands each one independently.
+
+        Querying ``course-v1:Org1+COURSE1+2024,lib:Org1:LIB1`` should include users
+        from both hierarchies:
+            - Course ancestors: course-v1:Org1+*, course-v1:*
+            - Library ancestors: lib:Org1:*, lib:*
+        """
+        combined = f"{COURSE_SCOPE_ORG1},{LIB_SCOPE_ORG1}"
+        result_scopes = self._collect_scopes_from_response(combined)
+
+        # Course hierarchy
+        self.assertIn(COURSE_SCOPE_ORG1, result_scopes)
+        self.assertIn(COURSE_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_COURSE_GLOB, result_scopes)
+
+        # Library hierarchy
+        self.assertIn(LIB_SCOPE_ORG1, result_scopes)
+        self.assertIn(LIB_ORG1_GLOB, result_scopes)
+        self.assertIn(PLATFORM_LIBRARY_GLOB, result_scopes)
+
+
 @ddt
 class TestBulkPutScopesAllLogic(ViewTestMixin):
     """Test that DynamicScopePermission enforces AND logic across scopes in bulk PUT.

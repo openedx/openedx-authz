@@ -1,4 +1,9 @@
-"""Unit tests for the schema compilation step (merge + extensions + priority)."""
+"""Unit tests for the schema compilation step (merge + extensions + priority).
+
+Grouped by concern: base compilation, extensions, priority resolution,
+provenance, discarded-contribution warnings, no-op extension warnings, and the
+defensive branches guarding states validation is expected to have rejected.
+"""
 
 import logging
 
@@ -27,114 +32,134 @@ def _base(**role_kwargs):
     )
 
 
-def test_base_definitions_compile():
-    schema = SchemaCompiler().compile([_base()])
-    assert set(schema.roles) == {"course_editor"}
-    assert len(schema.permissions) == 3
-    # Base definitions keep their declared order; rendering sorts later.
-    assert schema.roles["course_editor"].definition.permissions == (
-        "courses.view_course",
-        "courses.manage_tags",
-    )
+class TestBaseCompilation:
+    """Compiling base definitions with no extensions applied."""
+
+    def test_base_definitions_compile(self):
+        """A single base document yields its roles and permissions verbatim."""
+        schema = SchemaCompiler().compile([_base()])
+        assert set(schema.roles) == {"course_editor"}
+        assert len(schema.permissions) == 3
+        # Base definitions keep their declared order; rendering sorts later.
+        assert schema.roles["course_editor"].definition.permissions == (
+            "courses.view_course",
+            "courses.manage_tags",
+        )
 
 
-def test_extension_adds_and_removes_permissions_and_metadata():
-    ext = make_document(
-        "ext",
-        priority=200,
-        role_extensions=[
-            extension(
-                "course_editor",
-                add_permissions=("courses.export_course",),
-                remove_permissions=("courses.manage_tags",),
-                display_name="Author",
-                hidden=True,
-            )
-        ],
-    )
-    definition = SchemaCompiler().compile([_base(), ext]).roles["course_editor"].definition
-    assert "courses.export_course" in definition.permissions
-    assert "courses.manage_tags" not in definition.permissions
-    assert definition.display_name == "Author"
-    assert definition.hidden is True
+class TestExtensions:
+    """Applying ``role_extensions`` on top of a base role definition."""
+
+    def test_extension_adds_and_removes_permissions_and_metadata(self):
+        """One extension can add, remove, rename, and hide in a single pass."""
+        ext = make_document(
+            "ext",
+            priority=200,
+            role_extensions=[
+                extension(
+                    "course_editor",
+                    add_permissions=("courses.export_course",),
+                    remove_permissions=("courses.manage_tags",),
+                    display_name="Author",
+                    hidden=True,
+                )
+            ],
+        )
+        definition = SchemaCompiler().compile([_base(), ext]).roles["course_editor"].definition
+        assert "courses.export_course" in definition.permissions
+        assert "courses.manage_tags" not in definition.permissions
+        assert definition.display_name == "Author"
+        assert definition.hidden is True
+
+    def test_extension_sources_are_retained(self):
+        """A role touched by an extension keeps both the base and extension sources."""
+        ext = make_document("ext", priority=200, role_extensions=[extension("course_editor", display_name="X")])
+        compiled = SchemaCompiler().compile([_base(), ext])
+        assert len(compiled.roles["course_editor"].sources) == 2
 
 
-def test_extension_sources_are_retained():
-    ext = make_document("ext", priority=200, role_extensions=[extension("course_editor", display_name="X")])
-    compiled = SchemaCompiler().compile([_base(), ext])
-    assert len(compiled.roles["course_editor"].sources) == 2
+class TestPriorityResolution:
+    """How priority resolves conflicting contributions (higher wins; ties fail)."""
+
+    def test_equal_priority_metadata_conflict_raises(self):
+        """Two extensions setting the same field at equal priority is an error."""
+        a = make_document("a", priority=200, role_extensions=[extension("course_editor", display_name="A")])
+        b = make_document("b", priority=200, role_extensions=[extension("course_editor", display_name="B")])
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([_base(), a, b])
+
+    def test_higher_priority_metadata_wins(self):
+        """The higher-priority extension's metadata value takes effect."""
+        lo = make_document("lo", priority=150, role_extensions=[extension("course_editor", display_name="Lo")])
+        hi = make_document("hi", priority=300, role_extensions=[extension("course_editor", display_name="Hi")])
+        definition = SchemaCompiler().compile([_base(), lo, hi]).roles["course_editor"].definition
+        assert definition.display_name == "Hi"
+
+    def test_equal_priority_add_remove_conflict_raises(self):
+        """An add and a remove of the same permission at equal priority is an error."""
+        add = make_document(
+            "add",
+            priority=200,
+            role_extensions=[extension("course_editor", add_permissions=("courses.export_course",))],
+        )
+        rem = make_document(
+            "rem",
+            priority=200,
+            role_extensions=[extension("course_editor", remove_permissions=("courses.export_course",))],
+        )
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([_base(), add, rem])
+
+    def test_conflicting_base_definition_equal_priority_raises(self):
+        """Two base definitions of the same role at equal priority is an error."""
+        a = make_document("a", priority=100, roles=[role(rid="dup", display_name="A", permissions=())])
+        b = make_document("b", priority=100, roles=[role(rid="dup", display_name="B", permissions=())])
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([a, b])
+
+    def test_higher_priority_base_definition_wins(self):
+        """The higher-priority base definition replaces the lower one."""
+        lo = make_document("lo", priority=100, roles=[role(rid="dup", display_name="Lo", permissions=())])
+        hi = make_document("hi", priority=200, roles=[role(rid="dup", display_name="Hi", permissions=())])
+        compiled = SchemaCompiler().compile([lo, hi])
+        assert compiled.roles["dup"].definition.display_name == "Hi"
 
 
-def test_equal_priority_metadata_conflict_raises():
-    a = make_document("a", priority=200, role_extensions=[extension("course_editor", display_name="A")])
-    b = make_document("b", priority=200, role_extensions=[extension("course_editor", display_name="B")])
-    with pytest.raises(SchemaCompileError):
-        SchemaCompiler().compile([_base(), a, b])
+class TestProvenance:
+    """Each role-permission grant records where it came from (ADR 0025)."""
 
+    def test_base_permissions_get_base_provenance(self):
+        """Permissions from the role's own definition are tagged ``BASE``."""
+        schema = SchemaCompiler().compile([_base()])
+        for perm in ("courses.view_course", "courses.manage_tags"):
+            prov = schema.role_permission_sources[("course_editor", perm)]
+            assert [(rs.source.distribution, rs.origin_kind) for rs in prov] == [("test-dist", SchemaOriginKind.BASE)]
 
-def test_higher_priority_metadata_wins():
-    lo = make_document("lo", priority=150, role_extensions=[extension("course_editor", display_name="Lo")])
-    hi = make_document("hi", priority=300, role_extensions=[extension("course_editor", display_name="Hi")])
-    definition = SchemaCompiler().compile([_base(), lo, hi]).roles["course_editor"].definition
-    assert definition.display_name == "Hi"
+    def test_extension_grant_is_attributed_to_the_module_not_core(self):
+        """An extension-added grant is tagged ``EXTENSION``, base grants stay ``BASE``."""
+        ext = make_document(
+            "modx",
+            priority=200,
+            role_extensions=[extension("course_editor", add_permissions=("courses.export_course",))],
+        )
+        schema = SchemaCompiler().compile([_base(), ext])
 
+        core = schema.role_permission_sources[("course_editor", "courses.view_course")]
+        added = schema.role_permission_sources[("course_editor", "courses.export_course")]
 
-def test_equal_priority_add_remove_conflict_raises():
-    add = make_document(
-        "add",
-        priority=200,
-        role_extensions=[extension("course_editor", add_permissions=("courses.export_course",))],
-    )
-    rem = make_document(
-        "rem",
-        priority=200,
-        role_extensions=[extension("course_editor", remove_permissions=("courses.export_course",))],
-    )
-    with pytest.raises(SchemaCompileError):
-        SchemaCompiler().compile([_base(), add, rem])
+        # Both permissions coexist on the role, but their origins remain distinct.
+        assert [rs.origin_kind for rs in core] == [SchemaOriginKind.BASE]
+        assert [rs.origin_kind for rs in added] == [SchemaOriginKind.EXTENSION]
 
-
-def test_conflicting_base_definition_equal_priority_raises():
-    a = make_document("a", priority=100, roles=[role(rid="dup", display_name="A", permissions=())])
-    b = make_document("b", priority=100, roles=[role(rid="dup", display_name="B", permissions=())])
-    with pytest.raises(SchemaCompileError):
-        SchemaCompiler().compile([a, b])
-
-
-def test_higher_priority_base_definition_wins():
-    lo = make_document("lo", priority=100, roles=[role(rid="dup", display_name="Lo", permissions=())])
-    hi = make_document("hi", priority=200, roles=[role(rid="dup", display_name="Hi", permissions=())])
-    compiled = SchemaCompiler().compile([lo, hi])
-    assert compiled.roles["dup"].definition.display_name == "Hi"
-
-
-def test_base_permissions_get_base_provenance():
-    schema = SchemaCompiler().compile([_base()])
-    for perm in ("courses.view_course", "courses.manage_tags"):
-        prov = schema.role_permission_sources[("course_editor", perm)]
-        assert [(rs.source.distribution, rs.origin_kind) for rs in prov] == [("test-dist", SchemaOriginKind.BASE)]
-
-
-def test_extension_grant_is_attributed_to_the_module_not_core():
-    ext = make_document(
-        "modx", priority=200, role_extensions=[extension("course_editor", add_permissions=("courses.export_course",))]
-    )
-    schema = SchemaCompiler().compile([_base(), ext])
-
-    core = schema.role_permission_sources[("course_editor", "courses.view_course")]
-    added = schema.role_permission_sources[("course_editor", "courses.export_course")]
-
-    # Both permissions coexist on the role, but their origins remain distinct.
-    assert [rs.origin_kind for rs in core] == [SchemaOriginKind.BASE]
-    assert [rs.origin_kind for rs in added] == [SchemaOriginKind.EXTENSION]
-
-
-def test_removed_permission_has_no_provenance():
-    ext = make_document(
-        "modx", priority=200, role_extensions=[extension("course_editor", remove_permissions=("courses.manage_tags",))]
-    )
-    schema = SchemaCompiler().compile([_base(), ext])
-    assert ("course_editor", "courses.manage_tags") not in schema.role_permission_sources
+    def test_removed_permission_has_no_provenance(self):
+        """A permission removed by an extension leaves no provenance entry."""
+        ext = make_document(
+            "modx",
+            priority=200,
+            role_extensions=[extension("course_editor", remove_permissions=("courses.manage_tags",))],
+        )
+        schema = SchemaCompiler().compile([_base(), ext])
+        assert ("course_editor", "courses.manage_tags") not in schema.role_permission_sources
 
 
 class TestDiscardedContributionWarnings:

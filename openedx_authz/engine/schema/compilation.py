@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, replace
-from typing import Literal
 
 from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
@@ -74,9 +73,9 @@ class SchemaCompiler:
         role_permission_sources = self._resolve_roles_and_provenance(roles, documents)
 
         return CompiledSchema(
-            categories=self._finalize(categories, "category"),
-            permissions=self._finalize(permissions, "permission"),
-            roles=self._finalize(roles, "role"),
+            categories=self._finalize(categories),
+            permissions=self._finalize(permissions),
+            roles=self._finalize(roles),
             role_permission_sources=role_permission_sources,
         )
 
@@ -328,13 +327,10 @@ class SchemaCompiler:
 
     # ---- finalize ---------------------------------------------------------
 
-    def _finalize(
-        self, tracked: dict[str, _Tracked], kind: Literal["category", "permission", "role"]
-    ) -> dict[str, CompiledDefinition]:
+    def _finalize(self, tracked: dict[str, _Tracked]) -> dict[str, CompiledDefinition]:
         """Turn tracked definitions into CompiledDefinition entries."""
         return {
             identifier: CompiledDefinition(
-                kind=kind,
                 key=identifier,
                 definition=entry.definition,
                 sources=tuple(entry.sources),

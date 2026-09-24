@@ -42,7 +42,7 @@ def test_role_permission_pairs_are_sorted_and_flattened():
         permissions=("courses.view_course", "courses.edit_course_content"),
     )
     schema = CompiledSchema(
-        roles={"course_admin": CompiledDefinition("role", "course_admin", role, ())}
+        roles={"course_admin": CompiledDefinition("course_admin", role, ())}
     )
     assert schema.role_permission_pairs() == [
         ("course_admin", "courses.edit_course_content"),

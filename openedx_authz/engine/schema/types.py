@@ -16,7 +16,6 @@ unit-tested in isolation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 from openedx_authz.constants import SchemaOriginKind
 
@@ -187,14 +186,16 @@ class RelationshipSource:
 class CompiledDefinition:
     """A resolved definition plus every source that contributed to it.
 
+    The kind of definition is not stored: ``definition`` is a typed union and
+    :class:`CompiledSchema` already keys categories, permissions, and roles into
+    separate dicts, so the kind is recoverable from context when needed.
+
     Attributes:
-        kind: ``"category"`` | ``"permission"`` | ``"role"``.
         key: The category id, permission identifier, or role id.
         definition: The resolved dataclass instance (category/permission/role).
         sources: All contributing sources, in priority-then-discovery order.
     """
 
-    kind: Literal["category", "permission", "role"]
     key: str
     definition: PermissionCategory | PermissionDefinition | RoleDefinition
     sources: tuple[SourceRecord, ...]

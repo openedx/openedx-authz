@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.urls import reverse
 from rest_framework import status
 
-from openedx_authz.tests.rest_api.test_views import ViewTestMixin
+from openedx_authz.tests.rest_api.mixins import ViewTestMixin
 
 
 class TestWaffleFlagStatesAPIView(ViewTestMixin):

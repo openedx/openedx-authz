@@ -4,34 +4,61 @@ Providers register **directories** (not individual files); the loader reads
 every ``.yaml`` file inside them. Two contribution sources are merged:
 
 1. The ``authz.schema`` entry-point group. Each registered callable returns
-   directory paths relative to an importable top-level package (e.g.
+   directory paths in the package-anchored format below (e.g.
    openedx-authz's ``["openedx_authz/authz/schema"]``).
 2. The ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` Django setting, a list of directory
    path strings in the same format. This lets operators and CI contribute
    directories without shipping a package entry point.
 
-Directory paths are resolved with ``importlib.resources`` so discovery does not
-depend on virtualenv or container layout. If any provider raises, discovery
+Directory format: these are **not** filesystem paths (neither relative nor
+absolute). Each is a package-anchored ``importlib.resources`` path: the first
+segment is an importable top-level package (the *anchor*) and the remaining
+forward-slash segments name a resource container within it. For example
+``"openedx_authz/authz/schema"`` anchors on the ``openedx_authz`` package and
+addresses its ``authz/schema`` subdirectory. Resolving through
+``importlib.resources`` (rather than the filesystem) means discovery does not
+depend on virtualenv or container layout, and works even when the package is
+imported from a zip. If any provider raises, discovery
 stops and reports the failing application (ADR 0019): deployment must not
 proceed with an incomplete set of static definitions.
 
-Timing: call only after Django settings are available (from the management
-command or ``AppConfig.ready()``), never at module import. Django is imported
-lazily so this module stays importable (and unit-testable) without a configured
-Django environment.
+Timing: call only after Django settings are configured (from the management
+command or ``AppConfig.ready()``). ``django.conf.settings`` is a lazy proxy, so
+importing it is inert; the setting is only *read* at call time, inside
+``_discover_settings_directories``. Reading before Django is configured raises
+``ImproperlyConfigured``, which is caught and treated as "no contribution" so a
+standalone CI schema check can run outside a Django process.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import StrEnum
 from importlib import metadata, resources
+
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 ENTRY_POINT_GROUP = "authz.schema"
 SETTINGS_DIRECTORIES_NAME = "OPENEDX_AUTHZ_SCHEMA_DIRECTORIES"
 SCHEMA_FILE_SUFFIXES = (".yaml", ".yml")
 
 logger = logging.getLogger(__name__)
+
+
+class Origin(StrEnum):
+    """Diagnostic labels for where a discovered directory was contributed from.
+
+    Members:
+        ENTRY_POINT: Contributed via the ``authz.schema`` entry-point group.
+        SETTINGS: Contributed via the ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` setting.
+        PASSED_IN: Passed directly into ``SchemaDiscovery`` (CI/local mode).
+    """
+
+    ENTRY_POINT = "entry_point"
+    SETTINGS = "settings"
+    PASSED_IN = "passed_in"
 
 
 @dataclass(frozen=True)
@@ -45,14 +72,14 @@ class DiscoveredResource:
             (e.g. ``authz/schema/course_roles.yaml``).
         module: Dotted path of the owning directory, used as the source-record
             module and provenance identity (e.g. ``openedx_authz.authz.schema``).
-        origin: Where the contribution came from: ``"entry_point"``,
-            ``"settings"``, or ``"explicit"`` (diagnostics only).
+        origin: Which contribution route produced this resource, as an
+            ``Origin`` member; diagnostics only.
     """
 
     package: str
     resource_path: str
     module: str
-    origin: str
+    origin: Origin
 
     def read_bytes(self) -> bytes:
         """Read this resource's bytes via ``importlib.resources``.
@@ -81,25 +108,29 @@ class SchemaDiscoveryError(Exception):
 class SchemaDiscovery:
     """Enumerates registered schema directories into discovered files."""
 
-    def __init__(self, *, explicit_directories: list[str] | None = None):
+    def __init__(self, *, passed_in_directories: list[str] | None = None):
         """Initialize discovery.
 
         Args:
-            explicit_directories: Optional directory path strings supplied
+            passed_in_directories: Optional directory path strings supplied
                 directly (the ADR 0019 CI/local mode where directories are
                 passed to the command). Discovered in addition to entry points
                 and settings.
         """
-        self._explicit_directories = explicit_directories or []
+        self._passed_in_directories = passed_in_directories or []
 
     def discover(self) -> list[DiscoveredResource]:
         """Return every discovered schema file in a deterministic order.
 
-        Expands entry-point directories, settings directories, and explicit
+        Expands entry-point directories, settings directories, and passed-in
         directories into individual ``.yaml`` files, then de-duplicates and
         sorts. Order is normalized here because discovery order may vary across
         environments (ADR 0019); priority — not discovery order — drives
         conflict resolution later.
+
+        Sorting default: results are ordered by ``(package, resource_path)``
+        ascending, so the same set of directories always yields the same list
+        regardless of the order sources were discovered in.
 
         Raises:
             SchemaDiscoveryError: If a provider callable raises or a declared
@@ -108,8 +139,8 @@ class SchemaDiscovery:
         found: list[DiscoveredResource] = []
         found.extend(self._discover_entry_points())
         found.extend(self._discover_settings_directories())
-        for directory in self._explicit_directories:
-            found.extend(self._iter_directory(directory, origin="explicit"))
+        for directory in self._passed_in_directories:
+            found.extend(self._iter_directory(directory, origin=Origin.PASSED_IN))
 
         seen: dict[tuple[str, str], DiscoveredResource] = {}
         for resource in found:
@@ -129,7 +160,7 @@ class SchemaDiscovery:
                     f"authz.schema provider {entry_point.name!r} ({entry_point.value}) failed during discovery: {exc}"
                 ) from exc
             for directory in directories:
-                discovered.extend(self._iter_directory(directory, origin="entry_point"))
+                discovered.extend(self._iter_directory(directory, origin=Origin.ENTRY_POINT))
         return discovered
 
     def _discover_settings_directories(self) -> list[DiscoveredResource]:
@@ -139,28 +170,21 @@ class SchemaDiscovery:
         each item is a directory path string. Absent, empty, or unconfigured
         settings yield nothing.
 
-        Django is imported lazily and both "not installed" and "installed but
-        unconfigured" degrade to no contribution, so the pipeline stays usable
-        outside a Django process (CI schema checks, unit tests) rather than
-        failing with an unrelated Django error.
+        The setting is read here (not at import), so if Django is installed but
+        not configured the read raises ``ImproperlyConfigured``; that degrades
+        to no contribution so a standalone CI schema check can run outside a
+        Django process rather than failing with an unrelated Django error.
         """
-        try:
-            # pylint: disable=import-outside-toplevel
-            from django.conf import settings
-            from django.core.exceptions import ImproperlyConfigured
-        except ImportError:
-            return []
-
         try:
             directories = getattr(settings, SETTINGS_DIRECTORIES_NAME, None) or []
         except ImproperlyConfigured:
             return []
         discovered: list[DiscoveredResource] = []
         for directory in directories:
-            discovered.extend(self._iter_directory(directory, origin="settings"))
+            discovered.extend(self._iter_directory(directory, origin=Origin.SETTINGS))
         return discovered
 
-    def _iter_directory(self, directory: str, *, origin: str) -> list[DiscoveredResource]:
+    def _iter_directory(self, directory: str, *, origin: Origin) -> list[DiscoveredResource]:
         """Resolve a directory path and yield a resource per ``.yaml`` file.
 
         The path's first segment is an importable top-level package used as the

@@ -65,11 +65,16 @@ The proposed layout is shown below.
 .. code-block:: text
 
    openedx_authz/rest_api/v1/
+       fields.py              # Fields used by more than one package
+       paginators.py          # Pagination used by more than one package
+       serializers.py         # Reusable and shared serializers
        views.py               # Reusable authorization endpoints
        admin_console/
+           filters.py         # Admin Console-specific filters
+           serializers.py     # Admin Console-specific serializers
            views.py           # APIs made for Admin Console workflows
        course_authoring/
-           views.py           # WaffleFlagStatesAPIView
+           views.py           # WaffleFlagStatesAPIView and its supporting code
 
 Consequences
 ************

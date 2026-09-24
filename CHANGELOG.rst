@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.25.0 - 2026-09-24
+*******************
+
+Changed
+=======
+
+* Filtering assignments by scope now respects the hierarchy: querying any course or library scope also returns assignments from its ancestor org-level and platform-level scopes.
+
 1.24.0 - 2026-09-14
 *******************
 

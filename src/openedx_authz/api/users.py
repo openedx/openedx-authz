@@ -297,6 +297,73 @@ def get_all_user_role_assignments_in_scope(
     return get_all_subject_role_assignments_in_scope(ScopeData(external_key=scope_external_key))
 
 
+def _expand_scopes_with_ancestors(scopes: list[str]) -> set[str]:
+    """Expand a list of scope keys to include their hierarchical ancestors.
+
+    For each scope in the input list, this function computes the org-level and
+    platform-level ancestor scopes that should also apply according to the scope
+    hierarchy design.  The hierarchy is::
+
+        specific resource  →  organization glob  →  platform glob
+
+    For example, given ``['course-v1:OpenedX+DemoX+DemoCourse']``, this returns::
+
+        {
+            'course-v1:OpenedX+DemoX+DemoCourse',   # the original
+            'course-v1:OpenedX+*',                    # org-level ancestor
+            'course-v1:*',                            # platform-level ancestor
+        }
+
+    Scopes that are already at the org level get only the platform ancestor added.
+    Platform-level scopes produce no additional ancestors.
+
+    If a scope cannot be resolved (e.g. invalid format), it is kept as-is without
+    expansion so the existing exact-match behaviour is preserved for unknown keys.
+
+    Args:
+        scopes: The scope external keys to expand.
+
+    Returns:
+        A set containing the original scopes plus all applicable ancestors.
+    """
+    expanded: set[str] = set(scopes)
+
+    for scope_key in scopes:
+        try:
+            scope_cls = ScopeData.get_subclass_by_external_key(scope_key)
+        except ValueError:
+            # Unrecognised scope format — keep the original, skip expansion.
+            continue
+
+        namespace = scope_cls.NAMESPACE
+
+        if scope_cls.IS_PLATFORM_GLOB:
+            # Already at the top of the hierarchy, nothing to add.
+            continue
+
+        if scope_cls.IS_ORG_GLOB:
+            # Org-level → add platform-level ancestor only.
+            platform_cls = ScopeData.platform_glob_registry.get(namespace)
+            if platform_cls:  # pragma: no branch
+                expanded.add(platform_cls.build_external_key())
+            continue
+
+        # Concrete scope (specific course or library) → add both org and platform ancestors.
+        scope_instance = scope_cls(external_key=scope_key)
+        org = getattr(scope_instance, "org", None)
+
+        if org:  # pragma: no branch
+            org_glob_cls = ScopeData.org_glob_registry.get(namespace)
+            if org_glob_cls:  # pragma: no branch
+                expanded.add(org_glob_cls.build_external_key(org))
+
+        platform_cls = ScopeData.platform_glob_registry.get(namespace)
+        if platform_cls:  # pragma: no branch
+            expanded.add(platform_cls.build_external_key())
+
+    return expanded
+
+
 def _filter_candidate_assignments_by_params(
     assignments: list[RoleAssignmentData],
     orgs: list[str] | None,
@@ -309,6 +376,11 @@ def _filter_candidate_assignments_by_params(
     and are applied only when provided. This runs before the scope-based authorization
     pass to avoid paying the DB cost for assignments that would be dropped anyway.
 
+    When filtering by scope, the hierarchy is respected: assignments at higher levels
+    (org-level and platform-level globs) that apply to the queried scope are also
+    included.  For example, filtering by ``course-v1:OpenedX+DemoX+DemoCourse`` will
+    also keep assignments scoped to ``course-v1:OpenedX+*`` and ``course-v1:*``.
+
     Args:
         assignments: The full assignment list to filter. Each entry has exactly one role
             (one policy line), as produced by get_role_assignments.
@@ -320,7 +392,8 @@ def _filter_candidate_assignments_by_params(
         The filtered assignment list.
     """
     if scopes:
-        assignments = [a for a in assignments if a.scope.external_key in scopes]
+        expanded_scopes = _expand_scopes_with_ancestors(scopes)
+        assignments = [a for a in assignments if a.scope.external_key in expanded_scopes]
     if orgs:
         assignments = [a for a in assignments if getattr(a.scope, "org", None) in orgs]
     if roles:

@@ -108,7 +108,18 @@ class SchemaLoader:
         return top_level, UNKNOWN
 
     def _build_document(self, raw: dict, source: SourceRecord) -> SchemaDocument:
-        """Map the parsed mapping's blocks into a typed SchemaDocument."""
+        """Map the parsed mapping's blocks into a typed SchemaDocument.
+
+        ``priority`` is a *required* field per ``authz-schema-v1.json``; a higher
+        value wins when contributions conflict (see
+        ``docs/references/authorization-schema.rst``). Enforcing that it is
+        present is the ``validate`` step's job, not this one — the loader only
+        parses and shapes (ADR 0018), and it defers required-field enforcement
+        to validation exactly as it does for ``schema_version``. So a missing
+        ``priority`` is read as ``0`` (the lowest precedence) here and rejected
+        later by validation, whereas a *malformed* (non-integer) ``priority`` is
+        raised now because it cannot be parsed at all.
+        """
         try:
             priority = int(raw.get("priority", 0))
         except (TypeError, ValueError) as exc:
@@ -135,6 +146,7 @@ class SchemaLoader:
         return tuple(str(item) for item in value)
 
     def _build_category(self, item: dict, source: SourceRecord) -> PermissionCategory:
+        """Build a ``PermissionCategory`` from one ``permission_categories`` entry."""
         self._require_mapping(item, "permission_categories", source)
         return PermissionCategory(
             id=item.get("id", ""),
@@ -144,6 +156,7 @@ class SchemaLoader:
         )
 
     def _build_permission(self, item: dict, source: SourceRecord) -> PermissionDefinition:
+        """Build a ``PermissionDefinition`` from one ``permissions`` entry."""
         self._require_mapping(item, "permissions", source)
         return PermissionDefinition(
             namespace=item.get("namespace", ""),
@@ -156,6 +169,7 @@ class SchemaLoader:
         )
 
     def _build_role(self, item: dict, source: SourceRecord) -> RoleDefinition:
+        """Build a ``RoleDefinition`` from one ``roles`` entry."""
         self._require_mapping(item, "roles", source)
         return RoleDefinition(
             id=item.get("id", ""),
@@ -168,6 +182,11 @@ class SchemaLoader:
         )
 
     def _build_extension(self, item: dict, source: SourceRecord) -> RoleExtension:
+        """Build a ``RoleExtension`` from one ``role_extensions`` entry.
+
+        ``hidden`` is read as tri-state: absent stays ``None`` ("leave
+        unchanged"), distinct from an explicit ``False`` (ADR 0023 §1).
+        """
         self._require_mapping(item, "role_extensions", source)
         return RoleExtension(
             role=item.get("role", ""),
@@ -181,6 +200,7 @@ class SchemaLoader:
 
     @staticmethod
     def _require_mapping(item, block: str, source: SourceRecord) -> None:
+        """Raise ``SchemaLoadError`` (naming the block and source) if ``item`` is not a mapping."""
         if not isinstance(item, dict):
             raise SchemaLoadError(
                 f"{source.source_id}: each entry in '{block}' must be a mapping, got {type(item).__name__}."

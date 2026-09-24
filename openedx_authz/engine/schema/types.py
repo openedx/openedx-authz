@@ -196,7 +196,7 @@ class CompiledDefinition:
 
     kind: Literal["category", "permission", "role"]
     key: str
-    definition: object
+    definition: PermissionCategory | PermissionDefinition | RoleDefinition
     sources: tuple[SourceRecord, ...]
 
 

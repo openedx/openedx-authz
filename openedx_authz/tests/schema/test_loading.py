@@ -48,50 +48,84 @@ def _load(contents: bytes):
     return SchemaLoader().load([resource])
 
 
-def test_loads_all_blocks_into_typed_objects():
-    docs = _load(VALID_YAML)
-    assert len(docs) == 1
-    doc = docs[0]
-    assert doc.priority == 150
-    assert doc.source.schema_version == "1.0"
-    assert doc.source.content_digest  # digest computed
-    assert doc.categories[0].id == "course_content"
-    assert doc.permissions[0].identifier == "courses.view_course"
-    assert doc.permissions[0].scopes == ("course-v1",)
-    assert doc.roles[0].hidden is True
-    assert doc.roles[0].permissions == ("courses.view_course",)
-    assert doc.role_extensions[0].role == "course_editor"
-    assert doc.role_extensions[0].add_permissions == ("courses.export_course",)
+class TestDocumentLoading:
+    """Parsing a schema file into a typed :class:`SchemaDocument`.
 
+    Covers the happy path (every block populated), the degenerate empty inputs
+    the loader must tolerate (validation rejects them later, not loading), and
+    the structural failures that must stop the load.
+    """
 
-def test_empty_document_yields_empty_blocks():
-    docs = _load(b"schema_version: '1.0'\npriority: 1\n")
-    assert docs[0].categories == []
-    assert docs[0].roles == []
+    def test_loads_all_blocks_into_typed_objects(self):
+        """Every top-level block becomes its typed object with fields intact."""
+        docs = _load(VALID_YAML)
+        assert len(docs) == 1
+        doc = docs[0]
+        assert doc.priority == 150
+        assert doc.source.schema_version == "1.0"
+        assert doc.source.content_digest  # digest computed
+        assert doc.categories[0].id == "course_content"
+        assert doc.permissions[0].identifier == "courses.view_course"
+        assert doc.permissions[0].scopes == ("course-v1",)
+        assert doc.roles[0].hidden is True
+        assert doc.roles[0].permissions == ("courses.view_course",)
+        assert doc.role_extensions[0].role == "course_editor"
+        assert doc.role_extensions[0].add_permissions == ("courses.export_course",)
 
+    def test_extension_changes_are_loaded(self):
+        """A ``role_extensions`` entry's edits (adds, removes, metadata) round-trip.
 
-def test_completely_empty_file_is_treated_as_an_empty_mapping():
-    """An empty file parses to ``None``; validation rejects it, loading must not."""
-    docs = _load(b"")
+        ``test_loads_all_blocks_into_typed_objects`` only exercises an add; this
+        pins the remove/rename/hide edits an extension can carry (ADR 0023).
+        """
+        docs = _load(
+            b"schema_version: '1.0'\n"
+            b"priority: 200\n"
+            b"role_extensions:\n"
+            b"  - role: course_editor\n"
+            b"    add_permissions: [courses.export_course]\n"
+            b"    remove_permissions: [courses.manage_tags]\n"
+            b"    display_name: Course author\n"
+            b"    description: Creates and exports course content.\n"
+            b"    hidden: true\n"
+        )
 
-    assert docs[0].priority == 0
-    assert docs[0].source.schema_version == ""
-    assert docs[0].roles == []
+        extension = docs[0].role_extensions[0]
+        assert extension.role == "course_editor"
+        assert extension.add_permissions == ("courses.export_course",)
+        assert extension.remove_permissions == ("courses.manage_tags",)
+        assert extension.display_name == "Course author"
+        assert extension.description == "Creates and exports course content."
+        assert extension.hidden is True
 
+    def test_empty_document_yields_empty_blocks(self):
+        """A file with only header fields yields empty block lists, not errors."""
+        docs = _load(b"schema_version: '1.0'\npriority: 1\n")
+        assert docs[0].categories == []
+        assert docs[0].roles == []
 
-def test_invalid_yaml_raises_load_error():
-    with pytest.raises(SchemaLoadError):
-        _load(b"schema_version: '1.0'\n  bad: [unclosed\n")
+    def test_completely_empty_file_is_treated_as_an_empty_mapping(self):
+        """An empty file parses to ``None``; validation rejects it, loading must not."""
+        docs = _load(b"")
 
+        assert docs[0].priority == 0
+        assert docs[0].source.schema_version == ""
+        assert docs[0].roles == []
 
-def test_non_mapping_top_level_raises_load_error():
-    with pytest.raises(SchemaLoadError):
-        _load(b"- just\n- a\n- list\n")
+    def test_invalid_yaml_raises_load_error(self):
+        """Malformed YAML surfaces as ``SchemaLoadError``."""
+        with pytest.raises(SchemaLoadError):
+            _load(b"schema_version: '1.0'\n  bad: [unclosed\n")
 
+    def test_non_mapping_top_level_raises_load_error(self):
+        """A top-level sequence (not a mapping) is rejected."""
+        with pytest.raises(SchemaLoadError):
+            _load(b"- just\n- a\n- list\n")
 
-def test_non_integer_priority_raises_load_error():
-    with pytest.raises(SchemaLoadError):
-        _load(b"schema_version: '1.0'\npriority: high\n")
+    def test_non_integer_priority_raises_load_error(self):
+        """A non-numeric priority is a mistake, not a default."""
+        with pytest.raises(SchemaLoadError):
+            _load(b"schema_version: '1.0'\npriority: high\n")
 
 
 class TestSourceIdentity:
@@ -185,7 +219,12 @@ class TestFieldCoercion:
         assert docs[0].permissions == []
 
     def test_missing_priority_defaults_to_zero(self):
-        """Priority decides every conflict, so the default is worth pinning down."""
+        """``priority`` is required by the schema, but the loader defers that.
+
+        Enforcing required fields is the validate step's job (ADR 0018), so the
+        loader reads a missing ``priority`` as ``0`` rather than raising; a
+        later validation pass rejects the omission.
+        """
         docs = _load(b"schema_version: '1.0'\n")
 
         assert docs[0].priority == 0

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from openedx_authz.engine.schema.discovery import DiscoveredResource
+from openedx_authz.engine.schema.discovery import DiscoveredResource, Origin
 from openedx_authz.engine.schema.types import (
     PermissionCategory,
     PermissionDefinition,
@@ -104,7 +104,7 @@ class InMemoryResource(DiscoveredResource):
     def __init__(
         self, contents: bytes, *, package: str = "pkg", module: str = "pkg.mod", resource_path: str = "file.authz.yaml"
     ):
-        super().__init__(package=package, resource_path=resource_path, module=module, origin="explicit")
+        super().__init__(package=package, resource_path=resource_path, module=module, origin=Origin.PASSED_IN)
         # frozen dataclass: bypass the immutability guard for the test-only field.
         object.__setattr__(self, "_contents", contents)
 

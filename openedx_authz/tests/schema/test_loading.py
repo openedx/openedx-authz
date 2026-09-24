@@ -104,14 +104,14 @@ class TestSourceIdentity:
 
     def test_installed_package_resolves_to_its_distribution(self):
         """A module shipped by this package resolves to the real distribution."""
-        discovery = SchemaDiscovery(explicit_directories=["openedx_authz/authz/schema"])
+        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
         assert {doc.source.distribution for doc in docs} == {"openedx-authz"}
         assert all(doc.source.distribution_version != UNKNOWN for doc in docs)
 
     def test_module_is_recorded_as_the_dotted_path(self):
-        discovery = SchemaDiscovery(explicit_directories=["openedx_authz/authz/schema"])
+        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
         assert {doc.source.module for doc in docs} == {"openedx_authz.authz.schema"}

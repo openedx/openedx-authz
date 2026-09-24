@@ -4,7 +4,7 @@ REST API view exposing Course Authoring data.
 This is the one endpoint in openedx-authz whose data is not Authorization's own,
 kept as a bounded, documented exception. See
 ``docs/decisions/0015-expose-course-authoring-waffle-flag-state-via-rest-api.rst``
-and ``docs/decisions/0016-rest-api-domain-ownership-boundary.rst``.
+and ``docs/decisions/0026-rest-api-domain-ownership-boundary.rst``.
 """
 
 import logging

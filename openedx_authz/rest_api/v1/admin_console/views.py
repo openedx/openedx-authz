@@ -3,7 +3,7 @@ REST API views built for the Admin Console.
 
 These views operate on Authorization's own data (roles, permissions, assignments,
 scopes), but each is shaped around one specific Admin Console screen rather than being
-a reusable, consumer-agnostic operation. See ``docs/decisions/0016-rest-api-domain-ownership-boundary.rst``.
+a reusable, consumer-agnostic operation. See ``docs/decisions/0026-rest-api-domain-ownership-boundary.rst``.
 """
 
 import logging
@@ -38,6 +38,7 @@ from openedx_authz.api.users import (
     get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
+from openedx_authz.api.utils import get_scope_display_name_map
 from openedx_authz.constants import permissions
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import ScopesQuerySetFields, ScopesTypeField
@@ -49,9 +50,7 @@ from openedx_authz.rest_api.v1.admin_console.filters import (
     UserAssignmentsOrderingFilter,
     UserAssignmentsSearchFilter,
 )
-from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission
-from openedx_authz.rest_api.v1.serializers import (
+from openedx_authz.rest_api.v1.admin_console.serializers import (
     ListAssignmentsQuerySerializer,
     ListScopesQuerySerializer,
     ListTeamMemberAssignmentsQuerySerializer,
@@ -61,6 +60,8 @@ from openedx_authz.rest_api.v1.serializers import (
     TeamMemberSerializer,
     TeamMemberUserAssignmentSerializer,
 )
+from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
+from openedx_authz.rest_api.v1.permissions import AnyScopePermission
 
 logger = logging.getLogger(__name__)
 
@@ -519,6 +520,7 @@ class TeamMembersAPIView(APIView):
     - scopes (Optional): Comma-separated list of scopes to filter by (e.g., 'lib:Org1:LIB1')
     - orgs (Optional): Comma-separated list of orgs to filter by (e.g., 'Org1,Org2')
     - search (Optional): Search term to filter users by username, full name, or email
+    - assignments_limit (Optional): Maximum number of assignments for each user. Defaults to 3, maximum 10
     - sort_by (Optional): Field to sort by. Options: username, full_name, email. Defaults to username
     - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
     - page (Optional): Page number for pagination
@@ -531,7 +533,14 @@ class TeamMembersAPIView(APIView):
     - username: The user's username
     - full_name: The user's full name
     - email: The user's email address
-    - assignation_count: The number of role assignments the user has
+    - assignment_count: The number of role assignments the user has
+    - assignments: A list of the user's role assignments (limited by assignments_limit), each containing:
+        - role: The role name (e.g., 'library_admin')
+        - org: The org over which this role is applied
+        - scope: The scope over which this role is applied
+        - scope_display_name: The human-readable display name for the scope
+          (empty string for glob scopes or unresolvable resources)
+        - permission_count: The number of permissions that apply to this role
 
     **Authentication and Permissions**
 
@@ -553,13 +562,52 @@ class TeamMembersAPIView(APIView):
                     "username": "jane_doe",
                     "full_name": "Jane Doe",
                     "email": "jane_doe@example.com",
-                    "assignation_count": 3
+                    "assignment_count": 3,
+                    "assignments": [
+                        {
+                            "role": "library_admin",
+                            "org": "Org1",
+                            "scope": "lib:Org1:LIB1",
+                            "scope_display_name": "Intro to CS Library",
+                            "permission_count": 11
+                        },
+                        {
+                            "role": "course_staff",
+                            "org": "Org1",
+                            "scope": "course-v1:Org1+CS101+2024",
+                            "scope_display_name": "Introduction to Computer Science",
+                            "permission_count": 27
+                        },
+                        {
+                            "role": "library_admin",
+                            "org": "Org1",
+                            "scope": "lib:Org1:*",
+                            "scope_display_name": "",
+                            "permission_count": 11
+                        }
+                    ]
                 },
                 {
                     "username": "john_doe",
                     "full_name": "John Doe",
                     "email": "john_doe@example.com",
-                    "assignation_count": 1
+                    "assignment_count": 2,
+                    "assignments": [
+                        {
+                            "role": "course_staff",
+                            "org": "Org2",
+                            "scope": "course-v1:Org2+*",
+                            "scope_display_name": "",
+                            "permission_count": 27
+                        },
+                        {
+                            "role": "library_user",
+                            "org": "*",
+                            "scope": "lib:*",
+                            "scope_display_name": "",
+                            "permission_count": 4
+                        }
+                    ]
                 }
             ]
         }
@@ -571,9 +619,11 @@ class TeamMembersAPIView(APIView):
 
     @apidocs.schema(
         parameters=[
+            apidocs.query_parameter("roles", str, description="The roles to query assignments for"),
             apidocs.query_parameter("scopes", str, description="The scopes to query assignments for"),
             apidocs.query_parameter("orgs", str, description="The orgs to query assignments for"),
             apidocs.query_parameter("search", str, description="The search query to filter users by"),
+            apidocs.query_parameter("assignments_limit", int, description="The limit number of assignments per user."),
             apidocs.query_parameter("sort_by", str, description="The field to sort by"),
             apidocs.query_parameter("order", str, description="The order to sort by"),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
@@ -593,7 +643,7 @@ class TeamMembersAPIView(APIView):
         ]
     )
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all users that have at least one assignation according to the filtering fields."""
+        """Retrieve all users that have at least one assignment according to the filtering fields."""
         serializer = ListTeamMembersSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         query_params = serializer.validated_data
@@ -601,15 +651,37 @@ class TeamMembersAPIView(APIView):
         users_with_assignments = get_visible_role_assignments_for_user(
             orgs=query_params.get("orgs"),
             scopes=query_params.get("scopes"),
+            roles=query_params.get("roles"),
             allowed_for_user_external_key=request.user.username,
         )
 
-        team_members = TeamMemberSerializer(users_with_assignments, many=True).data
+        team_members = TeamMemberSerializer(
+            users_with_assignments,
+            many=True,
+            context={
+                "assignments_limit": query_params.get("assignments_limit"),
+            },
+        ).data
         for backend in self.filter_backends:
             team_members = backend().filter_queryset(request, team_members, self)
 
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(team_members, request)
+
+        # Resolve scope display names only for the current page to avoid
+        # unnecessary DB lookups for assignments that are not in the response.
+        scope_keys: set[str] = set()
+        for member in paginated_response_data:
+            for assignment in member.get("assignments", []):
+                scope_key = assignment.get("scope", "")
+                if scope_key:
+                    scope_keys.add(scope_key)
+
+        scope_display_name_map = get_scope_display_name_map(scope_keys)
+        for member in paginated_response_data:
+            for assignment in member.get("assignments", []):
+                assignment["scope_display_name"] = scope_display_name_map.get(assignment.get("scope", ""), "")
+
         return paginator.get_paginated_response(paginated_response_data)
 
 

@@ -225,12 +225,12 @@ class TestDefinitionReport:
 class TestDirectoryOption:
     """Cover the --dir option wiring into SchemaDiscovery."""
 
-    def test_dir_builds_discovery_with_explicit_directories(self):
+    def test_dir_builds_discovery_with_passed_in_directories(self):
         with mock.patch(PIPELINE_PATH) as pipeline_cls, mock.patch(DISCOVERY_PATH) as discovery_cls:
             pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
             _run("--dir", "pkg_a/authz/schema", "--dir", "pkg_b/authz/schema")
 
-        discovery_cls.assert_called_once_with(explicit_directories=["pkg_a/authz/schema", "pkg_b/authz/schema"])
+        discovery_cls.assert_called_once_with(passed_in_directories=["pkg_a/authz/schema", "pkg_b/authz/schema"])
         # The pipeline is built with that discovery instance.
         pipeline_cls.assert_called_once_with(discovery=discovery_cls.return_value)
 
@@ -300,7 +300,7 @@ class TestOptionCombinations:
             pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
             _run("--dry-run", "--dir", "pkg_a/authz/schema")
 
-        discovery_cls.assert_called_once_with(explicit_directories=["pkg_a/authz/schema"])
+        discovery_cls.assert_called_once_with(passed_in_directories=["pkg_a/authz/schema"])
         pipeline_cls.assert_called_once_with(discovery=discovery_cls.return_value)
         pipeline_cls.return_value.plan.assert_called_once_with()
         pipeline_cls.return_value.apply.assert_not_called()

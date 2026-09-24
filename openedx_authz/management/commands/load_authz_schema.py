@@ -63,7 +63,7 @@ class Command(BaseCommand):
         stops before (or without partially applying) any database change.
         """
         directories = options.get("directories") or []
-        discovery = SchemaDiscovery(explicit_directories=directories) if directories else SchemaDiscovery()
+        discovery = SchemaDiscovery(passed_in_directories=directories) if directories else SchemaDiscovery()
         pipeline = SchemaPipeline(discovery=discovery)
 
         try:

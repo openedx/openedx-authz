@@ -175,6 +175,7 @@ class TestDiscardedContributionWarnings:
         return SchemaCompiler().compile(list(documents))
 
     def test_lower_priority_base_definition_warns(self, caplog):
+        """A base definition that loses on priority is reported as having no effect."""
         low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
         high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
 
@@ -187,6 +188,7 @@ class TestDiscardedContributionWarnings:
         assert make_source("high").source_id in caplog.text
 
     def test_warning_names_both_priorities(self, caplog):
+        """The discard warning names both the losing and winning priorities."""
         low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
         high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
 
@@ -232,6 +234,7 @@ class TestDiscardedContributionWarnings:
         assert "categorie" not in caplog.text
 
     def test_conflict_error_uses_singular_kind_label(self):
+        """A conflict error uses the singular kind label ('category')."""
         left = make_document("left", priority=100, categories=[category("cat", display_name="Left")])
         right = make_document("right", priority=100, categories=[category("cat", display_name="Right")])
 
@@ -239,6 +242,7 @@ class TestDiscardedContributionWarnings:
             self._compile(left, right)
 
     def test_losing_metadata_extension_warns(self, caplog):
+        """A metadata extension that loses on priority is reported, naming its source."""
         base = make_document("base", priority=100, roles=[role(rid="course_editor")])
         low = make_document("low", priority=100, role_extensions=[extension("course_editor", display_name="Low")])
         high = make_document("high", priority=200, role_extensions=[extension("course_editor", display_name="High")])
@@ -251,6 +255,7 @@ class TestDiscardedContributionWarnings:
         assert make_source("low").source_id in caplog.text
 
     def test_losing_permission_extension_warns(self, caplog):
+        """A permission-changing extension that loses on priority is reported."""
         base = make_document(
             "base",
             priority=100,
@@ -284,6 +289,7 @@ class TestNoOpExtensionWarnings:
         return SchemaCompiler().compile(list(documents))
 
     def test_adding_an_existing_permission_warns(self, caplog):
+        """Adding a permission the role already has warns and is a no-op."""
         base = make_document(
             "base",
             priority=100,
@@ -301,6 +307,7 @@ class TestNoOpExtensionWarnings:
         assert "already on role" in caplog.text
 
     def test_removing_an_absent_permission_warns(self, caplog):
+        """Removing a permission the role does not have warns and is a no-op."""
         base = make_document("base", priority=100, roles=[role(rid="course_editor", permissions=())])
         ext = make_document(
             "ext",
@@ -330,6 +337,7 @@ class TestDefensiveBranches:
         assert not compiled.role_permission_sources
 
     def test_identical_duplicate_categories_merge_sources(self):
+        """Two identical category definitions merge into one, keeping both sources."""
         first = make_document("first", categories=[category("cat")])
         second = make_document("second", categories=[category("cat")])
 
@@ -338,6 +346,7 @@ class TestDefensiveBranches:
         assert len(compiled.categories["cat"].sources) == 2
 
     def test_identical_duplicate_permissions_merge_sources(self):
+        """Two identical permission definitions merge into one, keeping both sources."""
         first = make_document("first", permissions=[permission(cat="cat")])
         second = make_document("second", permissions=[permission(cat="cat")])
 

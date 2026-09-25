@@ -186,7 +186,7 @@ class SchemaApplyIntegrationBase(TestCase):
         self.enforcer.load_policy()
 
 
-class SchemaApplyPruningIntegrationTests(SchemaApplyIntegrationBase):
+class TestSchemaApplyPruningIntegration(SchemaApplyIntegrationBase):
     """Real enforcer + real DB reconciliation across successive applies."""
 
     def test_first_apply_persists_rows_and_definitions(self):
@@ -312,7 +312,7 @@ class SchemaApplyPruningIntegrationTests(SchemaApplyIntegrationBase):
         self.assertEqual(audit.get().operation, RoleAssignmentAudit.OPERATIONS.deleted)
 
 
-class SchemaApplyAdoptionIntegrationTests(SchemaApplyIntegrationBase):
+class TestSchemaApplyAdoptionIntegration(SchemaApplyIntegrationBase):
     """Pre-existing policy rows are adopted, unmanaged rows are left alone.
 
     ADR 0025 §6: a rendered ``(role, permission, scope)`` that already exists as
@@ -392,7 +392,7 @@ class SchemaApplyAdoptionIntegrationTests(SchemaApplyIntegrationBase):
         self.assertIn([self.UNMANAGED_ROLE, VIEW_ACTION, "course-v1^*", "allow"], self.enforcer.get_policy())
 
 
-class SchemaApplyFailureIntegrationTests(SchemaApplyIntegrationBase):
+class TestSchemaApplyFailureIntegration(SchemaApplyIntegrationBase):
     """A failed apply leaves Casbin on the last committed state (ADR 0018 §5).
 
     ``add_policy`` writes through to the adapter *and* mutates the enforcer's

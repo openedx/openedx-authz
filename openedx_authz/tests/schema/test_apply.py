@@ -384,10 +384,11 @@ class TestApplyFailure:
         cache_invalidation.assert_not_called()
 
 
-class DefinitionPruningTests(TestCase):
+class TestDefinitionPruning(TestCase):
     """Definition/source tables track the compiled schema across applies."""
 
     def test_removed_permission_prunes_grant_and_definition(self):
+        """Dropping a permission prunes both its grant and its definition row."""
         applier = SchemaApplier()
 
         first = SchemaCompiler().compile([_editor(("courses.view_course", "courses.manage_tags"))])
@@ -412,6 +413,7 @@ class DefinitionPruningTests(TestCase):
         assert not AuthzPermissionDefinition.objects.filter(name="export_course").exists()
 
     def test_removed_role_and_category_are_pruned(self):
+        """Applying an empty schema prunes every role, grant, permission, and category."""
         applier = SchemaApplier()
         applier._store_sources(  # pylint: disable=protected-access
             SchemaCompiler().compile([_editor(("courses.view_course",))])

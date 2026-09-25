@@ -59,7 +59,7 @@ def _store(*documents):
     return schema
 
 
-class StoreSourcesTests(TestCase):
+class TestStoreSources(TestCase):
     """Persistence of compiled definitions and their provenance."""
 
     def test_definitions_are_persisted(self):
@@ -97,9 +97,7 @@ class StoreSourcesTests(TestCase):
         self.assertEqual(link.origin_kind, OriginKind.EXTENSION)
         self.assertEqual(link.priority, 200)
 
-        view_grant = AuthzRolePermission.objects.get(
-            role__role_id="course_admin", permission__name="view_course"
-        )
+        view_grant = AuthzRolePermission.objects.get(role__role_id="course_admin", permission__name="view_course")
         view_link = AuthzRolePermissionSource.objects.get(role_permission=view_grant)
         self.assertEqual(view_link.origin_kind, OriginKind.BASE)
 
@@ -147,9 +145,7 @@ class StoreSourcesTests(TestCase):
         )
         _store(changed)
         self.assertEqual(AuthzRoleDefinition.objects.count(), 1)
-        self.assertEqual(
-            AuthzRoleDefinition.objects.get(role_id="course_admin").display_name, "Course Administrator"
-        )
+        self.assertEqual(AuthzRoleDefinition.objects.get(role_id="course_admin").display_name, "Course Administrator")
 
     def test_moving_definition_between_files_keeps_single_source(self):
         """Moving a definition to another file in the same module reuses its source row."""
@@ -168,7 +164,7 @@ class StoreSourcesTests(TestCase):
         self.assertEqual(AuthzSchemaSource.objects.count(), 1)
 
 
-class SourceGranularityTests(TestCase):
+class TestSourceGranularity(TestCase):
     """Source identity is per module, not per file (ADR 0025 §2).
 
     ``resource_path`` and ``content_digest`` are explicitly non-identifying, so
@@ -225,9 +221,7 @@ class SourceGranularityTests(TestCase):
         _store(first, second)
 
         self.assertEqual(AuthzSchemaSource.objects.count(), 2)
-        self.assertEqual(
-            sorted(AuthzSchemaSource.objects.values_list("module", flat=True)), ["pkg.core", "pkg.other"]
-        )
+        self.assertEqual(sorted(AuthzSchemaSource.objects.values_list("module", flat=True)), ["pkg.core", "pkg.other"])
 
     def test_shared_definition_gains_a_link_per_contributing_module(self):
         """ADR 0025 §2: the many-to-many exists to represent shared ownership."""
@@ -282,7 +276,7 @@ class SourceGranularityTests(TestCase):
         self.assertFalse(AuthzRoleDefinition.objects.get(role_id="course_auditor").hidden)
 
 
-class DefinitionDisplayTests(TestCase):
+class TestDefinitionDisplay(TestCase):
     """Human-readable identifiers used by the Django admin fallback (ADR 0018 §7)."""
 
     def test_source_string_is_distribution_and_module_path(self):
@@ -316,7 +310,7 @@ class DefinitionDisplayTests(TestCase):
         self.assertEqual(str(grant), "course_admin -> courses.view_course @ course-v1")
 
 
-class DefensiveStorageTests(TestCase):
+class TestDefensiveStorage(TestCase):
     """Paths guarded against states validation is expected to have rejected."""
 
     def test_grant_for_an_undefined_permission_is_skipped(self):

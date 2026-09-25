@@ -332,6 +332,7 @@ class TestSchemaApplyAdoptionIntegration(SchemaApplyIntegrationBase):
         self.enforcer.load_policy()
 
     def test_preexisting_rows_are_adopted_not_duplicated(self):
+        """Pre-existing rendered rows are adopted (gain definitions), not duplicated."""
         document = _document(roles=[_editor_role(("courses.view_course", "courses.manage_tags"))])
         self._seed_rendered_rows(document)
         self.assertEqual(len(self._p_rows_for_role()), 2)
@@ -360,6 +361,7 @@ class TestSchemaApplyAdoptionIntegration(SchemaApplyIntegrationBase):
         self.assertTrue(self.enforcer.enforce(USER_SUBJECT, VIEW_ACTION, COURSE_SCOPE))
 
     def test_adopted_grant_records_the_contributing_source(self):
+        """An adopted grant records its contributing source module."""
         document = _document(roles=[_editor_role(("courses.view_course",))])
         self._seed_rendered_rows(document)
 
@@ -383,6 +385,7 @@ class TestSchemaApplyAdoptionIntegration(SchemaApplyIntegrationBase):
         self.assertFalse(AuthzRoleDefinition.objects.filter(role_id="schema_apply_legacy").exists())
 
     def test_unmanaged_row_survives_an_empty_schema(self):
+        """An unmanaged row is preserved even when the applied schema is empty."""
         self.enforcer.add_policy(self.UNMANAGED_ROLE, VIEW_ACTION, "course-v1^*", "allow")
         self.enforcer.load_policy()
 
@@ -418,6 +421,7 @@ class TestSchemaApplyFailureIntegration(SchemaApplyIntegrationBase):
         self.addCleanup(patcher.stop)
 
     def test_failed_apply_rolls_back_every_definition_write(self):
+        """A failed apply rolls back every definition row it had started writing."""
         self._fail_during_store()
 
         with self.assertRaises(IntegrityError):

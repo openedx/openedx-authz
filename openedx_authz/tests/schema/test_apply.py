@@ -162,6 +162,7 @@ class TestApplyReconciliation:
     """Enforcer-level add/remove/idempotency behavior."""
 
     def test_first_apply_adds_all_rows(self):
+        """A first apply adds one policy row per rendered grant."""
         enforcer = FakeEnforcer()
 
         result = _apply(enforcer, _editor(("courses.view_course", "courses.manage_tags")))
@@ -171,6 +172,7 @@ class TestApplyReconciliation:
         assert len(enforcer.get_policy()) == 2
 
     def test_reapply_is_idempotent(self):
+        """Re-applying the same schema adds and removes nothing."""
         enforcer = FakeEnforcer()
         document = _editor(("courses.view_course", "courses.manage_tags"))
 
@@ -183,6 +185,7 @@ class TestApplyReconciliation:
         assert len(enforcer.get_policy()) == 2
 
     def test_removed_permission_prunes_stale_p_row(self):
+        """Removing a permission prunes its stale policy row, keeping the others."""
         # Start with two permissions on the role, then drop one via extension.
         enforcer = FakeEnforcer()
         base = _editor(("courses.view_course", "courses.manage_tags"))
@@ -197,6 +200,7 @@ class TestApplyReconciliation:
         assert ("role^course_editor", "act^courses.view_course", "course-v1^*", "allow") in remaining
 
     def test_removed_role_without_assignments_is_pruned(self):
+        """A role dropped from the schema is pruned when it has no assignments."""
         enforcer = FakeEnforcer()
         _apply(enforcer, _editor(("courses.view_course",)))
 
@@ -220,6 +224,7 @@ class TestOwnershipBoundary:
     UNMANAGED = ("role^legacy_thing", "act^courses.view_course", "course-v1^*", "allow")
 
     def test_unmanaged_policy_row_is_preserved(self):
+        """A policy row no schema owns is left in place by apply."""
         enforcer = FakeEnforcer(policies=[self.UNMANAGED])
 
         _apply(enforcer, _editor(("courses.view_course",)))
@@ -227,6 +232,7 @@ class TestOwnershipBoundary:
         assert list(self.UNMANAGED) in enforcer.get_policy()
 
     def test_unmanaged_row_is_not_reported_as_removed(self):
+        """An unmanaged row is never counted among the removed rows."""
         enforcer = FakeEnforcer(policies=[self.UNMANAGED])
 
         result = _apply(enforcer, _editor(("courses.view_course",)))
@@ -243,6 +249,7 @@ class TestOwnershipBoundary:
         assert enforcer.get_policy() == [list(self.UNMANAGED)]
 
     def test_unmanaged_row_is_not_attributed(self):
+        """An unmanaged row gains no definition/source attribution."""
         enforcer = FakeEnforcer(policies=[self.UNMANAGED])
 
         _apply(enforcer, _editor(("courses.view_course",)))
@@ -297,6 +304,7 @@ class TestForceGate:
         return enforcer
 
     def test_blocking_assignment_aborts_without_force(self):
+        """Removing a role with a live assignment aborts without ``force``."""
         enforcer = self._assigned_enforcer()
 
         with pytest.raises(SchemaApplyError):
@@ -306,6 +314,7 @@ class TestForceGate:
         assert len(enforcer.get_policy()) == 1
 
     def test_force_removes_role_rows_and_assignments(self):
+        """With ``force``, the removed role's policy and assignment rows are pruned."""
         enforcer = self._assigned_enforcer()
 
         result = _apply(enforcer, force=True)
@@ -341,12 +350,14 @@ class TestApplyFailure:
         monkeypatch.setattr(SchemaApplier, "_store_sources", _store_then_fail)
 
     def test_failure_propagates(self, monkeypatch, cache_invalidation):  # pylint: disable=unused-argument
+        """A write failure during apply propagates to the caller."""
         self._failing_store(monkeypatch)
 
         with pytest.raises(IntegrityError):
             _apply(FakeEnforcer(), _editor(("courses.view_course",)))
 
     def test_failure_rolls_back_definition_writes(self, monkeypatch, cache_invalidation):  # pylint: disable=unused-argument
+        """A failed apply rolls back any definition rows it had written."""
         self._failing_store(monkeypatch)
 
         with pytest.raises(IntegrityError):
@@ -369,11 +380,13 @@ class TestApplyFailure:
         cache_invalidation.assert_called_once_with()
 
     def test_successful_apply_invalidates_once_when_rows_change(self, cache_invalidation):
+        """A successful apply that changes rows invalidates the policy cache once."""
         _apply(FakeEnforcer(), _editor(("courses.view_course",)))
 
         cache_invalidation.assert_called_once_with()
 
     def test_successful_apply_skips_invalidation_when_unchanged(self, cache_invalidation):
+        """An apply that changes nothing does not invalidate the policy cache."""
         enforcer = FakeEnforcer()
         document = _editor(("courses.view_course",))
         _apply(enforcer, document)
@@ -445,6 +458,7 @@ class TestDefinitionChangeReport:
         return SchemaApplier(enforcer=enforcer).plan(PolicyRenderer().render(schema), schema)
 
     def test_first_run_reports_every_definition_as_added(self):
+        """A first run reports every role, category, permission, and grant as added."""
         plan = self._plan(FakeEnforcer(), _editor(("courses.view_course",)))
 
         assert plan.roles.added == ["course_editor"]
@@ -454,6 +468,7 @@ class TestDefinitionChangeReport:
         assert plan.unchanged is False
 
     def test_identical_reapply_reports_no_definition_changes(self):
+        """Re-planning an identical schema reports no definition changes."""
         enforcer = FakeEnforcer()
         document = _editor(("courses.view_course",))
         _apply(enforcer, document)
@@ -486,6 +501,7 @@ class TestDefinitionChangeReport:
         assert plan.unchanged is False
 
     def test_hidden_flag_change_is_reported(self):
+        """Flipping a role's ``hidden`` flag is reported as an update."""
         enforcer = FakeEnforcer()
         before = _doc(roles=[role(rid="course_editor", permissions=("courses.view_course",))])
         _apply(enforcer, before)
@@ -496,6 +512,7 @@ class TestDefinitionChangeReport:
         assert plan.roles.updated == ["course_editor"]
 
     def test_permission_metadata_change_is_reported(self):
+        """Editing a permission's display name is reported as an update."""
         enforcer = FakeEnforcer()
         _apply(enforcer, _editor(("courses.view_course",)))
 
@@ -512,6 +529,7 @@ class TestDefinitionChangeReport:
         assert plan.permissions.updated == ["courses.view_course"]
 
     def test_category_metadata_change_is_reported(self):
+        """Editing a category's display metadata is reported as an update."""
         enforcer = FakeEnforcer()
         _apply(enforcer, _editor(("courses.view_course",)))
 
@@ -524,6 +542,7 @@ class TestDefinitionChangeReport:
         assert plan.categories.updated == ["cat"]
 
     def test_dropped_definitions_are_reported_as_removed(self):
+        """Definitions absent from the new schema are reported as removed."""
         enforcer = FakeEnforcer()
         _apply(enforcer, _editor(("courses.view_course",)))
 
@@ -534,6 +553,7 @@ class TestDefinitionChangeReport:
         assert plan.grants.removed == ["course_editor -> courses.view_course @ course-v1"]
 
     def test_grant_change_is_reported_alongside_the_row(self):
+        """A removed grant is reported both as a grant change and a removed row."""
         enforcer = FakeEnforcer()
         base = _editor(("courses.view_course", "courses.manage_tags"))
         _apply(enforcer, base)
@@ -553,6 +573,7 @@ class TestDefinitionChangeReport:
         assert plan.definitions_unchanged is True
 
     def test_plan_does_not_write(self):
+        """Planning is read-only: it writes no policy rows or definitions."""
         enforcer = FakeEnforcer()
 
         self._plan(enforcer, _editor(("courses.view_course",)))

@@ -62,6 +62,7 @@ class TestCompile:
     """Cover SchemaPipeline.compile step ordering and validation gating."""
 
     def test_runs_steps_in_order_and_returns_compiled_schema(self):
+        """Compile runs discover -> load -> validate -> compile -> validate_compiled in order."""
         pipeline, m = _pipeline()
 
         result = pipeline.compile()
@@ -89,6 +90,7 @@ class TestCompile:
         m["compiler"].compile.assert_called_once()
 
     def test_compiled_errors_stop_before_render_and_apply(self):
+        """A post-compile error aborts apply before rendering or applying."""
         error = ValidationIssue("error", "scope not supported", "src")
         pipeline, m = _pipeline(compiled_issues=[error])
 
@@ -99,6 +101,7 @@ class TestCompile:
         m["applier"].apply.assert_not_called()
 
     def test_compiled_warnings_do_not_stop_compilation(self):
+        """A post-compile warning is non-fatal; compilation still returns the schema."""
         warning = ValidationIssue("warning", "heads up", "src")
         pipeline, _ = _pipeline(compiled_issues=[warning])
 
@@ -115,6 +118,7 @@ class TestCompile:
         m["validator"].validate_compiled.assert_not_called()
 
     def test_raises_when_validation_has_errors(self):
+        """A document-level validation error stops before compilation runs."""
         error = ValidationIssue("error", "boom", "src")
         pipeline, m = _pipeline(issues=[error])
 
@@ -127,6 +131,7 @@ class TestCompile:
         m["compiler"].compile.assert_not_called()
 
     def test_warning_only_issues_do_not_stop_compilation(self):
+        """A document-level warning is non-fatal; compilation still proceeds."""
         warning = ValidationIssue("warning", "heads up", "src")
         pipeline, m = _pipeline(issues=[warning])
 
@@ -140,6 +145,7 @@ class TestPlan:
     """Cover SchemaPipeline.plan delegation to render + applier.plan."""
 
     def test_delegates_to_renderer_and_applier_plan(self):
+        """Plan renders the compiled schema and delegates to ``applier.plan``."""
         pipeline, m = _pipeline()
 
         result = pipeline.plan()
@@ -151,6 +157,7 @@ class TestPlan:
         assert result is m["applier"].plan.return_value
 
     def test_plan_does_not_apply(self):
+        """Plan is read-only: it never calls ``applier.apply``."""
         pipeline, m = _pipeline()
         pipeline.plan()
         m["applier"].apply.assert_not_called()
@@ -160,6 +167,7 @@ class TestApply:
     """Cover SchemaPipeline.apply delegation and force forwarding."""
 
     def test_delegates_to_applier_apply_without_force(self):
+        """Apply renders the schema and delegates to ``applier.apply`` with ``force=False``."""
         pipeline, m = _pipeline()
 
         result = pipeline.apply()
@@ -169,20 +177,24 @@ class TestApply:
         assert result is m["applier"].apply.return_value
 
     def test_forwards_force_flag(self):
+        """The ``force`` flag is forwarded to ``applier.apply``."""
         pipeline, m = _pipeline()
         pipeline.apply(force=True)
         m["applier"].apply.assert_called_once_with("rendered-policy", "compiled-schema", force=True)
 
 
-def test_default_components_are_constructed_when_not_injected():
-    """A bare SchemaPipeline wires real default components (smoke test)."""
-    pipeline = SchemaPipeline()
-    # Internal defaults exist; we don't run them here (that needs real data),
-    # only assert the orchestrator is fully constructed.
-    # pylint: disable=protected-access
-    assert pipeline._discovery is not None
-    assert pipeline._loader is not None
-    assert pipeline._validator is not None
-    assert pipeline._compiler is not None
-    assert pipeline._renderer is not None
-    assert pipeline._applier is not None
+class TestDefaultComponents:
+    """Constructing a pipeline without injected components wires real defaults."""
+
+    def test_default_components_are_constructed_when_not_injected(self):
+        """A bare SchemaPipeline wires real default components (smoke test)."""
+        pipeline = SchemaPipeline()
+        # Internal defaults exist; we don't run them here (that needs real data),
+        # only assert the orchestrator is fully constructed.
+        # pylint: disable=protected-access
+        assert pipeline._discovery is not None
+        assert pipeline._loader is not None
+        assert pipeline._validator is not None
+        assert pipeline._compiler is not None
+        assert pipeline._renderer is not None
+        assert pipeline._applier is not None

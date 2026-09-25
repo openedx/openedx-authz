@@ -109,7 +109,6 @@ class AuthzCourseAuthoringMigrationRun(models.Model):
             super().save(*args, **kwargs)
         return self
 
-    # pylint: disable=too-many-positional-arguments
     @classmethod
     def _create(
         cls, migration_type, scope_type, scope_key, status, metadata=None

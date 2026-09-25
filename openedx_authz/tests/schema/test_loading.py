@@ -145,6 +145,7 @@ class TestSourceIdentity:
         assert all(doc.source.distribution_version != UNKNOWN for doc in docs)
 
     def test_module_is_recorded_as_the_dotted_path(self):
+        """The source module is recorded as the resource's dotted import path."""
         discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
@@ -158,6 +159,7 @@ class TestSourceIdentity:
         assert docs[0].source.distribution_version == UNKNOWN
 
     def test_missing_distribution_metadata_falls_back_to_unknown_version(self, monkeypatch):
+        """A distribution with no readable version falls back to ``UNKNOWN``."""
         monkeypatch.setattr(metadata, "packages_distributions", lambda: {"pkg": ["ghost-dist"]})
 
         def _missing(_name):
@@ -183,12 +185,14 @@ class TestSourceIdentity:
         assert docs[0].source.distribution == "pkg"
 
     def test_digest_reflects_the_file_contents(self):
+        """Different file contents produce different content digests."""
         first = _load(b"schema_version: '1.0'\npriority: 1\n")[0]
         second = _load(b"schema_version: '1.0'\npriority: 2\n")[0]
 
         assert first.source.content_digest != second.source.content_digest
 
     def test_identical_contents_produce_the_same_digest(self):
+        """Identical file contents produce the same content digest."""
         first = _load(b"schema_version: '1.0'\npriority: 1\n")[0]
         second = _load(b"schema_version: '1.0'\npriority: 1\n")[0]
 
@@ -213,6 +217,7 @@ class TestFieldCoercion:
         assert docs[0].roles[0].permissions == ("courses.view_course",)
 
     def test_null_blocks_are_treated_as_empty(self):
+        """A YAML block whose value is null coerces to an empty list."""
         docs = _load(b"schema_version: '1.0'\npriority: 1\nroles:\npermissions:\n")
 
         assert docs[0].roles == []
@@ -236,6 +241,7 @@ class TestFieldCoercion:
         assert docs[0].source.schema_version == ""
 
     def test_numeric_string_priority_is_accepted(self):
+        """A priority written as a numeric string is coerced to an int."""
         docs = _load(b"schema_version: '1.0'\npriority: '150'\n")
 
         assert docs[0].priority == 150
@@ -249,6 +255,7 @@ class TestFieldCoercion:
         assert docs[0].role_extensions[0].hidden is False
 
     def test_extension_without_hidden_leaves_it_unset(self):
+        """An extension that omits ``hidden`` leaves it ``None`` (unchanged)."""
         docs = _load(
             b"schema_version: '1.0'\npriority: 1\nrole_extensions:\n  - role: course_editor\n    icon: Article\n"
         )
@@ -261,11 +268,13 @@ class TestMalformedEntries:
 
     @pytest.mark.parametrize("block", ["permission_categories", "permissions", "roles", "role_extensions"])
     def test_non_mapping_entry_raises_with_the_block_name(self, block):
+        """A non-mapping entry in any block raises an error naming that block."""
         contents = f"schema_version: '1.0'\npriority: 1\n{block}:\n  - just_a_string\n".encode()
 
         with pytest.raises(SchemaLoadError, match=block):
             _load(contents)
 
     def test_error_names_the_source(self):
+        """A malformed entry error names the contributing source."""
         with pytest.raises(SchemaLoadError, match="pkg.mod"):
             _load(b"schema_version: '1.0'\npriority: 1\nroles:\n  - 5\n")

@@ -124,6 +124,7 @@ class TestDuplicateSeverity:
         assert any("Duplicate identical category" in i.message for i in _warnings(issues))
 
     def test_identical_duplicate_role_warns(self):
+        """Two identical role definitions warn rather than error."""
         first = make_document("first", roles=[role()])
         second = make_document("second", roles=[role()])
 
@@ -132,6 +133,7 @@ class TestDuplicateSeverity:
         assert any("Duplicate identical role" in i.message for i in _warnings(issues))
 
     def test_conflicting_duplicate_role_is_error(self):
+        """Two role definitions with the same id but different content conflict."""
         first = make_document("first", roles=[role(display_name="Editor")])
         second = make_document("second", roles=[role(display_name="Author")])
 
@@ -140,6 +142,7 @@ class TestDuplicateSeverity:
         assert any("Conflicting role definition" in m for m in messages)
 
     def test_warning_names_the_second_source(self):
+        """The duplicate warning is attributed to the later contributing source."""
         first = make_document("first", categories=[category("cat")])
         second = make_document("second", categories=[category("cat")])
 
@@ -153,6 +156,7 @@ class TestIdentifierAndScopeRules:
 
     @pytest.mark.parametrize("value", ["courses", "courses.view.course", ""])
     def test_permission_id_must_be_namespace_dot_name(self, value):
+        """A permission id must have exactly one namespace.name separator."""
         doc = make_document(roles=[role(permissions=(value,))])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -160,6 +164,7 @@ class TestIdentifierAndScopeRules:
         assert any("must be 'namespace.name'" in m for m in messages)
 
     def test_permission_id_halves_are_validated(self):
+        """Both halves of a permission id must be lowercase snake_case."""
         doc = make_document(roles=[role(permissions=("Courses.View_Course",))])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -168,6 +173,7 @@ class TestIdentifierAndScopeRules:
 
     @pytest.mark.parametrize("prefix", ["act^", "role^", "sub^", "scope^", "g^", "p^"])
     def test_every_casbin_prefix_is_rejected(self, prefix):
+        """Every reserved Casbin prefix (act^, role^, ...) is rejected in an id."""
         doc = make_document(roles=[role(rid=f"{prefix}thing")])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -176,6 +182,7 @@ class TestIdentifierAndScopeRules:
 
     @pytest.mark.parametrize("scope", ["Course-V1", "1course", "course v1", "course.v1"])
     def test_invalid_scope_namespace_is_error(self, scope):
+        """A malformed scope namespace (caps, leading digit, spaces, dots) is rejected."""
         doc = make_document(
             categories=[category("cat")],
             permissions=[permission(cat="cat", scopes=(scope,))],
@@ -195,6 +202,7 @@ class TestIdentifierAndScopeRules:
         assert not _errors(SchemaValidator().validate([doc]))
 
     def test_role_without_scopes_is_error(self):
+        """A role must declare at least one scope."""
         doc = make_document(roles=[role(scopes=())])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -210,6 +218,7 @@ class TestRequiredFields:
     """
 
     def test_empty_category_id_is_error(self):
+        """A category with an empty id is a missing-required-field error."""
         doc = make_document(categories=[category("")])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -217,6 +226,7 @@ class TestRequiredFields:
         assert any("Missing required field: category id" in m for m in messages)
 
     def test_permission_without_a_category_is_error(self):
+        """A permission missing its required category is an error."""
         doc = make_document(permissions=[permission(cat="")])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -228,6 +238,7 @@ class TestExtensionReferences:
     """ADR 0023 §3: an extension must target a real role and real permissions."""
 
     def test_added_permission_must_exist(self):
+        """An extension that adds a nonexistent permission is an error."""
         doc = make_document(
             categories=[category("cat")],
             permissions=[permission(cat="cat")],
@@ -240,6 +251,7 @@ class TestExtensionReferences:
         assert any("references unknown permission 'courses.ghost'" in m for m in messages)
 
     def test_removed_permission_must_exist(self):
+        """An extension that removes a nonexistent permission is an error."""
         doc = make_document(
             categories=[category("cat")],
             permissions=[permission(cat="cat")],
@@ -252,6 +264,7 @@ class TestExtensionReferences:
         assert any("references unknown permission 'courses.ghost'" in m for m in messages)
 
     def test_extension_may_target_a_role_from_another_document(self):
+        """An extension may target a role defined in a different document."""
         base = make_document(
             "base",
             categories=[category("cat")],
@@ -366,6 +379,7 @@ class TestValidateCompiled:
         assert any("unknown category" in m for m in messages)
 
     def test_valid_schema_has_no_compiled_errors(self):
+        """A well-formed compiled schema produces no post-compile errors."""
         doc = make_document(
             categories=[category("cat")],
             permissions=[permission(cat="cat")],
@@ -397,12 +411,15 @@ class TestHasErrors:
     """The gate the pipeline uses to decide whether to stop."""
 
     def test_true_when_any_issue_is_an_error(self):
+        """``has_errors`` is True when any issue is error-level."""
         issues = [ValidationIssue(WARNING, "heads up"), ValidationIssue(ERROR, "boom")]
 
         assert SchemaValidator.has_errors(issues) is True
 
     def test_false_for_warnings_only(self):
+        """``has_errors`` is False when every issue is a warning."""
         assert SchemaValidator.has_errors([ValidationIssue(WARNING, "heads up")]) is False
 
     def test_false_for_no_issues(self):
+        """``has_errors`` is False for an empty issue list."""
         assert SchemaValidator.has_errors([]) is False

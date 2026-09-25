@@ -10,6 +10,9 @@ Per-document checks:
     * Required fields are present.
     * ``scopes`` are non-empty and look like scope namespaces (hyphens allowed,
       e.g. ``course-v1``); they are exempt from the identifier regex.
+    * ``icon`` values, where present, are valid ``@openedx/paragon/icons`` names
+      (ADR 0017 §4). The allowed set is vendored in :mod:`paragon_icons`
+      (regenerate with ``make paragon_icons``; see ADR 0026).
 
 Whole-set checks (after all documents load):
     * Every permission ``category`` references an existing category.
@@ -34,6 +37,7 @@ import re
 from dataclasses import dataclass
 
 from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
 from openedx_authz.engine.schema.types import (
     CompiledSchema,
     SchemaDocument,
@@ -42,6 +46,8 @@ from openedx_authz.engine.schema.types import (
 IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 # Scope namespaces follow their registered spelling and may contain hyphens.
 SCOPE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+# Paragon icon names are PascalCase component exports, e.g. ``RemoveRedEye``.
+ICON_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 
 # Casbin-internal prefixes that must never appear in a schema identifier.
 CASBIN_INTERNAL_PREFIXES = ("act^", "role^", "sub^", "scope^", "g^", "p^")
@@ -163,21 +169,25 @@ class SchemaValidator:
         for category in document.categories:
             issues.extend(self._check_identifier(category.id, "category id", sid))
             issues.extend(self._require(category.id, "category id", sid))
+            issues.extend(self._check_icon(category.icon, f"category {category.id}", sid))
 
         for permission in document.permissions:
             issues.extend(self._check_identifier(permission.namespace, "permission namespace", sid))
             issues.extend(self._check_identifier(permission.name, "permission name", sid))
             issues.extend(self._require(permission.category, f"category for {permission.identifier}", sid))
             issues.extend(self._check_scopes(permission.scopes, f"permission {permission.identifier}", sid))
+            issues.extend(self._check_icon(permission.icon, f"permission {permission.identifier}", sid))
 
         for role in document.roles:
             issues.extend(self._check_identifier(role.id, "role id", sid))
             issues.extend(self._check_scopes(role.scopes, f"role {role.id}", sid))
+            issues.extend(self._check_icon(role.icon, f"role {role.id}", sid))
             for perm_id in role.permissions:
                 issues.extend(self._check_permission_id(perm_id, f"role {role.id}", sid))
 
         for extension in document.role_extensions:
             issues.extend(self._check_identifier(extension.role, "role_extension target", sid))
+            issues.extend(self._check_icon(extension.icon, f"role_extension {extension.role}", sid))
             for perm_id in (*extension.add_permissions, *extension.remove_permissions):
                 issues.extend(self._check_permission_id(perm_id, f"role_extension {extension.role}", sid))
 
@@ -334,6 +344,35 @@ class SchemaValidator:
             if not SCOPE_RE.match(scope):
                 issues.append(ValidationIssue(ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
         return issues
+
+    @staticmethod
+    def _check_icon(value: str | None, context: str, sid: str) -> list[ValidationIssue]:
+        """Validate an optional Paragon icon name (ADR 0017 §4).
+
+        Icons are optional everywhere, so an empty/``None`` value passes. A
+        present value must be PascalCase and one of the vendored
+        ``@openedx/paragon/icons`` names (see :mod:`paragon_icons`,
+        ``make paragon_icons``). Both failures are errors.
+        """
+        if not value:
+            return []
+        if not ICON_RE.match(value):
+            return [
+                ValidationIssue(
+                    ERROR,
+                    f"{context}: icon {value!r} must be a PascalCase Paragon icon name.",
+                    sid,
+                )
+            ]
+        if value not in PARAGON_ICON_NAMES:
+            return [
+                ValidationIssue(
+                    ERROR,
+                    f"{context}: icon {value!r} is not a valid @openedx/paragon/icons name.",
+                    sid,
+                )
+            ]
+        return []
 
     @staticmethod
     def _require(value: str, label: str, sid: str) -> list[ValidationIssue]:

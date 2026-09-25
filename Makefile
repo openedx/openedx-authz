@@ -1,6 +1,7 @@
 .PHONY: clean clean_tox compile_translations coverage diff_cover docs dummy_translations \
-        extract_translations fake_translations help pii_check pull_translations \
-        quality requirements selfcheck test test-all upgrade compile-requirements validate install_transifex_client
+        extract_translations fake_translations help pii_check pull_translations paragon_icons \
+        paragon_icons_check quality requirements selfcheck test test-all upgrade compile-requirements \
+        validate install_transifex_client
 
 .DEFAULT_GOAL := help
 
@@ -56,6 +57,12 @@ compile-requirements: ## update the requirements/*.txt files with the latest pac
 
 upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
 	make compile-requirements PIP_COMPILE_OPTS="--upgrade"
+
+paragon_icons: ## regenerate the vendored @openedx/paragon icon-name allow-list (see ADR 0026)
+	python scripts/generate_paragon_icons.py
+
+paragon_icons_check: ## fail if the vendored Paragon icon list is out of date (CI)
+	python scripts/generate_paragon_icons.py --check
 
 quality: ## check coding style with pycodestyle and pylint
 	tox -e quality

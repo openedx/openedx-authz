@@ -411,6 +411,7 @@ class TestIconRules:
     """ADR 0017 §4: icon names must be valid @openedx/paragon/icons names."""
 
     def test_valid_icon_has_no_errors(self):
+        """A real Paragon icon name passes validation."""
         doc = make_document(categories=[category("cat", icon="BookOpen")])
 
         assert not _errors(SchemaValidator().validate([doc]))
@@ -424,6 +425,7 @@ class TestIconRules:
 
     @pytest.mark.parametrize("icon", ["remove_red_eye", "removeRedEye", "Remove-Red-Eye", "9Mp lowercase"])
     def test_non_pascalcase_icon_is_error(self, icon):
+        """An icon name that is not PascalCase is rejected before the export check."""
         doc = make_document(categories=[category("cat", icon=icon)])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
@@ -439,6 +441,7 @@ class TestIconRules:
         assert any("is not a valid @openedx/paragon/icons name" in m for m in messages)
 
     def test_permission_icon_is_validated(self):
+        """A permission's icon is validated and the error names the permission."""
         doc = make_document(
             categories=[category("cat")],
             permissions=[permission(cat="cat", icon="totally_wrong")],
@@ -449,6 +452,7 @@ class TestIconRules:
         assert any("permission courses.view_course" in m and "PascalCase" in m for m in messages)
 
     def test_role_icon_is_validated(self):
+        """A role's icon is validated and the error names the role."""
         doc = make_document(roles=[role(icon="NotARealParagonIcon")])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]

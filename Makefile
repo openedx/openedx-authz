@@ -25,11 +25,11 @@ clean_tox: ## clear tox requirements cache
 	rm -fr .tox
 
 coverage: clean ## generate and view HTML coverage report
-	uv run pytest --cov-report html
+	pytest --cov-report html
 	$(BROWSER)htmlcov/index.html
 
 docs: ## generate Sphinx HTML documentation, including API docs
-	uv run tox -e docs
+	tox -e docs
 	$(BROWSER)docs/_build/html/index.html
 
 upgrade: ## update the uv.lock file with the latest packages satisfying pyproject.toml
@@ -37,27 +37,27 @@ upgrade: ## update the uv.lock file with the latest packages satisfying pyprojec
 	uv lock --upgrade
 
 quality: ## check coding style with pycodestyle and pylint
-	uv run tox -e quality
+	tox -e quality
 
 format: ## format code with black and isort. Enable ruff to fix E (pycodestyle) and I (isort) issues
-	uv run ruff format src/openedx_authz tests manage.py
-	uv run ruff check --fix src/openedx_authz tests manage.py
+	ruff format src/openedx_authz tests manage.py
+	ruff check --fix src/openedx_authz tests manage.py
 
 pii_check: ## check for PII annotations on all Django models
-	uv run tox -e pii_check
+	tox -e pii_check
 
 requirements: ## install development environment requirements
 	uv sync --group dev
 
 test: clean ## run tests in the current virtualenv
-	uv run pytest
+	pytest
 
 diff_cover: test ## find diff lines that need test coverage
-	uv run diff-cover coverage.xml
+	diff-cover coverage.xml
 
 test-all: quality pii_check ## run tests on every supported Python/Django combination
-	uv run tox
-	uv run tox -e docs
+	tox
+	tox -e docs
 
 validate: quality pii_check test ## run tests and quality checks
 
@@ -68,13 +68,13 @@ selfcheck: ## check that the Makefile is well-formed
 
 extract_translations: ## extract strings to be translated, outputting .mo files
 	rm -rf docs/_build
-	cd src/openedx_authz && uv run i18n_tool extract --no-segment
+	cd src/openedx_authz && i18n_tool extract --no-segment
 
 compile_translations: ## compile translation files, outputting .po files for each supported language
-	cd src/openedx_authz && uv run i18n_tool generate
+	cd src/openedx_authz && i18n_tool generate
 
 detect_changed_source_translations:
-	cd src/openedx_authz && uv run i18n_tool changed
+	cd src/openedx_authz && i18n_tool changed
 
 ifeq ($(OPENEDX_ATLAS_PULL),)
 pull_translations: ## Pull translations from Transifex
@@ -83,14 +83,14 @@ else
 # Experimental: OEP-58 Pulls translations using atlas
 pull_translations:
 	find src/openedx_authz/conf/locale -mindepth 1 -maxdepth 1 -type d -exec rm -r {} \;
-	uv run atlas pull $(OPENEDX_ATLAS_ARGS) translations/openedx-authz/openedx_authz/conf/locale:src/openedx_authz/conf/locale
-	uv run python manage.py compilemessages
+	atlas pull $(OPENEDX_ATLAS_ARGS) translations/openedx-authz/openedx_authz/conf/locale:src/openedx_authz/conf/locale
+	python manage.py compilemessages
 
 	@echo "Translations have been pulled via Atlas and compiled."
 endif
 
 dummy_translations: ## generate dummy translation (.po) files
-	cd src/openedx_authz && uv run i18n_tool dummy
+	cd src/openedx_authz && i18n_tool dummy
 
 build_dummy_translations: extract_translations dummy_translations compile_translations ## generate and compile dummy translation files
 

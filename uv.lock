@@ -952,6 +952,15 @@ wheels = [
 ]
 
 [[package]]
+name = "jsonpointer"
+version = "3.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/c7/af399a2e7a67fd18d63c40c5e62d3af4e67b836a2107468b6a5ea24c4304/jsonpointer-3.1.1.tar.gz", hash = "sha256:0b801c7db33a904024f6004d526dcc53bbb8a4a0f4e32bfd10beadf60adf1900", size = 9068, upload-time = "2026-03-23T22:32:32.458Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/6a/a83720e953b1682d2d109d3c2dbb0bc9bf28cc1cbc205be4ef4be5da709d/jsonpointer-3.1.1-py3-none-any.whl", hash = "sha256:8ff8b95779d071ba472cf5bc913028df06031797532f08a7d5b602d8b2a488ca", size = 7659, upload-time = "2026-03-23T22:32:31.568Z" },
+]
+
+[[package]]
 name = "keyring"
 version = "25.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1252,6 +1261,7 @@ dev = [
     { name = "ruff" },
     { name = "sphinx" },
     { name = "sphinx-book-theme" },
+    { name = "sphinx-jsonschema" },
     { name = "tox" },
     { name = "tox-uv" },
     { name = "twine" },
@@ -1267,6 +1277,7 @@ doc = [
     { name = "pytest-django" },
     { name = "sphinx" },
     { name = "sphinx-book-theme" },
+    { name = "sphinx-jsonschema" },
     { name = "twine" },
 ]
 quality = [
@@ -1336,6 +1347,7 @@ dev = [
     { name = "ruff" },
     { name = "sphinx" },
     { name = "sphinx-book-theme" },
+    { name = "sphinx-jsonschema" },
     { name = "tox" },
     { name = "tox-uv" },
     { name = "twine" },
@@ -1351,6 +1363,7 @@ doc = [
     { name = "pytest-django" },
     { name = "sphinx" },
     { name = "sphinx-book-theme" },
+    { name = "sphinx-jsonschema" },
     { name = "twine" },
 ]
 quality = [
@@ -2126,6 +2139,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/e9/8a/cb008736682b3974c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/5e/6c41ee74f0a4caef53f224c3e6c3869b577dade1a283767bdc874f11e51c/sphinx_book_theme-1.4.0-py3-none-any.whl", hash = "sha256:10fd57d667ee0b565928c3ce95562e281c5d1b94bd5a2aafc5cd41a5d498dcd0", size = 458862, upload-time = "2026-07-19T21:23:52.852Z" },
 ]
+
+[[package]]
+name = "sphinx-jsonschema"
+version = "1.19.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docutils" },
+    { name = "jsonpointer" },
+    { name = "pyyaml" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/03/15c1d632e6671ae07a8689ce84c6c72d7849cca13ec32bc68c2e3d6f6f08/sphinx_jsonschema-1.19.2.tar.gz", hash = "sha256:1a48954217c2b3c6759c89b9ddd2c8e5b668b8730564e0283b009f23932be150", size = 30550, upload-time = "2025-12-01T08:54:33.726Z" }
 
 [[package]]
 name = "sphinxcontrib-applehelp"

@@ -127,6 +127,7 @@ doc = [
     "doc8",
     "Sphinx",
     "sphinx-book-theme",
+    "sphinx-jsonschema",
     "twine",
 ]
 # Minimal CI group: just what's needed to invoke tox.

@@ -116,15 +116,15 @@ pycasbin==2.8.0
     #   casbin-django-orm-adapter
 pycparser==3.0
     # via cffi
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.0
     # via
     #   drf-jwt
     #   edx-drf-extensions
-pymongo==4.18.1
+pymongo==4.18.2
     # via edx-opaque-keys
 pynacl==1.6.2
     # via edx-django-utils
-pytz==2026.3.post1
+pytz==2026.4
     # via drf-yasg
 pyyaml==6.0.3
     # via drf-yasg

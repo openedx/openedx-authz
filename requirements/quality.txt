@@ -48,7 +48,7 @@ code-annotations==3.0.0
     # via
     #   -r requirements/test.txt
     #   edx-lint
-coverage[toml]==7.16.1
+coverage[toml]==7.16.2
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -183,7 +183,7 @@ pillow==12.3.0
     # via
     #   -r requirements/test.txt
     #   edx-organizations
-platformdirs==4.11.11
+platformdirs==4.12.0
     # via pylint
 pluggy==1.6.0
     # via
@@ -208,12 +208,12 @@ pygments==2.21.0
     # via
     #   -r requirements/test.txt
     #   pytest
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.0
     # via
     #   -r requirements/test.txt
     #   drf-jwt
     #   edx-drf-extensions
-pylint==4.0.8
+pylint==4.0.9
     # via
     #   edx-lint
     #   pylint-celery
@@ -227,7 +227,7 @@ pylint-plugin-utils==0.9.0
     # via
     #   pylint-celery
     #   pylint-django
-pymongo==4.18.1
+pymongo==4.18.2
     # via
     #   -r requirements/test.txt
     #   edx-opaque-keys
@@ -244,11 +244,11 @@ pytest-cov==7.1.0
     # via -r requirements/test.txt
 pytest-django==4.14.0
     # via -r requirements/test.txt
-python-slugify==9.1.0
+python-slugify==9.1.2
     # via
     #   -r requirements/test.txt
     #   code-annotations
-pytz==2026.3.post1
+pytz==2026.4
     # via
     #   -r requirements/test.txt
     #   drf-yasg
@@ -261,7 +261,7 @@ requests==2.34.2
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
-ruff==0.16.8
+ruff==0.16.9
     # via -r requirements/quality.in
 semantic-version==2.10.0
     # via

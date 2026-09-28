@@ -67,7 +67,7 @@ colorama==0.4.6
     # via
     #   -r requirements/ci.txt
     #   tox
-coverage[toml]==7.16.1
+coverage[toml]==7.16.2
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
@@ -77,7 +77,7 @@ cryptography==50.0.1
     #   pyjwt
 ddt==1.7.2
     # via -r requirements/quality.txt
-diff-cover==10.5.1
+diff-cover==10.6.0
     # via -r requirements/dev.in
 dill==0.4.1
     # via
@@ -174,7 +174,7 @@ fastavro==1.12.2
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-filelock==3.32.7
+filelock==4.0.4
     # via
     #   -r requirements/ci.txt
     #   python-discovery
@@ -242,7 +242,7 @@ pillow==12.3.0
     #   edx-organizations
 pip-tools==7.6.1
     # via -r requirements/pip-tools.txt
-platformdirs==4.11.11
+platformdirs==4.12.0
     # via
     #   -r requirements/ci.txt
     #   -r requirements/quality.txt
@@ -278,12 +278,12 @@ pygments==2.21.0
     #   -r requirements/quality.txt
     #   diff-cover
     #   pytest
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.0
     # via
     #   -r requirements/quality.txt
     #   drf-jwt
     #   edx-drf-extensions
-pylint==4.0.8
+pylint==4.0.9
     # via
     #   -r requirements/quality.txt
     #   edx-lint
@@ -303,7 +303,7 @@ pylint-plugin-utils==0.9.0
     #   -r requirements/quality.txt
     #   pylint-celery
     #   pylint-django
-pymongo==4.18.1
+pymongo==4.18.2
     # via
     #   -r requirements/quality.txt
     #   edx-opaque-keys
@@ -334,11 +334,11 @@ python-discovery==1.6.1
     #   -r requirements/ci.txt
     #   tox
     #   virtualenv
-python-slugify==9.1.0
+python-slugify==9.1.2
     # via
     #   -r requirements/quality.txt
     #   code-annotations
-pytz==2026.3.post1
+pytz==2026.4
     # via
     #   -r requirements/quality.txt
     #   drf-yasg
@@ -352,7 +352,7 @@ requests==2.34.2
     # via
     #   -r requirements/quality.txt
     #   edx-drf-extensions
-ruff==0.16.8
+ruff==0.16.9
     # via -r requirements/quality.txt
 semantic-version==2.10.0
     # via
@@ -394,7 +394,7 @@ tomlkit==0.15.1
     #   -r requirements/quality.txt
     #   edx-lint
     #   pylint
-tox==4.63.0
+tox==4.64.4
     # via -r requirements/ci.txt
 typing-extensions==4.16.0
     # via
@@ -410,7 +410,7 @@ urllib3==2.8.0
     # via
     #   -r requirements/quality.txt
     #   requests
-virtualenv==21.9.0
+virtualenv==21.13.0
     # via
     #   -r requirements/ci.txt
     #   tox

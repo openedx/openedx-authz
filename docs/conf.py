@@ -57,7 +57,12 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.ifconfig",
     "sphinx.ext.napoleon",
+    "sphinx-jsonschema",
 ]
+
+jsonschema_options = {
+    "auto_reference": True,
+}
 
 # A list of warning types to suppress arbitrary warning messages.
 suppress_warnings = [
@@ -556,6 +561,7 @@ def on_init(app):  # pylint: disable=unused-argument
             docs_path,
             os.path.join(root_path, "src/openedx_authz"),
             os.path.join(root_path, "src/openedx_authz/migrations"),
+            os.path.join(root_path, "src/openedx_authz/schema"),
             os.path.join(root_path, "src/openedx_authz/tests"),
         ],
         env=env

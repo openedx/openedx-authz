@@ -60,10 +60,6 @@ docs/modules.rst
 docs/openedx_authz.rst
 docs/openedx_authz.*.rst
 
-# Private requirements
-requirements/private.in
-requirements/private.txt
-
 # Persistent database files
 *.sqlite3
 *.db

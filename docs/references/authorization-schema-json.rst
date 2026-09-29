@@ -3,116 +3,116 @@
 Generated Authorization Schema
 ##############################
 
-This page renders the exact validation rules from the :download:`authz JSON Schema <../../openedx_authz/schema/authz-schema-v1.json>`. See the :doc:`Authorization Schema Reference <authorization-schema>` for guidance, examples, and validation performed by the compiler across schema contributions.
+This page renders the exact validation rules from the :download:`authz JSON Schema <../../src/openedx_authz/schema/authz-schema-v1.json>`. See the :doc:`Authorization Schema Reference <authorization-schema>` for guidance, examples, and validation performed by the compiler across schema contributions.
 
 Top-level fields
 ****************
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/schema_version
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/schema_version
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/priority
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/priority
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/permission_categories
-   :lift_description:
-   :hide_key: /items
-
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/permissions
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/permission_categories
    :lift_description:
    :hide_key: /items
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/roles
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/permissions
    :lift_description:
    :hide_key: /items
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/properties/role_extensions
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/roles
+   :lift_description:
+   :hide_key: /items
+
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/properties/role_extensions
    :lift_description:
    :hide_key: /items
 
 Permission category fields
 **************************
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/id
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/id
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/display_name
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/display_name
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/description
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/description
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/icon
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission_category/properties/icon
    :lift_description:
 
 Permission fields
 *****************
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/namespace
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/namespace
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/name
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/name
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/display_name
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/display_name
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/description
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/description
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/category
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/category
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/scopes
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/scopes
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/icon
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/icon
    :lift_description:
 
 Role fields
 ***********
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/id
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/id
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/display_name
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/display_name
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/description
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/description
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/scopes
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/scopes
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/permissions
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/permissions
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/icon
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/icon
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/hidden
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role/properties/hidden
    :lift_description:
 
 Role extension fields
 *********************
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/role
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/role
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/add_permissions
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/add_permissions
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/remove_permissions
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/remove_permissions
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/display_name
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/display_name
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/description
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/description
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/icon
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/icon
    :lift_description:
 
-.. jsonschema:: ../../openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/hidden
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/hidden
    :lift_description:

@@ -5,6 +5,7 @@ including filtered loading, scope-based loading, and lifecycle management
 that would be used in production environments.
 """
 
+import os
 import time
 from uuid import uuid4
 
@@ -14,11 +15,15 @@ from ddt import ddt
 from django.conf import settings
 from django.test import TestCase, TransactionTestCase, override_settings
 
+from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
+
+MODEL_CONF_PATH = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
+AUTHZ_POLICY_PATH = os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
 
 
 class PolicyLoadingTestSetupMixin(TestCase):
@@ -39,7 +44,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
             int: Number of matching policies
         """
         count = 0
-        with open("openedx_authz/engine/config/authz.policy", "r") as f:
+        with open(AUTHZ_POLICY_PATH, "r") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#"):
@@ -74,8 +79,8 @@ class PolicyLoadingTestSetupMixin(TestCase):
 
         migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
-                "openedx_authz/engine/config/model.conf",
-                "openedx_authz/engine/config/authz.policy",
+                MODEL_CONF_PATH,
+                AUTHZ_POLICY_PATH,
             ),
             target_enforcer=global_enforcer,
         )
@@ -450,8 +455,8 @@ class TestAutoLoadPolicy(TransactionTestCase):
 
         migrate_policy_between_enforcers(
             source_enforcer=casbin.Enforcer(
-                "openedx_authz/engine/config/model.conf",
-                "openedx_authz/engine/config/authz.policy",
+                MODEL_CONF_PATH,
+                AUTHZ_POLICY_PATH,
             ),
             target_enforcer=global_enforcer,
         )

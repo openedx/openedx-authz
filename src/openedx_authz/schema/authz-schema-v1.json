@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/openedx/openedx-authz/main/openedx_authz/schema/authz-schema-v1.json",
+  "$id": "https://raw.githubusercontent.com/openedx/openedx-authz/main/src/openedx_authz/schema/authz-schema-v1.json",
   "title": "Open edX Authorization schema",
   "description": "A version 1.0 Open edX authorization schema contribution. Applications and deployment configuration use this format to define static permission categories, permissions, roles, and changes to existing roles.",
   "type": "object",

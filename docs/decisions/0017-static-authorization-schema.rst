@@ -19,7 +19,7 @@ Decision
 1. Schema format and boundary
 =============================
 
-The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a :download:`machine-readable JSON Schema <../../openedx_authz/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
+The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a :download:`machine-readable JSON Schema <../../src/openedx_authz/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 

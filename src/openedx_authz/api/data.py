@@ -62,6 +62,13 @@ GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
 
 
+class DefinitionKind(str, Enum):
+    """How a role is defined: ``STATIC`` roles come from the authz schema; ``USER_DEFINED`` is reserved (ADR 0028)."""
+
+    STATIC = "static"
+    USER_DEFINED = "user_defined"
+
+
 class GroupingPolicyIndex(Enum):
     """Index positions for fields in a Casbin grouping policy (g or g2).
 

@@ -38,6 +38,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
+    get_user_counts_per_role_in_namespace,
     unassign_role_from_subject_in_scope,
     unassign_subject_from_all_roles,
 )
@@ -1587,3 +1588,42 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         visible = filter_role_assignments_visible_to_subject(SubjectData(external_key="alice"), [])
 
         self.assertEqual(visible, [])
+
+
+class TestGetUserCountsPerRoleInNamespace(RolesTestSetupMixin):
+    """Tests for get_user_counts_per_role_in_namespace."""
+
+    def setUp(self):
+        super().setUp()
+        self.enforcer = AuthzEnforcer.get_enforcer()
+        self.role = f"role^{roles.LIBRARY_USER.external_key}"
+
+    def test_counts_distinct_users_across_the_namespace(self):
+        """Users are counted per role across every scope of the namespace.
+
+        Expected result:
+            - A user assigned in several lib scopes is counted once.
+            - Users of other scopes of the namespace add up.
+            - Roles of other namespaces are not counted.
+        """
+        self.enforcer.add_grouping_policy("user^dave", self.role, "lib^lib:Org1:LIB1")
+        self.enforcer.add_grouping_policy("user^dave", self.role, "lib^lib:Org2:LIB2")
+        self.enforcer.add_grouping_policy("user^erin", self.role, "lib^lib:Org2:LIB2")
+        self.enforcer.add_grouping_policy("user^frank", "role^course_admin", "course-v1^course-v1:Org+C+R")
+
+        counts = get_user_counts_per_role_in_namespace("lib")
+
+        self.assertEqual(counts[roles.LIBRARY_USER.external_key], 2)
+        self.assertNotIn(roles.COURSE_ADMIN.external_key, counts)
+
+    def test_ignores_assignments_of_non_user_subjects(self):
+        """Assignments whose subject is not a user are not counted.
+
+        Expected result:
+            - A role assigned only to a non-user subject is omitted from the result.
+        """
+        self.enforcer.add_grouping_policy("group^staff", self.role, "lib^lib:Org1:LIB1")
+
+        counts = get_user_counts_per_role_in_namespace("lib")
+
+        self.assertNotIn(roles.LIBRARY_USER.external_key, counts)

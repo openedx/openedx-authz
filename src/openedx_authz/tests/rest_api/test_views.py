@@ -10,6 +10,8 @@ from urllib.parse import urlencode
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from organizations.models import Organization
 from rest_framework import status
@@ -18,6 +20,7 @@ from rest_framework.test import APIClient
 from openedx_authz import api
 from openedx_authz.api.data import (
     CourseOverviewData,
+    DefinitionKind,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PlatformContentLibraryGlobData,
@@ -26,9 +29,21 @@ from openedx_authz.api.data import (
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
+from openedx_authz.models.schema import (
+    AuthzPermissionCategory,
+    AuthzPermissionDefinition,
+    AuthzRoleDefinition,
+    AuthzRolePermission,
+)
+from openedx_authz.models.scopes import (
+    get_content_library_model,
+    get_course_overview_model,
+)
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
+from openedx_authz.rest_api.v1.permissions import (
+    AnyScopePermission,
+    DynamicScopePermission,
+)
 from openedx_authz.rest_api.v1.views import ScopesAPIView, UserValidationAPIView
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 from openedx_authz.tests.stubs.models import LearningPackage
@@ -321,8 +336,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         """
         self.client.force_authenticate(user=self.regular_user)
         expected_response = [
-            {"action": perm["action"], "allowed": allowed}
-            for perm, allowed in zip(request_data, permission_map)
+            {"action": perm["action"], "allowed": allowed} for perm, allowed in zip(request_data, permission_map)
         ]
 
         response = self.client.post(self.url, data=request_data, format="json")
@@ -3139,7 +3153,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
 @ddt
 class TestRoleListView(ViewTestMixin):
-    """Test suite for RoleListView."""
+    """Test suite for RoleListView (ADR 0028)."""
 
     _COURSE_ASSIGNMENTS = [
         {
@@ -3157,6 +3171,11 @@ class TestRoleListView(ViewTestMixin):
             "role_name": roles.COURSE_AUDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
+        {
+            "subject_name": "regular_9",
+            "role_name": roles.COURSE_STAFF.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
     ]
 
     @classmethod
@@ -3169,47 +3188,150 @@ class TestRoleListView(ViewTestMixin):
         super().setUp()
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-list")
+        category = AuthzPermissionCategory.objects.create(
+            category_id="library_content", display_name="Content", description="Library content.", icon="BookOpen"
+        )
+        unused_category = AuthzPermissionCategory.objects.create(category_id="unused", display_name="Unused")
+        self.assertIsNotNone(unused_category.pk)
+        view_library = AuthzPermissionDefinition.objects.create(
+            namespace="content_libraries",
+            name="view_library",
+            display_name="View library",
+            category=category,
+            scopes=["lib"],
+            icon="RemoveRedEye",
+        )
+        edit_library = AuthzPermissionDefinition.objects.create(
+            namespace="content_libraries",
+            name="edit_library",
+            display_name="Edit library",
+            category=category,
+            scopes=["lib"],
+        )
+        view_course = AuthzPermissionDefinition.objects.create(
+            namespace="courses", name="view_course", display_name="View course", category=category, scopes=["course-v1"]
+        )
+        author = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_AUTHOR.external_key, display_name="Library Author", scopes=["lib"]
+        )
+        user = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_USER.external_key, display_name="Library User", scopes=["lib"]
+        )
+        hidden = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_ADMIN.external_key, display_name="Hidden", scopes=["lib"], hidden=True
+        )
+        for role, permission, scope in [
+            (author, view_library, "lib"),
+            (author, edit_library, "lib"),
+            (user, view_library, "lib"),
+            (hidden, view_library, "lib"),
+            (author, view_course, "course-v1"),
+        ]:
+            AuthzRolePermission.objects.create(role=role, permission=permission, scope=scope)
 
-    def test_get_roles_success(self):
-        """Test retrieving role definitions and their permissions.
+    def test_get_roles_catalog(self):
+        """Test the catalog returned for a scope type.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns correct role definitions with permissions and user counts
+            - Returns 200 OK with scope_type, categories, permissions and roles of the namespace only
+            - Roles reference permissions by id, hidden roles and unused categories are left out
+            - Everything is ordered by identifier
         """
-        response = self.client.get(self.url, {"scope": "lib:Org1:LIB1"})
+        response = self.client.get(self.url, {"scope_type": "library"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("count", response.data)
-        self.assertEqual(len(response.data["results"]), response.data["count"])
-        self.assertEqual(len(response.data["results"]), 4)
+        self.assertEqual(response.data["scope_type"], "library")
+        self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
+        self.assertEqual(
+            response.data["categories"][0],
+            {
+                "id": "library_content",
+                "display_name": "Content",
+                "description": "Library content.",
+                "icon": "BookOpen",
+            },
+        )
+        self.assertEqual(
+            [p["id"] for p in response.data["permissions"]],
+            ["content_libraries.edit_library", "content_libraries.view_library"],
+        )
+        self.assertEqual(
+            response.data["permissions"][1],
+            {
+                "id": "content_libraries.view_library",
+                "namespace": "content_libraries",
+                "name": "view_library",
+                "display_name": "View library",
+                "description": "",
+                "icon": "RemoveRedEye",
+                "category": "library_content",
+            },
+        )
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertEqual(response.data["count"], len(by_role))
+        self.assertNotIn(roles.LIBRARY_ADMIN.external_key, by_role)
+        self.assertEqual(
+            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            ["content_libraries.edit_library", "content_libraries.view_library"],
+        )
+        self.assertEqual(by_role[roles.LIBRARY_AUTHOR.external_key]["definition_kind"], DefinitionKind.STATIC.value)
+        self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["display_name"], "Library User")
+        self.assertEqual(list(by_role), sorted(by_role))
 
-    @patch.object(api, "get_role_definitions_in_scope")
-    def test_get_roles_empty_result(self, mock_get_roles):
-        """Test retrieving roles when none exist in scope.
+    def test_get_roles_user_count_by_scope_type(self):
+        """The user count adds the users assigned to the role across the scope type.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns empty results list
+            - library_user counts the users of every library scope, not only one
         """
-        mock_get_roles.return_value = []
+        users = set()
+        for scope in ["lib:Org1:LIB1", "lib:Org2:LIB2", "lib:Org3:LIB3"]:
+            users.update(user.namespaced_key for user in api.get_users_for_role_in_scope("library_user", scope))
+        expected = len(users)
+        response = self.client.get(self.url, {"scope_type": "library"})
 
-        response = self.client.get(self.url, {"scope": "lib:Org1:LIB1"})
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["user_count"], expected)
+        self.assertGreater(expected, 1)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("count", response.data)
-        self.assertEqual(response.data["count"], 0)
-        self.assertEqual(len(response.data["results"]), 0)
+    def test_get_roles_without_definition_is_not_listed(self):
+        """A role that is only in the Casbin policy, without a stored definition, is not listed.
+
+        Expected result:
+            - The catalog is read from the schema definitions only
+        """
+        AuthzRoleDefinition.objects.filter(role_id=roles.LIBRARY_CONTRIBUTOR.external_key).delete()
+
+        response = self.client.get(self.url, {"scope_type": "library"})
+
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertNotIn(roles.LIBRARY_CONTRIBUTOR.external_key, by_role)
+
+    def test_get_roles_query_count_does_not_depend_on_roles(self):
+        """Definitions are loaded with a constant number of queries.
+
+        Expected result:
+            - Adding a role and its grants does not change the number of queries
+        """
+        with CaptureQueriesContext(connection) as before:
+            self.client.get(self.url, {"scope_type": "library"})
+        extra = AuthzRoleDefinition.objects.create(role_id="extra_role", display_name="Extra", scopes=["lib"])
+        permission = AuthzPermissionDefinition.objects.get(namespace="content_libraries", name="view_library")
+        AuthzRolePermission.objects.create(role=extra, permission=permission, scope="lib")
+
+        with CaptureQueriesContext(connection) as after:
+            response = self.client.get(self.url, {"scope_type": "library"})
+
+        self.assertIn("extra_role", [r["role"] for r in response.data["results"]])
+        self.assertEqual(len(before), len(after))
 
     @data(
         {},
         {"custom_param": "custom_value"},
-        {"custom_param": "a" * 256, "another_param": "custom_value"},
+        {"scope": "lib:Org1:LIB1"},
     )
-    def test_get_roles_scope_is_missing(self, query_params: dict):
-        """Test retrieving roles with scope is missing.
+    def test_get_roles_scope_type_is_missing(self, query_params: dict):
+        """Test retrieving roles without scope_type.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3217,17 +3339,16 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("required", [error.code for error in response.data["scope"]])
+        self.assertIn("required", [error.code for error in response.data["scope_type"]])
 
     @data(
-        ({"scope": ""}, "blank"),
-        ({"scope": "a" * 256}, "max_length"),
-        ({"scope": "invalid"}, "invalid"),
-        ({"scope": "*"}, "invalid"),
+        ({"scope_type": ""}, "invalid_choice"),
+        ({"scope_type": "global"}, "invalid_choice"),
+        ({"scope_type": "lib"}, "invalid_choice"),
     )
     @unpack
-    def test_get_roles_scope_is_invalid(self, query_params: dict, error_code: str):
-        """Test retrieving roles with invalid scope.
+    def test_get_roles_scope_type_is_invalid(self, query_params: dict, error_code: str):
+        """Test retrieving roles with an unsupported scope_type.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3235,98 +3356,70 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(error_code, [error.code for error in response.data["scope"]])
+        self.assertIn(error_code, [error.code for error in response.data["scope_type"]])
 
-    @data(
-        ({}, 4, False),
-        ({"page": 1, "page_size": 2}, 2, True),
-        ({"page": 2, "page_size": 2}, 2, False),
-        ({"page": 1, "page_size": 4}, 4, False),
-    )
-    @unpack
-    def test_get_roles_pagination(self, query_params: dict, expected_count: int, has_next: bool):
-        """Test retrieving roles with pagination.
+    def test_get_roles_pagination_only_paginates_roles(self):
+        """Pagination applies to the roles; every page carries the complete catalogs.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns paginated results with correct page size
+            - Each page has page_size roles at most and the same permissions and categories
         """
-        query_params["scope"] = "lib:Org1:LIB1"
-        response = self.client.get(self.url, query_params)
+        first = self.client.get(self.url, {"scope_type": "library", "page": 1, "page_size": 1})
+        second = self.client.get(self.url, {"scope_type": "library", "page": 2, "page_size": 1})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertEqual(len(response.data["results"]), expected_count)
-        self.assertIn("next", response.data)
-        if has_next:
-            self.assertIsNotNone(response.data["next"])
-        else:
-            self.assertIsNone(response.data["next"])
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(first.data["results"]), 1)
+        self.assertIsNotNone(first.data["next"])
+        self.assertEqual(len(second.data["results"]), 1)
+        self.assertNotEqual(first.data["results"][0]["role"], second.data["results"][0]["role"])
+        self.assertEqual(first.data["permissions"], second.data["permissions"])
+        self.assertEqual(first.data["categories"], second.data["categories"])
 
     @data(
         # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
+        (None, "library", status.HTTP_401_UNAUTHORIZED),
         # Admin user
-        ("admin_1", status.HTTP_200_OK),
-        # Library Admin user
-        ("regular_5", status.HTTP_200_OK),
-        # Library Author user
-        ("regular_6", status.HTTP_200_OK),
-        # Library Contributor user
-        ("regular_7", status.HTTP_200_OK),
-        # Library User user
-        ("regular_8", status.HTTP_200_OK),
-        # Regular user without permission
-        ("regular_9", status.HTTP_403_FORBIDDEN),
+        ("admin_1", "library", status.HTTP_200_OK),
+        ("admin_1", "course", status.HTTP_200_OK),
+        # Library roles can view the library team in any scope
+        ("regular_5", "library", status.HTTP_200_OK),
+        ("regular_8", "library", status.HTTP_200_OK),
+        # ...but that does not grant access to the course catalog
+        ("regular_5", "course", status.HTTP_403_FORBIDDEN),
+        # Course staff can view the course team but not the library team
+        ("regular_9", "course", status.HTTP_200_OK),
+        ("regular_9", "library", status.HTTP_403_FORBIDDEN),
         # Non existent user
-        ("non_existent_user", status.HTTP_401_UNAUTHORIZED),
+        ("non_existent_user", "library", status.HTTP_401_UNAUTHORIZED),
     )
     @unpack
-    def test_get_roles_permissions(self, username: str, status_code: int):
-        """Test retrieving roles with permissions.
+    def test_get_roles_permissions(self, username: str, scope_type: str, status_code: int):
+        """Test the permission required by each scope type.
 
         Expected result:
             - Returns 401 UNAUTHORIZED status if user is not authenticated
-            - Returns 403 FORBIDDEN status if user does not have permission
-            - Returns 200 OK status if user has permission with correct roles with permissions and user counts
+            - Returns 403 FORBIDDEN status if user lacks the view team permission of the scope type
+            - Returns 200 OK status otherwise
         """
         user = User.objects.filter(username=username).first()
         self.client.force_authenticate(user=user)
 
-        response = self.client.get(self.url, {"scope": "lib:Org3:LIB3"})
+        response = self.client.get(self.url, {"scope_type": scope_type})
 
         self.assertEqual(response.status_code, status_code)
-        if status_code == status.HTTP_200_OK:
-            self.assertIn("results", response.data)
-            self.assertIn("count", response.data)
 
-    # --- Course scope equivalents ---
-
-    @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
-        # Django superuser always passes
-        ("admin_1", status.HTTP_200_OK),
-        # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
-        ("course_admin", status.HTTP_200_OK),
-        # course_auditor has COURSES_VIEW_COURSE_TEAM
-        ("course_auditor", status.HTTP_200_OK),
-        # Library-only user has no course permission
-        ("regular_9", status.HTTP_403_FORBIDDEN),
-    )
-    @unpack
-    def test_get_roles_course_permissions(self, username: str, status_code: int):
-        """Mirror of test_get_roles_permissions for course scopes.
+    @data("", "global", "lib")
+    def test_get_roles_unsupported_scope_type_reaches_the_view_for_regular_users(self, scope_type: str):
+        """An unsupported scope_type is not rejected by the permission class.
 
         Expected result:
-            - Returns appropriate status code based on course-scope permissions.
+            - A regular user gets 400 BAD REQUEST from the serializer, not 403 FORBIDDEN
         """
-        user = User.objects.filter(username=username).first()
-        self.client.force_authenticate(user=user)
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
 
-        response = self.client.get(self.url, {"scope": COURSE_SCOPE_ORG1})
+        response = self.client.get(self.url, {"scope_type": scope_type})
 
-        self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):

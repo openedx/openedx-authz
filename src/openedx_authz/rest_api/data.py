@@ -85,3 +85,9 @@ class ScopesTypeField(BaseEnum):
 
     COURSE = "course"
     LIBRARY = "library"
+
+
+SCOPE_TYPE_NAMESPACES = {
+    ScopesTypeField.COURSE: "course-v1",
+    ScopesTypeField.LIBRARY: "lib",
+}

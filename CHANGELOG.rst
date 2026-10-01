@@ -14,6 +14,16 @@ Change Log
 Unreleased
 **********
 
+Changed
+=======
+
+* **Breaking**: ``GET /api/authz/v1/roles/`` is now queried by ``scope_type`` (``course`` or
+  ``library``) instead of ``scope``, and returns the ``categories`` and ``permissions``
+  catalogs next to the paginated roles, each with display name, description, icon and
+  ``definition_kind`` (ADR 0028). ``user_count`` now counts the users assigned to the role in
+  the whole scope type. The permission required depends on the scope type
+  (``courses.view_course_team`` or ``content_libraries.view_library_team`` in any scope).
+
 1.27.0 - 2026-09-30
 *******************
 

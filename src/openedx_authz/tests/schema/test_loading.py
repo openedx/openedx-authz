@@ -10,6 +10,8 @@ from openedx_authz.engine.schema.loading import SchemaLoader
 
 from .factories import InMemoryResource
 
+UNKNOWN_DISTRIBUTION = SchemaLoader._UNKNOWN_DISTRIBUTION  # pylint: disable=protected-access
+
 VALID_YAML = b"""
 schema_version: "1.0"
 priority: 150
@@ -164,7 +166,7 @@ class TestSourceIdentity:
         docs = SchemaLoader().load(discovery.discover())
 
         assert {doc.source.distribution for doc in docs} == {"openedx-authz"}
-        assert all(doc.source.distribution_version != SchemaLoader._UNKNOWN_DISTRIBUTION for doc in docs)
+        assert all(doc.source.distribution_version != UNKNOWN_DISTRIBUTION for doc in docs)
 
     def test_module_is_recorded_as_the_dotted_path(self):
         """The source module is recorded as the resource's dotted import path."""
@@ -178,7 +180,7 @@ class TestSourceIdentity:
         docs = _load(b"schema_version: '1.0'\npriority: 1\n")
 
         assert docs[0].source.distribution == "pkg"
-        assert docs[0].source.distribution_version == SchemaLoader._UNKNOWN_DISTRIBUTION
+        assert docs[0].source.distribution_version == UNKNOWN_DISTRIBUTION
 
     def test_missing_distribution_metadata_falls_back_to_unknown_version(self, monkeypatch):
         """A distribution with no readable version falls back to ``UNKNOWN``."""
@@ -192,7 +194,7 @@ class TestSourceIdentity:
         docs = _load(b"schema_version: '1.0'\npriority: 1\n")
 
         assert docs[0].source.distribution == "ghost-dist"
-        assert docs[0].source.distribution_version == SchemaLoader._UNKNOWN_DISTRIBUTION
+        assert docs[0].source.distribution_version == UNKNOWN_DISTRIBUTION
 
     def test_unreadable_package_metadata_is_tolerated(self, monkeypatch):
         """Environment quirks must not break the loader."""

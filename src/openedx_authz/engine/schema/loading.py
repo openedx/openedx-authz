@@ -11,12 +11,9 @@ No Casbin or Django imports, so it stays unit-testable in isolation.
 
 from __future__ import annotations
 
-import functools
 import hashlib
 import logging
-from collections.abc import Callable
 from importlib import metadata
-from typing import TYPE_CHECKING, TypeVar
 
 import yaml
 

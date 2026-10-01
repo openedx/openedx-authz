@@ -6,7 +6,7 @@ import pytest
 
 from openedx_authz.engine.schema.discovery import SchemaDiscovery
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
-from openedx_authz.engine.schema.loading import UNKNOWN, SchemaLoader
+from openedx_authz.engine.schema.loading import SchemaLoader
 
 from .factories import InMemoryResource
 
@@ -136,13 +136,35 @@ class TestSourceIdentity:
     installed package metadata.
     """
 
+    @staticmethod
+    def _fake_distribution_lookup(files_by_name):
+        """Build a ``metadata.distribution`` replacement backed by preset file lists.
+
+        ``files_by_name`` maps a distribution name to the anchor-relative paths
+        it records; the returned callable exposes those via a ``.files``
+        attribute, mimicking ``importlib.metadata.Distribution``. Names absent
+        from the mapping raise ``PackageNotFoundError``, as the real backend
+        does for an uninstalled distribution.
+        """
+
+        class _Distribution:
+            def __init__(self, files):
+                self.files = files
+
+        def _distribution(name):
+            if name not in files_by_name:
+                raise metadata.PackageNotFoundError(name)
+            return _Distribution(files_by_name[name])
+
+        return _distribution
+
     def test_installed_package_resolves_to_its_distribution(self):
         """A module shipped by this package resolves to the real distribution."""
         discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
         assert {doc.source.distribution for doc in docs} == {"openedx-authz"}
-        assert all(doc.source.distribution_version != UNKNOWN for doc in docs)
+        assert all(doc.source.distribution_version != SchemaLoader._UNKNOWN_DISTRIBUTION for doc in docs)
 
     def test_module_is_recorded_as_the_dotted_path(self):
         """The source module is recorded as the resource's dotted import path."""
@@ -156,7 +178,7 @@ class TestSourceIdentity:
         docs = _load(b"schema_version: '1.0'\npriority: 1\n")
 
         assert docs[0].source.distribution == "pkg"
-        assert docs[0].source.distribution_version == UNKNOWN
+        assert docs[0].source.distribution_version == SchemaLoader._UNKNOWN_DISTRIBUTION
 
     def test_missing_distribution_metadata_falls_back_to_unknown_version(self, monkeypatch):
         """A distribution with no readable version falls back to ``UNKNOWN``."""
@@ -170,7 +192,7 @@ class TestSourceIdentity:
         docs = _load(b"schema_version: '1.0'\npriority: 1\n")
 
         assert docs[0].source.distribution == "ghost-dist"
-        assert docs[0].source.distribution_version == UNKNOWN
+        assert docs[0].source.distribution_version == SchemaLoader._UNKNOWN_DISTRIBUTION
 
     def test_unreadable_package_metadata_is_tolerated(self, monkeypatch):
         """Environment quirks must not break the loader."""
@@ -183,6 +205,42 @@ class TestSourceIdentity:
         docs = _load(b"schema_version: '1.0'\npriority: 1\n")
 
         assert docs[0].source.distribution == "pkg"
+
+    def test_multiple_candidates_resolve_to_the_distribution_that_ships_the_file(self, monkeypatch):
+        """When several distributions claim the top-level package, pick the file's owner.
+
+        ``packages_distributions`` returns a list because a top-level import
+        package can be provided by more than one distribution (namespace
+        packages, overlapping installs). The owner is the one whose recorded
+        file list actually contains the resource (ADR 0019 §2), not the first
+        list entry.
+        """
+        monkeypatch.setattr(metadata, "packages_distributions", lambda: {"pkg": ["other-dist", "owning-dist"]})
+        monkeypatch.setattr(
+            metadata, "distribution", self._fake_distribution_lookup({"owning-dist": ["pkg/file.authz.yaml"]})
+        )
+        monkeypatch.setattr(metadata, "version", lambda name: "9.9" if name == "owning-dist" else "0.0")
+
+        docs = _load(b"schema_version: '1.0'\npriority: 1\n")
+
+        assert docs[0].source.distribution == "owning-dist"
+        assert docs[0].source.distribution_version == "9.9"
+
+    def test_ambiguous_ownership_falls_back_to_a_deterministic_choice(self, monkeypatch):
+        """With no single file owner, pick the first candidate in sorted order.
+
+        If zero or more than one candidate claims the file (or file lists are
+        unavailable), the true owner is unknown. The pick must still be stable
+        across environments, so it is sorted rather than discovery-ordered.
+        """
+        monkeypatch.setattr(metadata, "packages_distributions", lambda: {"pkg": ["zed-dist", "alpha-dist"]})
+        # Neither distribution records the file, so ownership cannot be confirmed.
+        monkeypatch.setattr(metadata, "distribution", self._fake_distribution_lookup({}))
+        monkeypatch.setattr(metadata, "version", lambda _name: "1.0")
+
+        docs = _load(b"schema_version: '1.0'\npriority: 1\n")
+
+        assert docs[0].source.distribution == "alpha-dist"
 
     def test_digest_reflects_the_file_contents(self):
         """Different file contents produce different content digests."""

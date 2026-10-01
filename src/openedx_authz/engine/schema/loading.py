@@ -11,8 +11,12 @@ No Casbin or Django imports, so it stays unit-testable in isolation.
 
 from __future__ import annotations
 
+import functools
 import hashlib
+import logging
+from collections.abc import Callable
 from importlib import metadata
+from typing import TYPE_CHECKING, TypeVar
 
 import yaml
 
@@ -27,7 +31,7 @@ from openedx_authz.engine.schema.types import (
     SourceRecord,
 )
 
-UNKNOWN = "unknown"
+logger = logging.getLogger(__name__)
 
 
 class SchemaLoader:
@@ -38,6 +42,8 @@ class SchemaLoader:
     controls *when* files are read and computes the content digest from the
     exact bytes it parses.
     """
+
+    _UNKNOWN_DISTRIBUTION = "unknown"
 
     def load(self, resources: list[DiscoveredResource]) -> list[SchemaDocument]:
         """Load every discovered resource into a :class:`SchemaDocument`.
@@ -78,7 +84,7 @@ class SchemaLoader:
         digest. Falls back to ``"unknown"`` when the package is not tied to an
         installed distribution (e.g. operator-supplied settings resources).
         """
-        distribution, version = self._resolve_distribution(resource.module)
+        distribution, version = self._resolve_distribution(resource)
         content_digest = hashlib.sha256(contents).hexdigest()
         return SourceRecord(
             distribution=distribution,
@@ -89,23 +95,84 @@ class SchemaLoader:
             content_digest=content_digest,
         )
 
-    @staticmethod
-    def _resolve_distribution(package: str) -> tuple[str, str]:
-        """Map an import package to its providing distribution name and version."""
-        top_level = package.split(".", 1)[0]
+    @classmethod
+    def _resolve_distribution(cls, resource: DiscoveredResource) -> tuple[str, str]:
+        """Map a discovered resource to its providing distribution name and version.
+
+        A top-level import package can be provided by more than one installed
+        distribution (namespace packages, overlapping/legacy installs), so
+        ``packages_distributions()`` returns a *list* of candidate names. The
+        same source must resolve to the same distribution under every deployment
+        layout (ADR 0019 §2), so an arbitrary ``candidates[0]`` is not good
+        enough: when several distributions claim the top-level package we pick
+        the one that actually ships this resource's file, and only fall back to
+        a deterministic (sorted) choice when no single owner can be identified.
+        """
+        top_level = resource.package.split(".", 1)[0]
         try:
             mapping = metadata.packages_distributions()
         # pylint: disable=broad-exception-caught
         except Exception:  # noqa: BLE001 - defensive; metadata quirks across envs
             mapping = {}
         candidates = mapping.get(top_level) or []
-        if candidates:
-            distribution = candidates[0]
-            try:
-                return distribution, metadata.version(distribution)
-            except metadata.PackageNotFoundError:
-                return distribution, UNKNOWN
-        return top_level, UNKNOWN
+        if not candidates:
+            return top_level, cls._UNKNOWN_DISTRIBUTION
+
+        distribution = cls._select_owning_distribution(candidates, resource)
+        try:
+            return distribution, metadata.version(distribution)
+        except metadata.PackageNotFoundError:
+            return distribution, cls._UNKNOWN_DISTRIBUTION
+
+    @classmethod
+    def _select_owning_distribution(cls, candidates: list[str], resource: DiscoveredResource) -> str:
+        """Choose the distribution that ships ``resource`` from the candidate list.
+
+        With a single candidate there is nothing to disambiguate. With several,
+        we match each distribution's recorded file list against the resource's
+        installed path (``package/resource_path``) and return the one that owns
+        it. If exactly zero or more than one distribution claims the file (or the
+        file lists are unavailable), we cannot know the true owner, so we return
+        the first candidate in sorted order — a stable choice across environments
+        — and log the ambiguity.
+        """
+        if len(candidates) == 1:
+            return candidates[0]
+
+        installed_path = f"{resource.package}/{resource.resource_path}"
+        owners = [name for name in candidates if cls._distribution_ships(name, installed_path)]
+        if len(owners) == 1:
+            return owners[0]
+
+        fallback = sorted(candidates)[0]
+        logger.warning(
+            "Could not uniquely resolve the distribution that ships a schema resource; selecting deterministically.",
+            extra={
+                "top_level": resource.package,
+                "resource_path": resource.resource_path,
+                "candidates": sorted(candidates),
+                "matched_owners": sorted(owners),
+                "selected": fallback,
+            },
+        )
+        return fallback
+
+    @staticmethod
+    def _distribution_ships(distribution: str, installed_path: str) -> bool:
+        """Return whether ``distribution`` records a file matching ``installed_path``.
+
+        ``Distribution.files`` lists the files the distribution installed, as
+        anchor-relative ``PackagePath`` values (e.g.
+        ``openedx_authz/authz/schema/course_roles.yaml``). A resource belongs to
+        the distribution when one of those paths ends with the resource's
+        ``package/resource_path``. Metadata gaps (``files`` is ``None`` or the
+        distribution is missing) mean "cannot confirm ownership", not an error.
+        """
+        try:
+            files = metadata.distribution(distribution).files or []
+        except metadata.PackageNotFoundError:
+            return False
+        return any(str(path).endswith(installed_path) for path in files)
 
     def _build_document(self, raw: dict, source: SourceRecord) -> SchemaDocument:
         """Map the parsed mapping's blocks into a typed SchemaDocument.

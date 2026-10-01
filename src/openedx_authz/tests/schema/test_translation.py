@@ -169,6 +169,10 @@ roles:
 """)])
         assert len(messages) == 2
 
+    def test_empty_file_yields_no_messages(self):
+        """An empty YAML file (e.g. all comments) parses to None, not an error."""
+        assert extract_messages([_resource("# just a comment, no content\n")]) == []
+
 
 class TestContextDisambiguation:
     """ADR 0020: identical English text in different fields stays separate."""

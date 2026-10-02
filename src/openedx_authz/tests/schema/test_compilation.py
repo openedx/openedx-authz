@@ -6,12 +6,14 @@ defensive branches guarding states validation is expected to have rejected.
 """
 
 import logging
+from dataclasses import fields
 
 import pytest
 
 from openedx_authz.constants import SchemaOriginKind
-from openedx_authz.engine.schema.compilation import SchemaCompiler
+from openedx_authz.engine.schema.compilation import RoleMetadataField, SchemaCompiler
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
+from openedx_authz.engine.schema.types import RoleExtension
 
 from .factories import category, extension, make_document, make_source, permission, role
 
@@ -30,6 +32,27 @@ def _base(**role_kwargs):
         permissions=PERMS,
         roles=[role(rid="course_editor", permissions=("courses.view_course", "courses.manage_tags"), **role_kwargs)],
     )
+
+
+class TestRoleMetadataFieldInvariant:
+    """``RoleMetadataField`` must stay in lockstep with ``RoleExtension``.
+
+    ``_gather_extension_changes`` reads each member via ``getattr`` with no
+    default, so a member naming a field that ``RoleExtension`` does not declare
+    would raise at compile time. This guards that coupling at the enum level,
+    turning a rename drift into a fast, obvious test failure.
+    """
+
+    def test_every_member_is_a_role_extension_field(self):
+        """Each enum value names a real ``RoleExtension`` field."""
+        extension_fields = {f.name for f in fields(RoleExtension)}
+        enum_values = {member.value for member in RoleMetadataField}
+        assert enum_values <= extension_fields
+
+    def test_members_exclude_non_metadata_fields(self):
+        """Permission and identity fields are not metadata an extension replaces."""
+        enum_values = {member.value for member in RoleMetadataField}
+        assert enum_values.isdisjoint({"role_id", "add_permissions", "remove_permissions"})
 
 
 class TestBaseCompilation:

@@ -24,7 +24,7 @@ Casbin/Django imports.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
@@ -46,12 +46,16 @@ _METADATA_FIELDS = ("display_name", "description", "icon", "hidden")
 _KIND_LABELS = {"categories": "category", "permissions": "permission", "roles": "role"}
 
 
-@dataclass
+@dataclass(frozen=True)
 class _Tracked:
-    """A base definition plus the sources and priority that produced it."""
+    """A base definition plus the sources and priority that produced it.
+
+    Immutable: resolution steps return a new ``_Tracked`` via
+    :func:`dataclasses.replace` rather than mutating one in place.
+    """
 
     definition: object
-    sources: list[SourceRecord] = field(default_factory=list)
+    sources: tuple[SourceRecord, ...] = ()
     priority: int = 0
 
 
@@ -70,12 +74,12 @@ class SchemaCompiler:
         permissions = self._collect(documents, "permissions", key=lambda p: p.identifier)
         roles = self._collect(documents, "roles", key=lambda r: r.id)
 
-        role_permission_sources = self._resolve_roles_and_provenance(roles, documents)
+        resolved_roles, role_permission_sources = self._resolve_roles_and_provenance(roles, documents)
 
         return CompiledSchema(
             categories=self._finalize(categories),
             permissions=self._finalize(permissions),
-            roles=self._finalize(roles),
+            roles=self._finalize(resolved_roles),
             role_permission_sources=role_permission_sources,
         )
 
@@ -93,7 +97,7 @@ class SchemaCompiler:
                 if existing is None:
                     tracked[identifier] = _Tracked(
                         definition=definition,
-                        sources=[document.source],
+                        sources=(document.source,),
                         priority=document.priority,
                     )
                     continue
@@ -105,7 +109,7 @@ class SchemaCompiler:
                     existing=existing,
                     incoming=_Tracked(
                         definition=definition,
-                        sources=[document.source],
+                        sources=(document.source,),
                         priority=document.priority,
                     ),
                 )
@@ -137,8 +141,7 @@ class SchemaCompiler:
         contributions where only priority (not load order) decides the winner.
         """
         if existing.definition == incoming.definition:
-            existing.sources.extend(incoming.sources)
-            return existing
+            return replace(existing, sources=existing.sources + incoming.sources)
         if incoming.priority == existing.priority:
             raise SchemaCompileError(
                 f"Conflicting {kind} definition for {identifier!r} at equal priority "
@@ -186,49 +189,97 @@ class SchemaCompiler:
 
     def _resolve_roles_and_provenance(
         self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
-    ) -> dict[tuple[str, str], list[RelationshipSource]]:
+    ) -> tuple[dict[str, _Tracked], dict[tuple[str, str], list[RelationshipSource]]]:
         """Apply extensions and build per-(role, permission) provenance.
 
         Seeds base provenance from each role's own definition, then folds in
         ``role_extensions`` (metadata replacement + permission add/remove),
-        honoring priority. Returns the relationship provenance map.
+        honoring priority. Returns the resolved roles (a new mapping; inputs are
+        left untouched) alongside the relationship provenance map.
         """
         metadata_changes, permission_changes = self._gather_extension_changes(roles, documents)
+        resolved_roles: dict[str, _Tracked] = {}
         role_permission_sources: dict[tuple[str, str], list[RelationshipSource]] = {}
 
         for role_id, tracked in roles.items():
-            role: RoleDefinition = tracked.definition
-            base_sources = list(tracked.sources)
+            base_sources = tracked.sources
             base_priority = tracked.priority
 
-            # Seed base provenance for every permission the role declares.
-            provenance: dict[str, list[RelationshipSource]] = {
-                perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
-                for perm in role.permissions
-            }
+            tracked = self._apply_metadata_changes(role_id, tracked, metadata_changes.get(role_id, {}))
 
-            metadata_changes_for_role = metadata_changes.get(role_id, {})
-            if metadata_changes_for_role:
-                new_values, contributing_sources = self._resolve_metadata(role_id, metadata_changes_for_role)
-                tracked.definition = replace(role, **new_values)
-                role = tracked.definition
-                for src in contributing_sources:
-                    if src not in tracked.sources:
-                        tracked.sources.append(src)
+            tracked, provenance = self._apply_permission_changes(
+                role_id,
+                tracked,
+                base_sources,
+                base_priority,
+                permission_changes.get(role_id),
+            )
 
-            permission_changes_for_role = permission_changes.get(role_id)
-            if permission_changes_for_role and (
-                permission_changes_for_role["add"] or permission_changes_for_role["remove"]
-            ):
-                final_perms, provenance = self._resolve_permissions(
-                    role_id, role.permissions, base_sources, base_priority, permission_changes_for_role
-                )
-                tracked.definition = replace(tracked.definition, permissions=final_perms)
-
+            resolved_roles[role_id] = tracked
             for perm, sources in provenance.items():
                 role_permission_sources[(role_id, perm)] = sources
 
-        return role_permission_sources
+        return resolved_roles, role_permission_sources
+
+    def _apply_metadata_changes(
+        self,
+        role_id: str,
+        tracked: _Tracked,
+        metadata_changes_for_role: dict[str, list[tuple[object, int, SourceRecord]]],
+    ) -> _Tracked:
+        """Return the role with winning metadata applied and its sources recorded.
+
+        Single responsibility: resolve the winning metadata values for this role
+        and produce a new :class:`_Tracked` carrying the updated definition and
+        the sources that contributed them. Returns ``tracked`` unchanged when the
+        role has no metadata extensions.
+        """
+        if not metadata_changes_for_role:
+            return tracked
+        new_values, contributing_sources = self._resolve_metadata(role_id, metadata_changes_for_role)
+        merged_sources = tracked.sources + tuple(
+            src for src in contributing_sources if src not in tracked.sources
+        )
+        return replace(
+            tracked,
+            definition=replace(tracked.definition, **new_values),
+            sources=merged_sources,
+        )
+
+    def _apply_permission_changes(
+        self,
+        role_id: str,
+        tracked: _Tracked,
+        base_sources: tuple[SourceRecord, ...],
+        base_priority: int,
+        permission_changes_for_role: dict[str, list[tuple[str, int, SourceRecord]]] | None,
+    ) -> tuple[_Tracked, dict[str, list[RelationshipSource]]]:
+        """Return the role with permission changes applied and its provenance.
+
+        Single responsibility: own the per-permission provenance for this role.
+        Seeds base provenance from the role's declared permissions, then, if the
+        role has permission extensions, resolves the final permission set,
+        produces a new :class:`_Tracked`, and reflects the add/remove in
+        provenance. Returns ``(tracked, base_provenance)`` unchanged when the
+        role has no permission extensions.
+        """
+        base_provenance: dict[str, list[RelationshipSource]] = {
+            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
+            for perm in tracked.definition.permissions
+        }
+        if not permission_changes_for_role or not (
+            permission_changes_for_role["add"] or permission_changes_for_role["remove"]
+        ):
+            return tracked, base_provenance
+        final_perms, provenance = self._resolve_permissions(
+            role_id,
+            tracked.definition.permissions,
+            base_sources,
+            base_priority,
+            permission_changes_for_role,
+        )
+        tracked = replace(tracked, definition=replace(tracked.definition, permissions=final_perms))
+        return tracked, provenance
 
     def _gather_extension_changes(self, roles: dict[str, _Tracked], documents: list[SchemaDocument]):
         """Collect per-role metadata and permission changes from all extensions.
@@ -383,7 +434,7 @@ class SchemaCompiler:
             identifier: CompiledDefinition(
                 key=identifier,
                 definition=entry.definition,
-                sources=tuple(entry.sources),
+                sources=entry.sources,
             )
             for identifier, entry in tracked.items()
         }

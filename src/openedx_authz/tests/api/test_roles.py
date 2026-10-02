@@ -38,7 +38,7 @@ from openedx_authz.api.roles import (
     get_subject_role_assignments_for_role_in_scope,
     get_subject_role_assignments_in_scope,
     get_subjects_for_role_in_scope,
-    get_user_counts_per_role_in_namespace,
+    get_user_counts_per_role_in_namespaces,
     unassign_role_from_subject_in_scope,
     unassign_subject_from_all_roles,
 )
@@ -1590,8 +1590,8 @@ class TestFilterRoleAssignmentsVisibleToSubject(RolesTestSetupMixin):
         self.assertEqual(visible, [])
 
 
-class TestGetUserCountsPerRoleInNamespace(RolesTestSetupMixin):
-    """Tests for get_user_counts_per_role_in_namespace."""
+class TestGetUserCountsPerRoleInNamespaces(RolesTestSetupMixin):
+    """Tests for get_user_counts_per_role_in_namespaces."""
 
     def setUp(self):
         super().setUp()
@@ -1611,10 +1611,26 @@ class TestGetUserCountsPerRoleInNamespace(RolesTestSetupMixin):
         self.enforcer.add_grouping_policy("user^erin", self.role, "lib^lib:Org2:LIB2")
         self.enforcer.add_grouping_policy("user^frank", "role^course_admin", "course-v1^course-v1:Org+C+R")
 
-        counts = get_user_counts_per_role_in_namespace("lib")
+        counts = get_user_counts_per_role_in_namespaces(["lib"])
 
         self.assertEqual(counts[roles.LIBRARY_USER.external_key], 2)
         self.assertNotIn(roles.COURSE_ADMIN.external_key, counts)
+
+    def test_counts_distinct_users_across_several_namespaces(self):
+        """A user assigned to the same role in several namespaces is counted once.
+
+        Expected result:
+            - Users of every requested namespace are added up
+            - A user present in both namespaces counts once
+        """
+        role = "role^shared_role"
+        self.enforcer.add_grouping_policy("user^dave", role, "lib^lib:Org1:LIB1")
+        self.enforcer.add_grouping_policy("user^dave", role, "course-v1^course-v1:Org+C+R")
+        self.enforcer.add_grouping_policy("user^erin", role, "course-v1^course-v1:Org+C+R")
+
+        counts = get_user_counts_per_role_in_namespaces(["lib", "course-v1"])
+
+        self.assertEqual(counts["shared_role"], 2)
 
     def test_ignores_assignments_of_non_user_subjects(self):
         """Assignments whose subject is not a user are not counted.
@@ -1624,6 +1640,6 @@ class TestGetUserCountsPerRoleInNamespace(RolesTestSetupMixin):
         """
         self.enforcer.add_grouping_policy("group^staff", self.role, "lib^lib:Org1:LIB1")
 
-        counts = get_user_counts_per_role_in_namespace("lib")
+        counts = get_user_counts_per_role_in_namespaces(["lib"])
 
         self.assertNotIn(roles.LIBRARY_USER.external_key, counts)

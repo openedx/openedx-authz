@@ -17,12 +17,13 @@ Unreleased
 Changed
 =======
 
-* **Breaking**: ``GET /api/authz/v1/roles/`` is now queried by ``scope_type`` (``course`` or
-  ``library``) instead of ``scope``, and returns the ``categories`` and ``permissions``
+* **Breaking**: ``GET /api/authz/v1/roles/`` is now queried by ``scope_types``, a comma-separated list of
+  ``course`` and ``library``, instead of ``scope``, and returns the ``categories`` and ``permissions``
   catalogs next to the paginated roles, each with display name, description, icon and
-  ``definition_kind`` (ADR 0028). ``user_count`` now counts the users assigned to the role in
-  the whole scope type. The permission required depends on the scope type
-  (``courses.view_course_team`` or ``content_libraries.view_library_team`` in any scope).
+  ``definition_kind`` (ADR 0028). A role is listed if it has grants in any requested scope type, and
+  ``user_count`` counts the users assigned to the role across them. The user must hold the permission
+  of each requested scope type (``courses.view_course_team`` or ``content_libraries.view_library_team``
+  in any scope). Roles without a stored definition are not listed.
 
 1.27.0 - 2026-09-30
 *******************

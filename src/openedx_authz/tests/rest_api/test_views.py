@@ -3233,14 +3233,14 @@ class TestRoleListView(ViewTestMixin):
         """Test the catalog returned for a scope type.
 
         Expected result:
-            - Returns 200 OK with scope_type, categories, permissions and roles of the namespace only
+            - Returns 200 OK with scope_types, categories, permissions and roles of the namespace only
             - Roles reference permissions by id, hidden roles and unused categories are left out
             - Everything is ordered by identifier
         """
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_types": "library"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["scope_type"], "library")
+        self.assertEqual(response.data["scope_types"], ["library"])
         self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
         self.assertEqual(
             response.data["categories"][0],
@@ -3288,7 +3288,7 @@ class TestRoleListView(ViewTestMixin):
         for scope in ["lib:Org1:LIB1", "lib:Org2:LIB2", "lib:Org3:LIB3"]:
             users.update(user.namespaced_key for user in api.get_users_for_role_in_scope("library_user", scope))
         expected = len(users)
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_types": "library"})
 
         by_role = {r["role"]: r for r in response.data["results"]}
         self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["user_count"], expected)
@@ -3302,7 +3302,7 @@ class TestRoleListView(ViewTestMixin):
         """
         AuthzRoleDefinition.objects.filter(role_id=roles.LIBRARY_CONTRIBUTOR.external_key).delete()
 
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_types": "library"})
 
         by_role = {r["role"]: r for r in response.data["results"]}
         self.assertNotIn(roles.LIBRARY_CONTRIBUTOR.external_key, by_role)
@@ -3314,13 +3314,13 @@ class TestRoleListView(ViewTestMixin):
             - Adding a role and its grants does not change the number of queries
         """
         with CaptureQueriesContext(connection) as before:
-            self.client.get(self.url, {"scope_type": "library"})
+            self.client.get(self.url, {"scope_types": "library"})
         extra = AuthzRoleDefinition.objects.create(role_id="extra_role", display_name="Extra", scopes=["lib"])
         permission = AuthzPermissionDefinition.objects.get(namespace="content_libraries", name="view_library")
         AuthzRolePermission.objects.create(role=extra, permission=permission, scope="lib")
 
         with CaptureQueriesContext(connection) as after:
-            response = self.client.get(self.url, {"scope_type": "library"})
+            response = self.client.get(self.url, {"scope_types": "library"})
 
         self.assertIn("extra_role", [r["role"] for r in response.data["results"]])
         self.assertEqual(len(before), len(after))
@@ -3330,8 +3330,8 @@ class TestRoleListView(ViewTestMixin):
         {"custom_param": "custom_value"},
         {"scope": "lib:Org1:LIB1"},
     )
-    def test_get_roles_scope_type_is_missing(self, query_params: dict):
-        """Test retrieving roles without scope_type.
+    def test_get_roles_scope_types_is_missing(self, query_params: dict):
+        """Test retrieving roles without scope_types.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3339,16 +3339,18 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("required", [error.code for error in response.data["scope_type"]])
+        self.assertIn("required", [error.code for error in response.data["scope_types"]])
 
     @data(
-        ({"scope_type": ""}, "invalid_choice"),
-        ({"scope_type": "global"}, "invalid_choice"),
-        ({"scope_type": "lib"}, "invalid_choice"),
+        ({"scope_types": ""}, "blank"),
+        ({"scope_types": "global"}, "invalid_choice"),
+        ({"scope_types": "lib"}, "invalid_choice"),
+        ({"scope_types": "course,"}, "invalid_choice"),
+        ({"scope_types": "course,global"}, "invalid_choice"),
     )
     @unpack
-    def test_get_roles_scope_type_is_invalid(self, query_params: dict, error_code: str):
-        """Test retrieving roles with an unsupported scope_type.
+    def test_get_roles_scope_types_is_invalid(self, query_params: dict, error_code: str):
+        """Test retrieving roles with an empty or unsupported value in scope_types.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3356,7 +3358,40 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(error_code, [error.code for error in response.data["scope_type"]])
+        self.assertIn(error_code, [error.code for error in response.data["scope_types"]])
+
+    def test_get_roles_several_scope_types(self):
+        """The catalog of several scope types is the union of each one.
+
+        Expected result:
+            - Permissions and categories of every requested namespace are returned
+            - A role is listed if it has grants in any of them, with the grants of all of them
+            - A repeated scope type is ignored
+        """
+        response = self.client.get(self.url, {"scope_types": "course,library,course"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["scope_types"], ["course", "library"])
+        self.assertEqual(
+            [p["id"] for p in response.data["permissions"]],
+            ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],
+        )
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertEqual(
+            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],
+        )
+
+    def test_get_roles_course_scope_type_lists_only_roles_with_course_grants(self):
+        """Roles without grants in the requested namespaces are not listed.
+
+        Expected result:
+            - Only the role with a course grant is listed for ``course``
+        """
+        response = self.client.get(self.url, {"scope_types": "course"})
+
+        self.assertEqual([r["role"] for r in response.data["results"]], [roles.LIBRARY_AUTHOR.external_key])
+        self.assertEqual(response.data["results"][0]["permissions"], ["courses.view_course"])
 
     def test_get_roles_pagination_only_paginates_roles(self):
         """Pagination applies to the roles; every page carries the complete catalogs.
@@ -3364,8 +3399,8 @@ class TestRoleListView(ViewTestMixin):
         Expected result:
             - Each page has page_size roles at most and the same permissions and categories
         """
-        first = self.client.get(self.url, {"scope_type": "library", "page": 1, "page_size": 1})
-        second = self.client.get(self.url, {"scope_type": "library", "page": 2, "page_size": 1})
+        first = self.client.get(self.url, {"scope_types": "library", "page": 1, "page_size": 1})
+        second = self.client.get(self.url, {"scope_types": "library", "page": 2, "page_size": 1})
 
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(len(first.data["results"]), 1)
@@ -3389,6 +3424,10 @@ class TestRoleListView(ViewTestMixin):
         # Course staff can view the course team but not the library team
         ("regular_9", "course", status.HTTP_200_OK),
         ("regular_9", "library", status.HTTP_403_FORBIDDEN),
+        # The permission of each requested scope type is required
+        ("admin_1", "course,library", status.HTTP_200_OK),
+        ("regular_5", "course,library", status.HTTP_403_FORBIDDEN),
+        ("regular_9", "library,course", status.HTTP_403_FORBIDDEN),
         # Non existent user
         ("non_existent_user", "library", status.HTTP_401_UNAUTHORIZED),
     )
@@ -3404,20 +3443,20 @@ class TestRoleListView(ViewTestMixin):
         user = User.objects.filter(username=username).first()
         self.client.force_authenticate(user=user)
 
-        response = self.client.get(self.url, {"scope_type": scope_type})
+        response = self.client.get(self.url, {"scope_types": scope_type})
 
         self.assertEqual(response.status_code, status_code)
 
-    @data("", "global", "lib")
+    @data("", "global", "lib", "library,global", "library,")
     def test_get_roles_unsupported_scope_type_reaches_the_view_for_regular_users(self, scope_type: str):
-        """An unsupported scope_type is not rejected by the permission class.
+        """An unsupported scope_types value is not rejected by the permission class.
 
         Expected result:
             - A regular user gets 400 BAD REQUEST from the serializer, not 403 FORBIDDEN
         """
         self.client.force_authenticate(user=User.objects.get(username="regular_9"))
 
-        response = self.client.get(self.url, {"scope_type": scope_type})
+        response = self.client.get(self.url, {"scope_types": scope_type})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

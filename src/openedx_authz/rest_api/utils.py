@@ -7,11 +7,30 @@ from openedx_authz.api.data import (
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
+    ScopesTypeField,
     SearchField,
     SortField,
     SortOrder,
     UserAssignmentSortField,
 )
+
+
+def parse_scope_types(value: str | None) -> list[str] | None:
+    """Parse a comma-separated ``scope_types`` query value.
+
+    Args:
+        value: The raw query value (e.g., 'course,library'), or None if it was not provided.
+
+    Returns:
+        list[str] | None: The unique scope types in request order, or None if the value is missing,
+            has an empty item or has an item that is not a supported scope type.
+    """
+    if not value:
+        return None
+    items = [item.strip() for item in value.split(",")]
+    if any(item not in ScopesTypeField.values() for item in items):
+        return None
+    return list(dict.fromkeys(items))
 
 
 def get_generic_scope(scope: ScopeData) -> ScopeData:

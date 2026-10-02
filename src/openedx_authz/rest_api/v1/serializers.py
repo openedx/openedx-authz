@@ -6,7 +6,7 @@ from organizations.serializers import OrganizationSerializer
 from rest_framework import serializers
 
 from openedx_authz import api
-from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, UserAssignments
+from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind, UserAssignments
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     ScopesTypeField,
@@ -14,7 +14,7 @@ from openedx_authz.rest_api.data import (
     SortOrder,
     UserAssignmentSortField,
 )
-from openedx_authz.rest_api.utils import get_generic_scope
+from openedx_authz.rest_api.utils import get_generic_scope, parse_scope_types
 from openedx_authz.rest_api.v1.fields import (
     CaseSensitiveCommaSeparatedListField,
     CommaSeparatedListField,
@@ -202,54 +202,69 @@ class ListUsersInRoleWithScopeSerializer(ScopeMixin, OrderMixin):  # pylint: dis
     search = LowercaseCharField(required=False, default=None)
 
 
-class ListRolesWithScopeSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for listing roles within a scope."""
+class ListRolesQuerySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for validating the query parameters of the role catalog."""
 
-    scope = serializers.CharField(max_length=255)
+    scope_types = serializers.CharField()
 
-    def validate_scope(self, value: str) -> api.ScopeData:
-        """Validate and convert scope string to a ScopeData instance.
-
-        Checks that the provided scope is registered in the scope registry and
-        returns an instance of the appropriate ScopeData subclass.
-
-        Args:
-            value: The scope string to validate (e.g., 'lib', 'global', 'org').
-
-        Returns:
-            ScopeData: An instance of the appropriate ScopeData subclass for the scope.
+    def validate_scope_types(self, value: str) -> list[str]:
+        """Convert the comma-separated scope types to a list of unique, supported scope types.
 
         Raises:
-            serializers.ValidationError: If the scope is not registered in the scope registry.
-
-        Examples:
-            >>> validate_scope('lib:DemoX:CSPROB')
-            ContentLibraryData(external_key='lib:DemoX:CSPROB')
+            serializers.ValidationError: If a value is empty or is not a supported scope type.
         """
-        if value == GLOBAL_SCOPE_WILDCARD:
+        scope_types = parse_scope_types(value)
+        if scope_types is None:
             raise serializers.ValidationError(
-                "Global wildcard scope '*' is not accepted via the API. Use a specific scope key."
+                f"Must be a comma-separated list of supported scope types: {', '.join(ScopesTypeField.values())}.",
+                code="invalid_choice",
             )
-        try:
-            return api.ScopeData(external_key=value)
-        except ValueError as exc:
-            raise serializers.ValidationError(exc) from exc
+        return scope_types
 
 
-class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for listing users in a role with a scope response."""
+class RoleCatalogCategorySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """A permission category of the role catalog."""
 
-    username = serializers.CharField(max_length=255)
-    full_name = serializers.CharField(max_length=255)
-    email = serializers.EmailField()
+    id = serializers.CharField(source="category_id")
+    display_name = serializers.CharField()
+    description = serializers.CharField()
+    icon = serializers.CharField(allow_null=True)
 
 
-class ListRolesWithScopeResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for listing roles with a scope response."""
+class RoleCatalogPermissionSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """A permission of the role catalog."""
+
+    id = serializers.CharField(source="identifier")
+    namespace = serializers.CharField()
+    name = serializers.CharField()
+    display_name = serializers.CharField()
+    description = serializers.CharField()
+    icon = serializers.CharField(allow_null=True)
+    category = serializers.CharField(source="category.category_id")
+
+
+class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """A role of the role catalog, referencing permissions by identifier."""
 
     role = serializers.CharField(max_length=255)
+    display_name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    icon = serializers.CharField(allow_null=True)
+    definition_kind = serializers.ChoiceField(choices=[(e.value, e.name) for e in DefinitionKind])
     permissions = serializers.ListField(child=serializers.CharField(max_length=255))
     user_count = serializers.IntegerField()
+
+
+class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Response of the role catalog: paginated roles plus the complete catalogs."""
+
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True)
+    previous = serializers.CharField(allow_null=True)
+    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
+    categories = RoleCatalogCategorySerializer(many=True)
+    permissions = RoleCatalogPermissionSerializer(many=True)
+    results = RoleCatalogRoleSerializer(many=True)
 
 
 class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=abstract-method

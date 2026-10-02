@@ -41,11 +41,16 @@ from openedx_authz.api.users import (
 from openedx_authz.api.utils import get_scope_display_name_map, get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
-from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, ScopesQuerySetFields, ScopesTypeField
+from openedx_authz.rest_api.data import (
+    SCOPE_TYPE_NAMESPACES,
+    RoleOperationError,
+    RoleOperationStatus,
+    ScopesQuerySetFields,
+    ScopesTypeField,
+)
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import (
     filter_users,
-    get_generic_scope,
     sort_users,
 )
 from openedx_authz.rest_api.v1.filters import (
@@ -56,12 +61,11 @@ from openedx_authz.rest_api.v1.filters import (
     UserAssignmentsSearchFilter,
 )
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
+from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission, ScopeTypePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
     ListAssignmentsQuerySerializer,
-    ListRolesWithScopeResponseSerializer,
-    ListRolesWithScopeSerializer,
+    ListRolesQuerySerializer,
     ListScopesQuerySerializer,
     ListTeamMemberAssignmentsQuerySerializer,
     ListTeamMembersSerializer,
@@ -69,6 +73,10 @@ from openedx_authz.rest_api.v1.serializers import (
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
+    RoleCatalogCategorySerializer,
+    RoleCatalogPermissionSerializer,
+    RoleCatalogResponseSerializer,
+    RoleCatalogRoleSerializer,
     ScopeSerializer,
     TeamMemberAssignmentSerializer,
     TeamMemberSerializer,
@@ -424,99 +432,90 @@ class RoleUserAPIView(APIView):
 
 @view_auth_classes()
 class RoleListView(APIView):
-    """API view for retrieving role definitions and their associated permissions within a specific scope.
+    """API view for retrieving the roles, permissions and categories of one or more scope types.
 
-    This view provides read-only access to role definitions within a specific
-    authorization scope. It returns detailed information about each role including
-    the permissions granted and the number of users assigned to each role.
+    Returns a catalog that lets the Admin Console build its roles and permissions matrix from a
+    single request (ADR 0028). The roles are paginated; the ``categories`` and ``permissions``
+    catalogs are complete in every page.
 
     **Endpoints**
 
-    - GET: Retrieve all roles and their permissions for a specific scope
+    - GET: Retrieve the catalog for one or more scope types
 
     **Query Parameters**
 
-    - scope (Required): The scope to query roles for (e.g., 'lib:OpenedX:CSPROB')
-    - page (Optional): Page number for pagination
-    - page_size (Optional): Number of items per page
+    - scope_types (Required): Comma-separated list of scope types to query, with at least one value.
+      Each one is ``course`` or ``library``.
+    - page (Optional): Page number for pagination of the roles
+    - page_size (Optional): Number of roles per page
 
     **Response Format**
 
-    Returns a paginated list of role objects, each containing:
-
-    - role: The role's external identifier (e.g., 'library_author', 'library_user')
-    - permissions: List of permission identifiers granted by this role (e.g., 'content_libraries.delete_library')
-    - user_count: Number of users currently assigned to this role
+    - count, next, previous: Pagination of the roles
+    - scope_types: The requested scope types
+    - categories: Categories used by the permissions (id, display_name, description, icon)
+    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category)
+    - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
+      (ids of entries of ``permissions``) and user_count (users assigned to the role across the scope types)
 
     **Authentication and Permissions**
 
     - Requires authenticated user.
-    - Requires ``manage_library_team`` permission for the scope.
+    - ``course`` requires ``courses.view_course_team`` in any scope.
+    - ``library`` requires ``content_libraries.view_library_team`` in any scope.
+    - The user must hold the permission of each requested scope type.
 
     **Example Request**
 
-    GET /api/authz/v1/roles/?scope=lib:OpenedX:CSPROB&page=1&page_size=10
-
-    **Example Response**::
-
-        {
-            "count": 2,
-            "next": null,
-            "previous": null,
-            "results": [
-                {
-                    "role": "library_author",
-                    "permissions": ["delete_library_content", "edit_library"],
-                    "user_count": 5
-                },
-                {
-                    "role": "library_user",
-                    "permissions": ["view_library", "view_library_team", "reuse_library_content"],
-                    "user_count": 12
-                }
-            ]
-        }
+    GET /api/authz/v1/roles/?scope_types=course&page=1&page_size=10
     """
 
     pagination_class = AuthZAPIViewPagination
-    permission_classes = [DynamicScopePermission]
+    permission_classes = [ScopeTypePermission]
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
+            apidocs.query_parameter(
+                "scope_types", str, description="Comma-separated scope types to query: `course` and/or `library`"
+            ),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
-            apidocs.query_parameter("page_size", int, description="Number of items per page"),
+            apidocs.query_parameter("page_size", int, description="Number of roles per page"),
         ],
         responses={
-            status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
+            status.HTTP_200_OK: RoleCatalogResponseSerializer,
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.VIEW_LIBRARY.identifier, permissions.COURSES_VIEW_COURSE_TEAM.identifier])
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all roles and their permissions for a specific scope."""
-        serializer = ListRolesWithScopeSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        query_params = serializer.validated_data
+        """Retrieve the roles, permissions and categories available for one or more scope types."""
+        query_serializer = ListRolesQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        scope_types = query_serializer.validated_data["scope_types"]
+        namespaces = [SCOPE_TYPE_NAMESPACES[scope_type] for scope_type in scope_types]
 
-        generic_scope = get_generic_scope(query_params["scope"])
-        roles = api.get_role_definitions_in_scope(generic_scope)
-        response_data = []
-        for role in roles:
-            users = api.get_users_for_role_in_scope(role.external_key, query_params["scope"].external_key)
-            response_data.append(
-                {
-                    "role": role.external_key,
-                    "permissions": role.get_permission_identifiers(),
-                    "user_count": len(users),
-                }
-            )
+        permission_catalog = api.get_permission_catalog(namespaces)
+        user_counts = api.get_user_counts_per_role_in_namespaces(namespaces)
+        role_catalog = [
+            {**role, "user_count": user_counts.get(role["role"], 0)} for role in api.get_role_catalog(namespaces)
+        ]
+        categories = api.get_category_catalog(permission_catalog)
 
         paginator = self.pagination_class()
-        paginated_response_data = paginator.paginate_queryset(response_data, request)
-        serialized_data = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
-        return paginator.get_paginated_response(serialized_data.data)
+        page = paginator.paginate_queryset(role_catalog, request)
+        pagination = paginator.get_paginated_response(RoleCatalogRoleSerializer(page, many=True).data).data
+        return Response(
+            {
+                "count": pagination["count"],
+                "next": pagination["next"],
+                "previous": pagination["previous"],
+                "scope_types": scope_types,
+                "categories": RoleCatalogCategorySerializer(categories, many=True).data,
+                "permissions": RoleCatalogPermissionSerializer(permission_catalog, many=True).data,
+                "results": pagination["results"],
+            }
+        )
 
 
 @view_auth_classes()
@@ -988,7 +987,7 @@ class TeamMembersAPIView(APIView):
         - role: The role name (e.g., 'library_admin')
         - org: The org over which this role is applied
         - scope: The scope over which this role is applied
-        - scope_display_name: The human-readable display name for the scope 
+        - scope_display_name: The human-readable display name for the scope
           (empty string for glob scopes or unresolvable resources)
         - permission_count: The number of permissions that apply to this role
 
@@ -1483,7 +1482,7 @@ class WaffleFlagStatesAPIView(APIView):
     * 'course_overrides' (dict): Courses with a course-level override, split the same way.
 
     **Example Request**
-    
+
     GET /api/authz/v1/waffle-flag-states/
     """
 
@@ -1492,6 +1491,6 @@ class WaffleFlagStatesAPIView(APIView):
         try:
             data = get_waffle_flag_states()
             return Response(data, status=status.HTTP_200_OK)
-        except Exception as e:      # pylint: disable=broad-exception-caught
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Error getting waffle flag states: %s", e)
             return Response({"message": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

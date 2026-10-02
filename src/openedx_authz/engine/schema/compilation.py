@@ -79,8 +79,6 @@ class SchemaCompiler:
             role_permission_sources=role_permission_sources,
         )
 
-    # ---- base collection --------------------------------------------------
-
     def _collect(self, documents: list[SchemaDocument], attr: str, key) -> dict[str, _Tracked]:
         """Gather base definitions keyed by identifier, resolving by priority.
 
@@ -101,39 +99,64 @@ class SchemaCompiler:
                     continue
 
                 kind = _KIND_LABELS.get(attr, attr)
-                if existing.definition == definition:
-                    existing.sources.append(document.source)
-                elif document.priority > existing.priority:
-                    # The loser is discarded; say so, otherwise the contributing
-                    # file looks like it took effect (ADR 0017 §4).
-                    self._warn_discarded(
-                        kind,
-                        identifier,
-                        loser=existing.sources[0],
-                        loser_priority=existing.priority,
-                        winner=document.source,
-                        winner_priority=document.priority,
-                    )
-                    tracked[identifier] = _Tracked(
+                tracked[identifier] = self._resolve_priority(
+                    kind,
+                    identifier,
+                    existing=existing,
+                    incoming=_Tracked(
                         definition=definition,
                         sources=[document.source],
                         priority=document.priority,
-                    )
-                elif document.priority == existing.priority:
-                    raise SchemaCompileError(
-                        f"Conflicting {kind} definition for {identifier!r} at equal priority "
-                        f"{document.priority} ({existing.sources[0].source_id} vs {document.source.source_id})."
-                    )
-                else:
-                    self._warn_discarded(
-                        kind,
-                        identifier,
-                        loser=document.source,
-                        loser_priority=document.priority,
-                        winner=existing.sources[0],
-                        winner_priority=existing.priority,
-                    )
+                    ),
+                )
         return tracked
+
+    def _resolve_priority(
+        self,
+        kind: str,
+        identifier: str,
+        *,
+        existing: _Tracked,
+        incoming: _Tracked,
+    ) -> _Tracked:
+        """Resolve two competing definitions for one identifier by priority.
+
+        Single responsibility: decide which of two :class:`_Tracked` entries for
+        the same identifier survives.
+
+        * Identical definitions merge their sources (both files contributed the
+          same thing).
+        * Otherwise higher priority wins; the loser is warned about (ADR 0017
+          §4) so a valid-but-ineffective file does not look like it took effect.
+        * Equal priority with disagreeing definitions is unresolvable and raises
+          :class:`SchemaCompileError` so deployment stops before the database
+          changes.
+
+        Each ``_Tracked`` carries a single source; ``existing`` and ``incoming``
+        are symmetric, so this also serves conflicts between extension
+        contributions where only priority (not load order) decides the winner.
+        """
+        if existing.definition == incoming.definition:
+            existing.sources.extend(incoming.sources)
+            return existing
+        if incoming.priority == existing.priority:
+            raise SchemaCompileError(
+                f"Conflicting {kind} definition for {identifier!r} at equal priority "
+                f"{incoming.priority} "
+                f"({existing.sources[0].source_id} vs {incoming.sources[0].source_id})."
+            )
+        winner, loser = (
+            (incoming, existing) if incoming.priority > existing.priority else (existing, incoming)
+        )
+        self._warn_discarded(
+            kind,
+            identifier,
+            loser=loser.sources[0],
+            loser_priority=loser.priority,
+            winner=winner.sources[0],
+            winner_priority=winner.priority,
+        )
+        return winner
 
     @staticmethod
     def _warn_discarded(
@@ -160,8 +183,6 @@ class SchemaCompiler:
             winner.source_id,
             winner_priority,
         )
-
-    # ---- roles + provenance ----------------------------------------------
 
     def _resolve_roles_and_provenance(
         self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
@@ -234,31 +255,67 @@ class SchemaCompiler:
                     pc["remove"].append((perm, document.priority, document.source))
         return metadata_changes, perm_changes
 
+    def _resolve_contributions(
+        self,
+        identifier: str,
+        entries: list[tuple[object, int, SourceRecord]],
+        *,
+        loser_kind,
+        on_tie,
+    ) -> tuple[object, int, list[SourceRecord]]:
+        """Pick the winning value among competing extension contributions.
+
+        The batch counterpart to :meth:`_resolve_priority`: where that method
+        decides between two base definitions pairwise, this decides among any
+        number of ``(value, priority, source)`` contributions to the same
+        extension field or permission.
+
+        The highest priority wins. Every contribution in the top-priority group
+        must agree; if they do not, ``on_tie(top_values)`` builds the message
+        for a :class:`SchemaCompileError` (the caller knows how to describe its
+        own conflict). Lower-priority contributions are warned about so a
+        valid-but-ineffective file is not mistaken for one that took effect
+        (ADR 0017 §4); ``loser_kind(value)`` labels each loser so the warning
+        can name what that contribution tried to do.
+
+        Returns the winning value, the winning priority, and every source in the
+        winning group (for provenance).
+        """
+        max_priority = max(priority for _, priority, _ in entries)
+        top_values = {value for value, priority, _ in entries if priority == max_priority}
+        if len(top_values) > 1:
+            raise SchemaCompileError(on_tie(top_values))
+
+        winner_value = next(iter(top_values))
+        winning_sources = [src for value, priority, src in entries if priority == max_priority]
+        for value, priority, src in entries:
+            if priority < max_priority:
+                self._warn_discarded(
+                    loser_kind(value),
+                    identifier,
+                    loser=src,
+                    loser_priority=priority,
+                    winner=winning_sources[0],
+                    winner_priority=max_priority,
+                )
+        return winner_value, max_priority, winning_sources
+
     def _resolve_metadata(self, role_id: str, md: dict[str, list[tuple[object, int, SourceRecord]]]):
         """Pick winning metadata values by priority; error on equal-priority ties."""
         new_values: dict[str, object] = {}
         contributing: set[SourceRecord] = set()
         for field_name, entries in md.items():
-            max_priority = max(priority for _, priority, _ in entries)
-            top_values = {value for value, priority, _ in entries if priority == max_priority}
-            if len(top_values) > 1:
-                raise SchemaCompileError(
+            value, _, winning_sources = self._resolve_contributions(
+                role_id,
+                entries,
+                loser_kind=lambda _value: f"role_extension {field_name}",
+                on_tie=lambda top: (
                     f"Conflicting {field_name!r} for role {role_id!r} at equal priority "
-                    f"{max_priority}: {sorted(map(str, top_values))}."
-                )
-            new_values[field_name] = next(iter(top_values))
-            contributing.update(src for _, priority, src in entries if priority == max_priority)
-            winner = next(src for _, priority, src in entries if priority == max_priority)
-            for _, priority, src in entries:
-                if priority < max_priority:
-                    self._warn_discarded(
-                        f"role_extension {field_name}",
-                        role_id,
-                        loser=src,
-                        loser_priority=priority,
-                        winner=winner,
-                        winner_priority=max_priority,
-                    )
+                    f"{max(p for _, p, _ in entries)}: {sorted(map(str, top))}."
+                ),
+            )
+            new_values[field_name] = value
+            contributing.update(winning_sources)
         return new_values, contributing
 
     def _resolve_permissions(
@@ -288,26 +345,15 @@ class SchemaCompiler:
             actions.setdefault(perm, []).append(("remove", priority, src))
 
         for perm, entries in actions.items():
-            max_priority = max(priority for _, priority, _ in entries)
-            top = {action for action, priority, _ in entries if priority == max_priority}
-            if len(top) > 1:
-                raise SchemaCompileError(
+            action, max_priority, winning_sources = self._resolve_contributions(
+                role_id,
+                entries,
+                loser_kind=lambda act, _perm=perm: f"role_extension {act} of {_perm!r} on role",
+                on_tie=lambda _top: (
                     f"Conflicting add/remove for permission {perm!r} on role {role_id!r} "
-                    f"at equal priority {max_priority}."
-                )
-            action = next(iter(top))
-            winning_sources = [src for act, priority, src in entries if priority == max_priority and act == action]
-
-            for act, priority, src in entries:
-                if priority < max_priority:
-                    self._warn_discarded(
-                        f"role_extension {act} of {perm!r} on role",
-                        role_id,
-                        loser=src,
-                        loser_priority=priority,
-                        winner=winning_sources[0],
-                        winner_priority=max_priority,
-                    )
+                    f"at equal priority {max(p for _, p, _ in entries)}."
+                ),
+            )
 
             if action == "add":
                 if perm in current:
@@ -324,8 +370,6 @@ class SchemaCompiler:
                 provenance.pop(perm, None)
 
         return tuple(sorted(current)), provenance
-
-    # ---- finalize ---------------------------------------------------------
 
     def _finalize(self, tracked: dict[str, _Tracked]) -> dict[str, CompiledDefinition]:
         """Turn tracked definitions into CompiledDefinition entries."""

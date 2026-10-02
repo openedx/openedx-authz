@@ -218,7 +218,7 @@ class SchemaCompiler:
 
         for document in documents:
             for extension in document.role_extensions:
-                role_id = extension.role
+                role_id = extension.role_id
                 if role_id not in roles:
                     # Validation already errors on this; skip defensively.
                     continue

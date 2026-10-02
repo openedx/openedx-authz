@@ -505,7 +505,7 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
 
         Returns:
             set[str]: The external keys of the scopes containing this one. Empty when the
-                namespace has no registered glob counterparts (e.g. ``ccx-v1``).
+                scope has no ancestors.
 
         Examples:
             >>> ScopeData(external_key='course-v1:DemoX+CS101+2024').ancestors

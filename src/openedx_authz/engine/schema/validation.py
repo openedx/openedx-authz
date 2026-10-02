@@ -125,7 +125,7 @@ class SchemaValidator:
                     )
 
         for perm_id, compiled_permission in schema.permissions.items():
-            category = compiled_permission.definition.category
+            category = compiled_permission.definition.category_id
             if category and category not in schema.categories:
                 sources = compiled_permission.sources
                 issues.append(
@@ -167,7 +167,7 @@ class SchemaValidator:
         for permission in document.permissions:
             issues.extend(self._check_identifier(permission.namespace, "permission namespace", sid))
             issues.extend(self._check_identifier(permission.name, "permission name", sid))
-            issues.extend(self._require(permission.category, f"category for {permission.identifier}", sid))
+            issues.extend(self._require(permission.category_id, f"category for {permission.identifier}", sid))
             issues.extend(self._check_scopes(permission.scopes, f"permission {permission.identifier}", sid))
 
         for role in document.roles:
@@ -177,9 +177,9 @@ class SchemaValidator:
                 issues.extend(self._check_permission_id(perm_id, f"role {role.id}", sid))
 
         for extension in document.role_extensions:
-            issues.extend(self._check_identifier(extension.role, "role_extension target", sid))
+            issues.extend(self._check_identifier(extension.role_id, "role_extension target", sid))
             for perm_id in (*extension.add_permissions, *extension.remove_permissions):
-                issues.extend(self._check_permission_id(perm_id, f"role_extension {extension.role}", sid))
+                issues.extend(self._check_permission_id(perm_id, f"role_extension {extension.role_id}", sid))
 
         return issues
 
@@ -199,11 +199,12 @@ class SchemaValidator:
         for document in documents:
             sid = document.source.source_id
             for permission in document.permissions:
-                if permission.category and permission.category not in category_ids:
+                category_id = permission.category_id
+                if category_id and category_id not in category_ids:
                     issues.append(
                         ValidationIssue(
                             ERROR,
-                            f"Permission {permission.identifier} references unknown category {permission.category!r}.",
+                            f"Permission {permission.identifier} references unknown category {category_id!r}.",
                             sid,
                         )
                     )
@@ -233,11 +234,11 @@ class SchemaValidator:
 
             # Extensions target existing roles and reference existing permissions.
             for extension in document.role_extensions:
-                if extension.role not in role_ids:
+                if extension.role_id not in role_ids:
                     issues.append(
                         ValidationIssue(
                             ERROR,
-                            f"role_extension targets unknown role {extension.role!r}.",
+                            f"role_extension targets unknown role {extension.role_id!r}.",
                             sid,
                         )
                     )
@@ -246,7 +247,7 @@ class SchemaValidator:
                         issues.append(
                             ValidationIssue(
                                 ERROR,
-                                f"role_extension {extension.role} references unknown permission {perm_id!r}.",
+                                f"role_extension {extension.role_id} references unknown permission {perm_id!r}.",
                                 sid,
                             )
                         )

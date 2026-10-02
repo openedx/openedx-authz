@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+from enum import Enum
 
 from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
@@ -39,8 +40,14 @@ from openedx_authz.engine.schema.types import (
 
 logger = logging.getLogger(__name__)
 
-# Metadata fields an extension may replace on a role.
-_METADATA_FIELDS = ("display_name", "description", "icon", "hidden")
+class RoleMetadataField(str, Enum):
+    """Metadata fields a ``RoleExtension`` may replace on a role (ADR 0023)."""
+
+    DISPLAY_NAME = "display_name"
+    DESCRIPTION = "description"
+    ICON = "icon"
+    HIDDEN = "hidden"
+
 
 # Singular labels for operator-facing messages, keyed by document attribute.
 _KIND_LABELS = {"categories": "category", "permissions": "permission", "roles": "role"}
@@ -297,7 +304,8 @@ class SchemaCompiler:
                     # Validation already errors on this; skip defensively.
                     continue
                 metadata_changes_for_role = metadata_changes.setdefault(role_id, {})
-                for field_name in _METADATA_FIELDS:
+                for field in RoleMetadataField:
+                    field_name = field.value
                     value = getattr(extension, field_name)
                     if value is not None:
                         metadata_changes_for_role.setdefault(field_name, []).append(

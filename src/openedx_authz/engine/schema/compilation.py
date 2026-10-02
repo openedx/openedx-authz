@@ -306,32 +306,64 @@ class SchemaCompiler:
     def _gather_extension_changes(self, roles: dict[str, _Tracked], documents: list[SchemaDocument]):
         """Collect per-role metadata and permission changes from all extensions.
 
+        Thin orchestrator over the two independent concerns; see
+        :meth:`_gather_metadata_changes` and :meth:`_gather_permission_changes`.
+        """
+        return (
+            self._gather_metadata_changes(roles, documents),
+            self._gather_permission_changes(roles, documents),
+        )
+
+    @staticmethod
+    def _extensions_for_known_roles(roles: dict[str, _Tracked], documents: list[SchemaDocument]):
+        """Yield ``(document, extension)`` for extensions targeting a known role.
+
+        Extensions naming an unknown role are skipped defensively; validation is
+        expected to have already errored on them.
+        """
+        for document in documents:
+            for extension in document.role_extensions:
+                if extension.role_id in roles:
+                    yield document, extension
+
+    def _gather_metadata_changes(
+        self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
+    ) -> dict[str, dict[str, list[tuple[object, int, SourceRecord]]]]:
+        """Collect per-role metadata field contributions from all extensions.
+
         Entries carry the full :class:`SourceRecord` and priority so provenance
         and conflict resolution have everything they need.
         """
         metadata_changes: dict[str, dict[str, list[tuple[object, int, SourceRecord]]]] = {}
-        permission_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
+        for document, extension in self._extensions_for_known_roles(roles, documents):
+            metadata_changes_for_role = metadata_changes.setdefault(extension.role_id, {})
+            for field in RoleMetadataField:
+                field_name = field.value
+                value = getattr(extension, field_name)
+                if value is not None:
+                    metadata_changes_for_role.setdefault(field_name, []).append(
+                        (value, document.priority, document.source)
+                    )
+        return metadata_changes
 
-        for document in documents:
-            for extension in document.role_extensions:
-                role_id = extension.role_id
-                if role_id not in roles:
-                    # Validation already errors on this; skip defensively.
-                    continue
-                metadata_changes_for_role = metadata_changes.setdefault(role_id, {})
-                for field in RoleMetadataField:
-                    field_name = field.value
-                    value = getattr(extension, field_name)
-                    if value is not None:
-                        metadata_changes_for_role.setdefault(field_name, []).append(
-                            (value, document.priority, document.source)
-                        )
-                permission_changes_for_role = permission_changes.setdefault(role_id, {"add": [], "remove": []})
-                for perm in extension.add_permissions:
-                    permission_changes_for_role["add"].append((perm, document.priority, document.source))
-                for perm in extension.remove_permissions:
-                    permission_changes_for_role["remove"].append((perm, document.priority, document.source))
-        return metadata_changes, permission_changes
+    def _gather_permission_changes(
+        self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
+    ) -> dict[str, dict[str, list[tuple[str, int, SourceRecord]]]]:
+        """Collect per-role permission add/remove contributions from all extensions.
+
+        Entries carry the full :class:`SourceRecord` and priority so provenance
+        and conflict resolution have everything they need.
+        """
+        permission_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
+        for document, extension in self._extensions_for_known_roles(roles, documents):
+            permission_changes_for_role = permission_changes.setdefault(
+                extension.role_id, {"add": [], "remove": []}
+            )
+            for perm in extension.add_permissions:
+                permission_changes_for_role["add"].append((perm, document.priority, document.source))
+            for perm in extension.remove_permissions:
+                permission_changes_for_role["remove"].append((perm, document.priority, document.source))
+        return permission_changes
 
     def _resolve_contributions(
         self,

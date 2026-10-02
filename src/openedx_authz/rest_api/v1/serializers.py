@@ -14,7 +14,7 @@ from openedx_authz.rest_api.data import (
     SortOrder,
     UserAssignmentSortField,
 )
-from openedx_authz.rest_api.utils import get_generic_scope
+from openedx_authz.rest_api.utils import get_generic_scope, parse_scope_types
 from openedx_authz.rest_api.v1.fields import (
     CaseSensitiveCommaSeparatedListField,
     CommaSeparatedListField,
@@ -205,7 +205,21 @@ class ListUsersInRoleWithScopeSerializer(ScopeMixin, OrderMixin):  # pylint: dis
 class ListRolesQuerySerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for validating the query parameters of the role catalog."""
 
-    scope_type = serializers.ChoiceField(choices=[(e.value, e.name) for e in ScopesTypeField])
+    scope_types = serializers.CharField()
+
+    def validate_scope_types(self, value: str) -> list[str]:
+        """Convert the comma-separated scope types to a list of unique, supported scope types.
+
+        Raises:
+            serializers.ValidationError: If a value is empty or is not a supported scope type.
+        """
+        scope_types = parse_scope_types(value)
+        if scope_types is None:
+            raise serializers.ValidationError(
+                f"Must be a comma-separated list of supported scope types: {', '.join(ScopesTypeField.values())}.",
+                code="invalid_choice",
+            )
+        return scope_types
 
 
 class RoleCatalogCategorySerializer(serializers.Serializer):  # pylint: disable=abstract-method
@@ -247,7 +261,7 @@ class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=
     count = serializers.IntegerField()
     next = serializers.CharField(allow_null=True)
     previous = serializers.CharField(allow_null=True)
-    scope_type = serializers.ChoiceField(choices=[(e.value, e.name) for e in ScopesTypeField])
+    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
     categories = RoleCatalogCategorySerializer(many=True)
     permissions = RoleCatalogPermissionSerializer(many=True)
     results = RoleCatalogRoleSerializer(many=True)

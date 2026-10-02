@@ -52,7 +52,7 @@ __all__ = [
     "get_subject_role_assignments_for_role_in_scope",
     "get_subject_role_assignments_in_scope",
     "get_all_role_assignments_per_scope_type",
-    "get_user_counts_per_role_in_namespace",
+    "get_user_counts_per_role_in_namespaces",
     "unassign_role_from_subject_in_scope",
     "unassign_subject_from_all_roles",
     "filter_role_assignments_visible_to_subject",
@@ -666,22 +666,23 @@ def filter_role_assignments_visible_to_subject(
     return filtered_assignments
 
 
-def get_user_counts_per_role_in_namespace(namespace: str) -> dict[str, int]:
-    """Count the distinct users assigned to each role in any scope of a namespace.
+def get_user_counts_per_role_in_namespaces(namespaces: list[str]) -> dict[str, int]:
+    """Count the distinct users assigned to each role in any scope of the namespaces.
 
-    Counts assignments in specific scopes and in org or platform globs of the namespace.
+    Counts assignments in specific scopes and in org or platform globs of the namespaces. A user
+    assigned to a role in several namespaces is counted once.
 
     Args:
-        namespace: The scope namespace (e.g., 'course-v1', 'lib').
+        namespaces: The scope namespaces (e.g., ['course-v1', 'lib']).
 
     Returns:
         dict[str, int]: Number of users per role external key. Roles without assignments are omitted.
     """
     enforcer = AuthzEnforcer.get_enforcer()
-    scope_prefix = f"{namespace}{ScopeData.SEPARATOR}"
+    scope_prefixes = tuple(f"{namespace}{ScopeData.SEPARATOR}" for namespace in namespaces)
     users_per_role: dict[str, set[str]] = defaultdict(set)
     for policy in enforcer.get_grouping_policy():
-        if not policy[GroupingPolicyIndex.SCOPE.value].startswith(scope_prefix):
+        if not policy[GroupingPolicyIndex.SCOPE.value].startswith(scope_prefixes):
             continue
         if not policy[GroupingPolicyIndex.SUBJECT.value].startswith(f"{UserData.NAMESPACE}{UserData.SEPARATOR}"):
             continue

@@ -7,6 +7,7 @@ from rest_framework.permissions import BasePermission
 from openedx_authz import api
 from openedx_authz.constants.permissions import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
 from openedx_authz.rest_api.data import ScopesTypeField
+from openedx_authz.rest_api.utils import parse_scope_types
 
 
 class PermissionMeta(type(BasePermission)):
@@ -351,13 +352,14 @@ class AnyScopePermission(MethodPermissionMixin, BasePermission):
 
 
 class ScopeTypePermission(BasePermission):
-    """Permission handler for endpoints queried by ``scope_type`` instead of a concrete scope.
+    """Permission handler for endpoints queried by ``scope_types`` instead of a concrete scope.
 
-    The permission required depends on the requested ``scope_type``. The user must hold it in at
-    least one scope of any kind (a specific scope, or an org or platform glob), like
-    ``AnyScopePermission``, but only the permission mapped to the requested type counts.
+    The permission required depends on the requested ``scope_types``. For each requested scope type
+    the user must hold its permission in at least one scope of any kind (a specific scope, or an
+    org or platform glob), like ``AnyScopePermission``, but only the permission mapped to that
+    type counts.
 
-    A missing or unsupported ``scope_type`` is not rejected here: the view serializer answers 400.
+    A missing or unsupported ``scope_types`` is not rejected here: the view serializer answers 400.
     """
 
     SCOPE_TYPE_PERMISSIONS: ClassVar[dict[str, str]] = {
@@ -367,20 +369,23 @@ class ScopeTypePermission(BasePermission):
     """Permission required to read the catalog of each scope type."""
 
     def has_permission(self, request, view) -> bool:
-        """Check if the user holds the permission mapped to the requested scope type in any scope.
+        """Check if the user holds the permission of each requested scope type in any scope.
 
         Superusers and staff are automatically granted access.
 
         Returns:
-            bool: True if the user may read the requested scope type, or if ``scope_type`` is
+            bool: True if the user may read every requested scope type, or if ``scope_types`` is
                 missing or unsupported, so the view can answer 400.
         """
         if request.user.is_superuser or request.user.is_staff:
             return True
-        required = self.SCOPE_TYPE_PERMISSIONS.get(request.query_params.get("scope_type"))
-        if required is None:
+        scope_types = parse_scope_types(request.query_params.get("scope_types"))
+        if scope_types is None:
             return True
-        return bool(api.get_scopes_for_user_and_permission(request.user.username, required))
+        return all(
+            api.get_scopes_for_user_and_permission(request.user.username, self.SCOPE_TYPE_PERMISSIONS[scope_type])
+            for scope_type in scope_types
+        )
 
 
 class CoursePermission(MethodPermissionMixin, BaseScopePermission):

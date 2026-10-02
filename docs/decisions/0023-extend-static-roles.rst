@@ -19,7 +19,7 @@ Decision
 1. Role extension fields
 ========================
 
-A ``role_extensions`` entry identifies an existing static role with ``role`` and changes only the fields included in the entry. The :ref:`Authorization Schema Reference` describes these fields and includes complete examples for applications and Tutor configuration. An entry may use:
+A ``role_extensions`` entry identifies an existing static role with ``role_id`` and changes only the fields included in the entry. The :ref:`Authorization Schema Reference` describes these fields and includes complete examples for applications and Tutor configuration. An entry may use:
 
 * ``add_permissions`` to add complete permission IDs;
 * ``remove_permissions`` to remove complete permission IDs;
@@ -34,14 +34,14 @@ For example:
    priority: 200
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
        remove_permissions:
          - courses.manage_tags
        display_name: Course author
        description: Creates and exports course content.
-     - role: course_auditor
+     - role_id: course_auditor
        hidden: true
 
 Fields that are not present keep their current value. An extension cannot change the role ID or replace its complete definition.
@@ -76,14 +76,14 @@ First, the operator runs ``tutor plugins printroot`` to find the local plugin di
    priority: 200
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
        remove_permissions:
          - courses.manage_tags
        display_name: Course author
        description: Creates and exports course content for this site.
-     - role: course_auditor
+     - role_id: course_auditor
        hidden: true
        """,
    ))

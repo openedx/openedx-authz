@@ -60,7 +60,7 @@ Permission fields
 .. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/description
    :lift_description:
 
-.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/category
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/category_id
    :lift_description:
 
 .. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/permission/properties/scopes
@@ -96,7 +96,7 @@ Role fields
 Role extension fields
 *********************
 
-.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/role
+.. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/role_id
    :lift_description:
 
 .. jsonschema:: ../../src/openedx_authz/schema/authz-schema-v1.json#/$defs/role_extension/properties/add_permissions

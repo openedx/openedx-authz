@@ -44,7 +44,7 @@ The following file defines one category, two permissions, one role, and an exten
        name: view_course
        display_name: View course
        description: View course configuration and content.
-       category: course_content
+       category_id: course_content
        scopes:
          - course-v1
        icon: Visibility
@@ -53,7 +53,7 @@ The following file defines one category, two permissions, one role, and an exten
        name: view_course_updates
        display_name: View course updates
        description: View course update posts.
-       category: course_content
+       category_id: course_content
        scopes:
          - course-v1
        icon: Visibility
@@ -69,7 +69,7 @@ The following file defines one category, two permissions, one role, and an exten
          - courses.view_course_updates
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
 
@@ -152,7 +152,7 @@ A permission contains these fields:
 ``description``
    A complete source-language sentence describing the access controlled by the permission.
 
-``category``
+``category_id``
    The complete ID of a category defined in the combined schema.
 
 ``scopes``
@@ -170,7 +170,7 @@ The complete permission ID joins ``namespace`` and ``name`` with a period. For e
        name: manage_library_tags
        display_name: Manage library tags
        description: Add, edit, and remove tags in a content library.
-       category: library_management
+       category_id: library_management
        scopes:
          - lib
 
@@ -219,14 +219,14 @@ For example:
          - content_libraries.view_library_team
        icon: Visibility
 
-The Casbin form ``role^library_reviewer`` is an internal value and is not valid as ``roles.id`` or in a ``role_extensions.role`` reference.
+The Casbin form ``role^library_reviewer`` is an internal value and is not valid as ``roles.id`` or in a ``role_extensions.role_id`` reference.
 
 Role extensions
 ***************
 
-A role extension contains ``role`` and at least one field to change:
+A role extension contains ``role_id`` and at least one field to change:
 
-``role``
+``role_id``
    The complete ID of an existing static role.
 
 ``add_permissions``
@@ -249,7 +249,7 @@ For example, a deployment can allow course editors to export courses, remove the
    priority: 200
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
        remove_permissions:
@@ -257,7 +257,7 @@ For example, a deployment can allow course editors to export courses, remove the
        display_name: Course author
        description: Creates and exports course content.
 
-     - role: course_auditor
+     - role_id: course_auditor
        hidden: true
 
 An extension fails validation when its target role or a referenced permission does not exist. Adding a permission already assigned to the role or removing one the role does not have produces a warning and leaves the result unchanged.
@@ -320,7 +320,7 @@ A site operator can provide an authz schema through a Python Tutor plugin that u
    priority: 200
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
        remove_permissions:
@@ -328,7 +328,7 @@ A site operator can provide an authz schema through a Python Tutor plugin that u
        display_name: Course author
        description: Creates and exports course content.
 
-     - role: course_auditor
+     - role_id: course_auditor
        hidden: true
        """,
    ))

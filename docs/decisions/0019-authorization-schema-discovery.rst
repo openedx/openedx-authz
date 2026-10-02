@@ -52,7 +52,7 @@ Site operators can contribute a schema through a Python Tutor plugin that uses t
    priority: 200
 
    role_extensions:
-     - role: course_editor
+     - role_id: course_editor
        add_permissions:
          - courses.export_course
    """,

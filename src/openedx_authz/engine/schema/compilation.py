@@ -253,6 +253,23 @@ class SchemaCompiler:
             sources=merged_sources,
         )
 
+    @staticmethod
+    def _seed_base_provenance(
+        permissions: tuple[str, ...],
+        base_sources: tuple[SourceRecord, ...],
+        base_priority: int,
+    ) -> dict[str, list[RelationshipSource]]:
+        """Attribute each of a role's declared permissions to its base sources.
+
+        Every permission the role declares in its own definition is a ``BASE``
+        grant from each contributing source. Extension-driven add/remove layers
+        on top of this seed.
+        """
+        return {
+            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
+            for perm in permissions
+        }
+
     def _apply_permission_changes(
         self,
         role_id: str,
@@ -270,10 +287,9 @@ class SchemaCompiler:
         provenance. Returns ``(tracked, base_provenance)`` unchanged when the
         role has no permission extensions.
         """
-        base_provenance: dict[str, list[RelationshipSource]] = {
-            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
-            for perm in tracked.definition.permissions
-        }
+        base_provenance = self._seed_base_provenance(
+            tracked.definition.permissions, base_sources, base_priority
+        )
         if not permission_changes_for_role or not (
             permission_changes_for_role["add"] or permission_changes_for_role["remove"]
         ):
@@ -387,7 +403,7 @@ class SchemaCompiler:
         self,
         role_id: str,
         base: tuple[str, ...],
-        base_sources: list[SourceRecord],
+        base_sources: tuple[SourceRecord, ...],
         base_priority: int,
         permission_changes: dict[str, list[tuple[str, int, SourceRecord]]],
     ):
@@ -398,10 +414,7 @@ class SchemaCompiler:
         added permissions.
         """
         current = set(base)
-        provenance: dict[str, list[RelationshipSource]] = {
-            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
-            for perm in base
-        }
+        provenance = self._seed_base_provenance(base, base_sources, base_priority)
 
         actions: dict[str, list[tuple[str, int, SourceRecord]]] = {}
         for perm, priority, src in permission_changes["add"]:

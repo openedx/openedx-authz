@@ -75,6 +75,30 @@ with ``get_scopes_for_user_and_permission``, but it reads ``scope_type`` from th
 and only requires the permission mapped to that type. An invalid or missing ``scope_type``
 is rejected as a 400 by the serializer, not by the permission class.
 
+Extensibility to new scope types (future work)
+==============================================
+
+For now the two supported scope types, ``course`` and ``library``, and their mapping to a
+scope namespace and view-team permission stay explicit, as described above. This is kept in
+one helper so it is not duplicated in the view.
+
+A possible future improvement is to stop hardcoding the scope types. ``ScopeMeta`` already
+registers every ``ScopeData`` subclass in ``scope_registry``, keyed by its ``NAMESPACE``
+(``course-v1``, ``lib``), so the endpoint could resolve the requested scope type from that
+registry. Any plugin that registers a scope class would then contribute a new scope type
+without changing authz:
+
+* The accepted ``scope_type`` values and their namespace would come from ``scope_registry``
+  instead of a fixed enum.
+* The catalog would not change in shape. It is built from the authz schemas, so a new scope
+  type appears as soon as a schema declares permissions and roles for its namespace.
+* The permission required to read the catalog would be declared by the scope class. A scope
+  type that does not declare one would be rejected rather than left open.
+
+Open point for that work: ``/scopes/`` exposes the short names ``course`` and ``library``
+(``ScopesTypeField``), not the namespaces, so using ``NAMESPACE`` as the key would need an
+alias or a change in the accepted values.
+
 Role user count
 ===============
 

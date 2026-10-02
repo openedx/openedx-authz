@@ -131,6 +131,9 @@ not return raw Casbin rows.
 * ``categories`` contains only the categories used by those permissions. Categories are
   global and a schema may define one without permissions, or only with permissions of
   another scope type, so the rest are left out.
+* Only roles with a stored definition are listed. A role that exists in the Casbin policy
+  but has no stored definition is omitted, so the endpoint reads only from the database and
+  filtering and pagination are done in a single query.
 * Categories, permissions and roles are returned in a stable order (by identifier).
   Explicit display ordering is a follow-up.
 
@@ -327,9 +330,10 @@ Consequences
   permission of each requested scope type.
 * ``definition_kind`` is reserved for user-defined roles. Their storage, the translation of
   their names and any source detail remain out of scope.
-* A role present in the Casbin policy but with no stored definition cannot be described. It
-  is returned with its identifier as ``display_name`` and empty metadata instead of being
-  omitted, so enforcement and listing stay consistent.
+* A role present in the Casbin policy but with no stored definition is not listed, because
+  it cannot be described. Listing it would require querying Casbin in addition to the
+  database, which complicates filtering and pagination. Such a role still works for
+  enforcement; it just does not appear in the catalog.
 
 Rejected Alternatives
 *********************

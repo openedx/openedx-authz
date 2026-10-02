@@ -33,7 +33,6 @@ from openedx_authz.engine.schema.types import (
     CompiledDefinition,
     CompiledSchema,
     RelationshipSource,
-    RoleDefinition,
     SchemaDocument,
     SourceRecord,
 )
@@ -389,10 +388,10 @@ class SchemaCompiler:
             value, _, winning_sources = self._resolve_contributions(
                 role_id,
                 entries,
-                loser_kind=lambda _value: f"role_extension {field_name}",
-                on_tie=lambda top: (
-                    f"Conflicting {field_name!r} for role {role_id!r} at equal priority "
-                    f"{max(p for _, p, _ in entries)}: {sorted(map(str, top))}."
+                loser_kind=lambda _value, _field=field_name: f"role_extension {_field}",
+                on_tie=lambda top, _field=field_name, _entries=entries: (
+                    f"Conflicting {_field!r} for role {role_id!r} at equal priority "
+                    f"{max(p for _, p, _ in _entries)}: {sorted(map(str, top))}."
                 ),
             )
             new_values[field_name] = value
@@ -427,9 +426,9 @@ class SchemaCompiler:
                 role_id,
                 entries,
                 loser_kind=lambda act, _perm=perm: f"role_extension {act} of {_perm!r} on role",
-                on_tie=lambda _top: (
-                    f"Conflicting add/remove for permission {perm!r} on role {role_id!r} "
-                    f"at equal priority {max(p for _, p, _ in entries)}."
+                on_tie=lambda _top, _perm=perm, _entries=entries: (
+                    f"Conflicting add/remove for permission {_perm!r} on role {role_id!r} "
+                    f"at equal priority {max(p for _, p, _ in _entries)}."
                 ),
             )
 

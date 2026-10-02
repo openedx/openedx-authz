@@ -193,8 +193,8 @@ class SchemaCompiler:
         ``role_extensions`` (metadata replacement + permission add/remove),
         honoring priority. Returns the relationship provenance map.
         """
-        metadata_changes, perm_changes = self._gather_extension_changes(roles, documents)
-        rp_sources: dict[tuple[str, str], list[RelationshipSource]] = {}
+        metadata_changes, permission_changes = self._gather_extension_changes(roles, documents)
+        role_permission_sources: dict[tuple[str, str], list[RelationshipSource]] = {}
 
         for role_id, tracked in roles.items():
             role: RoleDefinition = tracked.definition
@@ -207,26 +207,28 @@ class SchemaCompiler:
                 for perm in role.permissions
             }
 
-            md = metadata_changes.get(role_id, {})
-            if md:
-                new_values, contributing_sources = self._resolve_metadata(role_id, md)
+            metadata_changes_for_role = metadata_changes.get(role_id, {})
+            if metadata_changes_for_role:
+                new_values, contributing_sources = self._resolve_metadata(role_id, metadata_changes_for_role)
                 tracked.definition = replace(role, **new_values)
                 role = tracked.definition
                 for src in contributing_sources:
                     if src not in tracked.sources:
                         tracked.sources.append(src)
 
-            pc = perm_changes.get(role_id)
-            if pc and (pc["add"] or pc["remove"]):
+            permission_changes_for_role = permission_changes.get(role_id)
+            if permission_changes_for_role and (
+                permission_changes_for_role["add"] or permission_changes_for_role["remove"]
+            ):
                 final_perms, provenance = self._resolve_permissions(
-                    role_id, role.permissions, base_sources, base_priority, pc
+                    role_id, role.permissions, base_sources, base_priority, permission_changes_for_role
                 )
                 tracked.definition = replace(tracked.definition, permissions=final_perms)
 
             for perm, sources in provenance.items():
-                rp_sources[(role_id, perm)] = sources
+                role_permission_sources[(role_id, perm)] = sources
 
-        return rp_sources
+        return role_permission_sources
 
     def _gather_extension_changes(self, roles: dict[str, _Tracked], documents: list[SchemaDocument]):
         """Collect per-role metadata and permission changes from all extensions.
@@ -235,7 +237,7 @@ class SchemaCompiler:
         and conflict resolution have everything they need.
         """
         metadata_changes: dict[str, dict[str, list[tuple[object, int, SourceRecord]]]] = {}
-        perm_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
+        permission_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
 
         for document in documents:
             for extension in document.role_extensions:
@@ -243,17 +245,19 @@ class SchemaCompiler:
                 if role_id not in roles:
                     # Validation already errors on this; skip defensively.
                     continue
-                md = metadata_changes.setdefault(role_id, {})
+                metadata_changes_for_role = metadata_changes.setdefault(role_id, {})
                 for field_name in _METADATA_FIELDS:
                     value = getattr(extension, field_name)
                     if value is not None:
-                        md.setdefault(field_name, []).append((value, document.priority, document.source))
-                pc = perm_changes.setdefault(role_id, {"add": [], "remove": []})
+                        metadata_changes_for_role.setdefault(field_name, []).append(
+                            (value, document.priority, document.source)
+                        )
+                permission_changes_for_role = permission_changes.setdefault(role_id, {"add": [], "remove": []})
                 for perm in extension.add_permissions:
-                    pc["add"].append((perm, document.priority, document.source))
+                    permission_changes_for_role["add"].append((perm, document.priority, document.source))
                 for perm in extension.remove_permissions:
-                    pc["remove"].append((perm, document.priority, document.source))
-        return metadata_changes, perm_changes
+                    permission_changes_for_role["remove"].append((perm, document.priority, document.source))
+        return metadata_changes, permission_changes
 
     def _resolve_contributions(
         self,
@@ -300,11 +304,13 @@ class SchemaCompiler:
                 )
         return winner_value, max_priority, winning_sources
 
-    def _resolve_metadata(self, role_id: str, md: dict[str, list[tuple[object, int, SourceRecord]]]):
+    def _resolve_metadata(
+        self, role_id: str, metadata_changes: dict[str, list[tuple[object, int, SourceRecord]]]
+    ):
         """Pick winning metadata values by priority; error on equal-priority ties."""
         new_values: dict[str, object] = {}
         contributing: set[SourceRecord] = set()
-        for field_name, entries in md.items():
+        for field_name, entries in metadata_changes.items():
             value, _, winning_sources = self._resolve_contributions(
                 role_id,
                 entries,
@@ -324,7 +330,7 @@ class SchemaCompiler:
         base: tuple[str, ...],
         base_sources: list[SourceRecord],
         base_priority: int,
-        pc: dict[str, list[tuple[str, int, SourceRecord]]],
+        permission_changes: dict[str, list[tuple[str, int, SourceRecord]]],
     ):
         """Apply add/remove per permission, returning (final_perms, provenance).
 
@@ -339,9 +345,9 @@ class SchemaCompiler:
         }
 
         actions: dict[str, list[tuple[str, int, SourceRecord]]] = {}
-        for perm, priority, src in pc["add"]:
+        for perm, priority, src in permission_changes["add"]:
             actions.setdefault(perm, []).append(("add", priority, src))
-        for perm, priority, src in pc["remove"]:
+        for perm, priority, src in permission_changes["remove"]:
             actions.setdefault(perm, []).append(("remove", priority, src))
 
         for perm, entries in actions.items():

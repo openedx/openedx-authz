@@ -27,7 +27,7 @@ permissions:
     name: view_course
     display_name: View course
     description: View a course.
-    category: course_content
+    category_id: course_content
     scopes: [course-v1]
 
 roles:
@@ -40,7 +40,7 @@ roles:
       - courses.view_course
 
 role_extensions:
-  - role: course_editor
+  - role_id: course_editor
     add_permissions: [courses.export_course]
 """
 
@@ -71,7 +71,7 @@ class TestDocumentLoading:
         assert doc.permissions[0].scopes == ("course-v1",)
         assert doc.roles[0].hidden is True
         assert doc.roles[0].permissions == ("courses.view_course",)
-        assert doc.role_extensions[0].role == "course_editor"
+        assert doc.role_extensions[0].role_id == "course_editor"
         assert doc.role_extensions[0].add_permissions == ("courses.export_course",)
 
     def test_extension_changes_are_loaded(self):
@@ -84,7 +84,7 @@ class TestDocumentLoading:
             b"schema_version: '1.0'\n"
             b"priority: 200\n"
             b"role_extensions:\n"
-            b"  - role: course_editor\n"
+            b"  - role_id: course_editor\n"
             b"    add_permissions: [courses.export_course]\n"
             b"    remove_permissions: [courses.manage_tags]\n"
             b"    display_name: Course author\n"
@@ -93,7 +93,7 @@ class TestDocumentLoading:
         )
 
         extension = docs[0].role_extensions[0]
-        assert extension.role == "course_editor"
+        assert extension.role_id == "course_editor"
         assert extension.add_permissions == ("courses.export_course",)
         assert extension.remove_permissions == ("courses.manage_tags",)
         assert extension.display_name == "Course author"
@@ -309,7 +309,7 @@ class TestFieldCoercion:
     def test_extension_hidden_false_is_preserved_as_a_change(self):
         """``hidden`` is tri-state: ``False`` differs from absent (ADR 0023 §1)."""
         docs = _load(
-            b"schema_version: '1.0'\npriority: 1\nrole_extensions:\n  - role: course_editor\n    hidden: false\n"
+            b"schema_version: '1.0'\npriority: 1\nrole_extensions:\n  - role_id: course_editor\n    hidden: false\n"
         )
 
         assert docs[0].role_extensions[0].hidden is False
@@ -317,7 +317,7 @@ class TestFieldCoercion:
     def test_extension_without_hidden_leaves_it_unset(self):
         """An extension that omits ``hidden`` leaves it ``None`` (unchanged)."""
         docs = _load(
-            b"schema_version: '1.0'\npriority: 1\nrole_extensions:\n  - role: course_editor\n    icon: Article\n"
+            b"schema_version: '1.0'\npriority: 1\nrole_extensions:\n  - role_id: course_editor\n    icon: Article\n"
         )
 
         assert docs[0].role_extensions[0].hidden is None

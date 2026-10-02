@@ -29,7 +29,7 @@ permissions:
     name: view_library
     display_name: View
     description: See the library in Studio and access its content in read-only mode.
-    category: library
+    category_id: library
     scopes:
       - lib
     icon: RemoveRedEye
@@ -37,7 +37,7 @@ permissions:
     name: manage_library_tags
     display_name: Manage tags
     description: Create, edit, and delete tags on this library.
-    category: library
+    category_id: library
     scopes:
       - lib
     icon: Settings
@@ -45,7 +45,7 @@ permissions:
     name: delete_library
     display_name: Delete
     description: Allows users to delete the entire content library.
-    category: library
+    category_id: library
     scopes:
       - lib
     icon: Delete
@@ -53,7 +53,7 @@ permissions:
     name: edit_library_content
     display_name: Edit
     description: Create, edit, and delete content items in the library.
-    category: library_content
+    category_id: library_content
     scopes:
       - lib
     icon: EditOutline
@@ -61,7 +61,7 @@ permissions:
     name: publish_library_content
     display_name: Publish
     description: Publish individual content items to make them available for reuse in courses.
-    category: library_content
+    category_id: library_content
     scopes:
       - lib
     icon: DownloadDone
@@ -69,7 +69,7 @@ permissions:
     name: reuse_library_content
     display_name: Reuse
     description: Add published content from this library to a course.
-    category: library_content
+    category_id: library_content
     scopes:
       - lib
     icon: SpinnerIcon
@@ -77,7 +77,7 @@ permissions:
     name: view_library_team
     display_name: View
     description: See the list of users with a role assigned to this library.
-    category: library_team
+    category_id: library_team
     scopes:
       - lib
     icon: RemoveRedEye
@@ -85,7 +85,7 @@ permissions:
     name: manage_library_team
     display_name: Manage
     description: Add, change, or remove role assignments for this library from the Roles and Permissions console.
-    category: library_team
+    category_id: library_team
     scopes:
       - lib
     icon: Settings
@@ -93,7 +93,7 @@ permissions:
     name: create_library_collection
     display_name: Create
     description: Create new collections to organize content within the library.
-    category: library_collection
+    category_id: library_collection
     scopes:
       - lib
     icon: Plus
@@ -101,7 +101,7 @@ permissions:
     name: edit_library_collection
     display_name: Edit
     description: Update the name and contents of existing collections.
-    category: library_collection
+    category_id: library_collection
     scopes:
       - lib
     icon: EditOutline
@@ -109,7 +109,7 @@ permissions:
     name: delete_library_collection
     display_name: Delete
     description: Permanently remove collections from the library.
-    category: library_collection
+    category_id: library_collection
     scopes:
       - lib
     icon: Delete

@@ -32,10 +32,15 @@ class PermissionDefinition:
     """
 
     namespace: str
+    # ``name`` is the stable machine identifier for the operation within the
+    # namespace (e.g. ``view_course``); it joins ``namespace`` to form the
+    # complete permission ID and must not change once published. ``display_name``
+    # below is the human-facing, translatable label shown in the UI (e.g. "View
+    # course") and may be re-worded freely without affecting permission checks.
     name: str
     display_name: str
     description: str
-    category: str
+    category_id: str
     scopes: tuple[str, ...]
     icon: str | None = None
 
@@ -72,7 +77,7 @@ class RoleExtension:
     ``hidden`` is tri-state: ``None`` leaves the current value untouched.
     """
 
-    role: str
+    role_id: str
     add_permissions: tuple[str, ...] = ()
     remove_permissions: tuple[str, ...] = ()
     display_name: str | None = None

@@ -50,7 +50,7 @@ For example:
        name: view_course
        display_name: View course
        description: View course configuration and content.
-       category: course_content
+       category_id: course_content
        scopes:
          - course-v1
        icon: Visibility
@@ -58,7 +58,7 @@ For example:
        name: delete_course
        display_name: Delete course
        description: Delete a course.
-       category: course_content
+       category_id: course_content
        scopes:
          - course-v1
        icon: Delete
@@ -87,7 +87,7 @@ Version 1 does not define display order for roles, permissions, or categories. C
          - courses.view_course
 
    role_extensions:
-     - role: course_admin
+     - role_id: course_admin
        add_permissions:
          - courses.delete_course
 

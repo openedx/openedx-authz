@@ -227,7 +227,7 @@ class SchemaLoader:
             name=item.get("name", ""),
             display_name=item.get("display_name", ""),
             description=item.get("description", ""),
-            category=item.get("category", ""),
+            category_id=item.get("category_id", ""),
             scopes=self._as_tuple(item.get("scopes")),
             icon=item.get("icon"),
         )
@@ -253,7 +253,7 @@ class SchemaLoader:
         """
         self._require_mapping(item, "role_extensions", source)
         return RoleExtension(
-            role=item.get("role", ""),
+            role_id=item.get("role_id", ""),
             add_permissions=self._as_tuple(item.get("add_permissions")),
             remove_permissions=self._as_tuple(item.get("remove_permissions")),
             display_name=item.get("display_name"),

@@ -61,7 +61,7 @@ def permission(namespace="courses", name="view_course", *, cat="cat", scopes=("c
         name=name,
         display_name=kwargs.get("display_name", "View"),
         description=kwargs.get("description", "desc"),
-        category=cat,
+        category_id=cat,
         scopes=tuple(scopes),
         icon=kwargs.get("icon"),
     )
@@ -81,7 +81,7 @@ def role(rid="course_editor", *, scopes=("course-v1",), permissions=(), hidden=F
 
 def extension(role_id, **kwargs) -> RoleExtension:
     return RoleExtension(
-        role=role_id,
+        role_id=role_id,
         add_permissions=tuple(kwargs.get("add_permissions", ())),
         remove_permissions=tuple(kwargs.get("remove_permissions", ())),
         display_name=kwargs.get("display_name"),

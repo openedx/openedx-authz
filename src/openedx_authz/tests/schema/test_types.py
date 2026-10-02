@@ -36,7 +36,7 @@ class TestSchemaTypeHelpers:
             name="view_course",
             display_name="View",
             description="d",
-            category="cat",
+            category_id="cat",
             scopes=("course-v1",),
         )
         assert perm.identifier == "courses.view_course"

@@ -6,7 +6,6 @@ deterministic output, and scope fan-out; plus the ``SchemaApplier`` helpers for
 enforcer resolution and role-assignment-deleted event emission.
 """
 
-import sys
 import types
 from unittest import mock
 
@@ -97,8 +96,8 @@ class TestResolveEnforcer:
         sentinel = object()
         applier = SchemaApplier(enforcer=sentinel)
 
-        # Patch the lazy import target to prove it is never touched.
-        with mock.patch("openedx_authz.engine.enforcer.AuthzEnforcer") as authz_enforcer:
+        # Patch the enforcer accessor to prove it is never touched.
+        with mock.patch("openedx_authz.engine.renderer.AuthzEnforcer") as authz_enforcer:
             assert applier._resolve_enforcer() is sentinel  # pylint: disable=protected-access
             authz_enforcer.get_enforcer.assert_not_called()
 
@@ -107,7 +106,7 @@ class TestResolveEnforcer:
         resolved = object()
         applier = SchemaApplier()  # enforcer defaults to None
 
-        with mock.patch("openedx_authz.engine.enforcer.AuthzEnforcer") as authz_enforcer:
+        with mock.patch("openedx_authz.engine.renderer.AuthzEnforcer") as authz_enforcer:
             authz_enforcer.get_enforcer.return_value = resolved
 
             first = applier._resolve_enforcer()  # pylint: disable=protected-access
@@ -123,11 +122,10 @@ class TestEmitAssignmentDeleted:
     """``SchemaApplier._emit_assignment_deleted``: one event per removed assignment."""
 
     def test_no_op_when_no_assignments(self):
-        """Empty input emits nothing and does not import event machinery."""
-        with mock.patch.dict(sys.modules):
-            # If the method tried to import openedx_events, a missing stub would
-            # raise; the early return means it never gets there.
+        """Empty input emits nothing: the signal is never sent."""
+        with mock.patch("openedx_authz.engine.renderer.ROLE_ASSIGNMENT_DELETED") as signal:
             SchemaApplier._emit_assignment_deleted([])  # pylint: disable=protected-access
+        signal.send_event.assert_not_called()
 
     def test_emits_one_event_per_removed_assignment(self):
         """Each removed (subject, role, scope) triple sends a ROLE_ASSIGNMENT_DELETED."""
@@ -136,25 +134,13 @@ class TestEmitAssignmentDeleted:
             ("user^bob", "role^course_auditor", "course-v1^*"),
         ]
 
-        # Build lazy-import stubs for the modules the method imports internally.
-        crum_mod = types.ModuleType("crum")
-        crum_mod.get_current_user = lambda: types.SimpleNamespace(id=42)
-
-        role_assignment_data = mock.MagicMock(name="RoleAssignmentEventData")
-        events_data = types.ModuleType("openedx_events.authz.data")
-        events_data.RoleAssignmentData = role_assignment_data
-
-        signal = mock.MagicMock(name="ROLE_ASSIGNMENT_DELETED")
-        events_signals = types.ModuleType("openedx_events.authz.signals")
-        events_signals.ROLE_ASSIGNMENT_DELETED = signal
-
-        with mock.patch.dict(
-            sys.modules,
-            {
-                "crum": crum_mod,
-                "openedx_events.authz.data": events_data,
-                "openedx_events.authz.signals": events_signals,
-            },
+        with (
+            mock.patch(
+                "openedx_authz.engine.renderer.get_current_user",
+                return_value=types.SimpleNamespace(id=42),
+            ),
+            mock.patch("openedx_authz.engine.renderer.RoleAssignmentEventData") as role_assignment_data,
+            mock.patch("openedx_authz.engine.renderer.ROLE_ASSIGNMENT_DELETED") as signal,
         ):
             SchemaApplier._emit_assignment_deleted(removed)  # pylint: disable=protected-access
 
@@ -172,24 +158,10 @@ class TestEmitAssignmentDeleted:
         """A missing current user yields actor_id=None on the event."""
         removed = [("user^alice", "role^course_editor", "course-v1^*")]
 
-        crum_mod = types.ModuleType("crum")
-        crum_mod.get_current_user = lambda: None
-
-        role_assignment_data = mock.MagicMock(name="RoleAssignmentEventData")
-        events_data = types.ModuleType("openedx_events.authz.data")
-        events_data.RoleAssignmentData = role_assignment_data
-
-        signal = mock.MagicMock(name="ROLE_ASSIGNMENT_DELETED")
-        events_signals = types.ModuleType("openedx_events.authz.signals")
-        events_signals.ROLE_ASSIGNMENT_DELETED = signal
-
-        with mock.patch.dict(
-            sys.modules,
-            {
-                "crum": crum_mod,
-                "openedx_events.authz.data": events_data,
-                "openedx_events.authz.signals": events_signals,
-            },
+        with (
+            mock.patch("openedx_authz.engine.renderer.get_current_user", return_value=None),
+            mock.patch("openedx_authz.engine.renderer.RoleAssignmentEventData") as role_assignment_data,
+            mock.patch("openedx_authz.engine.renderer.ROLE_ASSIGNMENT_DELETED"),
         ):
             SchemaApplier._emit_assignment_deleted(removed)  # pylint: disable=protected-access
 

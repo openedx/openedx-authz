@@ -35,15 +35,20 @@ removal candidates are intersected with the stored role-permission grants (see
 :meth:`SchemaApplier._managed_rows`), so unmanaged ``p`` rows, dynamic roles,
 user assignments, and legacy ``g2`` action inheritance are all preserved.
 
-``render`` is pure and imports nothing from Casbin/Django. ``plan``/``apply``
-import the enforcer lazily so this module stays importable without a configured
-Django environment.
+``render`` is pure in behavior — it touches no database and holds no Casbin
+state. ``plan``/``apply`` resolve the enforcer only when called (not at import),
+so enforcer initialization still happens after Django settings are configured.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+
+from crum import get_current_user
+from django.db import transaction
+from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
+from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
 
 from openedx_authz.data import (
     ACTION_NAMESPACE,
@@ -54,8 +59,11 @@ from openedx_authz.data import (
     PolicyIndex,
 )
 from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
+from openedx_authz.models import schema as m
+from openedx_authz.models.core import RoleAssignmentAudit
 
 logger = logging.getLogger(__name__)
 
@@ -286,10 +294,6 @@ class SchemaApplier:
             SchemaApplyError: If the plan has blocking assignments and ``force``
                 is False.
         """
-        from django.db import transaction  # pylint: disable=import-outside-toplevel
-
-        from openedx_authz.engine.enforcer import AuthzEnforcer  # pylint: disable=import-outside-toplevel
-
         plan = self.plan(rendered, schema)
 
         if plan.blocking_assignments and not force:
@@ -352,10 +356,14 @@ class SchemaApplier:
     # ---- helpers ----------------------------------------------------------
 
     def _resolve_enforcer(self):
-        """Lazily resolve the enforcer to honor plugin/settings timing."""
-        if self._enforcer is None:
-            from openedx_authz.engine.enforcer import AuthzEnforcer  # pylint: disable=import-outside-toplevel
+        """Resolve the enforcer, deferring instantiation to honor plugin/settings timing.
 
+        ``AuthzEnforcer.get_enforcer()`` is called (not merely imported) lazily:
+        it reads ``CASBIN_MODEL``/``CASBIN_DB_ALIAS`` and initializes Casbin, so
+        it must run after Django settings are configured. Importing the class at
+        module top is inert — it instantiates nothing.
+        """
+        if self._enforcer is None:
             self._enforcer = AuthzEnforcer.get_enforcer()
         return self._enforcer
 
@@ -389,18 +397,10 @@ class SchemaApplier:
         Every assignment change must leave an audit trail: the
         ``create_audit_record_on_role_assignment_change`` handler turns each event
         into a :class:`RoleAssignmentAudit` row, matching the audit behavior of
-        ``unassign_role_from_subject_in_scope``. Imported lazily so the module
-        stays importable without Django/openedx-events configured.
+        ``unassign_role_from_subject_in_scope``.
         """
         if not removed_assignments:
             return
-
-        # pylint: disable=import-outside-toplevel
-        from crum import get_current_user
-        from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
-        from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
-
-        from openedx_authz.models.core import RoleAssignmentAudit
 
         actor_id = getattr(get_current_user(), "id", None)
         for subject, role, scope in removed_assignments:
@@ -440,8 +440,6 @@ class SchemaApplier:
         :class:`ChangePlan` field name. Grants carry no updatable fields, so
         they only ever appear as added or removed.
         """
-        from openedx_authz.models import schema as m  # pylint: disable=import-outside-toplevel
-
         return {
             "categories": self._diff_kind(
                 {cid: compiled.definition for cid, compiled in schema.categories.items()},
@@ -525,8 +523,6 @@ class SchemaApplier:
         Empty on a first deployment, which is what makes adoption safe: nothing
         is pruned before the loader has recorded what it owns.
         """
-        from openedx_authz.models import schema as m  # pylint: disable=import-outside-toplevel
-
         return {
             PolicyRow.from_grant(
                 grant.role.role_id,
@@ -549,8 +545,6 @@ class SchemaApplier:
 
         Called inside the ``apply`` transaction.
         """
-        from openedx_authz.models import schema as m  # pylint: disable=import-outside-toplevel
-
         source_cache: dict[tuple[str, str], object] = {}
 
         def source_obj(record):

@@ -1,0 +1,418 @@
+"""Validate schema documents individually and as a whole (the ``validate`` step).
+
+Rules come from ADR 0017 §4 and the field reference:
+
+Per-document checks:
+    * ``schema_version`` is a supported, quoted ``major.minor`` value.
+    * ``namespace``, ``name``, category ``id``, role ``id`` match
+      :data:`IDENTIFIER_RE` (lowercase snake_case, begins with a letter).
+    * Casbin forms (``act^...``, ``role^...``) are rejected as identifiers.
+    * Required fields are present.
+    * ``scopes`` are non-empty and look like scope namespaces (hyphens allowed,
+      e.g. ``course-v1``); they are exempt from the identifier regex.
+
+Whole-set checks (after all documents load):
+    * Every permission ``category`` references an existing category.
+    * Every role/extension permission references an existing permission.
+    * A role's ``scopes`` are supported by each of its permissions.
+    * ``role_extensions`` target an existing role (ADR 0023).
+    * Conflicting duplicate base definitions fail; identical duplicates warn.
+
+Post-compile checks (after extensions and priority are resolved):
+    * A role's ``scopes`` are supported by every permission it *ends up* with,
+      including permissions contributed by ``role_extensions``.
+    * The resolved permissions and categories still exist.
+
+Validation collects issues rather than raising on the first problem, so the
+deployment report can list every error and warning at once. No Casbin/Django
+imports.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Container
+from dataclasses import dataclass
+from enum import StrEnum
+
+from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.engine.schema.types import (
+    CompiledSchema,
+    SchemaDocument,
+)
+
+_IDENTIFIER = r"[a-z][a-z0-9_]*"
+IDENTIFIER_RE = re.compile(rf"^{_IDENTIFIER}$")
+# A complete permission ID joins ``namespace`` and ``name`` with a single
+# period, each part being a bare identifier. Mirrors the ``permission_id``
+# ``$def`` in ``schema/authz-schema-v1.json``.
+PERMISSION_ID_RE = re.compile(rf"^{_IDENTIFIER}\.{_IDENTIFIER}$")
+# Scope namespaces follow their registered spelling and may contain hyphens.
+SCOPE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+
+# Casbin-internal prefixes that must never appear in a schema identifier.
+CASBIN_INTERNAL_PREFIXES = ("act^", "role^", "sub^", "scope^", "g^", "p^")
+
+
+class IssueLevel(StrEnum):
+    """Severity of a :class:`ValidationIssue`.
+
+    Members:
+        ERROR: Blocks deployment.
+        WARNING: Reported only, does not block deployment.
+    """
+
+    ERROR = "error"
+    WARNING = "warning"
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    """A single validation finding.
+
+    Attributes:
+        level: :attr:`IssueLevel.ERROR` (blocks deployment) or
+            :attr:`IssueLevel.WARNING` (reported only).
+        message: Human-readable description.
+        source_id: The contributing source, when the issue is file-specific.
+    """
+
+    level: IssueLevel
+    message: str
+    source_id: str | None = None
+
+    @property
+    def is_error(self) -> bool:
+        return self.level == IssueLevel.ERROR
+
+
+class SchemaValidator:
+    """Runs per-document and whole-set validation."""
+
+    SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0"})
+
+    def validate(self, documents: list[SchemaDocument]) -> list[ValidationIssue]:
+        """Run per-document then whole-set validation, returning all issues."""
+        issues: list[ValidationIssue] = []
+        for document in documents:
+            issues.extend(self.validate_document(document))
+        issues.extend(self.validate_set(documents))
+        return issues
+
+    def validate_compiled(self, schema: CompiledSchema) -> list[ValidationIssue]:
+        """Re-check the resolved schema after extensions and priority are applied.
+
+        Document-level validation only sees base declarations, so a
+        ``role_extension`` that adds a permission is checked for existence but
+        never for scope compatibility. Without this pass an extension can grant
+        a permission in a scope the permission does not support, and the
+        renderer still emits an enforceable ``p`` row for it (ADR 0017 §4,
+        ADR 0023 §3).
+
+        The compiled role's permission set is the one that becomes Casbin ``p``
+        rows, so it is the set that has to satisfy the scope rule.
+        """
+        issues: list[ValidationIssue] = []
+
+        for role_id, compiled_role in schema.roles.items():
+            role = compiled_role.definition
+            for perm_id in role.permissions:
+                compiled_permission = schema.permissions.get(perm_id)
+                permission_scopes = compiled_permission.definition.scopes if compiled_permission else None
+                issues.extend(
+                    self._check_role_permission_scope(
+                        role_id,
+                        perm_id,
+                        role.scopes,
+                        permission_scopes,
+                        self._role_permission_source_id(schema, role_id, perm_id),
+                        missing_verb="resolves to",
+                    )
+                )
+
+        for perm_id, compiled_permission in schema.permissions.items():
+            sources = compiled_permission.sources
+            issues.extend(
+                self._check_permission_category(
+                    perm_id,
+                    compiled_permission.definition.category_id,
+                    schema.categories,
+                    sources[0].source_id if sources else None,
+                )
+            )
+
+        return issues
+
+    @staticmethod
+    def has_errors(issues: list[ValidationIssue]) -> bool:
+        """True if any issue is error-level."""
+        return any(issue.is_error for issue in issues)
+
+    def validate_document(self, document: SchemaDocument) -> list[ValidationIssue]:
+        """Per-file checks that need no cross-file context."""
+        issues: list[ValidationIssue] = []
+        sid = document.source.source_id
+
+        if document.source.schema_version not in self.SUPPORTED_SCHEMA_VERSIONS:
+            issues.append(
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Unsupported schema_version {document.source.schema_version!r}; "
+                    f"supported: {sorted(self.SUPPORTED_SCHEMA_VERSIONS)}.",
+                    sid,
+                )
+            )
+
+        for category in document.categories:
+            issues.extend(self._check_identifier(category.id, "category id", sid))
+            issues.extend(self._require(category.id, "category id", sid))
+
+        for permission in document.permissions:
+            issues.extend(self._check_identifier(permission.namespace, "permission namespace", sid))
+            issues.extend(self._check_identifier(permission.name, "permission name", sid))
+            issues.extend(self._require(permission.category_id, f"category for {permission.identifier}", sid))
+            issues.extend(self._check_scopes(permission.scopes, f"permission {permission.identifier}", sid))
+
+        for role in document.roles:
+            issues.extend(self._check_identifier(role.id, "role id", sid))
+            issues.extend(self._check_scopes(role.scopes, f"role {role.id}", sid))
+            for perm_id in role.permissions:
+                issues.extend(self._check_permission_id(perm_id, f"role {role.id}", sid))
+
+        for extension in document.role_extensions:
+            issues.extend(self._check_identifier(extension.role_id, "role_extension target", sid))
+            for perm_id in (*extension.add_permissions, *extension.remove_permissions):
+                issues.extend(self._check_permission_id(perm_id, f"role_extension {extension.role_id}", sid))
+
+        return issues
+
+    def validate_set(self, documents: list[SchemaDocument]) -> list[ValidationIssue]:
+        """Whole-set checks across all loaded documents."""
+        issues: list[ValidationIssue] = []
+
+        category_ids: set[str] = set()
+        permission_index: dict[str, tuple[str, ...]] = {}  # id -> scopes
+        role_ids: set[str] = set()
+
+        issues.extend(self._collect_and_check_duplicates(documents, category_ids, permission_index, role_ids))
+
+        # Reference integrity: permission categories exist.
+        for document in documents:
+            sid = document.source.source_id
+            for permission in document.permissions:
+                issues.extend(
+                    self._check_permission_category(permission.identifier, permission.category_id, category_ids, sid)
+                )
+
+            # Role permissions exist, and role scopes are supported by each permission.
+            for role in document.roles:
+                for perm_id in role.permissions:
+                    issues.extend(
+                        self._check_role_permission_scope(
+                            role.id,
+                            perm_id,
+                            role.scopes,
+                            permission_index.get(perm_id),
+                            sid,
+                            missing_verb="references",
+                        )
+                    )
+
+            # Extensions target existing roles and reference existing permissions.
+            for extension in document.role_extensions:
+                if extension.role_id not in role_ids:
+                    issues.append(
+                        ValidationIssue(
+                            IssueLevel.ERROR,
+                            f"role_extension targets unknown role {extension.role_id!r}.",
+                            sid,
+                        )
+                    )
+                for perm_id in (*extension.add_permissions, *extension.remove_permissions):
+                    if perm_id not in permission_index:
+                        issues.append(
+                            ValidationIssue(
+                                IssueLevel.ERROR,
+                                f"role_extension {extension.role_id} references unknown permission {perm_id!r}.",
+                                sid,
+                            )
+                        )
+
+        return issues
+
+    def _collect_and_check_duplicates(
+        self,
+        documents: list[SchemaDocument],
+        category_ids: set[str],
+        permission_index: dict[str, tuple[str, ...]],
+        role_ids: set[str],
+    ) -> list[ValidationIssue]:
+        """Populate the id indexes and flag conflicting/identical duplicates."""
+        issues: list[ValidationIssue] = []
+        categories: dict[str, object] = {}
+        permissions: dict[str, object] = {}
+        roles: dict[str, object] = {}
+
+        for document in documents:
+            sid = document.source.source_id
+            for category in document.categories:
+                issues.extend(self._register(categories, category.id, category, "category", sid))
+                category_ids.add(category.id)
+            for permission in document.permissions:
+                issues.extend(self._register(permissions, permission.identifier, permission, "permission", sid))
+                permission_index[permission.identifier] = permission.scopes
+            for role in document.roles:
+                issues.extend(self._register(roles, role.id, role, "role", sid))
+                role_ids.add(role.id)
+        return issues
+
+    @staticmethod
+    def _register(index: dict, key: str, value, kind: str, sid: str) -> list[ValidationIssue]:
+        """Record a base definition, flagging duplicates.
+
+        Identical duplicate → warning; conflicting duplicate → error.
+        """
+        if key not in index:
+            index[key] = value
+            return []
+        if index[key] == value:
+            return [ValidationIssue(IssueLevel.WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
+        return [ValidationIssue(IssueLevel.ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
+
+    def _check_identifier(self, value: str, label: str, sid: str) -> list[ValidationIssue]:
+        """Validate a single identifier is lowercase snake_case and not a Casbin form."""
+        if not value:
+            return []  # emptiness handled by _require where relevant
+        if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
+            return [ValidationIssue(IssueLevel.ERROR, f"{label} {value!r} uses an internal Casbin form.", sid)]
+        if not IDENTIFIER_RE.match(value):
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"{label} {value!r} must match {IDENTIFIER_RE.pattern} (lowercase snake_case).",
+                    sid,
+                )
+            ]
+        return []
+
+    def _check_permission_id(self, value: str, context: str, sid: str) -> list[ValidationIssue]:
+        """A complete permission id is ``namespace.name`` with both parts valid.
+
+        The shape is checked against :data:`PERMISSION_ID_RE`, which mirrors the
+        ``permission_id`` definition in ``schema/authz-schema-v1.json``: a single
+        period joining two lowercase snake_case identifiers, each beginning with
+        a letter. Internal Casbin forms are rejected with a clearer message.
+        """
+        if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"{context}: permission id {value!r} uses an internal Casbin form.",
+                    sid,
+                )
+            ]
+        if not PERMISSION_ID_RE.match(value):
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"{context}: permission id {value!r} must match {PERMISSION_ID_RE.pattern} "
+                    "(two lowercase snake_case identifiers joined by a period, e.g. 'courses.view_course').",
+                    sid,
+                )
+            ]
+        return []
+
+    @staticmethod
+    def _check_role_permission_scope(
+        role_id: str,
+        perm_id: str,
+        role_scopes: tuple[str, ...],
+        permission_scopes: tuple[str, ...] | None,
+        sid: str | None,
+        *,
+        missing_verb: str,
+    ) -> list[ValidationIssue]:
+        """Check one role-permission pairing: the permission exists and supports the role's scopes.
+
+        ``permission_scopes`` is the permission's supported scopes, or ``None``
+        when the permission does not exist. ``missing_verb`` is the phrase used
+        for the unknown-permission message, so the pre-compile pass can say the
+        role *references* a permission while the post-compile pass says it
+        *resolves to* one.
+        """
+        if permission_scopes is None:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Role {role_id} {missing_verb} unknown permission {perm_id!r}.",
+                    sid,
+                )
+            ]
+        unsupported = set(role_scopes) - set(permission_scopes)
+        if unsupported:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Role {role_id} is defined for scope(s) {sorted(unsupported)} "
+                    f"that permission {perm_id!r} does not support.",
+                    sid,
+                )
+            ]
+        return []
+
+    @staticmethod
+    def _check_permission_category(
+        perm_id: str,
+        category_id: str,
+        known_category_ids: Container[str],
+        sid: str | None,
+    ) -> list[ValidationIssue]:
+        """A permission's category, when set, must reference an existing category."""
+        if category_id and category_id not in known_category_ids:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Permission {perm_id} references unknown category {category_id!r}.",
+                    sid,
+                )
+            ]
+        return []
+
+    def _check_scopes(self, scopes: tuple[str, ...], context: str, sid: str) -> list[ValidationIssue]:
+        """Validate that at least one scope is declared and each scope namespace is well-formed."""
+        if not scopes:
+            return [ValidationIssue(IssueLevel.ERROR, f"{context} must declare at least one scope.", sid)]
+        issues: list[ValidationIssue] = []
+        for scope in scopes:
+            if not SCOPE_RE.match(scope):
+                issues.append(ValidationIssue(IssueLevel.ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
+        return issues
+
+    @staticmethod
+    def _require(value: str, label: str, sid: str) -> list[ValidationIssue]:
+        if not value:
+            return [ValidationIssue(IssueLevel.ERROR, f"Missing required field: {label}.", sid)]
+        return []
+
+    @staticmethod
+    def _role_permission_source_id(schema: CompiledSchema, role_id: str, perm_id: str) -> str | None:
+        """Name the source(s) responsible for one role-permission grant.
+
+        A role-permission grant is the link that assigns a permission to a role:
+        a single ``(role_id, permission_id)`` pairing in the compiled schema. ADR
+        0025 defines it as the atomic unit of attribution (one grant renders to
+        one Casbin ``p`` row). It is distinct from a *role assignment*, which
+        links a subject to a role (the ``g`` policies of ADR 0012). The grant's
+        provenance is tracked on ``schema.role_permission_sources``; this returns
+        the source id(s) to attribute a validation issue to.
+
+        Prefers extension contributions: when an extension introduces the
+        offending permission, the operator needs the extending file's id, not
+        the file that declared the role.
+        """
+        sources = schema.role_permission_sources.get((role_id, perm_id), [])
+        extensions = [src for src in sources if src.origin_kind == SchemaOriginKind.EXTENSION]
+        chosen = extensions or sources
+        if not chosen:
+            return None
+        return ", ".join(sorted({src.source.source_id for src in chosen}))

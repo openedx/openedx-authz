@@ -21,7 +21,7 @@ from openedx_authz.engine.schema.types.loading import SourceRecord
 
 
 @dataclass(frozen=True)
-class RelationshipSource:
+class RolePermissionSource:
     """Provenance of a single role-permission grant (ADR 0025).
 
     Attributes:
@@ -69,7 +69,7 @@ class CompiledSchema:
     roles: dict[str, CompiledDefinition] = field(default_factory=dict)
     # Provenance of each role-permission grant, keyed by (role_id, permission_id).
     # Populated by the compiler; consumed when persisting sources (ADR 0025).
-    role_permission_sources: dict[tuple[str, str], list[RelationshipSource]] = field(default_factory=dict)
+    role_permission_sources: dict[tuple[str, str], list[RolePermissionSource]] = field(default_factory=dict)
 
     def role_permission_pairs(self) -> list[tuple[str, str]]:
         """Return ``(role_id, permission_identifier)`` pairs for every role.

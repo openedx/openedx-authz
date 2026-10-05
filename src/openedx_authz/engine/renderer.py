@@ -30,6 +30,7 @@ from openedx_authz.data import (
     POLICY_PTYPE,
     ROLE_NAMESPACE,
     SCOPE_WILDCARD,
+    PolicyIndex,
 )
 from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
@@ -57,9 +58,32 @@ class PolicyRow:
 
     @classmethod
     def from_policy(cls, values: list[str]) -> "PolicyRow":
-        """Build from a stored ``p`` row (``[subject, action, scope, effect]``)."""
-        subject, action, scope, effect = (list(values) + ["", "", "", ""])[:4]
+        """Build from a stored ``p`` row (``[subject, action, scope, effect]``).
+
+        Parsing is delegated to the shared, strict
+        :meth:`~openedx_authz.data.PolicyIndex.parse`, so this stays in step
+        with the ``api`` layer. A partially populated row is padded first, so an
+        in-memory row round-trips instead of being rejected.
+        """
+        subject, action, scope, effect = PolicyIndex.parse(PolicyIndex.pad(values))
         return cls(POLICY_PTYPE, subject, action, scope, effect)
+
+    @classmethod
+    def from_grant(cls, role_id: str, permission_id: str, scope: str) -> "PolicyRow":
+        """Build the Casbin ``p`` row for one ``(role, permission, scope)`` grant.
+
+        The single place the internal namespacing is applied, so every producer
+        and consumer of a rendered row agrees on its exact shape. A drift
+        between two such places would silently stop a later comparison against
+        the stored policy from matching anything.
+        """
+        return cls(
+            ptype=POLICY_PTYPE,
+            subject=f"{ROLE_NAMESPACE}{SEP}{role_id}",
+            action=f"{ACTION_NAMESPACE}{SEP}{permission_id}",
+            scope=f"{scope}{SEP}{SCOPE_WILDCARD}",
+            effect=EFFECT_ALLOW,
+        )
 
 
 @dataclass
@@ -67,23 +91,6 @@ class RenderedPolicy:
     """The full set of ``p`` rows for a compiled schema (no DB access)."""
 
     rows: list[PolicyRow] = field(default_factory=list)
-
-
-def policy_row(role_id: str, permission_id: str, scope: str) -> PolicyRow:
-    """Build the Casbin ``p`` row for one ``(role, permission, scope)`` grant.
-
-    The single place the internal namespacing is applied, so every producer and
-    consumer of a rendered row agrees on its exact shape. A drift between two
-    such places would silently stop a later comparison against the stored
-    policy from matching anything.
-    """
-    return PolicyRow(
-        ptype=POLICY_PTYPE,
-        subject=f"{ROLE_NAMESPACE}{SEP}{role_id}",
-        action=f"{ACTION_NAMESPACE}{SEP}{permission_id}",
-        scope=f"{scope}{SEP}{SCOPE_WILDCARD}",
-        effect=EFFECT_ALLOW,
-    )
 
 
 class PolicyRenderer:
@@ -101,5 +108,5 @@ class PolicyRenderer:
             role: RoleDefinition = schema.roles[role_id].definition
             for scope in sorted(role.scopes):
                 for permission in sorted(role.permissions):
-                    rows.append(policy_row(role.id, permission, scope))
+                    rows.append(PolicyRow.from_grant(role.id, permission, scope))
         return RenderedPolicy(rows=rows)

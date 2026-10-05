@@ -24,7 +24,8 @@ EFFECT_ALLOW = "allow"
 
 
 class PolicyIndex(Enum):
-    """Index positions for fields in a Casbin policy (p).
+    """
+    Index positions for fields in a Casbin policy (p).
 
     Policies define permissions by linking roles to actions within scopes with an effect.
     Format: [role, action, scope, effect, ...]
@@ -51,12 +52,13 @@ class PolicyIndex(Enum):
 
     @classmethod
     def required_width(cls) -> int:
-        """Number of leading fields that make up a complete ``p`` row (4)."""
+        """Return the number of leading fields that make up a complete ``p`` row (4)."""
         return len(cls)
 
     @classmethod
     def pad(cls, values: list[str]) -> list[str]:
-        """Pad ``values`` with empty strings up to :meth:`required_width`.
+        """
+        Pad ``values`` with empty strings up to :meth:`required_width`.
 
         Callers that accept partially populated rows (e.g. the renderer
         round-tripping an in-memory row) pad first so the shared, strict
@@ -66,7 +68,8 @@ class PolicyIndex(Enum):
 
     @classmethod
     def parse(cls, policy: list[str]) -> tuple[str, str, str, str]:
-        """Return ``(role, action, scope, effect)`` from a Casbin ``p`` row.
+        """
+        Return ``(role, action, scope, effect)`` from a Casbin ``p`` row.
 
         The single place a ``p`` row is split into its fields, so every consumer
         agrees on both the layout and the minimum shape. Rows shorter than

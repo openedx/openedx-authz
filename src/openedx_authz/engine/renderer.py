@@ -62,7 +62,7 @@ from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
-from openedx_authz.models import schema as m
+from openedx_authz.models import schema as schema_models
 from openedx_authz.models.core import RoleAssignmentAudit
 
 logger = logging.getLogger(__name__)
@@ -443,7 +443,7 @@ class SchemaApplier:
         return {
             "categories": self._diff_kind(
                 {cid: compiled.definition for cid, compiled in schema.categories.items()},
-                {obj.category_id: obj for obj in m.AuthzPermissionCategory.objects.all()},
+                {obj.category_id: obj for obj in schema_models.AuthzPermissionCategory.objects.all()},
                 lambda definition, obj: (
                     definition.display_name == obj.display_name
                     and (definition.description or "") == obj.description
@@ -454,7 +454,7 @@ class SchemaApplier:
                 {pid: compiled.definition for pid, compiled in schema.permissions.items()},
                 {
                     f"{obj.namespace}.{obj.name}": obj
-                    for obj in m.AuthzPermissionDefinition.objects.select_related("category")
+                    for obj in schema_models.AuthzPermissionDefinition.objects.select_related("category")
                 },
                 lambda definition, obj: (
                     definition.display_name == obj.display_name
@@ -466,7 +466,7 @@ class SchemaApplier:
             ),
             "roles": self._diff_kind(
                 {rid: compiled.definition for rid, compiled in schema.roles.items()},
-                {obj.role_id: obj for obj in m.AuthzRoleDefinition.objects.all()},
+                {obj.role_id: obj for obj in schema_models.AuthzRoleDefinition.objects.all()},
                 lambda definition, obj: (
                     definition.display_name == obj.display_name
                     and (definition.description or "") == obj.description
@@ -481,7 +481,7 @@ class SchemaApplier:
                     self._grant_key(
                         grant.role.role_id, f"{grant.permission.namespace}.{grant.permission.name}", grant.scope
                     ): None
-                    for grant in m.AuthzRolePermission.objects.select_related("role", "permission")
+                    for grant in schema_models.AuthzRolePermission.objects.select_related("role", "permission")
                 },
                 lambda _compiled, _stored: True,
             ),
@@ -529,7 +529,7 @@ class SchemaApplier:
                 f"{grant.permission.namespace}.{grant.permission.name}",
                 grant.scope,
             )
-            for grant in m.AuthzRolePermission.objects.select_related("role", "permission")
+            for grant in schema_models.AuthzRolePermission.objects.select_related("role", "permission")
         }
 
     def _store_sources(self, schema: CompiledSchema) -> None:
@@ -552,7 +552,7 @@ class SchemaApplier:
             cached = source_cache.get(key)
             if cached is not None:
                 return cached
-            obj, _ = m.AuthzSchemaSource.objects.update_or_create(
+            obj, _ = schema_models.AuthzSchemaSource.objects.update_or_create(
                 distribution=record.distribution,
                 module=record.module,
                 defaults={
@@ -569,7 +569,7 @@ class SchemaApplier:
         category_objs: dict[str, object] = {}
         for cid, compiled in schema.categories.items():
             definition = compiled.definition
-            obj, _ = m.AuthzPermissionCategory.objects.update_or_create(
+            obj, _ = schema_models.AuthzPermissionCategory.objects.update_or_create(
                 category_id=definition.id,
                 defaults={
                     "display_name": definition.display_name,
@@ -579,15 +579,15 @@ class SchemaApplier:
             )
             category_objs[cid] = obj
             for record in compiled.sources:
-                m.AuthzCategorySource.objects.update_or_create(
-                    category=obj, source=source_obj(record), defaults={"origin_kind": m.OriginKind.BASE}
+                schema_models.AuthzCategorySource.objects.update_or_create(
+                    category=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Permissions.
         permission_objs: dict[str, object] = {}
         for pid, compiled in schema.permissions.items():
             definition = compiled.definition
-            obj, _ = m.AuthzPermissionDefinition.objects.update_or_create(
+            obj, _ = schema_models.AuthzPermissionDefinition.objects.update_or_create(
                 namespace=definition.namespace,
                 name=definition.name,
                 defaults={
@@ -600,15 +600,15 @@ class SchemaApplier:
             )
             permission_objs[pid] = obj
             for record in compiled.sources:
-                m.AuthzPermissionSource.objects.update_or_create(
-                    permission=obj, source=source_obj(record), defaults={"origin_kind": m.OriginKind.BASE}
+                schema_models.AuthzPermissionSource.objects.update_or_create(
+                    permission=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Roles.
         role_objs: dict[str, object] = {}
         for rid, compiled in schema.roles.items():
             definition = compiled.definition
-            obj, _ = m.AuthzRoleDefinition.objects.update_or_create(
+            obj, _ = schema_models.AuthzRoleDefinition.objects.update_or_create(
                 role_id=definition.id,
                 defaults={
                     "display_name": definition.display_name,
@@ -620,8 +620,8 @@ class SchemaApplier:
             )
             role_objs[rid] = obj
             for record in compiled.sources:
-                m.AuthzRoleSource.objects.update_or_create(
-                    role=obj, source=source_obj(record), defaults={"origin_kind": m.OriginKind.BASE}
+                schema_models.AuthzRoleSource.objects.update_or_create(
+                    role=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Role-permission grants (one per rendered role/permission/scope triple).
@@ -636,18 +636,18 @@ class SchemaApplier:
                     permission_obj = permission_objs.get(perm_id)
                     if permission_obj is None:
                         continue  # validated away in practice; skip defensively
-                    grant, _ = m.AuthzRolePermission.objects.update_or_create(
+                    grant, _ = schema_models.AuthzRolePermission.objects.update_or_create(
                         role=role_obj, permission=permission_obj, scope=scope
                     )
                     live_grant_ids.add(grant.pk)
                     for rel in schema.role_permission_sources.get((rid, perm_id), []):
-                        m.AuthzRolePermissionSource.objects.update_or_create(
+                        schema_models.AuthzRolePermissionSource.objects.update_or_create(
                             role_permission=grant,
                             source=source_obj(rel.source),
                             defaults={"origin_kind": rel.origin_kind, "priority": rel.priority},
                         )
 
-        self._prune_definitions(m, schema, live_grant_ids)
+        self._prune_definitions(schema, live_grant_ids)
 
         logger.info(
             "Authz schema apply: persisted %d role(s), %d permission(s), %d category(ies).",
@@ -657,7 +657,7 @@ class SchemaApplier:
         )
 
     @staticmethod
-    def _prune_definitions(m, schema: CompiledSchema, live_grant_ids: set[int]) -> None:
+    def _prune_definitions(schema: CompiledSchema, live_grant_ids: set[int]) -> None:
         """Delete definition/source rows the compiled schema no longer contains.
 
         Removes stale role-permission grants, roles, permissions, and categories
@@ -670,17 +670,17 @@ class SchemaApplier:
         then roles and permissions, then categories.
         """
         # Stale role-permission grants: any grant not re-created this run.
-        m.AuthzRolePermission.objects.exclude(pk__in=live_grant_ids).delete()
+        schema_models.AuthzRolePermission.objects.exclude(pk__in=live_grant_ids).delete()
 
         live_role_ids = {compiled.definition.id for compiled in schema.roles.values()}
-        m.AuthzRoleDefinition.objects.exclude(role_id__in=live_role_ids).delete()
+        schema_models.AuthzRoleDefinition.objects.exclude(role_id__in=live_role_ids).delete()
 
         live_permission_keys = {
             (compiled.definition.namespace, compiled.definition.name) for compiled in schema.permissions.values()
         }
-        for permission_obj in m.AuthzPermissionDefinition.objects.all():
+        for permission_obj in schema_models.AuthzPermissionDefinition.objects.all():
             if (permission_obj.namespace, permission_obj.name) not in live_permission_keys:
                 permission_obj.delete()
 
         live_category_ids = {compiled.definition.id for compiled in schema.categories.values()}
-        m.AuthzPermissionCategory.objects.exclude(category_id__in=live_category_ids).delete()
+        schema_models.AuthzPermissionCategory.objects.exclude(category_id__in=live_category_ids).delete()

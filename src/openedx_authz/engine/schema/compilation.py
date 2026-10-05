@@ -39,6 +39,7 @@ from openedx_authz.engine.schema.types import (
 
 logger = logging.getLogger(__name__)
 
+
 class RoleMetadataField(str, Enum):
     """Metadata fields a ``RoleExtension`` may replace on a role (ADR 0023)."""
 
@@ -48,8 +49,22 @@ class RoleMetadataField(str, Enum):
     HIDDEN = "hidden"
 
 
-# Singular labels for operator-facing messages, keyed by document attribute.
-_KIND_LABELS = {"categories": "category", "permissions": "permission", "roles": "role"}
+class DefinitionKind(Enum):
+    """A family of base definitions compiled from schema documents.
+
+    ``attr`` is the :class:`SchemaDocument` field holding this family's
+    definitions (populated by the loader from the YAML blocks). ``label`` is the
+    singular noun used for this family in operator-facing error and warning
+    messages.
+    """
+
+    CATEGORY = ("categories", "category")
+    PERMISSION = ("permissions", "permission")
+    ROLE = ("roles", "role")
+
+    def __init__(self, attr: str, label: str) -> None:
+        self.attr = attr
+        self.label = label
 
 
 @dataclass(frozen=True)
@@ -76,9 +91,9 @@ class SchemaCompiler:
         Raises:
             SchemaCompileError: On an unresolvable equal-priority conflict.
         """
-        categories = self._collect(documents, "categories", key=lambda c: c.id)
-        permissions = self._collect(documents, "permissions", key=lambda p: p.identifier)
-        roles = self._collect(documents, "roles", key=lambda r: r.id)
+        categories = self._collect(documents, DefinitionKind.CATEGORY, key=lambda c: c.id)
+        permissions = self._collect(documents, DefinitionKind.PERMISSION, key=lambda p: p.identifier)
+        roles = self._collect(documents, DefinitionKind.ROLE, key=lambda r: r.id)
 
         resolved_roles, role_permission_sources = self._resolve_roles_and_provenance(roles, documents)
 
@@ -89,7 +104,7 @@ class SchemaCompiler:
             role_permission_sources=role_permission_sources,
         )
 
-    def _collect(self, documents: list[SchemaDocument], attr: str, key) -> dict[str, _Tracked]:
+    def _collect(self, documents: list[SchemaDocument], kind: DefinitionKind, key) -> dict[str, _Tracked]:
         """Gather base definitions keyed by identifier, resolving by priority.
 
         Higher priority wins on conflict; equal priority with differing content
@@ -97,7 +112,7 @@ class SchemaCompiler:
         """
         tracked: dict[str, _Tracked] = {}
         for document in documents:
-            for definition in getattr(document, attr):
+            for definition in getattr(document, kind.attr):
                 identifier = key(definition)
                 existing = tracked.get(identifier)
                 if existing is None:
@@ -108,9 +123,8 @@ class SchemaCompiler:
                     )
                     continue
 
-                kind = _KIND_LABELS.get(attr, attr)
                 tracked[identifier] = self._resolve_priority(
-                    kind,
+                    kind.label,
                     identifier,
                     existing=existing,
                     incoming=_Tracked(
@@ -154,9 +168,7 @@ class SchemaCompiler:
                 f"{incoming.priority} "
                 f"({existing.sources[0].source_id} vs {incoming.sources[0].source_id})."
             )
-        winner, loser = (
-            (incoming, existing) if incoming.priority > existing.priority else (existing, incoming)
-        )
+        winner, loser = (incoming, existing) if incoming.priority > existing.priority else (existing, incoming)
         self._warn_discarded(
             kind,
             identifier,
@@ -243,9 +255,7 @@ class SchemaCompiler:
         if not metadata_changes_for_role:
             return tracked
         new_values, contributing_sources = self._resolve_metadata(role_id, metadata_changes_for_role)
-        merged_sources = tracked.sources + tuple(
-            src for src in contributing_sources if src not in tracked.sources
-        )
+        merged_sources = tracked.sources + tuple(src for src in contributing_sources if src not in tracked.sources)
         return replace(
             tracked,
             definition=replace(tracked.definition, **new_values),
@@ -286,9 +296,7 @@ class SchemaCompiler:
         provenance. Returns ``(tracked, base_provenance)`` unchanged when the
         role has no permission extensions.
         """
-        base_provenance = self._seed_base_provenance(
-            tracked.definition.permissions, base_sources, base_priority
-        )
+        base_provenance = self._seed_base_provenance(tracked.definition.permissions, base_sources, base_priority)
         if not permission_changes_for_role or not (
             permission_changes_for_role["add"] or permission_changes_for_role["remove"]
         ):
@@ -356,9 +364,7 @@ class SchemaCompiler:
         """
         permission_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
         for document, extension in self._extensions_for_known_roles(roles, documents):
-            permission_changes_for_role = permission_changes.setdefault(
-                extension.role_id, {"add": [], "remove": []}
-            )
+            permission_changes_for_role = permission_changes.setdefault(extension.role_id, {"add": [], "remove": []})
             for perm in extension.add_permissions:
                 permission_changes_for_role["add"].append((perm, document.priority, document.source))
             for perm in extension.remove_permissions:
@@ -410,9 +416,7 @@ class SchemaCompiler:
                 )
         return winner_value, max_priority, winning_sources
 
-    def _resolve_metadata(
-        self, role_id: str, metadata_changes: dict[str, list[tuple[object, int, SourceRecord]]]
-    ):
+    def _resolve_metadata(self, role_id: str, metadata_changes: dict[str, list[tuple[object, int, SourceRecord]]]):
         """Pick winning metadata values by priority; error on equal-priority ties."""
         new_values: dict[str, object] = {}
         contributing: set[SourceRecord] = set()

@@ -447,6 +447,10 @@ class SchemaCompiler:
         current = set(base)
         provenance = self._seed_base_provenance(base, base_sources, base_priority)
 
+        # Regroup from action-keyed to permission-keyed so every contribution
+        # touching one permission (both adds and removes, across extensions) is
+        # resolved together: priority can pick a winner and an equal-priority
+        # add-vs-remove is caught as a conflict.
         actions: dict[str, list[tuple[str, int, SourceRecord]]] = {}
         for perm, priority, src in permission_changes["add"]:
             actions.setdefault(perm, []).append(("add", priority, src))
@@ -465,20 +469,50 @@ class SchemaCompiler:
             )
 
             if action == "add":
-                if perm in current:
-                    logger.warning("role_extension adds %r already on role %r; no-op.", perm, role_id)
-                current.add(perm)
-                provenance.setdefault(perm, [])
-                provenance[perm].extend(
+                extension_sources = [
                     RelationshipSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
-                )
+                ]
+                self._apply_added_permission(role_id, perm, current, provenance, extension_sources)
             else:  # remove
-                if perm not in current:
-                    logger.warning("role_extension removes %r not on role %r; no-op.", perm, role_id)
-                current.discard(perm)
-                provenance.pop(perm, None)
+                self._apply_removed_permission(role_id, perm, current, provenance)
 
         return tuple(sorted(current)), provenance
+
+    @staticmethod
+    def _apply_added_permission(
+        role_id: str,
+        perm: str,
+        current: set[str],
+        provenance: dict[str, list[RelationshipSource]],
+        extension_sources: list[RelationshipSource],
+    ) -> None:
+        """Grant ``perm`` to the role, attributing it to ``extension_sources``.
+
+        Mutates ``current`` and ``provenance`` in place. Adding a permission the
+        role already has is a no-op, logged as a warning (ADR 0023 §3).
+        """
+        if perm in current:
+            logger.warning("role_extension adds %r already on role %r; no-op.", perm, role_id)
+        current.add(perm)
+        provenance.setdefault(perm, [])
+        provenance[perm].extend(extension_sources)
+
+    @staticmethod
+    def _apply_removed_permission(
+        role_id: str,
+        perm: str,
+        current: set[str],
+        provenance: dict[str, list[RelationshipSource]],
+    ) -> None:
+        """Revoke ``perm`` from the role and drop its provenance.
+
+        Mutates ``current`` and ``provenance`` in place. Removing a permission
+        the role does not have is a no-op, logged as a warning (ADR 0023 §3).
+        """
+        if perm not in current:
+            logger.warning("role_extension removes %r not on role %r; no-op.", perm, role_id)
+        current.discard(perm)
+        provenance.pop(perm, None)
 
     def _finalize(self, tracked: dict[str, _Tracked]) -> dict[str, CompiledDefinition]:
         """Turn tracked definitions into CompiledDefinition entries."""

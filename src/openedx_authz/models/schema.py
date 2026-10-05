@@ -10,6 +10,11 @@ application removal can prune only what that application uniquely provided.
 
 Casbin ``p`` rows remain the enforcement representation; these tables are the
 definition/provenance record written alongside them in the same transaction.
+
+By convention, all models in this package are prefixed with ``Authz`` (e.g.
+:class:`AuthzSchemaSource`, :class:`AuthzRoleDefinition`) so the project's
+tables are easy to identify at a glance in the shared database and admin, and
+to avoid name collisions with models from other installed apps.
 """
 
 from __future__ import annotations

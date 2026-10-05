@@ -26,7 +26,7 @@ from __future__ import annotations
 from openedx_authz.engine.schema.types.compilation import (
     CompiledDefinition,
     CompiledSchema,
-    RelationshipSource,
+    RolePermissionSource,
 )
 from openedx_authz.engine.schema.types.definitions import (
     PermissionCategory,
@@ -49,7 +49,7 @@ __all__ = [
     "SourceRecord",
     "SchemaDocument",
     # compilation
-    "RelationshipSource",
+    "RolePermissionSource",
     "CompiledDefinition",
     "CompiledSchema",
 ]

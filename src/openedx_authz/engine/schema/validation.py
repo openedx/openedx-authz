@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 
 from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.types import (
@@ -39,15 +40,29 @@ from openedx_authz.engine.schema.types import (
     SchemaDocument,
 )
 
-IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_IDENTIFIER = r"[a-z][a-z0-9_]*"
+IDENTIFIER_RE = re.compile(rf"^{_IDENTIFIER}$")
+# A complete permission ID joins ``namespace`` and ``name`` with a single
+# period, each part being a bare identifier. Mirrors the ``permission_id``
+# ``$def`` in ``schema/authz-schema-v1.json``.
+PERMISSION_ID_RE = re.compile(rf"^{_IDENTIFIER}\.{_IDENTIFIER}$")
 # Scope namespaces follow their registered spelling and may contain hyphens.
 SCOPE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 # Casbin-internal prefixes that must never appear in a schema identifier.
 CASBIN_INTERNAL_PREFIXES = ("act^", "role^", "sub^", "scope^", "g^", "p^")
 
-ERROR = "error"
-WARNING = "warning"
+
+class IssueLevel(StrEnum):
+    """Severity of a :class:`ValidationIssue`.
+
+    Members:
+        ERROR: Blocks deployment.
+        WARNING: Reported only, does not block deployment.
+    """
+
+    ERROR = "error"
+    WARNING = "warning"
 
 
 @dataclass(frozen=True)
@@ -55,26 +70,25 @@ class ValidationIssue:
     """A single validation finding.
 
     Attributes:
-        level: ``"error"`` (blocks deployment) or ``"warning"`` (reported only).
+        level: :attr:`IssueLevel.ERROR` (blocks deployment) or
+            :attr:`IssueLevel.WARNING` (reported only).
         message: Human-readable description.
         source_id: The contributing source, when the issue is file-specific.
     """
 
-    level: str
+    level: IssueLevel
     message: str
     source_id: str | None = None
 
     @property
     def is_error(self) -> bool:
-        return self.level == ERROR
+        return self.level == IssueLevel.ERROR
 
 
 class SchemaValidator:
     """Runs per-document and whole-set validation."""
 
     SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0"})
-
-    # ---- entry points -----------------------------------------------------
 
     def validate(self, documents: list[SchemaDocument]) -> list[ValidationIssue]:
         """Run per-document then whole-set validation, returning all issues."""
@@ -102,12 +116,12 @@ class SchemaValidator:
         for role_id, compiled_role in schema.roles.items():
             role = compiled_role.definition
             for perm_id in role.permissions:
-                sid = self._relationship_source_id(schema, role_id, perm_id)
+                sid = self._role_permission_source_id(schema, role_id, perm_id)
                 compiled_permission = schema.permissions.get(perm_id)
                 if compiled_permission is None:
                     issues.append(
                         ValidationIssue(
-                            ERROR,
+                            IssueLevel.ERROR,
                             f"Role {role_id} resolves to unknown permission {perm_id!r}.",
                             sid,
                         )
@@ -117,7 +131,7 @@ class SchemaValidator:
                 if unsupported:
                     issues.append(
                         ValidationIssue(
-                            ERROR,
+                            IssueLevel.ERROR,
                             f"Role {role_id} is defined for scope(s) {sorted(unsupported)} "
                             f"that permission {perm_id!r} does not support.",
                             sid,
@@ -130,7 +144,7 @@ class SchemaValidator:
                 sources = compiled_permission.sources
                 issues.append(
                     ValidationIssue(
-                        ERROR,
+                        IssueLevel.ERROR,
                         f"Permission {perm_id} references unknown category {category!r}.",
                         sources[0].source_id if sources else None,
                     )
@@ -143,8 +157,6 @@ class SchemaValidator:
         """True if any issue is error-level."""
         return any(issue.is_error for issue in issues)
 
-    # ---- per-document -----------------------------------------------------
-
     def validate_document(self, document: SchemaDocument) -> list[ValidationIssue]:
         """Per-file checks that need no cross-file context."""
         issues: list[ValidationIssue] = []
@@ -153,7 +165,7 @@ class SchemaValidator:
         if document.source.schema_version not in self.SUPPORTED_SCHEMA_VERSIONS:
             issues.append(
                 ValidationIssue(
-                    ERROR,
+                    IssueLevel.ERROR,
                     f"Unsupported schema_version {document.source.schema_version!r}; "
                     f"supported: {sorted(self.SUPPORTED_SCHEMA_VERSIONS)}.",
                     sid,
@@ -183,8 +195,6 @@ class SchemaValidator:
 
         return issues
 
-    # ---- whole-set --------------------------------------------------------
-
     def validate_set(self, documents: list[SchemaDocument]) -> list[ValidationIssue]:
         """Whole-set checks across all loaded documents."""
         issues: list[ValidationIssue] = []
@@ -203,7 +213,7 @@ class SchemaValidator:
                 if category_id and category_id not in category_ids:
                     issues.append(
                         ValidationIssue(
-                            ERROR,
+                            IssueLevel.ERROR,
                             f"Permission {permission.identifier} references unknown category {category_id!r}.",
                             sid,
                         )
@@ -215,7 +225,7 @@ class SchemaValidator:
                     if perm_id not in permission_index:
                         issues.append(
                             ValidationIssue(
-                                ERROR,
+                                IssueLevel.ERROR,
                                 f"Role {role.id} references unknown permission {perm_id!r}.",
                                 sid,
                             )
@@ -225,7 +235,7 @@ class SchemaValidator:
                     if unsupported:
                         issues.append(
                             ValidationIssue(
-                                ERROR,
+                                IssueLevel.ERROR,
                                 f"Role {role.id} is defined for scope(s) {sorted(unsupported)} "
                                 f"that permission {perm_id!r} does not support.",
                                 sid,
@@ -237,7 +247,7 @@ class SchemaValidator:
                 if extension.role_id not in role_ids:
                     issues.append(
                         ValidationIssue(
-                            ERROR,
+                            IssueLevel.ERROR,
                             f"role_extension targets unknown role {extension.role_id!r}.",
                             sid,
                         )
@@ -246,7 +256,7 @@ class SchemaValidator:
                     if perm_id not in permission_index:
                         issues.append(
                             ValidationIssue(
-                                ERROR,
+                                IssueLevel.ERROR,
                                 f"role_extension {extension.role_id} references unknown permission {perm_id!r}.",
                                 sid,
                             )
@@ -290,21 +300,19 @@ class SchemaValidator:
             index[key] = value
             return []
         if index[key] == value:
-            return [ValidationIssue(WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
-        return [ValidationIssue(ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
-
-    # ---- helpers ----------------------------------------------------------
+            return [ValidationIssue(IssueLevel.WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
+        return [ValidationIssue(IssueLevel.ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
 
     def _check_identifier(self, value: str, label: str, sid: str) -> list[ValidationIssue]:
         """Validate a single identifier is lowercase snake_case and not a Casbin form."""
         if not value:
             return []  # emptiness handled by _require where relevant
         if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
-            return [ValidationIssue(ERROR, f"{label} {value!r} uses an internal Casbin form.", sid)]
+            return [ValidationIssue(IssueLevel.ERROR, f"{label} {value!r} uses an internal Casbin form.", sid)]
         if not IDENTIFIER_RE.match(value):
             return [
                 ValidationIssue(
-                    ERROR,
+                    IssueLevel.ERROR,
                     f"{label} {value!r} must match {IDENTIFIER_RE.pattern} (lowercase snake_case).",
                     sid,
                 )
@@ -312,47 +320,67 @@ class SchemaValidator:
         return []
 
     def _check_permission_id(self, value: str, context: str, sid: str) -> list[ValidationIssue]:
-        """A complete permission id is ``namespace.name`` with both parts valid."""
-        if value.count(".") != 1:
+        """A complete permission id is ``namespace.name`` with both parts valid.
+
+        The shape is checked against :data:`PERMISSION_ID_RE`, which mirrors the
+        ``permission_id`` definition in ``schema/authz-schema-v1.json``: a single
+        period joining two lowercase snake_case identifiers, each beginning with
+        a letter. Internal Casbin forms are rejected with a clearer message.
+        """
+        if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
             return [
                 ValidationIssue(
-                    ERROR,
-                    f"{context}: permission id {value!r} must be 'namespace.name'.",
+                    IssueLevel.ERROR,
+                    f"{context}: permission id {value!r} uses an internal Casbin form.",
                     sid,
                 )
             ]
-        namespace, name = value.split(".", 1)
-        issues = self._check_identifier(namespace, f"{context} permission namespace", sid)
-        issues += self._check_identifier(name, f"{context} permission name", sid)
-        return issues
+        if not PERMISSION_ID_RE.match(value):
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"{context}: permission id {value!r} must match {PERMISSION_ID_RE.pattern} "
+                    "(two lowercase snake_case identifiers joined by a period, e.g. 'courses.view_course').",
+                    sid,
+                )
+            ]
+        return []
 
     def _check_scopes(self, scopes: tuple[str, ...], context: str, sid: str) -> list[ValidationIssue]:
         """Validate that at least one scope is declared and each scope namespace is well-formed."""
         if not scopes:
-            return [ValidationIssue(ERROR, f"{context} must declare at least one scope.", sid)]
+            return [ValidationIssue(IssueLevel.ERROR, f"{context} must declare at least one scope.", sid)]
         issues: list[ValidationIssue] = []
         for scope in scopes:
             if not SCOPE_RE.match(scope):
-                issues.append(ValidationIssue(ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
+                issues.append(ValidationIssue(IssueLevel.ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
         return issues
 
     @staticmethod
     def _require(value: str, label: str, sid: str) -> list[ValidationIssue]:
         if not value:
-            return [ValidationIssue(ERROR, f"Missing required field: {label}.", sid)]
+            return [ValidationIssue(IssueLevel.ERROR, f"Missing required field: {label}.", sid)]
         return []
 
     @staticmethod
-    def _relationship_source_id(schema: CompiledSchema, role_id: str, perm_id: str) -> str | None:
-        """Name the source(s) responsible for a compiled role-permission grant.
+    def _role_permission_source_id(schema: CompiledSchema, role_id: str, perm_id: str) -> str | None:
+        """Name the source(s) responsible for one role-permission grant.
+
+        A role-permission grant is the link that assigns a permission to a role:
+        a single ``(role_id, permission_id)`` pairing in the compiled schema. ADR
+        0025 defines it as the atomic unit of attribution (one grant renders to
+        one Casbin ``p`` row). It is distinct from a *role assignment*, which
+        links a subject to a role (the ``g`` policies of ADR 0012). The grant's
+        provenance is tracked on ``schema.role_permission_sources``; this returns
+        the source id(s) to attribute a validation issue to.
 
         Prefers extension contributions: when an extension introduces the
         offending permission, the operator needs the extending file's id, not
         the file that declared the role.
         """
-        relationships = schema.role_permission_sources.get((role_id, perm_id), [])
-        extensions = [rel for rel in relationships if rel.origin_kind == SchemaOriginKind.EXTENSION]
-        chosen = extensions or relationships
+        sources = schema.role_permission_sources.get((role_id, perm_id), [])
+        extensions = [src for src in sources if src.origin_kind == SchemaOriginKind.EXTENSION]
+        chosen = extensions or sources
         if not chosen:
             return None
-        return ", ".join(sorted({rel.source.source_id for rel in chosen}))
+        return ", ".join(sorted({src.source.source_id for src in chosen}))

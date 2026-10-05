@@ -32,7 +32,7 @@ from openedx_authz.engine.schema.exceptions import SchemaCompileError
 from openedx_authz.engine.schema.types import (
     CompiledDefinition,
     CompiledSchema,
-    RelationshipSource,
+    RolePermissionSource,
     SchemaDocument,
     SourceRecord,
 )
@@ -207,7 +207,7 @@ class SchemaCompiler:
 
     def _resolve_roles_and_provenance(
         self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
-    ) -> tuple[dict[str, _Tracked], dict[tuple[str, str], list[RelationshipSource]]]:
+    ) -> tuple[dict[str, _Tracked], dict[tuple[str, str], list[RolePermissionSource]]]:
         """Apply extensions and build per-(role, permission) provenance.
 
         Seeds base provenance from each role's own definition, then folds in
@@ -217,7 +217,7 @@ class SchemaCompiler:
         """
         metadata_changes, permission_changes = self._gather_extension_changes(roles, documents)
         resolved_roles: dict[str, _Tracked] = {}
-        role_permission_sources: dict[tuple[str, str], list[RelationshipSource]] = {}
+        role_permission_sources: dict[tuple[str, str], list[RolePermissionSource]] = {}
 
         for role_id, tracked in roles.items():
             base_sources = tracked.sources
@@ -267,7 +267,7 @@ class SchemaCompiler:
         permissions: tuple[str, ...],
         base_sources: tuple[SourceRecord, ...],
         base_priority: int,
-    ) -> dict[str, list[RelationshipSource]]:
+    ) -> dict[str, list[RolePermissionSource]]:
         """Attribute each of a role's declared permissions to its base sources.
 
         Every permission the role declares in its own definition is a ``BASE``
@@ -275,7 +275,7 @@ class SchemaCompiler:
         on top of this seed.
         """
         return {
-            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
+            perm: [RolePermissionSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
             for perm in permissions
         }
 
@@ -286,7 +286,7 @@ class SchemaCompiler:
         base_sources: tuple[SourceRecord, ...],
         base_priority: int,
         permission_changes_for_role: dict[str, list[tuple[str, int, SourceRecord]]] | None,
-    ) -> tuple[_Tracked, dict[str, list[RelationshipSource]]]:
+    ) -> tuple[_Tracked, dict[str, list[RolePermissionSource]]]:
         """Return the role with permission changes applied and its provenance.
 
         Single responsibility: own the per-permission provenance for this role.
@@ -474,7 +474,7 @@ class SchemaCompiler:
 
             if action == "add":
                 extension_sources = [
-                    RelationshipSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
+                    RolePermissionSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
                 ]
                 self._apply_added_permission(role_id, perm, current, provenance, extension_sources)
             else:  # remove
@@ -487,8 +487,8 @@ class SchemaCompiler:
         role_id: str,
         perm: str,
         current: set[str],
-        provenance: dict[str, list[RelationshipSource]],
-        extension_sources: list[RelationshipSource],
+        provenance: dict[str, list[RolePermissionSource]],
+        extension_sources: list[RolePermissionSource],
     ) -> None:
         """Grant ``perm`` to the role, attributing it to ``extension_sources``.
 
@@ -506,7 +506,7 @@ class SchemaCompiler:
         role_id: str,
         perm: str,
         current: set[str],
-        provenance: dict[str, list[RelationshipSource]],
+        provenance: dict[str, list[RolePermissionSource]],
     ) -> None:
         """Revoke ``perm`` from the role and drop its provenance.
 

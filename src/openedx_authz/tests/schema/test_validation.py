@@ -9,8 +9,7 @@ import pytest
 
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.validation import (
-    ERROR,
-    WARNING,
+    IssueLevel,
     SchemaValidator,
     ValidationIssue,
 )
@@ -154,14 +153,14 @@ class TestDuplicateSeverity:
 class TestIdentifierAndScopeRules:
     """Field-shape rules from ADR 0017 §4."""
 
-    @pytest.mark.parametrize("value", ["courses", "courses.view.course", ""])
+    @pytest.mark.parametrize("value", ["courses", "courses.view.course", "courses.", ".view", "courses..view", ""])
     def test_permission_id_must_be_namespace_dot_name(self, value):
-        """A permission id must have exactly one namespace.name separator."""
+        """A permission id must be exactly two identifiers joined by one period."""
         doc = make_document(roles=[role(permissions=(value,))])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
 
-        assert any("must be 'namespace.name'" in m for m in messages)
+        assert any("permission id" in m and "must match" in m for m in messages)
 
     def test_permission_id_halves_are_validated(self):
         """Both halves of a permission id must be lowercase snake_case."""
@@ -412,13 +411,13 @@ class TestHasErrors:
 
     def test_true_when_any_issue_is_an_error(self):
         """``has_errors`` is True when any issue is error-level."""
-        issues = [ValidationIssue(WARNING, "heads up"), ValidationIssue(ERROR, "boom")]
+        issues = [ValidationIssue(IssueLevel.WARNING, "heads up"), ValidationIssue(IssueLevel.ERROR, "boom")]
 
         assert SchemaValidator.has_errors(issues) is True
 
     def test_false_for_warnings_only(self):
         """``has_errors`` is False when every issue is a warning."""
-        assert SchemaValidator.has_errors([ValidationIssue(WARNING, "heads up")]) is False
+        assert SchemaValidator.has_errors([ValidationIssue(IssueLevel.WARNING, "heads up")]) is False
 
     def test_false_for_no_issues(self):
         """``has_errors`` is False for an empty issue list."""

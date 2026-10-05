@@ -31,6 +31,7 @@ imports.
 from __future__ import annotations
 
 import re
+from collections.abc import Container
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -116,39 +117,29 @@ class SchemaValidator:
         for role_id, compiled_role in schema.roles.items():
             role = compiled_role.definition
             for perm_id in role.permissions:
-                sid = self._role_permission_source_id(schema, role_id, perm_id)
                 compiled_permission = schema.permissions.get(perm_id)
-                if compiled_permission is None:
-                    issues.append(
-                        ValidationIssue(
-                            IssueLevel.ERROR,
-                            f"Role {role_id} resolves to unknown permission {perm_id!r}.",
-                            sid,
-                        )
-                    )
-                    continue
-                unsupported = set(role.scopes) - set(compiled_permission.definition.scopes)
-                if unsupported:
-                    issues.append(
-                        ValidationIssue(
-                            IssueLevel.ERROR,
-                            f"Role {role_id} is defined for scope(s) {sorted(unsupported)} "
-                            f"that permission {perm_id!r} does not support.",
-                            sid,
-                        )
-                    )
-
-        for perm_id, compiled_permission in schema.permissions.items():
-            category = compiled_permission.definition.category_id
-            if category and category not in schema.categories:
-                sources = compiled_permission.sources
-                issues.append(
-                    ValidationIssue(
-                        IssueLevel.ERROR,
-                        f"Permission {perm_id} references unknown category {category!r}.",
-                        sources[0].source_id if sources else None,
+                permission_scopes = compiled_permission.definition.scopes if compiled_permission else None
+                issues.extend(
+                    self._check_role_permission_scope(
+                        role_id,
+                        perm_id,
+                        role.scopes,
+                        permission_scopes,
+                        self._role_permission_source_id(schema, role_id, perm_id),
+                        missing_verb="resolves to",
                     )
                 )
+
+        for perm_id, compiled_permission in schema.permissions.items():
+            sources = compiled_permission.sources
+            issues.extend(
+                self._check_permission_category(
+                    perm_id,
+                    compiled_permission.definition.category_id,
+                    schema.categories,
+                    sources[0].source_id if sources else None,
+                )
+            )
 
         return issues
 
@@ -209,38 +200,23 @@ class SchemaValidator:
         for document in documents:
             sid = document.source.source_id
             for permission in document.permissions:
-                category_id = permission.category_id
-                if category_id and category_id not in category_ids:
-                    issues.append(
-                        ValidationIssue(
-                            IssueLevel.ERROR,
-                            f"Permission {permission.identifier} references unknown category {category_id!r}.",
-                            sid,
-                        )
-                    )
+                issues.extend(
+                    self._check_permission_category(permission.identifier, permission.category_id, category_ids, sid)
+                )
 
             # Role permissions exist, and role scopes are supported by each permission.
             for role in document.roles:
                 for perm_id in role.permissions:
-                    if perm_id not in permission_index:
-                        issues.append(
-                            ValidationIssue(
-                                IssueLevel.ERROR,
-                                f"Role {role.id} references unknown permission {perm_id!r}.",
-                                sid,
-                            )
+                    issues.extend(
+                        self._check_role_permission_scope(
+                            role.id,
+                            perm_id,
+                            role.scopes,
+                            permission_index.get(perm_id),
+                            sid,
+                            missing_verb="references",
                         )
-                        continue
-                    unsupported = set(role.scopes) - set(permission_index[perm_id])
-                    if unsupported:
-                        issues.append(
-                            ValidationIssue(
-                                IssueLevel.ERROR,
-                                f"Role {role.id} is defined for scope(s) {sorted(unsupported)} "
-                                f"that permission {perm_id!r} does not support.",
-                                sid,
-                            )
-                        )
+                    )
 
             # Extensions target existing roles and reference existing permissions.
             for extension in document.role_extensions:
@@ -341,6 +317,62 @@ class SchemaValidator:
                     IssueLevel.ERROR,
                     f"{context}: permission id {value!r} must match {PERMISSION_ID_RE.pattern} "
                     "(two lowercase snake_case identifiers joined by a period, e.g. 'courses.view_course').",
+                    sid,
+                )
+            ]
+        return []
+
+    @staticmethod
+    def _check_role_permission_scope(
+        role_id: str,
+        perm_id: str,
+        role_scopes: tuple[str, ...],
+        permission_scopes: tuple[str, ...] | None,
+        sid: str | None,
+        *,
+        missing_verb: str,
+    ) -> list[ValidationIssue]:
+        """Check one role-permission pairing: the permission exists and supports the role's scopes.
+
+        ``permission_scopes`` is the permission's supported scopes, or ``None``
+        when the permission does not exist. ``missing_verb`` is the phrase used
+        for the unknown-permission message, so the pre-compile pass can say the
+        role *references* a permission while the post-compile pass says it
+        *resolves to* one.
+        """
+        if permission_scopes is None:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Role {role_id} {missing_verb} unknown permission {perm_id!r}.",
+                    sid,
+                )
+            ]
+        unsupported = set(role_scopes) - set(permission_scopes)
+        if unsupported:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Role {role_id} is defined for scope(s) {sorted(unsupported)} "
+                    f"that permission {perm_id!r} does not support.",
+                    sid,
+                )
+            ]
+        return []
+
+    @staticmethod
+    def _check_permission_category(
+        perm_id: str,
+        category_id: str,
+        known_category_ids: Container[str],
+        sid: str | None,
+    ) -> list[ValidationIssue]:
+        """A permission's category, when set, must reference an existing category."""
+        if category_id and category_id not in known_category_ids:
+            return [
+                ValidationIssue(
+                    IssueLevel.ERROR,
+                    f"Permission {perm_id} references unknown category {category_id!r}.",
                     sid,
                 )
             ]

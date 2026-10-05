@@ -25,12 +25,14 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
+from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.views import ScopesAPIView, UserValidationAPIView
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 from openedx_authz.tests.stubs.models import LearningPackage
+from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_wildcard_key
 
 ContentLibrary = get_content_library_model()
 CourseOverview = get_course_overview_model()
@@ -3325,6 +3327,96 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, {"scope": COURSE_SCOPE_ORG1})
 
         self.assertEqual(response.status_code, status_code)
+
+
+class TestArbitraryRoleSupport(ViewTestMixin):
+    """Regression tests for openedx-authz#414.
+
+    RoleListView, RoleUserAPIView, and role assignment/unassignment must not depend
+    on any built-in, statically-known role name (e.g. library_admin). They're expected
+    to work identically for a role that exists only as raw policy/grouping data, the
+    same way a built-in role seeded from constants/roles.py would.
+
+    CUSTOM_ROLE is deliberately not one of the roles defined in constants/roles.py: it's
+    added directly to the enforcer's policy, bypassing that registry entirely.
+    """
+
+    CUSTOM_ROLE = "pilot_reviewer"
+    CUSTOM_ACTION = "content_libraries.pilot_review"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Defined with the same wildcard library scope as the built-in library roles
+        # (see authz.policy), so it's visible for any specific library scope.
+        AuthzEnforcer.get_enforcer().add_policy(
+            make_role_key(cls.CUSTOM_ROLE),
+            make_action_key(cls.CUSTOM_ACTION),
+            make_wildcard_key("lib"),
+            "allow",
+        )
+        assign_role_to_user_in_scope(
+            user_external_key="regular_9",
+            role_external_key=cls.CUSTOM_ROLE,
+            scope_external_key=LIB_SCOPE_ORG1,
+        )
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        self.client.force_authenticate(user=self.admin_user)
+        self.role_list_url = reverse("openedx_authz:role-list")
+        self.role_user_url = reverse("openedx_authz:role-user-list")
+
+    def test_custom_role_appears_in_role_list(self):
+        """RoleListView surfaces a role it only knows about through raw policy data."""
+        response = self.client.get(self.role_list_url, {"scope": LIB_SCOPE_ORG1})
+
+        assert response.status_code == status.HTTP_200_OK
+        roles_by_name = {role["role"]: role for role in response.data["results"]}
+        assert self.CUSTOM_ROLE in roles_by_name
+        assert roles_by_name[self.CUSTOM_ROLE]["permissions"] == [self.CUSTOM_ACTION]
+        assert roles_by_name[self.CUSTOM_ROLE]["user_count"] == 1
+
+    def test_custom_role_users_appear_in_role_user_view(self):
+        """RoleUserAPIView lists a user assigned to a role it doesn't statically know about."""
+        response = self.client.get(self.role_user_url, {"scope": LIB_SCOPE_ORG1, "roles": self.CUSTOM_ROLE})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["username"] == "regular_9"
+        assert self.CUSTOM_ROLE in response.data["results"][0]["roles"]
+
+    def test_assign_user_to_custom_role_via_api(self):
+        """PUT on RoleUserAPIView assigns a user to a role that only exists as raw policy data."""
+        request_data = {"role": self.CUSTOM_ROLE, "scope": LIB_SCOPE_ORG1, "users": ["regular_10"]}
+
+        response = self.client.put(self.role_user_url, data=request_data, format="json")
+
+        assert response.status_code == status.HTTP_207_MULTI_STATUS
+        assert response.data["completed"] == [
+            {"user_identifier": "regular_10", "scope": LIB_SCOPE_ORG1, "status": RoleOperationStatus.ROLE_ADDED}
+        ]
+        assert response.data["errors"] == []
+
+        list_response = self.client.get(self.role_user_url, {"scope": LIB_SCOPE_ORG1, "roles": self.CUSTOM_ROLE})
+        usernames = {result["username"] for result in list_response.data["results"]}
+        assert "regular_10" in usernames
+
+    def test_unassign_user_from_custom_role_via_api(self):
+        """DELETE on RoleUserAPIView removes a user from a role that only exists as raw policy data."""
+        query_params = {"users": "regular_9", "role": self.CUSTOM_ROLE, "scope": LIB_SCOPE_ORG1}
+
+        response = self.client.delete(f"{self.role_user_url}?{urlencode(query_params)}")
+
+        assert response.status_code == status.HTTP_207_MULTI_STATUS
+        assert response.data["completed"] == [
+            {"user_identifier": "regular_9", "status": RoleOperationStatus.ROLE_REMOVED}
+        ]
+        assert response.data["errors"] == []
+
+        list_response = self.client.get(self.role_user_url, {"scope": LIB_SCOPE_ORG1, "roles": self.CUSTOM_ROLE})
+        assert list_response.data["count"] == 0
 
 
 @ddt

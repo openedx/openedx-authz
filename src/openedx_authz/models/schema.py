@@ -49,6 +49,47 @@ class OriginKind(models.TextChoices):
     EXTENSION = SchemaOriginKind.EXTENSION.value, "Extension"
 
 
+class AuthzSchemaSourceQuerySet(models.QuerySet):
+    """QuerySet for AuthzSchemaSource with provenance lookups.
+
+    The filter methods narrow to the sources that contribute to a given role,
+    permission, category, or single role-permission grant; they return a
+    queryset so callers can refine further. :meth:`distributions` is the
+    terminal that renders the sorted, de-duplicated distribution names the
+    ``origins_*`` helpers expose.
+    """
+
+    def contributing_to_role(self, role_id: str) -> "AuthzSchemaSourceQuerySet":
+        """Return sources that contribute to a role (base definition + extensions)."""
+        return self.filter(roles__role_id=role_id)
+
+    def defining_permission(self, identifier: str) -> "AuthzSchemaSourceQuerySet":
+        """Return sources that define a permission, matched on its complete ``namespace.name`` id."""
+        namespace, _, name = identifier.partition(".")
+        return self.filter(permissions__namespace=namespace, permissions__name=name)
+
+    def defining_category(self, category_id: str) -> "AuthzSchemaSourceQuerySet":
+        """Return sources that define a category."""
+        return self.filter(categories__category_id=category_id)
+
+    def contributing_role_permission(self, role_id: str, permission_identifier: str) -> "AuthzSchemaSourceQuerySet":
+        """Return sources that contribute one specific role-permission grant.
+
+        This isolates a single grant on a role, so grants provided by different
+        modules to the same role stay distinguishable from one another.
+        """
+        namespace, _, name = permission_identifier.partition(".")
+        return self.filter(
+            role_permissions__role__role_id=role_id,
+            role_permissions__permission__namespace=namespace,
+            role_permissions__permission__name=name,
+        )
+
+    def distributions(self) -> list[str]:
+        """Return the sorted, de-duplicated distribution names for the current filter."""
+        return sorted(self.values_list("distribution", flat=True).distinct())
+
+
 class AuthzSchemaSource(models.Model):
     """A distinct schema contribution, identified by distribution and module.
 
@@ -59,6 +100,8 @@ class AuthzSchemaSource(models.Model):
     ``content_digest`` are non-identifying and advisory (kept latest-seen for
     diagnostics); change detection relies on diffing compiled definitions.
     """
+
+    objects = AuthzSchemaSourceQuerySet.as_manager()
 
     distribution = models.CharField(
         max_length=255,
@@ -188,12 +231,14 @@ class AuthzRoleDefinition(models.Model):
 
 
 class AuthzRolePermission(models.Model):
-    """A single role-permission-scope grant (one per rendered Casbin ``p`` row).
+    """A single role-permission-scope association (one per rendered Casbin ``p`` row).
 
     .. no_pii:
 
-    This is the atomic unit of attribution: a base grant and a module-added
-    grant on the same role are distinct rows with distinct sources.
+    This records the association declared by the schema; Casbin still manages
+    the actual permission check. It is the atomic unit of attribution: a base
+    association and an extension association on the same role are distinct rows
+    with distinct sources.
     """
 
     role = models.ForeignKey(AuthzRoleDefinition, on_delete=models.CASCADE, related_name="role_permissions")
@@ -294,9 +339,10 @@ class AuthzRolePermissionSource(_BaseSourceLink):
 
     .. no_pii:
 
-    This is where the extension case is recorded: a core grant links to the
-    core source (``origin_kind=base``) and a module-added grant links to that
-    module's source (``origin_kind=extension``).
+    This is where the extension case is recorded: a grant defined together with
+    the role links to that role's source (``origin_kind=base``), while a grant
+    added via a ``role_extension`` links to the extending source
+    (``origin_kind=extension``).
     """
 
     role_permission = models.ForeignKey(AuthzRolePermission, on_delete=models.CASCADE)
@@ -316,43 +362,23 @@ class AuthzRolePermissionSource(_BaseSourceLink):
 
 def origins_for_role(role_id: str) -> list[str]:
     """Return the distributions that contribute to a role (base + extensions)."""
-    return sorted(
-        AuthzSchemaSource.objects.filter(roles__role_id=role_id).values_list("distribution", flat=True).distinct()
-    )
+    return AuthzSchemaSource.objects.contributing_to_role(role_id).distributions()
 
 
 def origins_for_permission(identifier: str) -> list[str]:
     """Return the distributions that define a permission, by complete id."""
-    namespace, _, name = identifier.partition(".")
-    return sorted(
-        AuthzSchemaSource.objects.filter(permissions__namespace=namespace, permissions__name=name)
-        .values_list("distribution", flat=True)
-        .distinct()
-    )
+    return AuthzSchemaSource.objects.defining_permission(identifier).distributions()
 
 
 def origins_for_category(category_id: str) -> list[str]:
     """Return the distributions that define a category."""
-    return sorted(
-        AuthzSchemaSource.objects.filter(categories__category_id=category_id)
-        .values_list("distribution", flat=True)
-        .distinct()
-    )
+    return AuthzSchemaSource.objects.defining_category(category_id).distributions()
 
 
 def origin_for_role_permission(role_id: str, permission_identifier: str) -> list[str]:
     """Return the distributions that contribute a specific role-permission grant.
 
-    This distinguishes, for one role, the core-provided grants from a grant a
-    module added, even though both live in the same role.
+    This distinguishes, for one role, the grants provided by one module vs another,
+    even though both live in the same role.
     """
-    namespace, _, name = permission_identifier.partition(".")
-    return sorted(
-        AuthzSchemaSource.objects.filter(
-            role_permissions__role__role_id=role_id,
-            role_permissions__permission__namespace=namespace,
-            role_permissions__permission__name=name,
-        )
-        .values_list("distribution", flat=True)
-        .distinct()
-    )
+    return AuthzSchemaSource.objects.contributing_role_permission(role_id, permission_identifier).distributions()

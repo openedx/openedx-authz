@@ -11,6 +11,16 @@ from attrs import define
 
 AUTHZ_POLICY_ATTRIBUTES_SEPARATOR = "^"
 
+# Shared authz vocabulary. These are the single source of truth for the namespace
+# prefixes, scope wildcard, policy type, and default effect used across the authz
+# data classes and the engine renderer, so every producer and consumer of a Casbin
+# row agrees on its exact shape.
+ROLE_NAMESPACE = "role"
+ACTION_NAMESPACE = "act"
+SCOPE_WILDCARD = "*"
+POLICY_PTYPE = "p"
+EFFECT_ALLOW = "allow"
+
 
 class AuthzBaseClass:
     """Base class for all authz classes."""
@@ -59,7 +69,7 @@ class ActionData(AuthZData):
         'Content Libraries > Delete Library'
     """
 
-    NAMESPACE: ClassVar[str] = "act"
+    NAMESPACE: ClassVar[str] = ACTION_NAMESPACE
 
     @property
     def name(self) -> str:
@@ -93,7 +103,7 @@ class PermissionData:
     """
 
     action: ActionData = None
-    effect: Literal["allow", "deny"] = "allow"
+    effect: Literal["allow", "deny"] = EFFECT_ALLOW
 
     @property
     def identifier(self) -> str:

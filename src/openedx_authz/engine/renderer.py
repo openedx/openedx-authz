@@ -24,15 +24,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from openedx_authz.data import (
+    ACTION_NAMESPACE,
+    EFFECT_ALLOW,
+    POLICY_PTYPE,
+    ROLE_NAMESPACE,
+    SCOPE_WILDCARD,
+)
 from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
-
-# Namespace prefixes for the internal Casbin form (schema objects never carry them).
-ROLE_PREFIX = "role"
-ACTION_PREFIX = "act"
-SCOPE_WILDCARD = "*"
-ALLOW = "allow"
-POLICY_PTYPE = "p"
 
 
 @dataclass(frozen=True)
@@ -79,10 +79,10 @@ def policy_row(role_id: str, permission_id: str, scope: str) -> PolicyRow:
     """
     return PolicyRow(
         ptype=POLICY_PTYPE,
-        subject=f"{ROLE_PREFIX}{SEP}{role_id}",
-        action=f"{ACTION_PREFIX}{SEP}{permission_id}",
+        subject=f"{ROLE_NAMESPACE}{SEP}{role_id}",
+        action=f"{ACTION_NAMESPACE}{SEP}{permission_id}",
         scope=f"{scope}{SEP}{SCOPE_WILDCARD}",
-        effect=ALLOW,
+        effect=EFFECT_ALLOW,
     )
 
 

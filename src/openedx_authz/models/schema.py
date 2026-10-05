@@ -17,6 +17,7 @@ from __future__ import annotations
 from django.db import models
 
 from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.models.base import TimeStampedModel
 
 __all__ = [
     "OriginKind",
@@ -90,7 +91,7 @@ class AuthzSchemaSourceQuerySet(models.QuerySet):
         return sorted(self.values_list("distribution", flat=True).distinct())
 
 
-class AuthzSchemaSource(models.Model):
+class AuthzSchemaSource(TimeStampedModel):
     """A distinct schema contribution, identified by distribution and module.
 
     .. no_pii:
@@ -120,8 +121,6 @@ class AuthzSchemaSource(models.Model):
     )
     content_digest = models.CharField(max_length=64, blank=True, default="")
     schema_version = models.CharField(max_length=16, blank=True, default="")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Authz Schema Source"
@@ -139,7 +138,7 @@ class AuthzSchemaSource(models.Model):
         return self.source_id
 
 
-class AuthzPermissionCategory(models.Model):
+class AuthzPermissionCategory(TimeStampedModel):
     """A display/grouping category for permissions (grants no access).
 
     .. no_pii:
@@ -150,8 +149,6 @@ class AuthzPermissionCategory(models.Model):
     description = models.TextField(blank=True, default="")
     icon = models.CharField(max_length=128, blank=True, null=True)
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzCategorySource", related_name="categories")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Authz Permission Category"
@@ -161,7 +158,7 @@ class AuthzPermissionCategory(models.Model):
         return self.category_id
 
 
-class AuthzPermissionDefinition(models.Model):
+class AuthzPermissionDefinition(TimeStampedModel):
     """A compiled permission definition.
 
     .. no_pii:
@@ -183,8 +180,6 @@ class AuthzPermissionDefinition(models.Model):
     scopes = models.JSONField(default=list)
     icon = models.CharField(max_length=128, blank=True, null=True)
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzPermissionSource", related_name="permissions")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Authz Permission Definition"
@@ -202,7 +197,7 @@ class AuthzPermissionDefinition(models.Model):
         return self.identifier
 
 
-class AuthzRoleDefinition(models.Model):
+class AuthzRoleDefinition(TimeStampedModel):
     """A compiled role definition.
 
     .. no_pii:
@@ -219,8 +214,6 @@ class AuthzRoleDefinition(models.Model):
     icon = models.CharField(max_length=128, blank=True, null=True)
     hidden = models.BooleanField(default=False)
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzRoleSource", related_name="roles")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Authz Role Definition"
@@ -230,7 +223,7 @@ class AuthzRoleDefinition(models.Model):
         return self.role_id
 
 
-class AuthzRolePermission(models.Model):
+class AuthzRolePermission(TimeStampedModel):
     """A single role-permission-scope association (one per rendered Casbin ``p`` row).
 
     .. no_pii:
@@ -250,8 +243,6 @@ class AuthzRolePermission(models.Model):
     sources = models.ManyToManyField(
         AuthzSchemaSource, through="AuthzRolePermissionSource", related_name="role_permissions"
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Authz Role Permission"

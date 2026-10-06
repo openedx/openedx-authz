@@ -3501,15 +3501,16 @@ class TestArbitraryRoleSupport(ViewTestMixin):
         self.role_list_url = reverse("openedx_authz:role-list")
         self.role_user_url = reverse("openedx_authz:role-user-list")
 
-    def test_custom_role_appears_in_role_list(self):
-        """RoleListView surfaces a role it only knows about through raw policy data."""
-        response = self.client.get(self.role_list_url, {"scope": LIB_SCOPE_ORG1})
+    def test_custom_role_without_definition_is_not_in_role_catalog(self):
+        """RoleListView lists only roles with a stored definition (ADR 0028).
+
+        A role known only through raw policy data still works for enforcement, but it cannot be
+        described, so the catalog omits it.
+        """
+        response = self.client.get(self.role_list_url, {"scope_types": "library"})
 
         assert response.status_code == status.HTTP_200_OK
-        roles_by_name = {role["role"]: role for role in response.data["results"]}
-        assert self.CUSTOM_ROLE in roles_by_name
-        assert roles_by_name[self.CUSTOM_ROLE]["permissions"] == [self.CUSTOM_ACTION]
-        assert roles_by_name[self.CUSTOM_ROLE]["user_count"] == 1
+        assert self.CUSTOM_ROLE not in {role["role"] for role in response.data["results"]}
 
     def test_custom_role_users_appear_in_role_user_view(self):
         """RoleUserAPIView lists a user assigned to a role it doesn't statically know about."""

@@ -3265,6 +3265,7 @@ class TestRoleListView(ViewTestMixin):
                 "description": "",
                 "icon": "RemoveRedEye",
                 "category": "library_content",
+                "scopes": ["lib"],
             },
         )
         by_role = {r["role"]: r for r in response.data["results"]}

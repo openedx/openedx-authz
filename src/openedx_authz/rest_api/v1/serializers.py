@@ -8,6 +8,7 @@ from rest_framework import serializers
 from openedx_authz import api
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind, UserAssignments
 from openedx_authz.rest_api.data import (
+    SCOPE_TYPE_NAMESPACES,
     AssignmentSortField,
     ScopesTypeField,
     SortField,
@@ -262,7 +263,7 @@ class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=
     count = serializers.IntegerField()
     next = serializers.CharField(allow_null=True)
     previous = serializers.CharField(allow_null=True)
-    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
+    scopes = serializers.ListField(child=serializers.ChoiceField(choices=list(SCOPE_TYPE_NAMESPACES.values())))
     categories = RoleCatalogCategorySerializer(many=True)
     permissions = RoleCatalogPermissionSerializer(many=True)
     results = RoleCatalogRoleSerializer(many=True)

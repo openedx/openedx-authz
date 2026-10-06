@@ -3233,14 +3233,14 @@ class TestRoleListView(ViewTestMixin):
         """Test the catalog returned for a scope type.
 
         Expected result:
-            - Returns 200 OK with scope_types, categories, permissions and roles of the namespace only
+            - Returns 200 OK with scopes, categories, permissions and roles of the namespace only
             - Roles reference permissions by id, hidden roles and unused categories are left out
             - Everything is ordered by identifier
         """
         response = self.client.get(self.url, {"scope_types": "library"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["scope_types"], ["library"])
+        self.assertEqual(response.data["scopes"], ["lib"])
         self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
         self.assertEqual(
             response.data["categories"][0],
@@ -3372,7 +3372,7 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, {"scope_types": "course,library,course"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["scope_types"], ["course", "library"])
+        self.assertEqual(response.data["scopes"], ["course-v1", "lib"])
         self.assertEqual(
             [p["id"] for p in response.data["permissions"]],
             ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],

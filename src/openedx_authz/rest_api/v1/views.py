@@ -452,9 +452,10 @@ class RoleListView(APIView):
     **Response Format**
 
     - count, next, previous: Pagination of the roles
-    - scope_types: The requested scope types
+    - scopes: The requested scopes, as backend namespaces (``course-v1``, ``lib``)
     - categories: Categories used by the permissions (id, display_name, description, icon)
-    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category)
+    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category,
+      scopes)
     - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
       (ids of entries of ``permissions``) and user_count (users assigned to the role across the scope types)
 
@@ -510,7 +511,7 @@ class RoleListView(APIView):
                 "count": pagination["count"],
                 "next": pagination["next"],
                 "previous": pagination["previous"],
-                "scope_types": scope_types,
+                "scopes": namespaces,
                 "categories": RoleCatalogCategorySerializer(categories, many=True).data,
                 "permissions": RoleCatalogPermissionSerializer(permission_catalog, many=True).data,
                 "results": pagination["results"],

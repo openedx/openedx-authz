@@ -24,8 +24,9 @@ Changed
   ``user_count`` counts the users assigned to the role across them. The user must hold the permission
   of each requested scope type (``courses.view_course_team`` or ``content_libraries.view_library_team``
   in any scope). Roles without a stored definition are not listed.
-* Each permission of the ``GET /api/authz/v1/roles/`` catalog now includes its ``scopes``, the scope
-  namespaces (e.g. ``course-v1``, ``lib``) where it can be granted.
+* The ``GET /api/authz/v1/roles/`` response returns the requested scopes in ``scopes``, as scope
+  namespaces (e.g. ``course-v1``, ``lib``), and each permission of the catalog includes its ``scopes``,
+  the namespaces where it can be granted.
 
 1.27.0 - 2026-09-30
 *******************

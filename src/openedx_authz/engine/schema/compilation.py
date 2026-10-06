@@ -49,6 +49,13 @@ class RoleMetadataField(str, Enum):
     HIDDEN = "hidden"
 
 
+class PermissionAction(str, Enum):
+    """How a ``RoleExtension`` changes a single permission on a role (ADR 0023)."""
+
+    ADD = "add"
+    REMOVE = "remove"
+
+
 class DefinitionKind(Enum):
     """A family of base definitions compiled from schema documents.
 
@@ -285,7 +292,7 @@ class SchemaCompiler:
         tracked: _Tracked,
         base_sources: tuple[SourceRecord, ...],
         base_priority: int,
-        permission_changes_for_role: dict[str, list[tuple[str, int, SourceRecord]]] | None,
+        permission_changes_for_role: dict[PermissionAction, list[tuple[str, int, SourceRecord]]] | None,
     ) -> tuple[_Tracked, dict[str, list[RelationshipSource]]]:
         """Return the role with permission changes applied and its provenance.
 
@@ -298,7 +305,7 @@ class SchemaCompiler:
         """
         base_provenance = self._seed_base_provenance(tracked.definition.permissions, base_sources, base_priority)
         if not permission_changes_for_role or not (
-            permission_changes_for_role["add"] or permission_changes_for_role["remove"]
+            permission_changes_for_role[PermissionAction.ADD] or permission_changes_for_role[PermissionAction.REMOVE]
         ):
             return tracked, base_provenance
         final_perms, provenance = self._resolve_permissions(
@@ -356,22 +363,24 @@ class SchemaCompiler:
 
     def _gather_permission_changes(
         self, roles: dict[str, _Tracked], documents: list[SchemaDocument]
-    ) -> dict[str, dict[str, list[tuple[str, int, SourceRecord]]]]:
+    ) -> dict[str, dict[PermissionAction, list[tuple[str, int, SourceRecord]]]]:
         """Collect per-role permission add/remove contributions from all extensions.
 
         Entries carry the full :class:`SourceRecord` and priority so provenance
         and conflict resolution have everything they need.
         """
-        permission_changes: dict[str, dict[str, list[tuple[str, int, SourceRecord]]]] = {}
+        permission_changes: dict[str, dict[PermissionAction, list[tuple[str, int, SourceRecord]]]] = {}
         for document, extension in self._extensions_for_known_roles(roles, documents):
-            permission_changes_for_role = permission_changes.setdefault(extension.role_id, {"add": [], "remove": []})
+            permission_changes_for_role = permission_changes.setdefault(
+                extension.role_id, {PermissionAction.ADD: [], PermissionAction.REMOVE: []}
+            )
             for perm in extension.add_permissions:
-                permission_changes_for_role["add"].append((perm, document.priority, document.source))
+                permission_changes_for_role[PermissionAction.ADD].append((perm, document.priority, document.source))
             for perm in extension.remove_permissions:
-                permission_changes_for_role["remove"].append((perm, document.priority, document.source))
+                permission_changes_for_role[PermissionAction.REMOVE].append((perm, document.priority, document.source))
         return permission_changes
 
-    def _resolve_contributions(
+    def _resolve_contributions_based_on_priority(
         self,
         identifier: str,
         entries: list[tuple[object, int, SourceRecord]],
@@ -421,7 +430,7 @@ class SchemaCompiler:
         new_values: dict[str, object] = {}
         contributing: set[SourceRecord] = set()
         for field_name, entries in metadata_changes.items():
-            value, _, winning_sources = self._resolve_contributions(
+            value, _, winning_sources = self._resolve_contributions_based_on_priority(
                 role_id,
                 entries,
                 loser_kind=lambda _value, _field=field_name: f"role_extension {_field}",
@@ -440,7 +449,7 @@ class SchemaCompiler:
         base: tuple[str, ...],
         base_sources: tuple[SourceRecord, ...],
         base_priority: int,
-        permission_changes: dict[str, list[tuple[str, int, SourceRecord]]],
+        permission_changes: dict[PermissionAction, list[tuple[str, int, SourceRecord]]],
     ):
         """Apply add/remove per permission, returning (final_perms, provenance).
 
@@ -455,30 +464,31 @@ class SchemaCompiler:
         # touching one permission (both adds and removes, across extensions) is
         # resolved together: priority can pick a winner and an equal-priority
         # add-vs-remove is caught as a conflict.
-        actions: dict[str, list[tuple[str, int, SourceRecord]]] = {}
-        for perm, priority, src in permission_changes["add"]:
-            actions.setdefault(perm, []).append(("add", priority, src))
-        for perm, priority, src in permission_changes["remove"]:
-            actions.setdefault(perm, []).append(("remove", priority, src))
+        actions: dict[str, list[tuple[PermissionAction, int, SourceRecord]]] = {}
+        for perm, priority, src in permission_changes[PermissionAction.ADD]:
+            actions.setdefault(perm, []).append((PermissionAction.ADD, priority, src))
+        for perm, priority, src in permission_changes[PermissionAction.REMOVE]:
+            actions.setdefault(perm, []).append((PermissionAction.REMOVE, priority, src))
 
         for perm, entries in actions.items():
-            action, max_priority, winning_sources = self._resolve_contributions(
+            action, max_priority, winning_sources = self._resolve_contributions_based_on_priority(
                 role_id,
                 entries,
-                loser_kind=lambda act, _perm=perm: f"role_extension {act} of {_perm!r} on role",
+                loser_kind=lambda act, _perm=perm: f"role_extension {act.value} of {_perm!r} on role",
                 on_tie=lambda _top, _perm=perm, _entries=entries: (
                     f"Conflicting add/remove for permission {_perm!r} on role {role_id!r} "
                     f"at equal priority {max(p for _, p, _ in _entries)}."
                 ),
             )
 
-            if action == "add":
-                extension_sources = [
-                    RelationshipSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
-                ]
-                self._apply_added_permission(role_id, perm, current, provenance, extension_sources)
-            else:  # remove
-                self._apply_removed_permission(role_id, perm, current, provenance)
+            match action:
+                case PermissionAction.ADD:
+                    extension_sources = [
+                        RelationshipSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
+                    ]
+                    self._apply_added_permission(role_id, perm, current, provenance, extension_sources)
+                case PermissionAction.REMOVE:
+                    self._apply_removed_permission(role_id, perm, current, provenance)
 
         return tuple(sorted(current)), provenance
 

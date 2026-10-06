@@ -3264,7 +3264,7 @@ class TestRoleListView(ViewTestMixin):
                 "display_name": "View library",
                 "description": "",
                 "icon": "RemoveRedEye",
-                "category": "library_content",
+                "category_id": "library_content",
                 "scopes": ["lib"],
             },
         )

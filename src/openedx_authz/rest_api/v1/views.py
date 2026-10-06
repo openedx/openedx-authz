@@ -454,7 +454,7 @@ class RoleListView(APIView):
     - count, next, previous: Pagination of the roles
     - scopes: The requested scopes, as backend namespaces (``course-v1``, ``lib``)
     - categories: Categories used by the permissions (id, display_name, description, icon)
-    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category,
+    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category_id,
       scopes)
     - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
       (ids of entries of ``permissions``) and user_count (users assigned to the role across the scope types)

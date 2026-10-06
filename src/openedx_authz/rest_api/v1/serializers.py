@@ -241,7 +241,7 @@ class RoleCatalogPermissionSerializer(serializers.Serializer):  # pylint: disabl
     display_name = serializers.CharField()
     description = serializers.CharField()
     icon = serializers.CharField(allow_null=True)
-    category = serializers.CharField(source="category.category_id")
+    category_id = serializers.CharField(source="category.category_id")
     scopes = serializers.ListField(child=serializers.CharField())
 
 

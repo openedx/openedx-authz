@@ -168,7 +168,7 @@ for every role that grants it, and it contains the permissions a role does not g
 clients need to show what a role lacks. To know whether a role grants a permission, the
 client checks whether the permission ``id`` is in the role's ``permissions``.
 
-Every permission has a ``category`` with the id of one category. The authz schema requires
+Every permission has a ``category_id`` with the id of one category. The authz schema requires
 it, so it is never ``null``. A category that no permission of the requested scope types uses
 is not returned, even if it exists in the schema.
 
@@ -248,7 +248,7 @@ Response Body:
            display_name: string
            description: string
            icon: string | null
-           category: string        // id of an entry of "categories"
+           category_id: string     // id of an entry of "categories"
            scopes: Array<"course-v1" | "lib">   // all the scopes it supports
        }>
        results: Array<{        // roles, paginated
@@ -287,7 +287,7 @@ Example:
                "display_name": "View course",
                "description": "View the course and its content in Studio.",
                "icon": "RemoveRedEye",
-               "category": "course_access_content",
+               "category_id": "course_access_content",
                "scopes": ["course-v1"]
            },
            {
@@ -297,7 +297,7 @@ Example:
                "display_name": "Create course",
                "description": "Create new courses.",
                "icon": "Plus",
-               "category": "course_access_content",
+               "category_id": "course_access_content",
                "scopes": ["course-v1"]
            }
        ],

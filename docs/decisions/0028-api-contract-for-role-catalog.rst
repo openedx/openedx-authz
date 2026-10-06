@@ -63,6 +63,9 @@ them is implemented now.
 * A role is returned if it has grants in **any** of the requested scope types (OR).
 * A client that presents the roles of one scope type at a time, like the Roles and
   Permissions tab, sends a single value.
+* The query parameter keeps the short names (``course``, ``library``), but the response
+  returns the requested scopes with the namespaces used by the backend (``course-v1``,
+  ``lib``) in ``scopes``, see `Scopes in the response`_.
 * The ``scope`` query parameter is removed. The Admin Console does not call
   ``GET /api/authz/v1/roles/`` (it only uses ``/roles/users/``), so no released client
   depends on the old shape.
@@ -130,7 +133,8 @@ the same data the Casbin policy is rendered from. It does not keep a parallel co
 not return raw Casbin rows.
 
 * ``permissions`` contains the permissions whose supported scopes include any of the
-  requested namespaces (the union across the requested scope types).
+  requested namespaces (the union across the requested scope types). Each permission
+  returns all its supported scopes in ``scopes``, not only the requested ones.
 * ``roles`` contains the non-``hidden`` roles (`ADR 0023`_) with at least one grant in any
   of the requested namespaces. Each role's ``permissions`` lists the identifiers of the
   grants in those namespaces.
@@ -142,6 +146,18 @@ not return raw Casbin rows.
   filtering and pagination are done in a single query.
 * Categories, permissions and roles are returned in a stable order (by identifier).
   Explicit display ordering is a follow-up.
+
+Scopes in the response
+======================
+
+The top-level ``scopes`` field replaces ``scope_types``. It lists the scopes requested in
+``scope_types``, in the format the backend uses: the scope namespace (``course-v1`` for
+``course``, ``lib`` for ``library``).
+
+Every permission also returns ``scopes``, the namespaces of the scopes it supports (for
+example ``["course-v1"]``). It lists all the scopes the permission supports, even those not
+requested, so a client can tell which scope types a permission applies to when it queries
+several at once.
 
 One normalized shape
 ====================
@@ -218,7 +234,7 @@ Response Body:
        count: number
        next: string | null
        previous: string | null
-       scope_types: Array<"course" | "library">
+       scopes: Array<"course-v1" | "lib">   // requested scopes
        categories: Array<{
            id: string
            display_name: string
@@ -233,6 +249,7 @@ Response Body:
            description: string
            icon: string | null
            category: string        // id of an entry of "categories"
+           scopes: Array<"course-v1" | "lib">   // all the scopes it supports
        }>
        results: Array<{        // roles, paginated
            role: string
@@ -253,7 +270,7 @@ Example:
        "count": 2,
        "next": null,
        "previous": null,
-       "scope_types": ["course"],
+       "scopes": ["course-v1"],
        "categories": [
            {
                "id": "course_access_content",
@@ -270,7 +287,8 @@ Example:
                "display_name": "View course",
                "description": "View the course and its content in Studio.",
                "icon": "RemoveRedEye",
-               "category": "course_access_content"
+               "category": "course_access_content",
+               "scopes": ["course-v1"]
            },
            {
                "id": "courses.create_course",
@@ -279,7 +297,8 @@ Example:
                "display_name": "Create course",
                "description": "Create new courses.",
                "icon": "Plus",
-               "category": "course_access_content"
+               "category": "course_access_content",
+               "scopes": ["course-v1"]
            }
        ],
        "results": [
@@ -322,10 +341,11 @@ Consequences
   sub-table and the wizard role list from one request and drop ``course/constants.ts`` and
   ``library/constants.ts``. Roles and permissions contributed by other applications show up
   without a frontend release.
-* This is a breaking change to ``GET /api/authz/v1/roles/``: ``scope`` becomes
-  ``scope_types``, ``user_count`` now counts across the requested scope types instead of one
-  scope, and
-  the response adds the ``categories`` and ``permissions`` catalogs next to the paginated
+* This is a breaking change to ``GET /api/authz/v1/roles/``: the ``scope`` query parameter
+  becomes ``scope_types``, the response returns the requested scopes in ``scopes`` (with
+  backend namespaces such as ``course-v1`` and ``lib``), ``user_count`` now counts across
+  the requested scope types instead of one scope, and the response adds the ``categories``
+  and ``permissions`` catalogs (each permission with its ``scopes``) next to the paginated
   roles. It is low risk because no released client calls the endpoint. Tests
   and docs that reference the old shape must be updated, and the deviation from the
   compatibility promise of `ADR 0021`_ is intentional.

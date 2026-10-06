@@ -14,19 +14,25 @@ definitions stored in the authz model (display names, descriptions, categories, 
 definition kind) so clients no longer keep their own copy of them. It left the exact
 response shape open.
 
-The Roles and Permissions tab of the Admin Console (`frontend-app-admin-console`_)
-renders a matrix for one scope type at a time (Courses or Libraries):
+The authz model is the source of truth for what roles and permissions exist, but the
+descriptive information about them (display names, descriptions, categories and icons) is
+not exposed by the API. Clients such as the Admin Console (`frontend-app-admin-console`_)
+keep their own hardcoded copy of it (``course/constants.ts`` and ``library/constants.ts``)
+and use it in several places: the Roles and Permissions matrix, the permissions sub-table
+and the role list of the assignment wizard.
 
-* the columns are the roles, each with a name and a description;
-* the rows are permissions grouped by category; a category has an icon, a label and a
-  description shown in a tooltip, and a permission has an icon and a label;
-* each cell says whether the role grants the permission.
+Clients need more than the permissions each role grants. They need:
 
-Today the frontend hardcodes all of this (``course/constants.ts`` and
-``library/constants.ts``) and builds the matrix in ``buildPermissionMatrixByResource``.
-The matrix needs every permission of the scope type, including the ones a role does not
-grant, so a list of roles that only carries the permissions each one grants is not
-enough. This ADR defines a response that lets the client build the matrix directly.
+* every role of a scope type, each with a name and a description;
+* every permission of the scope type, including the ones a role does not grant, grouped by
+  category; a category has an icon, a label and a description, and a permission has an
+  icon and a label;
+* which permissions each role grants.
+
+This ADR makes the API the source of truth for the descriptive information of the authz
+model. It defines a response that returns it together with the role-permission
+relationships, so clients can build any view from it, whatever the way they choose to
+present it, without keeping their own copy.
 
 Decision
 ********
@@ -55,8 +61,8 @@ them is implemented now.
 * Each scope type is mapped to its scope namespace (``course`` to ``course-v1``, ``library``
   to ``lib``).
 * A role is returned if it has grants in **any** of the requested scope types (OR).
-* The Roles and Permissions tab sends a single value, because one matrix cannot mix course
-  and library roles.
+* A client that presents the roles of one scope type at a time, like the Roles and
+  Permissions tab, sends a single value.
 * The ``scope`` query parameter is removed. The Admin Console does not call
   ``GET /api/authz/v1/roles/`` (it only uses ``/roles/users/``), so no released client
   depends on the old shape.
@@ -143,8 +149,8 @@ One normalized shape
 Permission metadata is sent once in the top-level ``permissions`` list, and a role only
 references permissions by identifier. This avoids repeating the metadata of a permission
 for every role that grants it, and it contains the permissions a role does not grant, which
-the matrix requires. To build a cell, the client checks whether the row's permission ``id``
-is in the role's ``permissions``.
+clients need to show what a role lacks. To know whether a role grants a permission, the
+client checks whether the permission ``id`` is in the role's ``permissions``.
 
 Every permission has a ``category`` with the id of one category. The authz schema requires
 it, so it is never ``null``. A category that no permission of the requested scope types uses
@@ -177,9 +183,9 @@ Pagination
 The endpoint stays paginated with the existing ``AuthZAPIViewPagination`` and the ``page``
 and ``page_size`` parameters. The pagination applies to the roles, which are the
 ``results``. The ``categories`` and ``permissions`` catalogs are not paginated: they are
-bounded by what the schemas of the requested scope types declare, and every page carries the complete
-catalogs so any page can be rendered on its own. A client that needs the whole matrix in one
-request asks for a ``page_size`` large enough to hold every role.
+bounded by what the schemas of the requested scope types declare, and every page carries
+the complete catalogs so any page can be rendered on its own. A client that needs every
+role in one request asks for a ``page_size`` large enough to hold every role.
 
 REST API
 ========
@@ -312,9 +318,10 @@ Possible response codes:
 Consequences
 ************
 
-* The Roles and Permissions tab can render its matrix from one request and drop
-  ``course/constants.ts`` and ``library/constants.ts``. Roles and permissions contributed by
-  other applications show up without a frontend release.
+* Clients such as the Admin Console can build the Roles and Permissions tab, the permissions
+  sub-table and the wizard role list from one request and drop ``course/constants.ts`` and
+  ``library/constants.ts``. Roles and permissions contributed by other applications show up
+  without a frontend release.
 * This is a breaking change to ``GET /api/authz/v1/roles/``: ``scope`` becomes
   ``scope_types``, ``user_count`` now counts across the requested scope types instead of one
   scope, and

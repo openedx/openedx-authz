@@ -24,16 +24,11 @@ from openedx_authz.api.data import (
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.views import UserValidationAPIView
-from openedx_authz.tests.stubs.models import LearningPackage
-from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_wildcard_key
 from openedx_authz.tests.rest_api.mixins import ViewTestMixin
-
-ContentLibrary = get_content_library_model()
-CourseOverview = get_course_overview_model()
+from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_wildcard_key
 
 User = get_user_model()
 

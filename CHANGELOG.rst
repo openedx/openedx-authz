@@ -14,6 +14,16 @@ Change Log
 Unreleased
 **********
 
+1.25.0 - 2026-10-07
+*******************
+
+Changed
+=======
+
+* **Breaking:** ``GET /api/authz/v1/users/{username}/assignments/`` now returns the same assignment shape as the inline ``assignments`` of ``GET /api/authz/v1/users/``.
+* Add ``scope_display_name`` to each entry, resolved in bulk per page (``""`` for glob scopes or missing courses/libraries).
+* **Breaking:** remove ``is_superadmin`` from each entry of that endpoint.
+
 1.24.0 - 2026-09-14
 *******************
 

@@ -84,14 +84,23 @@ The check is not tied to one scope, so for each requested scope type the user mu
 permission in at least one scope of any kind (a specific course or library, or an org or
 platform glob), as ``AnyScopePermission`` does. Superusers and staff always pass.
 
-The existing classes cannot express this. ``DynamicScopePermission`` needs a concrete
-``scope`` in the request, which no longer exists. ``AnyScopePermission`` accepts any of the
-permissions declared by ``@authz_permissions``, which is how ``ScopesAPIView`` lets a user
-with only the course permission also query libraries. The implementation therefore adds a
-permission class that, like ``AnyScopePermission``, looks for the permission in any scope
-with ``get_scopes_for_user_and_permission``, but it reads ``scope_types`` from the request
-and requires the permission mapped to each requested type. An invalid or missing
-``scope_types`` is rejected as a 400 by the serializer, not by the permission class.
+The existing classes cannot be used as they are. ``DynamicScopePermission`` needs a concrete
+``scope`` in the request, which no longer exists. ``AnyScopePermission`` already looks for the
+permission in any scope, but it takes the permissions from ``@authz_permissions`` and requires
+only one of them, which is how ``ScopesAPIView`` lets a user with only the course permission
+also query libraries.
+
+Instead of duplicating that logic, the common part is extracted and reused by
+``AnyScopePermission`` and by the permission of this endpoint:
+
+* The common part is the superuser and staff bypass and the check that a user has a
+  permission in at least one scope of any kind.
+* ``AnyScopePermission`` keeps its behavior.
+* The permission of this endpoint reads ``scope_types`` from the request, maps each requested
+  scope type to its view-team permission and requires all of them.
+
+A missing or invalid ``scope_types`` is not decided by the permission, so the serializer
+rejects it as a 400.
 
 Extensibility to new scope types (future work)
 ==============================================

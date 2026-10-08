@@ -46,10 +46,16 @@ Query by scope type
 ===================
 
 The endpoint is queried by ``scope_types`` instead of ``scope``. It is a comma-separated
-list (for example ``?scope_types=course,library``) whose values are the ones accepted by
-``ScopesAPIView`` (``GET /api/authz/v1/scopes/``) for ``scope_type``, ``course`` and
-``library`` (``ScopesTypeField``). The catalog describes what scope types offer, not a
+list (for example ``?scope_types=course-v1,lib``) whose values are the ``NAMESPACE`` of the
+scope classes, ``course-v1`` and ``lib``, the same prefixes the backend uses in scope keys
+(``course-v1:...``, ``lib:...``). The catalog describes what scope types offer, not a
 particular course or library, so a concrete scope is not needed.
+
+Scope types have a single naming, ``course-v1`` and ``lib``, in the request and in the
+response. ``ScopesTypeField`` (also used by ``GET /api/authz/v1/scopes/``) derives its
+accepted values from the ``NAMESPACE`` of the scope classes, so they have a single source of
+truth and a scope type registered by a plugin follows the same naming without an alias. See
+`Scope type naming`_ for how ``/scopes/`` is aligned.
 
 A list is accepted, instead of a single ``scope_type``, so that listing the roles
 dynamically for assignments can ask for several scope types at once when roles with
@@ -58,14 +64,13 @@ them is implemented now.
 
 * ``scope_types`` is required and must have at least one value. Unlike ``/scopes/``, a
   request without it is invalid (400). Empty and unknown values are also invalid (400).
-* Each scope type is mapped to its scope namespace (``course`` to ``course-v1``, ``library``
-  to ``lib``).
+* Only ``course-v1`` and ``lib`` are accepted. The short names ``course`` and ``library``
+  are not valid in this endpoint (400), since it is new and no client depends on them.
 * A role is returned if it has grants in **any** of the requested scope types (OR).
 * A client that presents the roles of one scope type at a time, like the Roles and
   Permissions tab, sends a single value.
-* The query parameter keeps the short names (``course``, ``library``), but the response
-  returns the requested scopes with the namespaces used by the backend (``course-v1``,
-  ``lib``) in ``scopes``, see `Scopes in the response`_.
+* The response returns the requested scope types with the same values in ``scope_types``,
+  see `Scope types in the response`_.
 * The ``scope`` query parameter is removed. The Admin Console does not call
   ``GET /api/authz/v1/roles/`` (it only uses ``/roles/users/``), so no released client
   depends on the old shape.
@@ -77,8 +82,8 @@ The permission needed depends on the requested ``scope_types``, so a user cannot
 roles of a scope type whose team they cannot view. The user must hold the permission of
 **each** requested scope type:
 
-* ``course`` requires ``courses.view_course_team`` (``COURSES_VIEW_COURSE_TEAM``).
-* ``library`` requires ``content_libraries.view_library_team`` (``VIEW_LIBRARY_TEAM``).
+* ``course-v1`` requires ``courses.view_course_team`` (``COURSES_VIEW_COURSE_TEAM``).
+* ``lib`` requires ``content_libraries.view_library_team`` (``VIEW_LIBRARY_TEAM``).
 
 The check is not tied to one scope, so for each requested scope type the user must hold its
 permission in at least one scope of any kind (a specific course or library, or an org or
@@ -105,26 +110,22 @@ rejects it as a 400.
 Extensibility to new scope types (future work)
 ==============================================
 
-For now the two supported scope types, ``course`` and ``library``, and their mapping to a
-scope namespace and view-team permission stay explicit, as described above. This is kept in
-one helper so it is not duplicated in the view.
+For now the two supported scope types, ``course-v1`` and ``lib``, and their mapping to a
+view-team permission stay explicit, as described above. This is kept in one helper so it is
+not duplicated in the view.
 
 A possible future improvement is to stop hardcoding the scope types. ``ScopeMeta`` already
 registers every ``ScopeData`` subclass in ``scope_registry``, keyed by its ``NAMESPACE``
-(``course-v1``, ``lib``), so the endpoint could resolve the requested scope type from that
-registry. Any plugin that registers a scope class would then contribute a new scope type
-without changing authz:
+(``course-v1``, ``lib``), which are already the values of ``scope_types``, so the endpoint
+could resolve the requested scope type from that registry. Any plugin that registers a scope
+class would then contribute a new scope type without changing authz and without an alias:
 
-* The accepted ``scope_types`` values and their namespace would come from ``scope_registry``
-  instead of a fixed enum.
+* The accepted ``scope_types`` values would come from ``scope_registry`` instead of a fixed
+  enum.
 * The catalog would not change in shape. It is built from the authz schemas, so a new scope
   type appears as soon as a schema declares permissions and roles for its namespace.
 * The permission required to read the catalog would be declared by the scope class. A scope
   type that does not declare one would be rejected rather than left open.
-
-Open point for that work: ``/scopes/`` exposes the short names ``course`` and ``library``
-(``ScopesTypeField``), not the namespaces, so using ``NAMESPACE`` as the key would need an
-alias or a change in the accepted values.
 
 Role user count
 ===============
@@ -141,12 +142,12 @@ The endpoint reads from the authz schema models (``AuthzRoleDefinition``,
 the same data the Casbin policy is rendered from. It does not keep a parallel copy and does
 not return raw Casbin rows.
 
-* ``permissions`` contains the permissions whose supported scopes include any of the
-  requested namespaces (the union across the requested scope types). Each permission
-  returns all its supported scopes in ``scopes``, not only the requested ones.
+* ``permissions`` contains the permissions whose supported scope types include any of the
+  requested ones (the union across the requested scope types). Each permission returns all
+  its supported scope types in ``scope_types``, not only the requested ones.
 * ``roles`` contains the non-``hidden`` roles (`ADR 0023`_) with at least one grant in any
-  of the requested namespaces. Each role's ``permissions`` lists the identifiers of the
-  grants in those namespaces.
+  of the requested scope types. Each role's ``permissions`` lists the identifiers of the
+  grants in those scope types.
 * ``categories`` contains only the categories used by those permissions. Categories are
   global and a schema may define one without permissions, or only with permissions of
   another scope type, so the rest are left out.
@@ -156,15 +157,31 @@ not return raw Casbin rows.
 * Categories, permissions and roles are returned in a stable order (by identifier).
   Explicit display ordering is a follow-up.
 
-Scopes in the response
-======================
+Scope type naming
+=================
 
-The top-level ``scopes`` field replaces ``scope_types``. It lists the scopes requested in
-``scope_types``, in the format the backend uses: the scope namespace (``course-v1`` for
-``course``, ``lib`` for ``library``).
+Scope types are named after the ``NAMESPACE`` of the scope classes (``course-v1`` and
+``lib``) everywhere, instead of the short names ``course`` and ``library`` that
+``GET /api/authz/v1/scopes/`` accepts today in its ``scope_type`` query parameter. It is the
+only place that uses the short names, so aligning it removes the two names for the same
+thing.
 
-Every permission also returns ``scopes``, the namespaces of the scopes it supports (for
-example ``["course-v1"]``). It lists all the scopes the permission supports, even those not
+* ``ScopesTypeField`` accepts ``course-v1`` and ``lib``, derived from the ``NAMESPACE`` of
+  the scope classes.
+* To avoid breaking the Admin Console, ``/scopes/`` keeps accepting ``course`` and
+  ``library`` as deprecated aliases of ``course-v1`` and ``lib``. The aliases are only
+  accepted in the request of ``/scopes/``; ``/roles/`` does not accept them.
+* The aliases are removed once the frontend migrates. A ticket in
+  ``frontend-app-admin-console`` tracks updating it to the new values.
+
+Scope types in the response
+===========================
+
+The top-level ``scope_types`` field lists the scope types requested in ``scope_types``,
+with the same values (``course-v1``, ``lib``).
+
+Every permission also returns ``scope_types``, the scope types it supports (for example
+``["course-v1"]``). It lists all the scope types the permission supports, even those not
 requested, so a client can tell which scope types a permission applies to when it queries
 several at once.
 
@@ -224,7 +241,7 @@ Query Parameters:
 ^^^^^^^^^^^^^^^^^
 
 -  ``scope_types`` (required): Comma-separated list of scope types to query, with at least
-   one value. Each one is ``course`` or ``library``.
+   one value. Each one is ``course-v1`` or ``lib``.
 -  ``page`` (optional): Page number for pagination of the roles.
 -  ``page_size`` (optional): Number of roles per page.
 
@@ -232,7 +249,7 @@ Example:
 
 .. code::
 
-   GET /api/authz/v1/roles/?scope_types=course
+   GET /api/authz/v1/roles/?scope_types=course-v1
 
 Response Body:
 ^^^^^^^^^^^^^^
@@ -243,7 +260,7 @@ Response Body:
        count: number
        next: string | null
        previous: string | null
-       scopes: Array<"course-v1" | "lib">   // requested scopes
+       scope_types: Array<"course-v1" | "lib">   // requested scope types
        categories: Array<{
            id: string
            display_name: string
@@ -258,7 +275,7 @@ Response Body:
            description: string
            icon: string | null
            category_id: string     // id of an entry of "categories"
-           scopes: Array<"course-v1" | "lib">   // all the scopes it supports
+           scope_types: Array<"course-v1" | "lib">   // all the scope types it supports
        }>
        results: Array<{        // roles, paginated
            role: string
@@ -279,7 +296,7 @@ Example:
        "count": 2,
        "next": null,
        "previous": null,
-       "scopes": ["course-v1"],
+       "scope_types": ["course-v1"],
        "categories": [
            {
                "id": "course_access_content",
@@ -297,7 +314,7 @@ Example:
                "description": "View the course and its content in Studio.",
                "icon": "RemoveRedEye",
                "category_id": "course_access_content",
-               "scopes": ["course-v1"]
+               "scope_types": ["course-v1"]
            },
            {
                "id": "courses.create_course",
@@ -307,7 +324,7 @@ Example:
                "description": "Create new courses.",
                "icon": "Plus",
                "category_id": "course_access_content",
-               "scopes": ["course-v1"]
+               "scope_types": ["course-v1"]
            }
        ],
        "results": [
@@ -339,8 +356,8 @@ Possible response codes:
 -  400: Bad Request, ``scope_types`` is missing, has an empty value or has a value that is
    not supported.
 -  401: Unauthorized, the user is not authenticated.
--  403: Forbidden, the user lacks ``courses.view_course_team`` (``course``) or
-   ``content_libraries.view_library_team`` (``library``) in any scope, for any of the
+-  403: Forbidden, the user lacks ``courses.view_course_team`` (``course-v1``) or
+   ``content_libraries.view_library_team`` (``lib``) in any scope, for any of the
    requested scope types.
 
 Consequences
@@ -351,13 +368,17 @@ Consequences
   ``library/constants.ts``. Roles and permissions contributed by other applications show up
   without a frontend release.
 * This is a breaking change to ``GET /api/authz/v1/roles/``: the ``scope`` query parameter
-  becomes ``scope_types``, the response returns the requested scopes in ``scopes`` (with
-  backend namespaces such as ``course-v1`` and ``lib``), ``user_count`` now counts across
+  becomes ``scope_types``, the response returns the requested scope types in
+  ``scope_types`` (``course-v1`` and ``lib``), ``user_count`` now counts across
   the requested scope types instead of one scope, and the response adds the ``categories``
-  and ``permissions`` catalogs (each permission with its ``scopes``) next to the paginated
-  roles. It is low risk because no released client calls the endpoint. Tests
+  and ``permissions`` catalogs (each permission with its ``scope_types``) next to the
+  paginated roles. It is low risk because no released client calls the endpoint. Tests
   and docs that reference the old shape must be updated, and the deviation from the
   compatibility promise of `ADR 0021`_ is intentional.
+* ``GET /api/authz/v1/scopes/`` changes the values of its ``scope_type`` query parameter
+  from ``course``/``library`` to ``course-v1``/``lib``. To avoid a breaking change, the old
+  values are still accepted as deprecated aliases until the Admin Console migrates, which is
+  tracked in a ticket in ``frontend-app-admin-console``.
 * Implementations must load definitions with a constant number of queries, not one query
   per role or permission.
 * Every page repeats the ``categories`` and ``permissions`` catalogs, which is a small

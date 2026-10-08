@@ -128,12 +128,14 @@ The ``assignments`` array is populated with up to ``assignments_limit`` entries
 assignments regardless of the limit.
 
 Each assignment includes a ``scope_display_name`` field alongside the existing
-``scope`` key. This is a new field relative to the current assignment-shaped
-endpoints (``GET /api/authz/v1/assignments/`` and
-``GET /api/authz/v1/users/<username>/assignments/``), which only return the
 ``scope`` key. The UI needs the human-readable name to label each assignment, so
 ``scope_display_name`` carries it while ``scope`` remains the stable machine
-identifier.
+identifier. The per-user endpoint
+``GET /api/authz/v1/users/<username>/assignments/`` returns the same assignment
+shape (``role``, ``org``, ``scope``, ``scope_display_name``, ``permission_count``),
+produced by the same serializer, so both endpoints cannot drift apart. The
+assignment-grouped ``GET /api/authz/v1/assignments/`` endpoint is unchanged and
+still returns only the ``scope`` key.
 
 The display name is not stored in the authorization policy store; it lives in the
 platform models (``CourseOverview.display_name`` for courses and the library's
@@ -241,9 +243,9 @@ Consequences
 - The existing /api/authz/v1/users/ endpoint will be extended to return the
   additional data: a nested ``assignments`` array per user and the renamed
   ``assignment_count`` field.
-- Each nested assignment gains a ``scope_display_name`` field, which is an addition
-  compared to the existing assignment-shaped endpoints that return only the
-  ``scope`` key. Since display names are not held in the policy store, this field
+- Each nested assignment gains a ``scope_display_name`` field. The same field is
+  added to ``GET /api/authz/v1/users/<username>/assignments/``, which also drops
+  ``is_superadmin`` (a breaking change to that response body). Since display names are not held in the policy store, this field
   requires reading the platform course/library models. Implementation must resolve
   these names with batched, per-page lookups to avoid N+1 query performance issues.
 - The endpoint gains a new ``roles`` query parameter that filters the returned

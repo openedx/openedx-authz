@@ -38,7 +38,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_per_scope_type,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
-from openedx_authz.api.utils import get_scope_display_name_map, get_user_map
+from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, ScopesQuerySetFields, ScopesTypeField
@@ -46,6 +46,7 @@ from openedx_authz.rest_api.decorators import authz_permissions, view_auth_class
 from openedx_authz.rest_api.utils import (
     filter_users,
     get_generic_scope,
+    inject_scope_display_names,
     sort_users,
 )
 from openedx_authz.rest_api.v1.filters import (
@@ -70,7 +71,7 @@ from openedx_authz.rest_api.v1.serializers import (
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
     ScopeSerializer,
-    TeamMemberAssignmentSerializer,
+    TeamMemberAssignmentInlineSerializer,
     TeamMemberSerializer,
     TeamMemberUserAssignmentSerializer,
     UserRoleAssignmentSerializer,
@@ -1112,26 +1113,15 @@ class TeamMembersAPIView(APIView):
                 "assignments_limit": query_params.get("assignments_limit"),
             },
         ).data
+
         for backend in self.filter_backends:
             team_members = backend().filter_queryset(request, team_members, self)
 
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(team_members, request)
-
-        # Resolve scope display names only for the current page to avoid
-        # unnecessary DB lookups for assignments that are not in the response.
-        scope_keys: set[str] = set()
-        for member in paginated_response_data:
-            for assignment in member.get("assignments", []):
-                scope_key = assignment.get("scope", "")
-                if scope_key:
-                    scope_keys.add(scope_key)
-
-        scope_display_name_map = get_scope_display_name_map(scope_keys)
-        for member in paginated_response_data:
-            for assignment in member.get("assignments", []):
-                assignment["scope_display_name"] = scope_display_name_map.get(assignment.get("scope", ""), "")
-
+        inject_scope_display_names(
+            [assignment for member in paginated_response_data for assignment in member.get("assignments", [])]
+        )
         return paginator.get_paginated_response(paginated_response_data)
 
 
@@ -1245,10 +1235,11 @@ class TeamMemberAssignmentsAPIView(APIView):
 
     Returns a paginated list of assignment objects, each containing:
 
-    - is_superadmin: Whether this entry denotes a superadmin (staff/superuser)
     - role: The role name (e.g., 'library_admin')
     - org: The org over which this role is applied
-    - scope: The scope over which this role is applied
+    - scope: The scope over which this role is applied (stable machine identifier)
+    - scope_display_name: Human-readable name of the scope (course display name or library
+      title). Empty string for glob scopes or when the course/library no longer exists
     - permission_count: The number of permissions that apply to this role
 
     **Authentication and Permissions**
@@ -1269,10 +1260,10 @@ class TeamMemberAssignmentsAPIView(APIView):
             "previous": null,
             "results": [
                 {
-                    "is_superadmin": false,
                     "role": "library_admin",
                     "org": "Org1",
                     "scope": "lib:Org1:LIB1",
+                    "scope_display_name": "Intro to CS Library",
                     "permission_count": 11
                 }
             ]
@@ -1299,7 +1290,7 @@ class TeamMemberAssignmentsAPIView(APIView):
             apidocs.query_parameter("page_size", int, description="Number of items per page"),
         ],
         responses={
-            status.HTTP_200_OK: TeamMemberAssignmentSerializer(many=True),
+            status.HTTP_200_OK: TeamMemberAssignmentInlineSerializer(many=True),
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
             status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
@@ -1324,13 +1315,14 @@ class TeamMemberAssignmentsAPIView(APIView):
             allowed_for_user_external_key=request.user.username,
         )
 
-        assignments = TeamMemberAssignmentSerializer(user_role_assignments, many=True).data
+        assignments = TeamMemberAssignmentInlineSerializer(user_role_assignments, many=True).data
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 
-        # Paginate
+        # Paginate, then resolve display names in bulk for the current page only.
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(assignments, request)
+        inject_scope_display_names(paginated_response_data)
         return paginator.get_paginated_response(paginated_response_data)
 
 

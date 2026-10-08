@@ -10,6 +10,8 @@ from urllib.parse import urlencode
 
 from ddt import data, ddt, unpack
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from organizations.models import Organization
 from rest_framework import status
@@ -18,6 +20,7 @@ from rest_framework.test import APIClient
 from openedx_authz import api
 from openedx_authz.api.data import (
     CourseOverviewData,
+    DefinitionKind,
     OrgContentLibraryGlobData,
     OrgCourseOverviewGlobData,
     PlatformContentLibraryGlobData,
@@ -26,9 +29,21 @@ from openedx_authz.api.data import (
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.constants import permissions, roles
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
+from openedx_authz.models.schema import (
+    AuthzPermissionCategory,
+    AuthzPermissionDefinition,
+    AuthzRoleDefinition,
+    AuthzRolePermission,
+)
+from openedx_authz.models.scopes import (
+    get_content_library_model,
+    get_course_overview_model,
+)
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
+from openedx_authz.rest_api.v1.permissions import (
+    AnyScopePermission,
+    DynamicScopePermission,
+)
 from openedx_authz.rest_api.v1.views import ScopesAPIView, UserValidationAPIView
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 from openedx_authz.tests.stubs.models import LearningPackage
@@ -321,8 +336,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
         """
         self.client.force_authenticate(user=self.regular_user)
         expected_response = [
-            {"action": perm["action"], "allowed": allowed}
-            for perm, allowed in zip(request_data, permission_map)
+            {"action": perm["action"], "allowed": allowed} for perm, allowed in zip(request_data, permission_map)
         ]
 
         response = self.client.post(self.url, data=request_data, format="json")
@@ -1233,16 +1247,16 @@ class TestScopesAPIView(ViewTestMixin):
                 "scope_id": self.COURSE_ORG1,
                 "display_name_col": "Course Org1",
                 "org_name": "Org1",
-                "scope_type": "course",
+                "scope_type": "course-v1",
             },
-            {"scope_id": "LIB1", "display_name_col": "Library LIB1", "org_name": "Org1", "scope_type": "library"},
+            {"scope_id": "LIB1", "display_name_col": "Library LIB1", "org_name": "Org1", "scope_type": "lib"},
             {
                 "scope_id": self.COURSE_ORG2,
                 "display_name_col": "Course Org2",
                 "org_name": "Org2",
-                "scope_type": "course",
+                "scope_type": "course-v1",
             },
-            {"scope_id": "LIB2", "display_name_col": "Library LIB2", "org_name": "Org2", "scope_type": "library"},
+            {"scope_id": "LIB2", "display_name_col": "Library LIB2", "org_name": "Org2", "scope_type": "lib"},
         ]
 
         # Patch _build_queryset so tests don't need real DB querysets.
@@ -1302,12 +1316,18 @@ class TestScopesAPIView(ViewTestMixin):
     # ------------------------------------------------------------------ #
 
     @data(
+        ("course-v1", "_get_courses_queryset", "_get_libraries_queryset"),
+        ("lib", "_get_libraries_queryset", "_get_courses_queryset"),
+        # Deprecated aliases
         ("course", "_get_courses_queryset", "_get_libraries_queryset"),
         ("library", "_get_libraries_queryset", "_get_courses_queryset"),
     )
     @unpack
     def test_type_param_calls_only_expected_queryset(self, scope_type, called_method, skipped_method):
-        """When type=course only courses are fetched; when type=library only libraries."""
+        """When type=course-v1 only courses are fetched; when type=lib only libraries.
+
+        The deprecated aliases ``course`` and ``library`` behave the same.
+        """
         self.build_qs_patcher.stop()
         with (
             patch.object(ScopesAPIView, called_method, return_value=[]) as mock_called,
@@ -1352,8 +1372,8 @@ class TestScopesAPIView(ViewTestMixin):
         # to avoid the union so the queryset remains filterable.
         self.build_qs_patcher.stop()
 
-        response_match = self.client.get(self.url, {"search": "Course Org1", "scope_type": "course"})
-        response_no_match = self.client.get(self.url, {"search": "nonexistent_xyz", "scope_type": "course"})
+        response_match = self.client.get(self.url, {"search": "Course Org1", "scope_type": "course-v1"})
+        response_no_match = self.client.get(self.url, {"search": "nonexistent_xyz", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
 
@@ -1378,9 +1398,19 @@ class TestScopesAPIView(ViewTestMixin):
     def test_pagination(self, query_params: dict, expected_page_count: int, has_next: bool):
         """Results are paginated correctly."""
         mixed = [
-            {"scope_id": self.COURSE_ORG1, "display_name_col": "Course 1", "org_name": "Org1", "scope_type": "course"},
-            {"scope_id": "LIB1", "display_name_col": "Library 1", "org_name": "Org1", "scope_type": "library"},
-            {"scope_id": self.COURSE_ORG2, "display_name_col": "Course 2", "org_name": "Org2", "scope_type": "course"},
+            {
+                "scope_id": self.COURSE_ORG1,
+                "display_name_col": "Course 1",
+                "org_name": "Org1",
+                "scope_type": "course-v1",
+            },
+            {"scope_id": "LIB1", "display_name_col": "Library 1", "org_name": "Org1", "scope_type": "lib"},
+            {
+                "scope_id": self.COURSE_ORG2,
+                "display_name_col": "Course 2",
+                "org_name": "Org2",
+                "scope_type": "course-v1",
+            },
         ]
         self.build_qs_patcher.stop()
         with patch.object(ScopesAPIView, "_build_queryset", return_value=mixed):
@@ -1432,7 +1462,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "course"})
+        response = self.client.get(self.url, {"scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1447,7 +1477,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1469,7 +1499,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1523,7 +1553,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "library"})
+        response = self.client.get(self.url, {"scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1540,7 +1570,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "course"})
+        response = self.client.get(self.url, {"scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1577,7 +1607,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"scope_type": "library"})
+            response = self.client.get(self.url, {"scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1597,7 +1627,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"scope_type": "course"})
+            response = self.client.get(self.url, {"scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1616,7 +1646,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[platform_scope],
         ):
-            response = self.client.get(self.url, {"scope_type": "course"})
+            response = self.client.get(self.url, {"scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1662,7 +1692,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with org param sees only courses from that org."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course"})
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1676,7 +1706,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with org param sees only libraries from that org."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1688,7 +1718,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with org param for a non-existent org gets empty results."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "NonExistentOrg", "scope_type": "course"})
+        response = self.client.get(self.url, {"org": "NonExistentOrg", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1701,7 +1731,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org1", "scope_type": "library"})
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1715,7 +1745,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1728,7 +1758,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course"})
+        response = self.client.get(self.url, {"org": "Org1", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1742,7 +1772,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org2", "scope_type": "course"})
+        response = self.client.get(self.url, {"org": "Org2", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1759,7 +1789,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"org": "Org1", "scope_type": "library"})
+            response = self.client.get(self.url, {"org": "Org1", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1778,7 +1808,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"org": "Org2", "scope_type": "library"})
+            response = self.client.get(self.url, {"org": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1788,7 +1818,7 @@ class TestScopesAPIView(ViewTestMixin):
         """When org param is absent, all permitted scopes are returned (existing behavior)."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "course"})
+        response = self.client.get(self.url, {"scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1801,7 +1831,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Org filter works together with search filter."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"org": "Org1", "search": "Course", "scope_type": "course"})
+        response = self.client.get(self.url, {"org": "Org1", "search": "Course", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1817,7 +1847,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with orgs param sees only courses from that org."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1831,7 +1861,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with orgs param sees only libraries from that org."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1843,7 +1873,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Staff user with orgs param for a non-existent org gets empty results."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "NonExistentOrg", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "NonExistentOrg", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1856,7 +1886,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "library"})
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1870,7 +1900,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1883,7 +1913,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1897,7 +1927,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1914,7 +1944,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "library"})
+            response = self.client.get(self.url, {"orgs": "Org1", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1933,7 +1963,7 @@ class TestScopesAPIView(ViewTestMixin):
             "openedx_authz.rest_api.v1.views.get_scopes_for_user_and_permission",
             return_value=[glob_scope],
         ):
-            response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "library"})
+            response = self.client.get(self.url, {"orgs": "Org2", "scope_type": "lib"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1943,7 +1973,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Orgs filter works together with search filter."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org1", "search": "Course", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "Org1", "search": "Course", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1956,7 +1986,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.build_qs_patcher.stop()
 
         response = self.client.get(
-            self.url, {"org": "Org2", "orgs": "Org1", "search": "Course", "scope_type": "course"}
+            self.url, {"org": "Org2", "orgs": "Org1", "search": "Course", "scope_type": "course-v1"}
         )
 
         self.build_qs_patcher.start()
@@ -1969,7 +1999,7 @@ class TestScopesAPIView(ViewTestMixin):
         """Orgs filter with multiple orgs returns scopes from both orgs."""
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"orgs": "Org1,Org2", "search": "Course", "scope_type": "course"})
+        response = self.client.get(self.url, {"orgs": "Org1,Org2", "search": "Course", "scope_type": "course-v1"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -3139,7 +3169,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
 @ddt
 class TestRoleListView(ViewTestMixin):
-    """Test suite for RoleListView."""
+    """Test suite for RoleListView (ADR 0028)."""
 
     _COURSE_ASSIGNMENTS = [
         {
@@ -3157,6 +3187,11 @@ class TestRoleListView(ViewTestMixin):
             "role_name": roles.COURSE_AUDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
+        {
+            "subject_name": "regular_9",
+            "role_name": roles.COURSE_STAFF.external_key,
+            "scope_name": COURSE_SCOPE_ORG1,
+        },
     ]
 
     @classmethod
@@ -3169,47 +3204,152 @@ class TestRoleListView(ViewTestMixin):
         super().setUp()
         self.client.force_authenticate(user=self.admin_user)
         self.url = reverse("openedx_authz:role-list")
+        category = AuthzPermissionCategory.objects.create(
+            category_id="library_content", display_name="Content", description="Library content.", icon="BookOpen"
+        )
+        unused_category = AuthzPermissionCategory.objects.create(category_id="unused", display_name="Unused")
+        self.assertIsNotNone(unused_category.pk)
+        view_library = AuthzPermissionDefinition.objects.create(
+            namespace="content_libraries",
+            name="view_library",
+            display_name="View library",
+            category=category,
+            scopes=["lib"],
+            icon="RemoveRedEye",
+        )
+        edit_library = AuthzPermissionDefinition.objects.create(
+            namespace="content_libraries",
+            name="edit_library",
+            display_name="Edit library",
+            category=category,
+            scopes=["lib"],
+        )
+        view_course = AuthzPermissionDefinition.objects.create(
+            namespace="courses", name="view_course", display_name="View course", category=category, scopes=["course-v1"]
+        )
+        author = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_AUTHOR.external_key, display_name="Library Author", scopes=["lib"]
+        )
+        user = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_USER.external_key, display_name="Library User", scopes=["lib"]
+        )
+        hidden = AuthzRoleDefinition.objects.create(
+            role_id=roles.LIBRARY_ADMIN.external_key, display_name="Hidden", scopes=["lib"], hidden=True
+        )
+        for role, permission, scope in [
+            (author, view_library, "lib"),
+            (author, edit_library, "lib"),
+            (user, view_library, "lib"),
+            (hidden, view_library, "lib"),
+            (author, view_course, "course-v1"),
+        ]:
+            AuthzRolePermission.objects.create(role=role, permission=permission, scope=scope)
 
-    def test_get_roles_success(self):
-        """Test retrieving role definitions and their permissions.
+    def test_get_roles_catalog(self):
+        """Test the catalog returned for a scope type.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns correct role definitions with permissions and user counts
+            - Returns 200 OK with scopes, categories, permissions and roles of the namespace only
+            - Roles reference permissions by id, hidden roles and unused categories are left out
+            - Everything is ordered by identifier
         """
-        response = self.client.get(self.url, {"scope": "lib:Org1:LIB1"})
+        response = self.client.get(self.url, {"scope_types": "lib"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("count", response.data)
-        self.assertEqual(len(response.data["results"]), response.data["count"])
-        self.assertEqual(len(response.data["results"]), 4)
+        self.assertEqual(response.data["scope_types"], ["lib"])
+        self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
+        self.assertEqual(
+            response.data["categories"][0],
+            {
+                "id": "library_content",
+                "display_name": "Content",
+                "description": "Library content.",
+                "icon": "BookOpen",
+            },
+        )
+        self.assertEqual(
+            [p["id"] for p in response.data["permissions"]],
+            ["content_libraries.edit_library", "content_libraries.view_library"],
+        )
+        self.assertEqual(
+            response.data["permissions"][1],
+            {
+                "id": "content_libraries.view_library",
+                "display_name": "View library",
+                "description": "",
+                "icon": "RemoveRedEye",
+                "category_id": "library_content",
+                "scope_types": ["lib"],
+            },
+        )
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertEqual(response.data["count"], len(by_role))
+        self.assertNotIn(roles.LIBRARY_ADMIN.external_key, by_role)
+        self.assertEqual(
+            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            ["content_libraries.edit_library", "content_libraries.view_library"],
+        )
+        self.assertEqual(by_role[roles.LIBRARY_AUTHOR.external_key]["definition_kind"], DefinitionKind.STATIC.value)
+        self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["display_name"], "Library User")
+        self.assertEqual(list(by_role), sorted(by_role))
 
-    @patch.object(api, "get_role_definitions_in_scope")
-    def test_get_roles_empty_result(self, mock_get_roles):
-        """Test retrieving roles when none exist in scope.
+    def test_get_roles_permission_without_category(self):
+        """A permission without a category is listed with a null category_id.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns empty results list
+            - Returns 200 OK with the permission and ``category_id`` set to None
+            - No category is added to the categories of the catalog for it
         """
-        mock_get_roles.return_value = []
+        AuthzPermissionDefinition.objects.filter(namespace="content_libraries", name="edit_library").update(
+            category=None
+        )
 
-        response = self.client.get(self.url, {"scope": "lib:Org1:LIB1"})
+        response = self.client.get(self.url, {"scope_types": "lib"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("count", response.data)
-        self.assertEqual(response.data["count"], 0)
-        self.assertEqual(len(response.data["results"]), 0)
+        by_permission = {p["id"]: p for p in response.data["permissions"]}
+        self.assertIsNone(by_permission["content_libraries.edit_library"]["category_id"])
+        self.assertEqual(by_permission["content_libraries.view_library"]["category_id"], "library_content")
+        self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
+
+    def test_get_roles_without_definition_is_not_listed(self):
+        """A role that is only in the Casbin policy, without a stored definition, is not listed.
+
+        Expected result:
+            - The catalog is read from the schema definitions only
+        """
+        AuthzRoleDefinition.objects.filter(role_id=roles.LIBRARY_CONTRIBUTOR.external_key).delete()
+
+        response = self.client.get(self.url, {"scope_types": "lib"})
+
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertNotIn(roles.LIBRARY_CONTRIBUTOR.external_key, by_role)
+
+    def test_get_roles_query_count_does_not_depend_on_roles(self):
+        """Definitions are loaded with a constant number of queries.
+
+        Expected result:
+            - Adding a role and its grants does not change the number of queries
+        """
+        with CaptureQueriesContext(connection) as before:
+            self.client.get(self.url, {"scope_types": "lib"})
+        extra = AuthzRoleDefinition.objects.create(role_id="extra_role", display_name="Extra", scopes=["lib"])
+        permission = AuthzPermissionDefinition.objects.get(namespace="content_libraries", name="view_library")
+        AuthzRolePermission.objects.create(role=extra, permission=permission, scope="lib")
+
+        with CaptureQueriesContext(connection) as after:
+            response = self.client.get(self.url, {"scope_types": "lib"})
+
+        self.assertIn("extra_role", [r["role"] for r in response.data["results"]])
+        self.assertEqual(len(before), len(after))
 
     @data(
         {},
         {"custom_param": "custom_value"},
-        {"custom_param": "a" * 256, "another_param": "custom_value"},
+        {"scope": "lib:Org1:LIB1"},
     )
-    def test_get_roles_scope_is_missing(self, query_params: dict):
-        """Test retrieving roles with scope is missing.
+    def test_get_roles_scope_types_is_missing(self, query_params: dict):
+        """Test retrieving roles without scope_types.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3217,17 +3357,19 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("required", [error.code for error in response.data["scope"]])
+        self.assertIn("required", [error.code for error in response.data["scope_types"]])
 
     @data(
-        ({"scope": ""}, "blank"),
-        ({"scope": "a" * 256}, "max_length"),
-        ({"scope": "invalid"}, "invalid"),
-        ({"scope": "*"}, "invalid"),
+        ({"scope_types": ""}, "blank"),
+        ({"scope_types": "global"}, "invalid_choice"),
+        ({"scope_types": "course"}, "invalid_choice"),
+        ({"scope_types": "library"}, "invalid_choice"),
+        ({"scope_types": "course-v1,"}, "invalid_choice"),
+        ({"scope_types": "course-v1,global"}, "invalid_choice"),
     )
     @unpack
-    def test_get_roles_scope_is_invalid(self, query_params: dict, error_code: str):
-        """Test retrieving roles with invalid scope.
+    def test_get_roles_scope_types_is_invalid(self, query_params: dict, error_code: str):
+        """Test retrieving roles with an empty or unsupported value in scope_types.
 
         Expected result:
             - Returns 400 BAD REQUEST status
@@ -3235,98 +3377,107 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url, query_params)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(error_code, [error.code for error in response.data["scope"]])
+        self.assertIn(error_code, [error.code for error in response.data["scope_types"]])
 
-    @data(
-        ({}, 4, False),
-        ({"page": 1, "page_size": 2}, 2, True),
-        ({"page": 2, "page_size": 2}, 2, False),
-        ({"page": 1, "page_size": 4}, 4, False),
-    )
-    @unpack
-    def test_get_roles_pagination(self, query_params: dict, expected_count: int, has_next: bool):
-        """Test retrieving roles with pagination.
+    def test_get_roles_several_scope_types(self):
+        """The catalog of several scope types is the union of each one.
 
         Expected result:
-            - Returns 200 OK status
-            - Returns paginated results with correct page size
+            - Permissions and categories of every requested namespace are returned
+            - A role is listed if it has grants in any of them, with the grants of all of them
+            - A repeated scope type is ignored
         """
-        query_params["scope"] = "lib:Org1:LIB1"
-        response = self.client.get(self.url, query_params)
+        response = self.client.get(self.url, {"scope_types": "course-v1,lib,course-v1"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertEqual(len(response.data["results"]), expected_count)
-        self.assertIn("next", response.data)
-        if has_next:
-            self.assertIsNotNone(response.data["next"])
-        else:
-            self.assertIsNone(response.data["next"])
+        self.assertEqual(response.data["scope_types"], ["course-v1", "lib"])
+        self.assertEqual(
+            [p["id"] for p in response.data["permissions"]],
+            ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],
+        )
+        by_role = {r["role"]: r for r in response.data["results"]}
+        self.assertEqual(
+            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],
+        )
+
+    def test_get_roles_course_scope_type_lists_only_roles_with_course_grants(self):
+        """Roles without grants in the requested namespaces are not listed.
+
+        Expected result:
+            - Only the role with a course grant is listed for ``course-v1``
+        """
+        response = self.client.get(self.url, {"scope_types": "course-v1"})
+
+        self.assertEqual([r["role"] for r in response.data["results"]], [roles.LIBRARY_AUTHOR.external_key])
+        self.assertEqual(response.data["results"][0]["permissions"], ["courses.view_course"])
+
+    def test_get_roles_pagination_only_paginates_roles(self):
+        """Pagination applies to the roles; every page carries the complete catalogs.
+
+        Expected result:
+            - Each page has page_size roles at most and the same permissions and categories
+        """
+        first = self.client.get(self.url, {"scope_types": "lib", "page": 1, "page_size": 1})
+        second = self.client.get(self.url, {"scope_types": "lib", "page": 2, "page_size": 1})
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(first.data["results"]), 1)
+        self.assertIsNotNone(first.data["next"])
+        self.assertEqual(len(second.data["results"]), 1)
+        self.assertNotEqual(first.data["results"][0]["role"], second.data["results"][0]["role"])
+        self.assertEqual(first.data["permissions"], second.data["permissions"])
+        self.assertEqual(first.data["categories"], second.data["categories"])
 
     @data(
         # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
+        (None, "lib", status.HTTP_401_UNAUTHORIZED),
         # Admin user
-        ("admin_1", status.HTTP_200_OK),
-        # Library Admin user
-        ("regular_5", status.HTTP_200_OK),
-        # Library Author user
-        ("regular_6", status.HTTP_200_OK),
-        # Library Contributor user
-        ("regular_7", status.HTTP_200_OK),
-        # Library User user
-        ("regular_8", status.HTTP_200_OK),
-        # Regular user without permission
-        ("regular_9", status.HTTP_403_FORBIDDEN),
+        ("admin_1", "lib", status.HTTP_200_OK),
+        ("admin_1", "course-v1", status.HTTP_200_OK),
+        # Library roles can view the library team in any scope
+        ("regular_5", "lib", status.HTTP_200_OK),
+        ("regular_8", "lib", status.HTTP_200_OK),
+        # ...but that does not grant access to the course catalog
+        ("regular_5", "course-v1", status.HTTP_403_FORBIDDEN),
+        # Course staff can view the course team but not the library team
+        ("regular_9", "course-v1", status.HTTP_200_OK),
+        ("regular_9", "lib", status.HTTP_403_FORBIDDEN),
+        # The permission of each requested scope type is required
+        ("admin_1", "course-v1,lib", status.HTTP_200_OK),
+        ("regular_5", "course-v1,lib", status.HTTP_403_FORBIDDEN),
+        ("regular_9", "lib,course-v1", status.HTTP_403_FORBIDDEN),
         # Non existent user
-        ("non_existent_user", status.HTTP_401_UNAUTHORIZED),
+        ("non_existent_user", "lib", status.HTTP_401_UNAUTHORIZED),
     )
     @unpack
-    def test_get_roles_permissions(self, username: str, status_code: int):
-        """Test retrieving roles with permissions.
+    def test_get_roles_permissions(self, username: str, scope_type: str, status_code: int):
+        """Test the permission required by each scope type.
 
         Expected result:
             - Returns 401 UNAUTHORIZED status if user is not authenticated
-            - Returns 403 FORBIDDEN status if user does not have permission
-            - Returns 200 OK status if user has permission with correct roles with permissions and user counts
+            - Returns 403 FORBIDDEN status if user lacks the view team permission of the scope type
+            - Returns 200 OK status otherwise
         """
         user = User.objects.filter(username=username).first()
         self.client.force_authenticate(user=user)
 
-        response = self.client.get(self.url, {"scope": "lib:Org3:LIB3"})
+        response = self.client.get(self.url, {"scope_types": scope_type})
 
         self.assertEqual(response.status_code, status_code)
-        if status_code == status.HTTP_200_OK:
-            self.assertIn("results", response.data)
-            self.assertIn("count", response.data)
 
-    # --- Course scope equivalents ---
-
-    @data(
-        # Unauthenticated
-        (None, status.HTTP_401_UNAUTHORIZED),
-        # Django superuser always passes
-        ("admin_1", status.HTTP_200_OK),
-        # course_admin has COURSES_MANAGE_COURSE_TEAM ⊇ COURSES_VIEW_COURSE_TEAM
-        ("course_admin", status.HTTP_200_OK),
-        # course_auditor has COURSES_VIEW_COURSE_TEAM
-        ("course_auditor", status.HTTP_200_OK),
-        # Library-only user has no course permission
-        ("regular_9", status.HTTP_403_FORBIDDEN),
-    )
-    @unpack
-    def test_get_roles_course_permissions(self, username: str, status_code: int):
-        """Mirror of test_get_roles_permissions for course scopes.
+    @data("", "global", "course", "library", "lib,global", "lib,")
+    def test_get_roles_unsupported_scope_type_reaches_the_view_for_regular_users(self, scope_type: str):
+        """An unsupported scope_types value is not rejected by the permission class.
 
         Expected result:
-            - Returns appropriate status code based on course-scope permissions.
+            - A regular user gets 400 BAD REQUEST from the serializer, not 403 FORBIDDEN
         """
-        user = User.objects.filter(username=username).first()
-        self.client.force_authenticate(user=user)
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
 
-        response = self.client.get(self.url, {"scope": COURSE_SCOPE_ORG1})
+        response = self.client.get(self.url, {"scope_types": scope_type})
 
-        self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):
@@ -3368,15 +3519,16 @@ class TestArbitraryRoleSupport(ViewTestMixin):
         self.role_list_url = reverse("openedx_authz:role-list")
         self.role_user_url = reverse("openedx_authz:role-user-list")
 
-    def test_custom_role_appears_in_role_list(self):
-        """RoleListView surfaces a role it only knows about through raw policy data."""
-        response = self.client.get(self.role_list_url, {"scope": LIB_SCOPE_ORG1})
+    def test_custom_role_without_definition_is_not_in_role_catalog(self):
+        """RoleListView lists only roles with a stored definition (ADR 0028).
+
+        A role known only through raw policy data still works for enforcement, but it cannot be
+        described, so the catalog omits it.
+        """
+        response = self.client.get(self.role_list_url, {"scope_types": "lib"})
 
         assert response.status_code == status.HTTP_200_OK
-        roles_by_name = {role["role"]: role for role in response.data["results"]}
-        assert self.CUSTOM_ROLE in roles_by_name
-        assert roles_by_name[self.CUSTOM_ROLE]["permissions"] == [self.CUSTOM_ACTION]
-        assert roles_by_name[self.CUSTOM_ROLE]["user_count"] == 1
+        assert self.CUSTOM_ROLE not in {role["role"] for role in response.data["results"]}
 
     def test_custom_role_users_appear_in_role_user_view(self):
         """RoleUserAPIView lists a user assigned to a role it doesn't statically know about."""

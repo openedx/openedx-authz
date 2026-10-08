@@ -22,14 +22,15 @@ def get_permission_from_policy(policy: list[str]) -> PermissionData:
         policy: A list representing a Casbin policy.
 
     Returns:
-        PermissionData: The corresponding PermissionData object or an empty PermissionData if the policy is invalid.
-    """
-    if len(policy) < 4:  # Do not count ptype
-        raise ValueError("Invalid policy format. Expected at least 4 elements.")
+        PermissionData: The corresponding PermissionData object.
 
+    Raises:
+        ValueError: If ``policy`` has fewer than ``PolicyIndex.required_width()`` elements.
+    """
+    _role, action, _scope, effect = PolicyIndex.parse(policy)
     return PermissionData(
-        action=ActionData(namespaced_key=policy[PolicyIndex.ACT.value]),
-        effect=policy[PolicyIndex.EFFECT.value],
+        action=ActionData(namespaced_key=action),
+        effect=effect,
     )
 
 

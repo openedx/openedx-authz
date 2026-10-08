@@ -20,7 +20,14 @@ from openedx_authz.constants.permissions import (
     MANAGE_LIBRARY_TEAM,
     VIEW_LIBRARY_TEAM,
 )
-from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, ActionData, AuthzBaseClass, AuthZData, PermissionData
+from openedx_authz.data import (
+    AUTHZ_POLICY_ATTRIBUTES_SEPARATOR,
+    ActionData,
+    AuthzBaseClass,
+    AuthZData,
+    PermissionData,
+    PolicyIndex,
+)
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
 ContentLibrary = get_content_library_model()
@@ -73,29 +80,6 @@ class GroupingPolicyIndex(Enum):
     SUBJECT = 0
     ROLE = 1
     SCOPE = 2
-    # The rest of the fields are optional and can be ignored for now
-
-
-class PolicyIndex(Enum):
-    """Index positions for fields in a Casbin policy (p).
-
-    Policies define permissions by linking roles to actions within scopes with an effect.
-    Format: [role, action, scope, effect, ...]
-
-    Attributes:
-        ROLE: Position 0 - The role identifier (e.g., 'role^instructor').
-        ACT: Position 1 - The action identifier (e.g., 'act^read').
-        SCOPE: Position 2 - The scope identifier (e.g., 'lib^lib:DemoX:CSPROB').
-        EFFECT: Position 3 - The effect, either 'allow' or 'deny'.
-
-    Note:
-        Additional fields beyond position 3 are optional and currently ignored.
-    """
-
-    ROLE = 0
-    ACT = 1
-    SCOPE = 2
-    EFFECT = 3
     # The rest of the fields are optional and can be ignored for now
 
 

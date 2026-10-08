@@ -72,8 +72,7 @@ from openedx_authz.rest_api.v1.serializers import (
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
-    RoleCatalogCategorySerializer,
-    RoleCatalogPermissionSerializer,
+    RoleCatalogMetaSerializer,
     RoleCatalogResponseSerializer,
     RoleCatalogRoleSerializer,
     ScopeSerializer,
@@ -430,7 +429,7 @@ class RoleUserAPIView(APIView):
 
 
 @view_auth_classes()
-class RoleListView(APIView):
+class RoleListView(generics.GenericAPIView):
     """API view for retrieving the roles, permissions and categories of one or more scope types.
 
     Returns a catalog that lets the Admin Console build its roles and permissions matrix from a
@@ -495,22 +494,19 @@ class RoleListView(APIView):
 
         permission_catalog = api.get_permission_catalog(scope_types)
         role_catalog = api.get_role_catalog(scope_types)
-        categories = api.get_category_catalog(permission_catalog)
 
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(role_catalog, request)
-        pagination = paginator.get_paginated_response(RoleCatalogRoleSerializer(page, many=True).data).data
-        return Response(
-            {
-                "count": pagination["count"],
-                "next": pagination["next"],
-                "previous": pagination["previous"],
-                "scope_types": scope_types,
-                "categories": RoleCatalogCategorySerializer(categories, many=True).data,
-                "permissions": RoleCatalogPermissionSerializer(permission_catalog, many=True).data,
-                "results": pagination["results"],
-            }
+        page = self.paginate_queryset(role_catalog)
+        response = self.get_paginated_response(RoleCatalogRoleSerializer(page, many=True).data)
+        response.data.update(
+            RoleCatalogMetaSerializer(
+                {
+                    "scope_types": scope_types,
+                    "categories": api.get_category_catalog(permission_catalog),
+                    "permissions": permission_catalog,
+                }
+            ).data
         )
+        return response
 
 
 @view_auth_classes()

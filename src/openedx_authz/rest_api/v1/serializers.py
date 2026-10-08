@@ -254,15 +254,24 @@ class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abst
     permissions = serializers.ListField(child=serializers.CharField(max_length=255))
 
 
-class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Response of the role catalog: paginated roles plus the complete catalogs."""
+class RoleCatalogMetaSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Metadata of the role catalog: the requested scope types and the complete catalogs."""
+
+    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
+    categories = RoleCatalogCategorySerializer(many=True)
+    permissions = RoleCatalogPermissionSerializer(many=True)
+
+
+class RoleCatalogResponseSerializer(RoleCatalogMetaSerializer):  # pylint: disable=abstract-method
+    """Full role catalog response, used only to document it.
+
+    The view builds the response with the paginator (``count``, ``next``, ``previous`` and ``results``)
+    plus :class:`RoleCatalogMetaSerializer`.
+    """
 
     count = serializers.IntegerField()
     next = serializers.CharField(allow_null=True)
     previous = serializers.CharField(allow_null=True)
-    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
-    categories = RoleCatalogCategorySerializer(many=True)
-    permissions = RoleCatalogPermissionSerializer(many=True)
     results = RoleCatalogRoleSerializer(many=True)
 
 

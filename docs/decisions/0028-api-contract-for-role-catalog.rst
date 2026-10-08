@@ -130,9 +130,10 @@ class would then contribute a new scope type without changing authz and without 
 Role user count
 ===============
 
-``user_count`` is kept, but it is no longer calculated for a specific scope. It is now
-calculated by scope type: the number of users assigned to the role across the requested
-scope types.
+``user_count`` is removed from the response. The Admin Console does not read it (it does
+not call ``GET /api/authz/v1/roles/`` yet) and it is not expected to display it, so it is
+not worth calculating a count that has no consumer. It can be added back in a later ADR if
+a real use appears.
 
 Data source
 ===========
@@ -284,7 +285,6 @@ Response Body:
            icon: string | null
            definition_kind: "static" | "user_defined"
            permissions: string[]   // ids of entries of "permissions"
-           user_count: number
        }>
    }
 
@@ -334,8 +334,7 @@ Example:
                "description": "Can edit and publish course content.",
                "icon": null,
                "definition_kind": "static",
-               "permissions": ["courses.view_course"],
-               "user_count": 8
+               "permissions": ["courses.view_course"]
            },
            {
                "role": "course_auditor",
@@ -343,8 +342,7 @@ Example:
                "description": "Can view the course.",
                "icon": null,
                "definition_kind": "static",
-               "permissions": ["courses.view_course"],
-               "user_count": 3
+               "permissions": ["courses.view_course"]
            }
        ]
    }
@@ -369,12 +367,12 @@ Consequences
   without a frontend release.
 * This is a breaking change to ``GET /api/authz/v1/roles/``: the ``scope`` query parameter
   becomes ``scope_types``, the response returns the requested scope types in
-  ``scope_types`` (``course-v1`` and ``lib``), ``user_count`` now counts across
-  the requested scope types instead of one scope, and the response adds the ``categories``
-  and ``permissions`` catalogs (each permission with its ``scope_types``) next to the
-  paginated roles. It is low risk because no released client calls the endpoint. Tests
-  and docs that reference the old shape must be updated, and the deviation from the
-  compatibility promise of `ADR 0021`_ is intentional.
+  ``scope_types`` (``course-v1`` and ``lib``), ``user_count`` is removed because no
+  client uses it, and the response adds the ``categories`` and ``permissions`` catalogs
+  (each permission with its ``scope_types``) next to the paginated roles. It is low risk
+  because no released client calls the endpoint. Tests and docs that reference the old
+  shape must be updated, and the deviation from the compatibility promise of `ADR 0021`_
+  is intentional.
 * ``GET /api/authz/v1/scopes/`` changes the values of its ``scope_type`` query parameter
   from ``course``/``library`` to ``course-v1``/``lib``. To avoid a breaking change, the old
   values are still accepted as deprecated aliases until the Admin Console migrates, which is

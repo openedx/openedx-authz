@@ -134,9 +134,8 @@ identifier. The per-user endpoint
 ``GET /api/authz/v1/users/<username>/assignments/`` returns the same assignment
 shape (``role``, ``org``, ``scope``, ``scope_display_name``, ``permission_count``),
 produced by the same serializer, so both endpoints cannot drift apart. The
-``is_superadmin`` field is not part of this shape. The assignment-grouped
-``GET /api/authz/v1/assignments/`` endpoint is unchanged and still returns only
-the ``scope`` key.
+assignment-grouped ``GET /api/authz/v1/assignments/`` endpoint is unchanged and
+still returns only the ``scope`` key.
 
 The display name is not stored in the authorization policy store; it lives in the
 platform models (``CourseOverview.display_name`` for courses and the library's

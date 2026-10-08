@@ -9,6 +9,7 @@ from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
     SearchField,
+    SerializedAssignment,
     SortField,
     SortOrder,
     UserAssignmentSortField,
@@ -184,7 +185,7 @@ def sort_user_assignments(
     return _sort_by_field(assignments, sort_by, order, UserAssignmentSortField)
 
 
-def inject_scope_display_names(assignments: list[dict]) -> None:
+def inject_scope_display_names(assignments: list[SerializedAssignment]) -> None:
     """Set ``scope_display_name`` in-place on serialized assignments using one bulk lookup.
 
     Callers must pass only the assignments of the current page, after filtering,
@@ -194,7 +195,7 @@ def inject_scope_display_names(assignments: list[dict]) -> None:
     (globs, superadmin entries, missing resources) get an empty string.
 
     Args:
-        assignments: Serialized assignment dicts for the current page. Each one
+        assignments: Serialized assignments for the current page. Each one
             must have a ``scope`` key. They are modified in-place, and
             ``scope_display_name`` is set on every entry.
     """

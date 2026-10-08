@@ -25,7 +25,6 @@ from openedx_authz.api.data import (
     RoleData,
     ScopeData,
     SubjectData,
-    UserData,
 )
 from openedx_authz.api.permissions import get_permission_from_policy
 from openedx_authz.engine.enforcer import AuthzEnforcer

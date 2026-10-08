@@ -1,5 +1,6 @@
 """Permissions for the Open edX AuthZ REST API."""
 
+from abc import abstractmethod
 from typing import ClassVar
 
 from rest_framework.permissions import BasePermission
@@ -328,30 +329,57 @@ class MethodPermissionMixin:
         return any(api.is_user_allowed(request.user.username, permission, scope_value) for permission in permissions)
 
 
-class AnyScopePermission(MethodPermissionMixin, BasePermission):
+class UserScopesPermission(BasePermission):
+    """Base permission handler for endpoints checked against the user's scopes.
+
+    Superusers and staff are always granted access. For other users, the decision is
+    delegated to ``has_scoped_permission``, which subclasses must implement.
+    """
+
+    def has_permission(self, request, view) -> bool:
+        """Grant access to superusers and staff, otherwise delegate to ``has_scoped_permission``.
+
+        Returns:
+            bool: True if the user is privileged or passes the scoped check.
+        """
+        if self.is_privileged(request.user):
+            return True
+        return self.has_scoped_permission(request, view)
+
+    @staticmethod
+    def is_privileged(user) -> bool:
+        """Return True if the user bypasses scope checks (superuser or staff)."""
+        return user.is_superuser or user.is_staff
+
+    @staticmethod
+    def has_permission_in_any_scope(user, permission: str) -> bool:
+        """Return True if the user holds ``permission`` in at least one scope of any kind."""
+        return bool(api.get_scopes_for_user_and_permission(user.username, permission))
+
+    @abstractmethod
+    def has_scoped_permission(self, request, view) -> bool:
+        """Decide access for non-privileged users."""
+
+
+class AnyScopePermission(MethodPermissionMixin, UserScopesPermission):
     """Permission handler for endpoints that are not tied to a specific scope.
 
     Grants access if the user has at least one of the required permissions in any scope.
     """
 
-    def has_permission(self, request, view) -> bool:
+    def has_scoped_permission(self, request, view) -> bool:
         """Check if the user has any of the required permissions across all scopes.
-
-        Superusers and staff are automatically granted access. For other users,
-        grants access if the user has at least one required permission in any scope.
 
         Returns:
             bool: True if the user has at least one required permission in any scope.
         """
-        if request.user.is_superuser or request.user.is_staff:
-            return True
         required = self.get_required_permissions(request, view)
         if not required:
             return False
-        return any(api.get_scopes_for_user_and_permission(request.user.username, permission) for permission in required)
+        return any(self.has_permission_in_any_scope(request.user, permission) for permission in required)
 
 
-class ScopeTypePermission(BasePermission):
+class ScopeTypePermission(UserScopesPermission):
     """Permission handler for endpoints queried by ``scope_types`` instead of a concrete scope.
 
     The permission required depends on the requested ``scope_types``. For each requested scope type
@@ -368,22 +396,18 @@ class ScopeTypePermission(BasePermission):
     }
     """Permission required to read the catalog of each scope type."""
 
-    def has_permission(self, request, view) -> bool:
+    def has_scoped_permission(self, request, view) -> bool:
         """Check if the user holds the permission of each requested scope type in any scope.
-
-        Superusers and staff are automatically granted access.
 
         Returns:
             bool: True if the user may read every requested scope type, or if ``scope_types`` is
                 missing or unsupported, so the view can answer 400.
         """
-        if request.user.is_superuser or request.user.is_staff:
-            return True
         scope_types = parse_scope_types(request.query_params.get("scope_types"))
         if scope_types is None:
             return True
         return all(
-            api.get_scopes_for_user_and_permission(request.user.username, self.SCOPE_TYPE_PERMISSIONS[scope_type])
+            self.has_permission_in_any_scope(request.user, self.SCOPE_TYPE_PERMISSIONS[scope_type])
             for scope_type in scope_types
         )
 

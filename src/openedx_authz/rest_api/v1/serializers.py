@@ -8,7 +8,7 @@ from rest_framework import serializers
 from openedx_authz import api
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind, UserAssignments
 from openedx_authz.rest_api.data import (
-    SCOPE_TYPE_NAMESPACES,
+    DEPRECATED_SCOPE_TYPE_ALIASES,
     AssignmentSortField,
     ScopesTypeField,
     SortField,
@@ -236,13 +236,11 @@ class RoleCatalogPermissionSerializer(serializers.Serializer):  # pylint: disabl
     """A permission of the role catalog."""
 
     id = serializers.CharField(source="identifier")
-    namespace = serializers.CharField()
-    name = serializers.CharField()
     display_name = serializers.CharField()
     description = serializers.CharField()
     icon = serializers.CharField(allow_null=True)
     category_id = serializers.CharField(source="category.category_id")
-    scopes = serializers.ListField(child=serializers.CharField())
+    scope_types = serializers.ListField(child=serializers.CharField(), source="scopes")
 
 
 class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method
@@ -254,7 +252,6 @@ class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abst
     icon = serializers.CharField(allow_null=True)
     definition_kind = serializers.ChoiceField(choices=[(e.value, e.name) for e in DefinitionKind])
     permissions = serializers.ListField(child=serializers.CharField(max_length=255))
-    user_count = serializers.IntegerField()
 
 
 class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
@@ -263,7 +260,7 @@ class RoleCatalogResponseSerializer(serializers.Serializer):  # pylint: disable=
     count = serializers.IntegerField()
     next = serializers.CharField(allow_null=True)
     previous = serializers.CharField(allow_null=True)
-    scopes = serializers.ListField(child=serializers.ChoiceField(choices=list(SCOPE_TYPE_NAMESPACES.values())))
+    scope_types = serializers.ListField(child=serializers.ChoiceField(choices=ScopesTypeField.values()))
     categories = RoleCatalogCategorySerializer(many=True)
     permissions = RoleCatalogPermissionSerializer(many=True)
     results = RoleCatalogRoleSerializer(many=True)
@@ -305,11 +302,19 @@ class UserRoleAssignmentSerializer(serializers.Serializer):  # pylint: disable=a
         return [role.external_key for role in obj.roles]
 
 
+class ScopeTypeAliasField(serializers.ChoiceField):
+    """Scope type choice that also accepts the deprecated short names (``course``, ``library``)."""
+
+    def to_internal_value(self, data):
+        """Map a deprecated short name to its scope type before validating the choice."""
+        return super().to_internal_value(DEPRECATED_SCOPE_TYPE_ALIASES.get(data, data))
+
+
 class ListScopesQuerySerializer(OrgMixin):  # pylint: disable=abstract-method
     """Serializer for validating query parameters in ScopesAPIView."""
 
     management_permission_only = serializers.BooleanField(required=False, default=False)
-    scope_type = serializers.ChoiceField(
+    scope_type = ScopeTypeAliasField(
         choices=[(e.value, e.name) for e in ScopesTypeField], required=False, default=None, allow_null=True
     )
     search = serializers.CharField(required=False, default="", allow_blank=True)

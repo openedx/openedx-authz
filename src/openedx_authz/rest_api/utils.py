@@ -19,7 +19,7 @@ def parse_scope_types(value: str | None) -> list[str] | None:
     """Parse a comma-separated ``scope_types`` query value.
 
     Args:
-        value: The raw query value (e.g., 'course,library'), or None if it was not provided.
+        value: The raw query value (e.g., 'course-v1,lib'), or None if it was not provided.
 
     Returns:
         list[str] | None: The unique scope types in request order, or None if the value is missing,

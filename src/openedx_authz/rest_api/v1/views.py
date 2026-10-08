@@ -42,7 +42,6 @@ from openedx_authz.api.utils import get_scope_display_name_map, get_user_map
 from openedx_authz.constants import permissions
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import (
-    SCOPE_TYPE_NAMESPACES,
     RoleOperationError,
     RoleOperationStatus,
     ScopesQuerySetFields,
@@ -445,30 +444,29 @@ class RoleListView(APIView):
     **Query Parameters**
 
     - scope_types (Required): Comma-separated list of scope types to query, with at least one value.
-      Each one is ``course`` or ``library``.
+      Each one is ``course-v1`` or ``lib``.
     - page (Optional): Page number for pagination of the roles
     - page_size (Optional): Number of roles per page
 
     **Response Format**
 
     - count, next, previous: Pagination of the roles
-    - scopes: The requested scopes, as backend namespaces (``course-v1``, ``lib``)
+    - scope_types: The requested scope types (``course-v1``, ``lib``)
     - categories: Categories used by the permissions (id, display_name, description, icon)
-    - permissions: Permissions of the scope types (id, namespace, name, display_name, description, icon, category_id,
-      scopes)
+    - permissions: Permissions of the scope types (id, display_name, description, icon, category_id, scope_types)
     - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
-      (ids of entries of ``permissions``) and user_count (users assigned to the role across the scope types)
+      (ids of entries of ``permissions``)
 
     **Authentication and Permissions**
 
     - Requires authenticated user.
-    - ``course`` requires ``courses.view_course_team`` in any scope.
-    - ``library`` requires ``content_libraries.view_library_team`` in any scope.
+    - ``course-v1`` requires ``courses.view_course_team`` in any scope.
+    - ``lib`` requires ``content_libraries.view_library_team`` in any scope.
     - The user must hold the permission of each requested scope type.
 
     **Example Request**
 
-    GET /api/authz/v1/roles/?scope_types=course&page=1&page_size=10
+    GET /api/authz/v1/roles/?scope_types=course-v1&page=1&page_size=10
     """
 
     pagination_class = AuthZAPIViewPagination
@@ -477,7 +475,7 @@ class RoleListView(APIView):
     @apidocs.schema(
         parameters=[
             apidocs.query_parameter(
-                "scope_types", str, description="Comma-separated scope types to query: `course` and/or `library`"
+                "scope_types", str, description="Comma-separated scope types to query: `course-v1` and/or `lib`"
             ),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
             apidocs.query_parameter("page_size", int, description="Number of roles per page"),
@@ -494,13 +492,9 @@ class RoleListView(APIView):
         query_serializer = ListRolesQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         scope_types = query_serializer.validated_data["scope_types"]
-        namespaces = [SCOPE_TYPE_NAMESPACES[scope_type] for scope_type in scope_types]
 
-        permission_catalog = api.get_permission_catalog(namespaces)
-        user_counts = api.get_user_counts_per_role_in_namespaces(namespaces)
-        role_catalog = [
-            {**role, "user_count": user_counts.get(role["role"], 0)} for role in api.get_role_catalog(namespaces)
-        ]
+        permission_catalog = api.get_permission_catalog(scope_types)
+        role_catalog = api.get_role_catalog(scope_types)
         categories = api.get_category_catalog(permission_catalog)
 
         paginator = self.pagination_class()
@@ -511,7 +505,7 @@ class RoleListView(APIView):
                 "count": pagination["count"],
                 "next": pagination["next"],
                 "previous": pagination["previous"],
-                "scopes": namespaces,
+                "scope_types": scope_types,
                 "categories": RoleCatalogCategorySerializer(categories, many=True).data,
                 "permissions": RoleCatalogPermissionSerializer(permission_catalog, many=True).data,
                 "results": pagination["results"],
@@ -686,7 +680,8 @@ class ScopesAPIView(generics.ListAPIView):
     - orgs (Optional): Filter scopes by multiple orgs (comma separated list of orgs)
     - page (Optional): Page number for pagination
     - page_size (Optional): Number of items per page
-    - scope_type (Optional): Filter scopes by type. Supported values are `course` and `library`.
+    - scope_type (Optional): Filter scopes by type. Supported values are `course-v1` and `lib`.
+        `course` and `library` are accepted as deprecated aliases.
     - management_permission_only (Optional): Filter scopes either by only the ones to which the user has "manage team"
         permissions (if true), or just "view team" permissions.
 

@@ -213,9 +213,7 @@ Localization
 
 ``display_name`` and ``description`` of roles, permissions and categories are returned in
 the language of the request, following `ADR 0020`_ and Django's normal fallback rules.
-Identifiers (``role``, ``id``, ``namespace``, ``name``) and ``icon`` names are never
-translated. Since the body depends on the request language, the response must vary on
-``Accept-Language``.
+Identifiers (``role``, ``id``) and ``icon`` names are never translated.
 
 Icons are Paragon icon names (validated by the schema, see `ADR 0026`_). The client maps
 the name to its component; the API only returns the name, or ``null``.
@@ -270,8 +268,6 @@ Response Body:
        }>
        permissions: Array<{
            id: string              // complete id, e.g. "courses.view_course"
-           namespace: string
-           name: string
            display_name: string
            description: string
            icon: string | null
@@ -308,8 +304,6 @@ Example:
        "permissions": [
            {
                "id": "courses.view_course",
-               "namespace": "courses",
-               "name": "view_course",
                "display_name": "View course",
                "description": "View the course and its content in Studio.",
                "icon": "RemoveRedEye",
@@ -318,8 +312,6 @@ Example:
            },
            {
                "id": "courses.create_course",
-               "namespace": "courses",
-               "name": "create_course",
                "display_name": "Create course",
                "description": "Create new courses.",
                "icon": "Plus",

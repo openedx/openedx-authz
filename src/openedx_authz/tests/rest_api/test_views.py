@@ -3293,6 +3293,25 @@ class TestRoleListView(ViewTestMixin):
         self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["display_name"], "Library User")
         self.assertEqual(list(by_role), sorted(by_role))
 
+    def test_get_roles_permission_without_category(self):
+        """A permission without a category is listed with a null category_id.
+
+        Expected result:
+            - Returns 200 OK with the permission and ``category_id`` set to None
+            - No category is added to the categories of the catalog for it
+        """
+        AuthzPermissionDefinition.objects.filter(namespace="content_libraries", name="edit_library").update(
+            category=None
+        )
+
+        response = self.client.get(self.url, {"scope_types": "lib"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        by_permission = {p["id"]: p for p in response.data["permissions"]}
+        self.assertIsNone(by_permission["content_libraries.edit_library"]["category_id"])
+        self.assertEqual(by_permission["content_libraries.view_library"]["category_id"], "library_content")
+        self.assertEqual([c["id"] for c in response.data["categories"]], ["library_content"])
+
     def test_get_roles_without_definition_is_not_listed(self):
         """A role that is only in the Casbin policy, without a stored definition, is not listed.
 

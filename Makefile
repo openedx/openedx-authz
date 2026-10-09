@@ -68,6 +68,7 @@ selfcheck: ## check that the Makefile is well-formed
 
 extract_translations: ## extract strings to be translated, outputting .mo files
 	rm -rf docs/_build
+	python manage.py extract_schema_translations
 	cd src/openedx_authz && i18n_tool extract --no-segment
 
 compile_translations: ## compile translation files, outputting .po files for each supported language

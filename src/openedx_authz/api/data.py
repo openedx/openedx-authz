@@ -25,6 +25,7 @@ from openedx_authz.data import (
     ActionData,
     AuthzBaseClass,
     AuthZData,
+    GroupingPolicyIndex,
     PermissionData,
     PolicyIndex,
 )
@@ -60,27 +61,6 @@ __all__ = [
 EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
-
-
-class GroupingPolicyIndex(Enum):
-    """Index positions for fields in a Casbin grouping policy (g or g2).
-
-    Grouping policies represent role assignments that link subjects to roles within scopes.
-    Format: [subject, role, scope, ...]
-
-    Attributes:
-        SUBJECT: Position 0 - The subject identifier (e.g., 'user^john_doe').
-        ROLE: Position 1 - The role identifier (e.g., 'role^instructor').
-        SCOPE: Position 2 - The scope identifier (e.g., 'lib^lib:DemoX:CSPROB').
-
-    Note:
-        Additional fields beyond position 2 are optional and currently ignored.
-    """
-
-    SUBJECT = 0
-    ROLE = 1
-    SCOPE = 2
-    # The rest of the fields are optional and can be ignored for now
 
 
 class ScopeMeta(type):

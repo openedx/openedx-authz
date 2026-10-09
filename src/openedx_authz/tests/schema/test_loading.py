@@ -473,8 +473,8 @@ class TestDistributionAmbiguityLogging:
         SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
 
         record = caplog.records[0]
-        assert hasattr(record, "top_level")
-        assert record.top_level == "test_package"
+        assert hasattr(record, "package")
+        assert record.package == "test_package"
         assert hasattr(record, "resource_path")
         assert record.resource_path == "schema/test.yaml"
         assert hasattr(record, "candidates")

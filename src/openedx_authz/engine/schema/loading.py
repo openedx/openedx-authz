@@ -42,6 +42,7 @@ class SchemaLoader:
 
     _UNKNOWN_DISTRIBUTION = "unknown"
     _distribution_ambiguity_warned: set[tuple[str, str, str]] = set()
+    """Tracks warned (package, resource_path, selected) combinations to deduplicate logs."""
 
     def load(self, resources: list[DiscoveredResource]) -> list[SchemaDocument]:
         """Load every discovered resource into a :class:`SchemaDocument`.
@@ -132,7 +133,7 @@ class SchemaLoader:
         it. If exactly zero or more than one distribution claims the file (or the
         file lists are unavailable), we cannot know the true owner, so we return
         the first candidate in sorted order — a stable choice across environments
-        — and log the ambiguity once per distinct (top_level, resource_path, selected)
+        — and log the ambiguity once per distinct (package, resource_path, selected)
         combination.
         """
         if len(candidates) == 1:
@@ -144,7 +145,7 @@ class SchemaLoader:
             return owners[0]
 
         fallback = sorted(candidates)[0]
-        # Deduplicate warnings by tracking (top_level, resource_path, selected) combinations
+        # Deduplicate warnings by tracking (package, resource_path, selected) combinations
         warn_key = (resource.package, resource.resource_path, fallback)
         if warn_key not in cls._distribution_ambiguity_warned:
             cls._distribution_ambiguity_warned.add(warn_key)
@@ -155,7 +156,7 @@ class SchemaLoader:
                 sorted(candidates),
                 fallback,
                 extra={
-                    "top_level": resource.package,
+                    "package": resource.package,
                     "resource_path": resource.resource_path,
                     "candidates": sorted(candidates),
                     "matched_owners": sorted(owners),

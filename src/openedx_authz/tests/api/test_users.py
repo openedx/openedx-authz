@@ -14,6 +14,7 @@ from openedx_authz.api.data import (
     PlatformCourseOverviewGlobData,
     RoleAssignmentData,
     RoleData,
+    ScopeData,
     UserData,
 )
 from openedx_authz.api.users import (
@@ -939,3 +940,19 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         for a in authorized:
             self.assertEqual(getattr(a.scope, "org", None), "Org1")
             self.assertTrue(any(r.external_key == "library_admin" for r in a.roles))
+
+
+class TestExpandScopesWithAncestors(UserAssignmentsSetupMixin):
+    """Unit tests for ScopeData.expand_keys_with_ancestors."""
+
+    def test_unrecognized_scope_format_is_kept_without_expansion(self):
+        """A scope key that cannot be resolved keeps the original and skips expansion.
+
+        This covers the ``except ValueError`` branch in expand_keys_with_ancestors
+        where ``ScopeData(external_key=...)`` raises because the key format is
+        invalid or the namespace is unknown.
+        """
+        bogus_scope = "unknown-namespace:some-value"
+        result = ScopeData.expand_keys_with_ancestors([bogus_scope])
+
+        self.assertEqual(result, {bogus_scope})

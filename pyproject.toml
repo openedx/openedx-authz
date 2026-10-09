@@ -38,6 +38,7 @@ dependencies = [
     "edx-organizations",
     "openedx-atlas",
     "openedx-events",
+    "openedx-filters>=3.15.0",
     "pycasbin",
 ]
 

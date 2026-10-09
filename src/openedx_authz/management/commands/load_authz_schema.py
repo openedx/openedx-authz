@@ -18,6 +18,8 @@ and Django settings/DB are available (ADR 0018 / plugin timing constraint).
 
 from __future__ import annotations
 
+from typing import Callable
+
 from django.core.management.base import BaseCommand, CommandError
 
 from openedx_authz.engine.schema.discovery import SchemaDiscovery, SchemaDiscoveryError
@@ -69,7 +71,7 @@ class Command(BaseCommand):
         try:
             if options.get("dry_run"):
                 plan = pipeline.plan()
-                self._report_plan(plan, applied=False)
+                self._report_plan(plan)
                 return
 
             result = pipeline.apply(force=options.get("force", False))
@@ -84,7 +86,7 @@ class Command(BaseCommand):
         # see exactly which Casbin policy rows and definition records changed,
         # then close with the applied summary.
         if result.plan is not None:
-            self._report_plan(result.plan, applied=True)
+            self._report_plan(result.plan)
         self.stdout.write(self.style.SUCCESS(self._apply_summary(result)))
 
     def _apply_summary(self, result) -> str:
@@ -104,30 +106,42 @@ class Command(BaseCommand):
 
         return f"{summary}."
 
-    def _report_plan(self, plan, *, applied: bool) -> None:
+    def _write_marked_line(self, marker: str, text: str, style: Callable[[str], str]) -> None:
+        """Write one ``  {marker} {text}`` line, colorized via Django's ``style``.
+
+        Centralizing this keeps the literal marker character and the color that
+        decorates it paired in one place, so the two layers below (Casbin rows,
+        definitions) can't drift out of sync with each other on how a given kind
+        of change is marked. ``style`` is one of ``self.style.SUCCESS`` /
+        ``WARNING`` / ``ERROR``; Django's style wrappers pass text through
+        unchanged when stdout isn't a tty, so the marker stays readable without
+        color (requirement: markers are real text, not color-only).
+        """
+        self.stdout.write(style(f"  {marker} {text}"))
+
+    def _report_plan(self, plan) -> None:
         """Print the change report (ADR 0018 §6).
 
         Covers the definition tables (roles, permissions, categories, and
         role-permission grants) as well as the Casbin ``p`` policy rows. The two
-        are reported separately because they are distinct layers: apply syncs the
-        definition metadata even when no ``p`` row changes, so a metadata-only
-        edit is a real change the operator needs to see. ``applied`` only changes
-        the verb tense in the section headers (past tense once written).
+        are reported as separate top-level sections because they are distinct
+        layers: apply syncs the definition metadata even when no ``p`` row
+        changes, so a metadata-only edit is a real change the operator needs to
+        see. Each layer is one compact, interleaved diff (additions and removals
+        together) rather than split by direction, so a reviewer can scan one
+        block per layer instead of hunting across separate add/remove sections.
         """
         if plan.unchanged:
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; nothing would be written."))
             return
 
-        added_label = "added" if applied else "to add"
-        removed_label = "removed" if applied else "to remove"
-
-        self.stdout.write(f"Casbin policy rows {added_label} ({len(plan.added_rows)}):")
-        for row in plan.added_rows:
-            self.stdout.write(f"  + {row.as_policy()}")
-
-        self.stdout.write(f"Casbin policy rows {removed_label} ({len(plan.removed_rows)}):")
-        for row in plan.removed_rows:
-            self.stdout.write(f"  - {row.as_policy()}")
+        total_rows = len(plan.added_rows) + len(plan.removed_rows)
+        if total_rows:
+            self.stdout.write(f"Casbin policies ({total_rows})")
+            for row in plan.added_rows:
+                self._write_marked_line("+", row.as_policy(), self.style.SUCCESS)
+            for row in plan.removed_rows:
+                self._write_marked_line("-", row.as_policy(), self.style.ERROR)
 
         self._report_definitions(plan)
 
@@ -142,23 +156,28 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ! {role} assigned to {subject}")
 
     def _report_definitions(self, plan) -> None:
-        """Print the definition-metadata changes, one section per kind.
+        """Print the definition-metadata changes as one compact, interleaved diff.
 
         These are the role/permission/category/grant records, a separate layer
         from the Casbin policy rows above: they can change on their own (e.g. a
-        display-name edit) without adding or removing any ``p`` row.
+        display-name edit) without adding or removing any ``p`` row. The single
+        header no longer names the kind (there's only one header for the whole
+        section), so each line is made self-describing with an inline
+        ``{label}: `` prefix, keeping the existing per-kind iteration order and
+        the existing added-then-updated-then-removed order within each kind.
         """
         if plan.definitions_unchanged:
             self.stdout.write("Role/permission/category definitions unchanged.")
             return
 
+        total = sum(len(diff) for _, diff in plan.definition_diffs)
+        self.stdout.write(f"Definitions ({total})")
         for label, diff in plan.definition_diffs:
             if diff.is_empty:
                 continue
-            self.stdout.write(f"Definition changes - {label} ({len(diff)}):")
             for key in diff.added:
-                self.stdout.write(f"  + {key}")
+                self._write_marked_line("+", f"{label}: {key}", self.style.SUCCESS)
             for key in diff.updated:
-                self.stdout.write(f"  ~ {key}")
+                self._write_marked_line("~", f"{label}: {key}", self.style.WARNING)
             for key in diff.removed:
-                self.stdout.write(f"  - {key}")
+                self._write_marked_line("-", f"{label}: {key}", self.style.ERROR)

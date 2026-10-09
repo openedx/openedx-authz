@@ -341,18 +341,6 @@ class TestMalformedEntries:
             _load(b"schema_version: '1.0'\npriority: 1\nroles:\n  - 5\n")
 
 
-@pytest.fixture
-def clear_warned_distributions() -> None:
-    """Clear the class-level distribution ambiguity tracker before and after each test.
-
-    Ensures test isolation and order-independence by resetting the dedupe set
-    that prevents duplicate logging of the same ambiguity.
-    """
-    SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
-    yield
-    SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
-
-
 class TestDistributionAmbiguityLogging:
     """Test distribution resolution logging and deduplication.
 
@@ -361,9 +349,19 @@ class TestDistributionAmbiguityLogging:
     distinct (package, resource_path, selected) combination.
     """
 
+    @pytest.fixture(autouse=True)
+    def _clear_warned_distributions(self) -> None:
+        """Clear the class-level distribution ambiguity tracker before and after each test.
+
+        Ensures test isolation and order-independence by resetting the dedupe set
+        that prevents duplicate logging of the same ambiguity.
+        """
+        SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+        yield
+        SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+
     def test_single_candidate_no_log(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """When there is a single candidate, no ambiguity log is emitted."""
@@ -382,7 +380,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_unique_owner_no_log(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -396,7 +393,7 @@ class TestDistributionAmbiguityLogging:
         )
 
         # Mock _distribution_ships so only dist1 claims the resource
-        def mock_ships(distribution: str, installed_path: str) -> bool:
+        def mock_ships(distribution: str, _installed_path: str) -> bool:
             return distribution == "dist1"
 
         monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(mock_ships))
@@ -408,7 +405,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_ambiguous_fallback_logs_once(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -433,7 +429,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_log_message_includes_distribution(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -456,7 +451,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_log_extra_dict_preserved(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -486,7 +480,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_same_ambiguity_logged_only_once(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -514,7 +507,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_different_resources_each_logged(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -543,7 +535,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_selection_logic_unchanged(
         self,
-        clear_warned_distributions: None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Fallback selection is still deterministic (sorted first candidate)."""
@@ -564,7 +555,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_log_level_is_info_not_warning(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -587,7 +577,6 @@ class TestDistributionAmbiguityLogging:
 
     def test_dedupe_key_includes_selected_distribution(
         self,
-        clear_warned_distributions: None,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:

@@ -62,13 +62,12 @@ class TestApplyMode:
             pipeline_cls.return_value.apply.return_value = ApplyResult(added=1, removed=1, unchanged=False, plan=plan)
             output = _run()
 
-        # Detailed policy-row and definition sections, using past tense.
-        assert "Casbin policy rows added (1)" in output
-        assert "Casbin policy rows removed (1)" in output
+        # Detailed policy-row and definition sections, as one compact diff each.
+        assert "Casbin policies (2)" in output
         assert "role^r" in output
         assert "role^old" in output
-        assert "Definition changes - role (1)" in output
-        assert "~ course_editor" in output
+        assert "Definitions (1)" in output
+        assert "~ role: course_editor" in output
         # And still closes with the applied summary, now including definitions.
         assert "1 Casbin policy row(s) added, 1 removed; definition changes: 1 role" in output
 
@@ -148,10 +147,39 @@ class TestDryRunMode:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Casbin policy rows to add (1)" in output
-        assert "Casbin policy rows to remove (1)" in output
+        assert "Casbin policies (2)" in output
         assert "role^r" in output
         assert "role^old" in output
+
+    def test_dry_run_reports_compact_interleaved_casbin_section(self):
+        """Added and removed Casbin rows share one 'Casbin policies (N)' header, interleaved +/-."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("role^course_editor", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("role^old_editor", "act^courses.manage_tags", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Casbin policies (2)" in output
+        assert "role^course_editor" in output
+        assert "role^old_editor" in output
+        assert "Definitions" not in output
+
+    def test_dry_run_reports_compact_definitions_section_without_casbin(self):
+        """A definitions-only change prints 'Definitions (N)' with the Casbin section omitted."""
+        plan = ChangePlan(
+            unchanged=False,
+            roles=DefinitionDiff(added=["course_editor"]),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Definitions (1)" in output
+        assert "+ role: course_editor" in output
+        assert "Casbin policies" not in output
 
     def test_dry_run_reports_blocking_assignments(self):
         """A dry run flags assignments that would require ``--force`` to remove."""
@@ -188,11 +216,11 @@ class TestDefinitionReport:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Definition changes - role (1)" in output
-        assert "~ course_editor" in output
+        assert "Definitions (1)" in output
+        assert "~ role: course_editor" in output
 
     def test_added_and_removed_definitions_are_reported_per_kind(self):
-        """Definition changes are grouped and labeled per kind (category/permission/grant)."""
+        """Definition changes are grouped under one header and labeled inline per kind."""
         plan = ChangePlan(
             unchanged=False,
             categories=DefinitionDiff(added=["course_content"]),
@@ -203,11 +231,10 @@ class TestDefinitionReport:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Definition changes - category (1)" in output
-        assert "+ course_content" in output
-        assert "Definition changes - permission (1)" in output
-        assert "- courses.manage_tags" in output
-        assert "Definition changes - role-permission (1)" in output
+        assert "Definitions (3)" in output
+        assert "+ category: course_content" in output
+        assert "- permission: courses.manage_tags" in output
+        assert "+ role-permission: course_editor -> courses.view_course @ course-v1" in output
 
     def test_untouched_kinds_are_omitted(self):
         """Kinds with no changes are left out of the report."""
@@ -216,7 +243,7 @@ class TestDefinitionReport:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Definition changes - role (1)" in output
+        assert "Definitions (1)" in output
         assert "category" not in output
         assert "permission" not in output
 

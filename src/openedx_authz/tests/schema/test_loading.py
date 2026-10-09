@@ -245,6 +245,26 @@ class TestSourceIdentity:
 
         assert docs[0].source.distribution == "alpha-dist"
 
+    def test_same_distribution_listed_twice_is_not_ambiguous(self, monkeypatch, caplog):
+        """A distribution listed more than once for a package is one owner, not an ambiguity.
+
+        ``packages_distributions`` can report the same distribution twice (seen
+        with editable installs / overlapping metadata), e.g.
+        ``["openedx-authz", "openedx-authz"]``. That is a single real owner, so
+        it must resolve to that distribution with no "multiple distributions"
+        fallback warning — collapsing the duplicates is what prevents the log
+        from repeating on every schema resource.
+        """
+        monkeypatch.setattr(metadata, "packages_distributions", lambda: {"pkg": ["dup-dist", "dup-dist"]})
+        monkeypatch.setattr(metadata, "version", lambda _name: "1.0")
+
+        with caplog.at_level(logging.INFO, logger="openedx_authz.engine.schema.loading"):
+            docs = _load(b"schema_version: '1.0'\npriority: 1\n")
+
+        assert docs[0].source.distribution == "dup-dist"
+        assert docs[0].source.distribution_version == "1.0"
+        assert "multiple distributions" not in caplog.text
+
     def test_digest_reflects_the_file_contents(self):
         """Different file contents produce different content digests."""
         first = _load(b"schema_version: '1.0'\npriority: 1\n")[0]

@@ -68,8 +68,9 @@ class TestApplyMode:
         assert "role^old" in output
         assert "Definitions (1)" in output
         assert "~ role: course_editor" in output
-        # And still closes with the applied summary, now including definitions.
-        assert "1 Casbin policy row(s) added, 1 removed; definition changes: 1 role" in output
+        # And still closes with the applied summary, now including definitions,
+        # preceded by a blank line for consistency with the dry-run closing note.
+        assert "\nAuthz schema applied: 1 Casbin policy row(s) added, 1 removed; definition changes: 1 role" in output
 
     def test_apply_summary_counts_definition_changes_with_zero_policy_rows(self):
         """A metadata-only apply writes 0 p rows but still recaps definitions."""
@@ -136,6 +137,28 @@ class TestDryRunMode:
 
         assert "unchanged" in output.lower()
 
+    def test_dry_run_closes_with_a_no_changes_applied_message(self):
+        """A dry run ends with an explicit 'no changes were applied' note, after a blank line."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Dry run: no changes were applied." in output
+        assert "\nDry run: no changes were applied." in output
+        assert output.rstrip().endswith("Dry run: no changes were applied.")
+
+    def test_dry_run_closing_message_also_shown_when_unchanged(self):
+        """Even an unchanged dry run states it was a dry run with nothing applied."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = ChangePlan(unchanged=True)
+            output = _run("--dry-run")
+
+        assert "Dry run: no changes were applied." in output
+
     def test_dry_run_reports_added_and_removed_rows(self):
         """A dry run lists the policy rows it would add and remove."""
         plan = ChangePlan(
@@ -166,6 +189,34 @@ class TestDryRunMode:
         assert "role^course_editor" in output
         assert "role^old_editor" in output
         assert "Definitions" not in output
+
+    def test_report_opens_with_a_changes_to_apply_title(self):
+        """The change report is introduced by a 'Changes to apply:' title line."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Changes to apply:" in output
+
+    def test_casbin_rows_render_as_comma_joined_policy_lines(self):
+        """Each Casbin row prints as a ``<marker> p, <fields...>`` policy line, not a list repr."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("role^course_editor", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("role^old_editor", "act^courses.manage_tags", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "+ p, role^course_editor, act^courses.view_course, course-v1^*, allow" in output
+        assert "- p, role^old_editor, act^courses.manage_tags, course-v1^*, allow" in output
+        # The old Python-list repr form must not leak into the report.
+        assert "['role^course_editor'" not in output
 
     def test_dry_run_reports_compact_definitions_section_without_casbin(self):
         """A definitions-only change prints 'Definitions (N)' with the Casbin section omitted."""

@@ -72,6 +72,7 @@ class Command(BaseCommand):
             if options.get("dry_run"):
                 plan = pipeline.plan()
                 self._report_plan(plan)
+                self.stdout.write(self.style.SUCCESS("\nDry run: no changes were applied."))
                 return
 
             result = pipeline.apply(force=options.get("force", False))
@@ -87,7 +88,7 @@ class Command(BaseCommand):
         # then close with the applied summary.
         if result.plan is not None:
             self._report_plan(result.plan)
-        self.stdout.write(self.style.SUCCESS(self._apply_summary(result)))
+        self.stdout.write(self.style.SUCCESS(f"\n{self._apply_summary(result)}"))
 
     def _apply_summary(self, result) -> str:
         """One-line recap of what apply wrote, across both layers.
@@ -119,6 +120,29 @@ class Command(BaseCommand):
         """
         self.stdout.write(style(f"  {marker} {text}"))
 
+    def _write_section_header(self, text: str) -> None:
+        """Write a bold section header preceded by a blank line.
+
+        ``MIGRATE_HEADING`` is Django's built-in bold heading style; like the
+        other ``self.style`` wrappers it emits bold ANSI on a tty and plain text
+        otherwise, so the header stays readable (and the leading blank line
+        separates each section) with or without color.
+        """
+        self.stdout.write(self.style.MIGRATE_HEADING(f"\n{text}"))
+
+    @staticmethod
+    def _format_policy_row(row) -> str:
+        """Render a Casbin row as its policy line, e.g. ``p, role^x, act^y, scope^*, allow``.
+
+        ``row.as_policy()`` returns the enforcer arg form (a ``list[str]``) used
+        when talking to Casbin; for the human-facing report we prefix the row's
+        policy type (``row.PTYPE`` — ``p`` for a permission row, ``g`` for a
+        grouping row) and comma-join the fields, matching how a Casbin policy
+        line is written in a model/policy file. The underlying ``as_policy``
+        contract is left untouched since the enforcer depends on the list form.
+        """
+        return ", ".join([row.PTYPE, *row.as_policy()])
+
     def _report_plan(self, plan) -> None:
         """Print the change report (ADR 0018 §6).
 
@@ -135,13 +159,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; nothing would be written."))
             return
 
+        self.stdout.write("\nChanges to apply:")
+
         total_rows = len(plan.added_rows) + len(plan.removed_rows)
         if total_rows:
-            self.stdout.write(f"Casbin policies ({total_rows})")
+            self._write_section_header(f"Casbin policies ({total_rows})")
             for row in plan.added_rows:
-                self._write_marked_line("+", row.as_policy(), self.style.SUCCESS)
+                self._write_marked_line("+", self._format_policy_row(row), self.style.SUCCESS)
             for row in plan.removed_rows:
-                self._write_marked_line("-", row.as_policy(), self.style.ERROR)
+                self._write_marked_line("-", self._format_policy_row(row), self.style.ERROR)
 
         self._report_definitions(plan)
 
@@ -171,7 +197,7 @@ class Command(BaseCommand):
             return
 
         total = sum(len(diff) for _, diff in plan.definition_diffs)
-        self.stdout.write(f"Definitions ({total})")
+        self._write_section_header(f"Definitions ({total})")
         for label, diff in plan.definition_diffs:
             if diff.is_empty:
                 continue

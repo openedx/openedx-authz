@@ -113,7 +113,13 @@ class SchemaLoader:
         # pylint: disable=broad-exception-caught
         except Exception:  # noqa: BLE001 - defensive; metadata quirks across envs
             mapping = {}
-        candidates = mapping.get(top_level) or []
+        # ``packages_distributions()`` can list the same distribution more than
+        # once for one top-level package (observed with editable installs and
+        # overlapping metadata). Those are not competing owners, so collapse to
+        # the distinct names before resolving — otherwise a lone real owner that
+        # happens to be listed twice looks "ambiguous" and the fallback path
+        # warns on every resource for a non-problem.
+        candidates = sorted(set(mapping.get(top_level) or []))
         if not candidates:
             return top_level, cls._UNKNOWN_DISTRIBUTION
 

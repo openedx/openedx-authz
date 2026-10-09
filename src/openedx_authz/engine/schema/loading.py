@@ -41,6 +41,8 @@ class SchemaLoader:
     """
 
     _UNKNOWN_DISTRIBUTION = "unknown"
+    _distribution_ambiguity_warned: set[tuple[str, str, str]] = set()
+    """Tracks warned (package, resource_path, selected) combinations to deduplicate logs."""
 
     def load(self, resources: list[DiscoveredResource]) -> list[SchemaDocument]:
         """Load every discovered resource into a :class:`SchemaDocument`.
@@ -111,7 +113,13 @@ class SchemaLoader:
         # pylint: disable=broad-exception-caught
         except Exception:  # noqa: BLE001 - defensive; metadata quirks across envs
             mapping = {}
-        candidates = mapping.get(top_level) or []
+        # ``packages_distributions()`` can list the same distribution more than
+        # once for one top-level package (observed with editable installs and
+        # overlapping metadata). Those are not competing owners, so collapse to
+        # the distinct names before resolving — otherwise a lone real owner that
+        # happens to be listed twice looks "ambiguous" and the fallback path
+        # warns on every resource for a non-problem.
+        candidates = sorted(set(mapping.get(top_level) or []))
         if not candidates:
             return top_level, cls._UNKNOWN_DISTRIBUTION
 
@@ -131,7 +139,8 @@ class SchemaLoader:
         it. If exactly zero or more than one distribution claims the file (or the
         file lists are unavailable), we cannot know the true owner, so we return
         the first candidate in sorted order — a stable choice across environments
-        — and log the ambiguity.
+        — and log the ambiguity once per distinct (package, resource_path, selected)
+        combination.
         """
         if len(candidates) == 1:
             return candidates[0]
@@ -142,16 +151,24 @@ class SchemaLoader:
             return owners[0]
 
         fallback = sorted(candidates)[0]
-        logger.warning(
-            "Could not uniquely resolve the distribution that ships a schema resource; selecting deterministically.",
-            extra={
-                "top_level": resource.package,
-                "resource_path": resource.resource_path,
-                "candidates": sorted(candidates),
-                "matched_owners": sorted(owners),
-                "selected": fallback,
-            },
-        )
+        # Deduplicate warnings by tracking (package, resource_path, selected) combinations
+        warn_key = (resource.package, resource.resource_path, fallback)
+        if warn_key not in cls._distribution_ambiguity_warned:
+            cls._distribution_ambiguity_warned.add(warn_key)
+            logger.info(
+                "Schema resource for package '%s' is claimed by multiple distributions %s; "
+                "deterministically selected '%s'.",
+                resource.package,
+                sorted(candidates),
+                fallback,
+                extra={
+                    "package": resource.package,
+                    "resource_path": resource.resource_path,
+                    "candidates": sorted(candidates),
+                    "matched_owners": sorted(owners),
+                    "selected": fallback,
+                },
+            )
         return fallback
 
     @staticmethod

@@ -1,10 +1,11 @@
 """Unit tests for the schema loading step."""
 
+import logging
 from importlib import metadata
 
 import pytest
 
-from openedx_authz.engine.schema.discovery import SchemaDiscovery
+from openedx_authz.engine.schema.discovery import DiscoveredResource, Origin, SchemaDiscovery
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
 from openedx_authz.engine.schema.loading import SchemaLoader
 
@@ -338,3 +339,278 @@ class TestMalformedEntries:
         """A malformed entry error names the contributing source."""
         with pytest.raises(SchemaLoadError, match="pkg.mod"):
             _load(b"schema_version: '1.0'\npriority: 1\nroles:\n  - 5\n")
+
+
+@pytest.fixture
+def clear_warned_distributions() -> None:
+    """Clear the class-level distribution ambiguity tracker before and after each test.
+
+    Ensures test isolation and order-independence by resetting the dedupe set
+    that prevents duplicate logging of the same ambiguity.
+    """
+    SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+    yield
+    SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+
+
+class TestDistributionAmbiguityLogging:
+    """Test distribution resolution logging and deduplication.
+
+    When multiple distributions claim the same top-level package, the loader
+    must select one deterministically and log the ambiguity exactly once per
+    distinct (package, resource_path, selected) combination.
+    """
+
+    def test_single_candidate_no_log(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """When there is a single candidate, no ambiguity log is emitted."""
+        caplog.set_level(logging.INFO)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        result = SchemaLoader._select_owning_distribution(["dist1"], resource)  # pylint: disable=protected-access
+
+        assert result == "dist1"
+        assert len(caplog.records) == 0
+
+    def test_unique_owner_no_log(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When ownership can be uniquely resolved, no ambiguity log is emitted."""
+        caplog.set_level(logging.INFO)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        # Mock _distribution_ships so only dist1 claims the resource
+        def mock_ships(distribution: str, installed_path: str) -> bool:
+            return distribution == "dist1"
+
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(mock_ships))
+
+        result = SchemaLoader._select_owning_distribution(["dist1", "dist2"], resource)  # pylint: disable=protected-access
+
+        assert result == "dist1"
+        assert len(caplog.records) == 0
+
+    def test_ambiguous_fallback_logs_once(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When ownership is ambiguous, a single info-level log is emitted."""
+        caplog.set_level(logging.INFO)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        # Mock _distribution_ships so no distribution claims the resource
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+
+        # Should emit exactly one log record
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelno == logging.INFO
+        assert caplog.records[0].levelname == "INFO"
+
+    def test_log_message_includes_distribution(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Log message includes the selected distribution name and package."""
+        caplog.set_level(logging.INFO)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        result = SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+
+        assert result == "dist1"
+        log_msg = caplog.records[0].message
+        assert "dist1" in log_msg
+        assert "test_package" in log_msg
+
+    def test_log_extra_dict_preserved(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Log record preserves all structured context in the 'extra' dict."""
+        caplog.set_level(logging.INFO)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+
+        record = caplog.records[0]
+        assert hasattr(record, "top_level")
+        assert record.top_level == "test_package"
+        assert hasattr(record, "resource_path")
+        assert record.resource_path == "schema/test.yaml"
+        assert hasattr(record, "candidates")
+        assert set(record.candidates) == {"dist1", "dist2"}
+        assert hasattr(record, "matched_owners")
+        assert record.matched_owners == []
+        assert hasattr(record, "selected")
+        assert record.selected == "dist1"
+
+    def test_same_ambiguity_logged_only_once(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Identical (package, resource_path, selected) combinations log only once.
+
+        This tests the deduplication behavior across multiple calls within
+        the same process.
+        """
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        # Call multiple times with the same resource
+        for _ in range(3):
+            SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+
+        # Should emit exactly one log record despite three calls
+        assert len(caplog.records) == 1
+
+    def test_different_resources_each_logged(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Different resources (even with same candidates) each log once."""
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        resource1 = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test1.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+        resource2 = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test2.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource1)  # pylint: disable=protected-access
+        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource2)  # pylint: disable=protected-access
+
+        # Should emit two log records (one per unique resource_path)
+        assert len(caplog.records) == 2
+
+    def test_selection_logic_unchanged(
+        self,
+        clear_warned_distributions: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fallback selection is still deterministic (sorted first candidate)."""
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+        # Test with various orderings; should always return sorted[0]
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        candidates = ["zebra", "apple", "banana"]
+
+        result = SchemaLoader._select_owning_distribution(candidates, resource)  # pylint: disable=protected-access
+
+        assert result == "apple"  # sorted(candidates)[0]
+
+    def test_log_level_is_info_not_warning(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Log level is INFO, not WARNING, for the ambiguity."""
+        caplog.set_level(logging.DEBUG)
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+
+        assert len(caplog.records) == 1
+        record = caplog.records[0]
+        assert record.levelno == logging.INFO
+        assert record.levelname == "INFO"
+
+    def test_dedupe_key_includes_selected_distribution(
+        self,
+        clear_warned_distributions: None,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Deduplication key depends on the selected distribution.
+
+        Since sorting is deterministic, the same candidates always yield
+        the same fallback, so we verify that identical candidates produce
+        identical fallbacks and thus deduplicate.
+        """
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+
+        resource = DiscoveredResource(
+            package="test_package",
+            resource_path="schema/test.yaml",
+            module="test_package.schema",
+            origin=Origin.ENTRY_POINT,
+        )
+
+        # Both orderings should select the same deterministic fallback
+        result1 = SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+        result2 = SchemaLoader._select_owning_distribution(["dist1", "dist2"], resource)  # pylint: disable=protected-access
+
+        assert result1 == result2 == "dist1"
+        # Only one log record because the warn_key is identical
+        assert len(caplog.records) == 1

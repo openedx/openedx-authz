@@ -53,8 +53,8 @@ class TestApplyMode:
     def test_apply_prints_detailed_change_report(self):
         """Apply prints the same breakdown as a dry run when a plan is attached."""
         plan = ChangePlan(
-            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
-            removed_rows=[PolicyRow("p", "role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
             unchanged=False,
             roles=DefinitionDiff(updated=["course_editor"]),
         )
@@ -90,7 +90,7 @@ class TestApplyMode:
     def test_apply_summary_omits_definitions_when_unchanged(self):
         """Row-only changes don't tack on an empty definition recap."""
         plan = ChangePlan(
-            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
             unchanged=False,
         )
         with mock.patch(PIPELINE_PATH) as pipeline_cls:
@@ -140,8 +140,8 @@ class TestDryRunMode:
     def test_dry_run_reports_added_and_removed_rows(self):
         """A dry run lists the policy rows it would add and remove."""
         plan = ChangePlan(
-            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
-            removed_rows=[PolicyRow("p", "role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
             unchanged=False,
         )
         with mock.patch(PIPELINE_PATH) as pipeline_cls:
@@ -223,7 +223,7 @@ class TestDefinitionReport:
     def test_row_only_change_says_definitions_unchanged(self):
         """A row-only change states explicitly that definitions are unchanged."""
         plan = ChangePlan(
-            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            added_rows=[PolicyRow("role^r", "act^courses.view_course", "course-v1^*", "allow")],
             unchanged=False,
         )
         with mock.patch(PIPELINE_PATH) as pipeline_cls:

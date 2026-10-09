@@ -9,30 +9,11 @@ enforcer resolution and role-assignment-deleted event emission.
 import types
 from unittest import mock
 
-from openedx_authz.engine.renderer import PolicyRenderer, PolicyRow, SchemaApplier
+from openedx_authz.engine.policy import PolicyStore
+from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 
 from .factories import category, make_document, permission, role
-
-
-class TestPolicyRow:
-    """Constructing and round-tripping a single Casbin ``p`` row."""
-
-    def test_from_policy_round_trips_as_policy(self):
-        """A row rebuilt from ``as_policy`` output equals the original."""
-        row = PolicyRow("p", "role^course_editor", "act^courses.view_course", "course-v1^*", "allow")
-        assert PolicyRow.from_policy(row.as_policy()) == row
-
-    def test_from_policy_reads_a_stored_row(self):
-        """A stored ``[subject, action, scope, effect]`` row maps to its fields."""
-        row = PolicyRow.from_policy(["role^r", "act^p", "course-v1^*", "allow"])
-        assert row.ptype == "p"
-        assert (row.subject, row.action, row.scope, row.effect) == ("role^r", "act^p", "course-v1^*", "allow")
-
-    def test_from_policy_pads_short_rows_with_empty_strings(self):
-        """A row with fewer than four values is padded rather than raising."""
-        row = PolicyRow.from_policy(["role^r", "act^p"])
-        assert (row.subject, row.action, row.scope, row.effect) == ("role^r", "act^p", "", "")
 
 
 class TestPolicyRendering:
@@ -61,7 +42,7 @@ class TestPolicyRendering:
         """Each role-permission-scope combination becomes one allow ``p`` row."""
         rendered = PolicyRenderer().render(self._schema())
         assert len(rendered.rows) == 2
-        assert all(row.ptype == "p" and row.effect == "allow" for row in rendered.rows)
+        assert all(row.effect == "allow" for row in rendered.rows)
 
     def test_render_applies_casbin_namespacing(self):
         """Subjects, actions, and scopes carry their Casbin namespace prefixes."""
@@ -88,34 +69,29 @@ class TestPolicyRendering:
         assert scopes == {"course-v1^*", "ccx-v1^*"}
 
 
-class TestResolveEnforcer:
-    """``SchemaApplier._resolve_enforcer``: injected vs. lazily resolved enforcer."""
+class TestPolicyStoreInjection:
+    """``SchemaApplier`` holds only a :class:`PolicyStore`, never the enforcer.
 
-    def test_returns_injected_enforcer_without_importing(self):
-        """An enforcer passed in is returned as-is (no lazy resolution)."""
-        sentinel = object()
-        applier = SchemaApplier(enforcer=sentinel)
+    Enforcer resolution now lives entirely in the store (see
+    :mod:`openedx_authz.tests.test_policy`), so the applier just defaults to a
+    bare ``PolicyStore()`` or uses the one it is given.
+    """
 
-        # Patch the enforcer accessor to prove it is never touched.
+    def test_defaults_to_a_bare_policy_store(self):
+        """With no store injected, the applier builds a default ``PolicyStore``."""
+        applier = SchemaApplier()
+
+        assert isinstance(applier._policy_store, PolicyStore)  # pylint: disable=protected-access
+
+    def test_uses_the_injected_policy_store(self):
+        """An injected store is used as-is, with no enforcer resolution."""
+        sentinel = PolicyStore(enforcer=object())
+        applier = SchemaApplier(policy_store=sentinel)
+
+        # Patch the enforcer accessor to prove it is never touched at construction.
         with mock.patch("openedx_authz.engine.renderer.AuthzEnforcer") as authz_enforcer:
-            assert applier._resolve_enforcer() is sentinel  # pylint: disable=protected-access
+            assert applier._policy_store is sentinel  # pylint: disable=protected-access
             authz_enforcer.get_enforcer.assert_not_called()
-
-    def test_lazily_resolves_when_enforcer_is_none(self):
-        """When no enforcer was injected, it is fetched via AuthzEnforcer and cached."""
-        resolved = object()
-        applier = SchemaApplier()  # enforcer defaults to None
-
-        with mock.patch("openedx_authz.engine.renderer.AuthzEnforcer") as authz_enforcer:
-            authz_enforcer.get_enforcer.return_value = resolved
-
-            first = applier._resolve_enforcer()  # pylint: disable=protected-access
-            second = applier._resolve_enforcer()  # pylint: disable=protected-access
-
-        assert first is resolved
-        # Cached after the first resolution: only one lookup despite two calls.
-        assert second is resolved
-        authz_enforcer.get_enforcer.assert_called_once_with()
 
 
 class TestEmitAssignmentDeleted:

@@ -21,6 +21,7 @@ import pytest
 from django.db import IntegrityError
 from django.test import TestCase
 
+from openedx_authz.engine.policy import PolicyStore
 from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
@@ -153,7 +154,7 @@ def _apply(enforcer, *documents, force=False):
     """
     schema = _compile(*documents)
     rendered = PolicyRenderer().render(schema)
-    return SchemaApplier(enforcer=enforcer).apply(rendered, schema, force=force)
+    return SchemaApplier(policy_store=PolicyStore(enforcer)).apply(rendered, schema, force=force)
 
 
 @pytest.mark.django_db
@@ -455,7 +456,7 @@ class TestDefinitionChangeReport:
     @staticmethod
     def _plan(enforcer, *documents):
         schema = _compile(*documents)
-        return SchemaApplier(enforcer=enforcer).plan(PolicyRenderer().render(schema), schema)
+        return SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
 
     def test_first_run_reports_every_definition_as_added(self):
         """A first run reports every role, category, permission, and grant as added."""
@@ -567,7 +568,7 @@ class TestDefinitionChangeReport:
         """``plan`` stays usable for row-only comparisons (schema optional)."""
         enforcer = FakeEnforcer()
 
-        plan = SchemaApplier(enforcer=enforcer).plan(_render(_editor(("courses.view_course",))))
+        plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(_render(_editor(("courses.view_course",))))
 
         assert len(plan.added_rows) == 1
         assert plan.definitions_unchanged is True

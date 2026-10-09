@@ -50,72 +50,14 @@ from django.db import transaction
 from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventData
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
 
-from openedx_authz.data import (
-    ACTION_NAMESPACE,
-    EFFECT_ALLOW,
-    POLICY_PTYPE,
-    ROLE_NAMESPACE,
-    SCOPE_WILDCARD,
-    PolicyIndex,
-)
-from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.policy import PolicyRow, PolicyStore
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
 from openedx_authz.models import schema as schema_models
 from openedx_authz.models.core import RoleAssignmentAudit
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class PolicyRow:
-    """A single Casbin ``p`` row rendered from a role-permission pair.
-
-    Fields follow the ``p`` shape: subject (role), action (permission), scope
-    pattern, effect. Namespacing to the internal Casbin form (``role^``,
-    ``act^``, ``<scope>^*``) happens here, at the boundary — schema objects
-    never carry those prefixes.
-    """
-
-    ptype: str  # always "p" for rendered definition rows
-    subject: str
-    action: str
-    scope: str
-    effect: str
-
-    def as_policy(self) -> list[str]:
-        """Return the enforcer arg form: ``[subject, action, scope, effect]``."""
-        return [self.subject, self.action, self.scope, self.effect]
-
-    @classmethod
-    def from_policy(cls, values: list[str]) -> "PolicyRow":
-        """Build from a stored ``p`` row (``[subject, action, scope, effect]``).
-
-        Parsing is delegated to the shared, strict
-        :meth:`~openedx_authz.data.PolicyIndex.parse`, so this stays in step
-        with the ``api`` layer. A partially populated row is padded first, so an
-        in-memory row round-trips instead of being rejected.
-        """
-        subject, action, scope, effect = PolicyIndex.parse(PolicyIndex.pad(values))
-        return cls(POLICY_PTYPE, subject, action, scope, effect)
-
-    @classmethod
-    def from_grant(cls, role_id: str, permission_id: str, scope: str) -> "PolicyRow":
-        """Build the Casbin ``p`` row for one ``(role, permission, scope)`` grant.
-
-        The single place the internal namespacing is applied, so every producer
-        and consumer of a rendered row agrees on its exact shape. A drift
-        between two such places would silently stop a later comparison against
-        the stored policy from matching anything.
-        """
-        return cls(
-            ptype=POLICY_PTYPE,
-            subject=f"{ROLE_NAMESPACE}{SEP}{role_id}",
-            action=f"{ACTION_NAMESPACE}{SEP}{permission_id}",
-            scope=f"{scope}{SEP}{SCOPE_WILDCARD}",
-            effect=EFFECT_ALLOW,
-        )
 
 
 @dataclass
@@ -217,14 +159,15 @@ class PolicyRenderer:
 class SchemaApplier:
     """Compares, then transactionally applies rendered policy to the database."""
 
-    def __init__(self, enforcer=None):
+    def __init__(self, policy_store: PolicyStore | None = None):
         """Args:
-        enforcer: Casbin enforcer; defaults to ``AuthzEnforcer.get_enforcer()``.
-
-        The default is resolved lazily inside methods (not at import) to respect
-        the plugin/settings timing constraint.
+        policy_store: The domain-typed :class:`PolicyStore` the applier reads and
+            writes through; defaults to a bare ``PolicyStore()`` that resolves the
+            enforcer lazily on first use. Tests inject a store wrapping a fake
+            enforcer. The applier never holds the enforcer handle itself — every
+            policy operation goes through the store.
         """
-        self._enforcer = enforcer
+        self._policy_store = policy_store or PolicyStore()
 
     def plan(self, rendered: RenderedPolicy, schema: CompiledSchema | None = None) -> ChangePlan:
         """Compute the change report without writing (ADR 0018 §6).
@@ -238,10 +181,10 @@ class SchemaApplier:
         metadata-only edit is a real change the operator has to see — without it
         the report would say "unchanged" and then rewrite display metadata.
         """
-        enforcer = self._resolve_enforcer()
+        policy_store = self._policy_store
 
         rendered_set = set(rendered.rows)
-        stored_set = {PolicyRow.from_policy(row) for row in enforcer.get_policy()}
+        stored_set = set(policy_store.get_policy_rows())
         managed_set = self._managed_rows()
 
         added = sorted(rendered_set - stored_set, key=self._row_sort_key)
@@ -254,7 +197,7 @@ class SchemaApplier:
         rendered_subjects = {row.subject for row in rendered_set}
         removed_subjects = {row.subject for row in removed} - rendered_subjects
 
-        blocking = self._find_blocking_assignments(enforcer, removed_subjects)
+        blocking = self._find_blocking_assignments(policy_store, removed_subjects)
 
         definitions = self._diff_definitions(schema) if schema is not None else {}
 
@@ -303,26 +246,26 @@ class SchemaApplier:
                 f"{details}. Re-run with force to remove them together with their assignments."
             )
 
-        enforcer = self._resolve_enforcer()
+        policy_store = self._policy_store
 
         # Reconcile p rows and sync definition/source records atomically.
         # Definitions are synced even when p rows are unchanged so metadata-only
         # edits land and pre-existing p rows get adopted on first run.
         #
-        # add_policy/remove_policy mutate the enforcer's in-memory model as well
-        # as the database, so a rollback would otherwise leave this process
-        # enforcing rows the database no longer has. Bumping the policy cache
-        # version on the failure path forces a reload from the committed state,
-        # keeping Casbin on the last working version (ADR 0018 §5).
+        # add_policy_row/remove_policy_row mutate the enforcer's in-memory model
+        # as well as the database, so a rollback would otherwise leave this
+        # process enforcing rows the database no longer has. Bumping the policy
+        # cache version on the failure path forces a reload from the committed
+        # state, keeping Casbin on the last working version (ADR 0018 §5).
         try:
             with transaction.atomic():
                 for row in plan.added_rows:
-                    enforcer.add_policy(*row.as_policy())
+                    policy_store.add_policy_row(row)
                 for row in plan.removed_rows:
-                    enforcer.remove_policy(*row.as_policy())
+                    policy_store.remove_policy_row(row)
                 removed_assignments: list[tuple[str, str, str]] = []
                 if force and plan.blocking_assignments:
-                    removed_assignments = self._remove_assignments(enforcer, plan.blocking_assignments)
+                    removed_assignments = self._remove_assignments(policy_store, plan.blocking_assignments)
                 self._store_sources(schema)
                 # Emit the audit events only if the transaction commits, mirroring
                 # unassign_role_from_subject_in_scope, so no audit row is written for
@@ -353,41 +296,27 @@ class SchemaApplier:
             plan=plan,
         )
 
-    # ---- helpers ----------------------------------------------------------
-
-    def _resolve_enforcer(self):
-        """Resolve the enforcer, deferring instantiation to honor plugin/settings timing.
-
-        ``AuthzEnforcer.get_enforcer()`` is called (not merely imported) lazily:
-        it reads ``CASBIN_MODEL``/``CASBIN_DB_ALIAS`` and initializes Casbin, so
-        it must run after Django settings are configured. Importing the class at
-        module top is inert — it instantiates nothing.
-        """
-        if self._enforcer is None:
-            self._enforcer = AuthzEnforcer.get_enforcer()
-        return self._enforcer
-
     @staticmethod
-    def _remove_assignments(enforcer, blocking_assignments: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
+    def _remove_assignments(
+        policy_store: PolicyStore, blocking_assignments: list[tuple[str, str]]
+    ) -> list[tuple[str, str, str]]:
         """Remove the ``g`` assignment rows for force-removed roles (ADR 0018 §6).
 
         ``blocking_assignments`` are ``(role_subject, assignment_subject)`` pairs
-        produced by :meth:`plan`. Each corresponds to a grouping row of the shape
-        ``[assignment_subject, role_subject, scope]``; the scope segment is
-        preserved by matching against the live grouping policy so we remove the
-        exact stored row rather than a reconstructed one.
+        produced by :meth:`plan`. Each corresponds to a :class:`GroupingRow` whose
+        ``role``/``subject`` match the pair; the row's own ``scope`` is preserved
+        by matching against the live grouping policy so we remove the exact stored
+        row rather than a reconstructed one.
 
         Returns the ``(subject, role, scope)`` triples that were removed so the
         caller can emit a ``ROLE_ASSIGNMENT_DELETED`` audit event per removal.
         """
         targets = set(blocking_assignments)
         removed: list[tuple[str, str, str]] = []
-        for grouping in list(enforcer.get_grouping_policy()):
-            if len(grouping) >= 2 and (grouping[1], grouping[0]) in targets:
-                enforcer.remove_grouping_policy(*grouping)
-                subject, role = grouping[0], grouping[1]
-                scope = grouping[2] if len(grouping) >= 3 else ""
-                removed.append((subject, role, scope))
+        for grouping in policy_store.get_grouping_rows():
+            if (grouping.role, grouping.subject) in targets:
+                policy_store.remove_grouping_row(grouping)
+                removed.append((grouping.subject, grouping.role, grouping.scope))
         return removed
 
     @staticmethod
@@ -415,18 +344,18 @@ class SchemaApplier:
             )
 
     @staticmethod
-    def _find_blocking_assignments(enforcer, removed_subjects: set[str]) -> list[tuple[str, str]]:
+    def _find_blocking_assignments(policy_store: PolicyStore, removed_subjects: set[str]) -> list[tuple[str, str]]:
         """Return (role_subject, assignment_subject) for removed roles still assigned.
 
-        Grouping (``g``) rows have the shape ``[subject, role, scope]``; a role
-        being removed is blocking if any ``g`` row references it at index 1.
+        A :class:`GroupingRow` links a subject to a role; a role being removed is
+        blocking if any grouping row names it as its ``role``.
         """
         if not removed_subjects:
             return []
         blocking: list[tuple[str, str]] = []
-        for grouping in enforcer.get_grouping_policy():
-            if len(grouping) >= 2 and grouping[1] in removed_subjects:
-                blocking.append((grouping[1], grouping[0]))
+        for grouping in policy_store.get_grouping_rows():
+            if grouping.role in removed_subjects:
+                blocking.append((grouping.role, grouping.subject))
         return sorted(set(blocking))
 
     @staticmethod

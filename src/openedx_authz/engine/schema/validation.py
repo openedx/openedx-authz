@@ -12,7 +12,7 @@ Per-document checks:
       e.g. ``course-v1``); they are exempt from the identifier regex.
     * ``icon`` values, where present, are valid ``@openedx/paragon/icons`` names
       (ADR 0017 §4). The allowed set is vendored in :mod:`paragon_icons`
-      (regenerate with ``make paragon_icons``; see ADR 0026).
+      (regenerate with ``make paragon_icons``; see ADR 0029).
 
 Whole-set checks (after all documents load):
     * Every permission ``category`` references an existing category.

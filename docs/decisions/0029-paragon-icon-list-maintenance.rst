@@ -1,4 +1,4 @@
-0026: Maintaining the Vendored Paragon Icon Allow-List
+0029: Maintaining the Vendored Paragon Icon Allow-List
 ######################################################
 
 Status

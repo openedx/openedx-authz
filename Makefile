@@ -37,7 +37,7 @@ upgrade: ## update the uv.lock file with the latest packages satisfying pyprojec
 	uv run --with edx-lint edx_lint write_uv_constraints pyproject.toml
 	uv lock --upgrade
 
-paragon_icons: ## regenerate the vendored @openedx/paragon icon-name allow-list (see ADR 0026)
+paragon_icons: ## regenerate the vendored @openedx/paragon icon-name allow-list (see ADR 0029)
 	python scripts/generate_paragon_icons.py
 
 paragon_icons_check: ## fail if the vendored Paragon icon list is out of date (CI)

@@ -49,7 +49,7 @@ Added
   (ADR 0017 §4). Category, permission, role, and role-extension icons are now checked
   against the set of names exported by ``@openedx/paragon/icons``, vendored in
   ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
-  ``make paragon_icons`` (ADR 0026).
+  ``make paragon_icons`` (ADR 0029).
 
 Notes
 =====

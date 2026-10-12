@@ -14,21 +14,6 @@ Change Log
 Unreleased
 **********
 
-1.27.0 - 2026-09-30
-*******************
-
-Added
-=====
-
-* Added validation of Paragon ``icon`` names in authorization schema definitions
-  (ADR 0017 §4). Category, permission, role, and role-extension icons are now checked
-  against the set of names exported by ``@openedx/paragon/icons``, vendored in
-  ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
-  ``make paragon_icons`` (ADR 0026).
-
-1.26.0 - 2026-09-30
-*******************
-
 Added
 =====
 
@@ -60,6 +45,11 @@ Added
 * Added a change report before any write: the command lists the policy rows and the definitions that
   would be added, updated or removed, including metadata-only edits that change no policy row
   (ADR 0018 §6).
+* Added validation of Paragon ``icon`` names in authorization schema definitions
+  (ADR 0017 §4). Category, permission, role, and role-extension icons are now checked
+  against the set of names exported by ``@openedx/paragon/icons``, vendored in
+  ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
+  ``make paragon_icons`` (ADR 0026).
 
 Notes
 =====

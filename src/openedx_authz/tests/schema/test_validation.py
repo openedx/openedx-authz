@@ -8,6 +8,7 @@ the ``has_errors`` gate the pipeline uses to decide whether to stop.
 import pytest
 
 from openedx_authz.engine.schema.compilation import SchemaCompiler
+from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
 from openedx_authz.engine.schema.validation import (
     IssueLevel,
     SchemaValidator,
@@ -409,11 +410,43 @@ class TestValidateCompiled:
 class TestIconRules:
     """ADR 0017 §4: icon names must be valid @openedx/paragon/icons names."""
 
-    def test_valid_icon_has_no_errors(self):
-        """A real Paragon icon name passes validation."""
-        doc = make_document(categories=[category("cat", icon="BookOpen")])
+    # Pick a known-valid icon name dynamically instead of hardcoding a specific icon.
+    # This makes the tests resilient if a future paragon upgrade removes the icon we
+    # might have chosen. We use the first icon in the frozenset (sorted for stability).
+    _VALID_ICON = sorted(PARAGON_ICON_NAMES)[0]
+
+    def test_valid_category_icon_has_no_errors(self):
+        """A real Paragon icon name on a category passes validation."""
+        doc = make_document(categories=[category("cat", icon=self._VALID_ICON)])
 
         assert not _errors(SchemaValidator().validate([doc]))
+
+    def test_valid_permission_icon_has_no_errors(self):
+        """A real Paragon icon name on a permission passes validation."""
+        doc = make_document(
+            categories=[category("cat")],
+            permissions=[permission(cat="cat", icon=self._VALID_ICON)],
+        )
+
+        assert not _errors(SchemaValidator().validate([doc]))
+
+    def test_valid_role_icon_has_no_errors(self):
+        """A real Paragon icon name on a role passes validation."""
+        doc = make_document(roles=[role(icon=self._VALID_ICON)])
+
+        assert not _errors(SchemaValidator().validate([doc]))
+
+    def test_valid_role_extension_icon_has_no_errors(self):
+        """A real Paragon icon name on a role_extension passes validation."""
+        base = make_document(
+            "base",
+            categories=[category("cat")],
+            permissions=[permission(cat="cat")],
+            roles=[role()],
+        )
+        ext = make_document("ext", role_extensions=[extension("course_editor", icon=self._VALID_ICON)])
+
+        assert not _errors(SchemaValidator().validate([base, ext]))
 
     @pytest.mark.parametrize("icon", [None, ""])
     def test_missing_icon_is_allowed(self, icon):

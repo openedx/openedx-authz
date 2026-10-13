@@ -90,6 +90,77 @@ class PolicyIndex(Enum):
         )
 
 
+class GroupingPolicyIndex(Enum):
+    """
+    Index positions for fields in a Casbin grouping policy (g).
+
+    Grouping policies represent role assignments that link subjects to roles within
+    scopes. Format: [subject, role, scope, ...]
+
+    This mirrors :class:`PolicyIndex` — same strict :meth:`parse` / caller-pads
+    contract — and is the single source of truth for the ``g`` row field layout, so
+    the engine renderer and any other consumer of a grouping row agree on both the
+    mapping and the minimum shape without reaching into the ``api`` layer.
+
+    Attributes:
+        SUBJECT: Position 0 - The subject identifier (e.g., 'user^john_doe').
+        ROLE: Position 1 - The role identifier (e.g., 'role^instructor').
+        SCOPE: Position 2 - The scope identifier (e.g., 'lib^lib:DemoX:CSPROB').
+
+    Note:
+        All three fields make up the parse width (:meth:`parse` requires them).
+        Casbin may still store a scope-less ``[subject, role]`` grouping row; a
+        caller that may pass one :meth:`pad`-s it first so the missing scope
+        becomes an empty string rather than a parse error. Additional fields
+        beyond position 2 are ignored.
+    """
+
+    SUBJECT = 0
+    ROLE = 1
+    SCOPE = 2
+    # Additional fields beyond SCOPE (e.g. Casbin trailing columns) are ignored.
+
+    @classmethod
+    def required_width(cls) -> int:
+        """Return the number of named fields a complete ``g`` row has (3), which :meth:`parse` requires."""
+        return len(cls)
+
+    @classmethod
+    def pad(cls, values: list[str]) -> list[str]:
+        """
+        Pad ``values`` with empty strings up to :meth:`required_width`.
+
+        A stored grouping row may omit the scope segment (``[subject, role]``). Callers
+        that accept partially populated rows pad first so the shared, strict
+        :meth:`parse` does not reject them — the same contract as
+        :meth:`PolicyIndex.pad`.
+        """
+        return list(values) + [""] * (cls.required_width() - len(values))
+
+    @classmethod
+    def parse(cls, policy: list[str]) -> tuple[str, str, str]:
+        """
+        Return ``(subject, role, scope)`` from a Casbin ``g`` row.
+
+        The single place a ``g`` row is split into its fields, so every consumer
+        agrees on both the layout and the minimum shape. Rows shorter than
+        :meth:`required_width` are rejected; a caller that wants to tolerate a
+        partial row should :meth:`pad` it first. This is the same strict contract
+        as :meth:`PolicyIndex.parse`.
+
+        Raises:
+            ValueError: If ``policy`` has fewer than :meth:`required_width`
+                elements.
+        """
+        if len(policy) < cls.required_width():
+            raise ValueError(f"Invalid grouping policy format. Expected at least {cls.required_width()} elements.")
+        return (
+            policy[cls.SUBJECT.value],
+            policy[cls.ROLE.value],
+            policy[cls.SCOPE.value],
+        )
+
+
 class AuthzBaseClass:
     """Base class for all authz classes."""
 

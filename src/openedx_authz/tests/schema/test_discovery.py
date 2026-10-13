@@ -5,6 +5,7 @@ contract of :class:`SchemaDiscovery`:
 
 * ``TestDirectoryExpansion`` — a contributed directory expands to its YAML files.
 * ``TestSettingsDirectories`` — the operator/Tutor settings contribution route.
+* ``TestSettingsFiles`` — the filesystem-path contribution route (ADR 0030).
 * ``TestDiscoverySourcePrecedence`` — how sources merge and de-duplicate.
 * ``TestDiscoveryErrors`` — every failure surfaces as ``SchemaDiscoveryError``.
 * ``TestSchemaFileSelection`` — only YAML *files* are picked up.
@@ -15,6 +16,8 @@ import pytest
 from django.test import override_settings
 
 from openedx_authz.engine.schema.discovery import (
+    SETTINGS_FILE_SENTINEL,
+    DiscoveredFileResource,
     DiscoveredResource,
     Origin,
     SchemaDiscovery,
@@ -157,6 +160,123 @@ class TestSettingsDirectories:
 
         # pylint: disable=protected-access
         assert not SchemaDiscovery()._discover_settings_directories()
+
+
+class TestSettingsFiles:
+    """The filesystem-path contribution route (ADR 0030).
+
+    Tutor renders patch content into a YAML file and lists its absolute path
+    in ``OPENEDX_AUTHZ_SCHEMA_FILES``. These tests exercise
+    ``_discover_settings_files`` and ``DiscoveredFileResource`` in isolation.
+    """
+
+    @override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=["/tmp/nonexistent/authz-schema.yaml"])
+    def test_nonexistent_file_raises(self):
+        """An explicitly listed file that does not exist is a misconfiguration."""
+        with pytest.raises(SchemaDiscoveryError, match="is not an actual file"):
+            SchemaDiscovery().discover()
+
+    @override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=["/tmp/authz-schema.txt"])
+    def test_unsupported_extension_raises(self):
+        """A file with an unsupported extension is rejected even if it exists."""
+        with pytest.raises(SchemaDiscoveryError, match="unsupported file extension"):
+            SchemaDiscovery().discover()
+
+    def test_settings_file_is_discovered(self, tmp_path):
+        """A valid YAML file listed in the setting is discovered and readable."""
+        schema_file = tmp_path / "authz-schema.yaml"
+        schema_file.write_text("schema_version: '1.0'\npriority: 100\n", encoding="utf-8")
+
+        with self._override_files([str(schema_file)]):
+            resources = SchemaDiscovery().discover()
+
+        file_resources = [r for r in resources if isinstance(r, DiscoveredFileResource)]
+        assert len(file_resources) == 1
+        assert file_resources[0].resource_path == str(schema_file)
+        assert file_resources[0].package == SETTINGS_FILE_SENTINEL
+        assert file_resources[0].origin == Origin.SETTINGS
+
+    def test_contents_are_readable(self, tmp_path):
+        """A discovered file resource returns the file's bytes."""
+        schema_file = tmp_path / "roles.yml"
+        schema_file.write_text("schema_version: '1.0'\n", encoding="utf-8")
+
+        with self._override_files([str(schema_file)]):
+            resources = SchemaDiscovery().discover()
+
+        file_resources = [r for r in resources if isinstance(r, DiscoveredFileResource)]
+        assert b"schema_version" in file_resources[0].read_bytes()
+
+    def test_multiple_files_are_discovered(self, tmp_path):
+        """Multiple listed files are all discovered."""
+        file_a = tmp_path / "a.yaml"
+        file_b = tmp_path / "b.yml"
+        file_a.write_text("schema_version: '1.0'\n", encoding="utf-8")
+        file_b.write_text("schema_version: '1.0'\n", encoding="utf-8")
+
+        with self._override_files([str(file_a), str(file_b)]):
+            resources = SchemaDiscovery().discover()
+
+        file_resources = [r for r in resources if isinstance(r, DiscoveredFileResource)]
+        assert len(file_resources) == 2
+
+    def test_yml_and_yaml_extensions_are_accepted(self, tmp_path):
+        """Both ``.yml`` and ``.yaml`` suffixes are valid."""
+        for name in ("a.yml", "b.yaml"):
+            (tmp_path / name).write_text("schema_version: '1.0'\n", encoding="utf-8")
+
+        with self._override_files([str(tmp_path / "a.yml"), str(tmp_path / "b.yaml")]):
+            resources = SchemaDiscovery().discover()
+
+        file_resources = [r for r in resources if isinstance(r, DiscoveredFileResource)]
+        assert len(file_resources) == 2
+
+    def test_absent_setting_contributes_nothing(self):
+        """The default state: no deployment has declared the setting at all."""
+        # pylint: disable=protected-access
+        assert not SchemaDiscovery()._discover_settings_files()
+
+    @override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=[])
+    def test_empty_setting_contributes_nothing(self):
+        """An empty list is a no-op, not an error."""
+        # pylint: disable=protected-access
+        assert not SchemaDiscovery()._discover_settings_files()
+
+    @override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=None)
+    def test_none_setting_contributes_nothing(self):
+        """An explicit ``None`` degrades to no contribution."""
+        # pylint: disable=protected-access
+        assert not SchemaDiscovery()._discover_settings_files()
+
+    def test_unconfigured_django_contributes_nothing(self, monkeypatch):
+        """``ImproperlyConfigured`` degrades to no contribution."""
+        # pylint: disable=import-outside-toplevel
+        from django.conf import LazySettings
+        from django.core.exceptions import ImproperlyConfigured
+
+        def _unconfigured(_self, name):
+            raise ImproperlyConfigured(f"Requested setting {name}, but settings are not configured")
+
+        monkeypatch.setattr(LazySettings, "__getattr__", _unconfigured)
+
+        # pylint: disable=protected-access
+        assert not SchemaDiscovery()._discover_settings_files()
+
+    def test_file_resource_is_marked_with_settings_origin(self, tmp_path):
+        """``origin`` identifies the settings route."""
+        schema_file = tmp_path / "authz.yaml"
+        schema_file.write_text("schema_version: '1.0'\n", encoding="utf-8")
+
+        with self._override_files([str(schema_file)]):
+            # pylint: disable=protected-access
+            resources = SchemaDiscovery()._discover_settings_files()
+
+        assert {r.origin for r in resources} == {Origin.SETTINGS}
+
+    @staticmethod
+    def _override_files(paths):
+        """Convenience wrapper for ``override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=...)``."""
+        return override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=paths)
 
 
 class TestDiscoverySourcePrecedence:

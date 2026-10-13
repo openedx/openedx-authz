@@ -11,6 +11,8 @@ integration) and FilteredAdapter (for selective policy loading) to provide
 optimized policy management for authorization systems.
 """
 
+# pylint: disable=redefined-builtin
+
 from enum import Enum
 
 from casbin import persist
@@ -79,7 +81,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
     def load_filtered_policy(
         self,
         model: Model,
-        filter: Filter,  # pylint: disable=redefined-builtin
+        filter: Filter,
     ) -> None:
         """
         Load policy rules from storage with filtering applied.
@@ -106,7 +108,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
     def filter_query(
         self,
         queryset: QuerySet,
-        filter: Filter,  # pylint: disable=redefined-builtin
+        filter: Filter,
     ) -> QuerySet:
         """
         Apply filter criteria to the policy queryset.
@@ -130,7 +132,7 @@ class ExtendedAdapter(Adapter, FilteredAdapter):
                 queryset = queryset.filter(**filter_kwargs)
         return queryset.order_by("id")
 
-    def query_policy(self, filter: Filter) -> QuerySet:  # pylint: disable=redefined-builtin
+    def query_policy(self, filter: Filter) -> QuerySet:
         """
         Retrieve policy rules from the database based on filter criteria.
 

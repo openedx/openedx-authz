@@ -199,3 +199,15 @@ class PolicyStore:
         than a reconstructed one.
         """
         return self._resolved_enforcer.remove_grouping_policy(*row.as_policy())
+
+    def reload(self) -> None:
+        """Reload the enforcer's in-memory model from the database (ADR 0018 §8).
+
+        The schema applier calls this right after taking the serialization lock
+        so the subsequent ``get_policy_rows`` read reflects the committed ``p``
+        rows the lock just made visible, rather than a prior run's version-gated
+        in-memory snapshot. Delegating through the store (instead of reaching for
+        the global enforcer) keeps the applier's "never hold the enforcer handle"
+        contract and lets injected fakes model the reload.
+        """
+        self._resolved_enforcer.load_policy()

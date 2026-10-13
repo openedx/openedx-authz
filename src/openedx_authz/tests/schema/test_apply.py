@@ -1,4 +1,4 @@
-"""Tests for the apply/plan reconciliation path (ADR 0018 §2, §5, §6).
+"""Tests for the apply/plan reconciliation path (ADR 0018 §2, §5, §6, §8).
 
 Three layers are exercised:
 
@@ -18,13 +18,14 @@ from __future__ import annotations
 from unittest import mock
 
 import pytest
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from openedx_authz.engine.policy import PolicyStore
 from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
+from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
@@ -62,6 +63,9 @@ class FakeEnforcer:
     def __init__(self, policies=None, grouping=None):
         self._policies = [list(row) for row in (policies or [])]
         self._grouping = [list(row) for row in (grouping or [])]
+
+    def load_policy(self):
+        """No-op reload hook: the fake is already its own in-memory source of truth."""
 
     def get_policy(self):
         """Return a copy of the stored ``p`` rows."""
@@ -304,15 +308,23 @@ class TestForceGate:
         enforcer.add_grouping_policy("user^alice", "role^course_editor", "course-v1:OpenedX+DemoX+Demo")
         return enforcer
 
-    def test_blocking_assignment_aborts_without_force(self):
+    def test_blocking_assignment_aborts_without_force(self, cache_invalidation):
         """Removing a role with a live assignment aborts without ``force``."""
         enforcer = self._assigned_enforcer()
+        # Seeding the role in _assigned_enforcer already bumped the cache; only
+        # the aborted apply below should be checked, so start from a clean mock.
+        cache_invalidation.reset_mock()
 
         with pytest.raises(SchemaApplyError):
             _apply(enforcer, force=False)
 
         # No write happened: the p row is still there.
         assert len(enforcer.get_policy()) == 1
+        # The force gate raises SchemaApplyError before any mutation, and that
+        # branch deliberately skips the cache bump — nothing changed, so forcing
+        # a reload would be pointless churn. Pin that so a future change that
+        # starts invalidating on the gate path is caught.
+        cache_invalidation.assert_not_called()
 
     def test_force_removes_role_rows_and_assignments(self):
         """With ``force``, the removed role's policy and assignment rows are pruned."""
@@ -581,3 +593,257 @@ class TestDefinitionChangeReport:
 
         assert enforcer.get_policy() == []
         assert AuthzRoleDefinition.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("cache_invalidation")
+class TestApplySerialization:
+    """Apply serializes concurrent runs with an exclusive lock (ADR 0018 §8, lost-update fix).
+
+    Two concurrent ``load_authz_schema`` runs used to each diff against the same
+    starting snapshot and both write, leaving the Casbin ``p`` rows and the
+    definition tables disagreeing. Apply now takes ``PolicyCacheControl.lock``
+    (a ``SELECT ... FOR UPDATE`` on the singleton row) as the first statement
+    inside its transaction, so a second runner blocks until the first commits
+    and then reads the already-applied state.
+
+    These are deterministic, single-process assertions on the *mechanism* the
+    fix depends on — complementing the real two-connection race in
+    ``tests/integration/test_schema_apply.py``. They assert the lock is taken,
+    that it is taken before any state is read and held inside the transaction,
+    that the lock row is created before the transaction opens (so the locking
+    read is the transaction's first read, which is what keeps the Repeatable
+    Read snapshot fresh), and that the enforcer is reloaded under the lock before
+    the p-row read (so the in-memory model cannot leave the read stale).
+    """
+
+    def test_apply_takes_the_lock(self):
+        """A normal apply acquires the serialization lock exactly once."""
+        enforcer = FakeEnforcer()
+
+        with mock.patch(
+            "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+            wraps=PolicyCacheControl.lock,
+        ) as lock:
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        lock.assert_called_once_with()
+
+    def test_lock_is_acquired_before_state_is_read(self):
+        """The lock is taken before plan() reads the stored policy.
+
+        Reading first and locking second would reintroduce the race: the diff
+        would be computed against a snapshot another apply could change before
+        this one writes. The order is the whole point of the fix.
+        """
+        enforcer = FakeEnforcer()
+        calls: list[str] = []
+        real_lock = PolicyCacheControl.lock
+
+        def record_lock():
+            calls.append("lock")
+            return real_lock()
+
+        original_get_policy = enforcer.get_policy
+
+        def record_read():
+            calls.append("read")
+            return original_get_policy()
+
+        with (
+            mock.patch(
+                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                side_effect=record_lock,
+            ),
+            mock.patch.object(enforcer, "get_policy", side_effect=record_read),
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        assert calls[0] == "lock"
+        assert "read" in calls
+
+    def test_lock_is_acquired_inside_a_transaction(self):
+        """The lock is taken while a transaction is open, so it serializes writers.
+
+        A row lock only holds for the life of its transaction; if apply took it
+        outside ``transaction.atomic()`` it would release immediately and serialize
+        nothing.
+        """
+        enforcer = FakeEnforcer()
+        in_atomic_block: list[bool] = []
+        real_lock = PolicyCacheControl.lock
+
+        def record_lock():
+            in_atomic_block.append(transaction.get_connection().in_atomic_block)
+            return real_lock()
+
+        with mock.patch(
+            "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+            side_effect=record_lock,
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        assert in_atomic_block == [True]
+
+    def test_lock_row_is_created_before_the_transaction_opens(self):
+        """ensure_exists() runs outside the apply transaction, before the lock.
+
+        Creating the lock row inside the apply transaction would make its
+        SELECT/INSERT the transaction's first read and, under InnoDB Repeatable
+        Read, pin the consistent-read snapshot before the lock is taken — the
+        post-lock reads would then see stale data. ensure_exists() must therefore
+        run (and commit) *before* ``transaction.atomic()`` opens, so the locking
+        read in lock() is the transaction's genuinely first read.
+        """
+        enforcer = FakeEnforcer()
+        events: list[tuple[str, int]] = []
+        real_lock = PolicyCacheControl.lock
+        real_ensure = PolicyCacheControl.ensure_exists
+
+        def atomic_depth() -> int:
+            # Number of open atomic blocks on this connection. The test harness
+            # wraps the test in one, so apply() opening its own block increments
+            # this; comparing the depth at ensure_exists vs lock proves apply's
+            # transaction opened *between* them.
+            return len(transaction.get_connection().atomic_blocks)
+
+        def record_ensure():
+            events.append(("ensure_exists", atomic_depth()))
+            return real_ensure()
+
+        def record_lock():
+            events.append(("lock", atomic_depth()))
+            return real_lock()
+
+        with (
+            mock.patch(
+                "openedx_authz.engine.renderer.PolicyCacheControl.ensure_exists",
+                side_effect=record_ensure,
+            ),
+            mock.patch(
+                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                side_effect=record_lock,
+            ),
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        # ensure_exists runs first; apply then opens its own atomic block before
+        # taking the lock, so lock sees a strictly deeper nesting. That ordering
+        # is what keeps the lock creation out of the snapshot-pinning transaction.
+        assert [name for name, _ in events] == ["ensure_exists", "lock"]
+        ensure_depth = events[0][1]
+        lock_depth = events[1][1]
+        assert lock_depth > ensure_depth
+
+    def test_enforcer_is_reloaded_under_the_lock_before_state_is_read(self):
+        """apply() reloads the enforcer after the lock and before plan() reads p rows.
+
+        The lock makes the *database* current, but the enforcer's in-memory model
+        is version-gated and the version bump happens after the transaction, so
+        without an explicit reload plan() could diff against a prior run's
+        in-memory rows. The reload must land after the lock (so it reads the
+        committed state the lock exposed) and before the p-row read in plan().
+        """
+        enforcer = FakeEnforcer()
+        calls: list[str] = []
+        real_lock = PolicyCacheControl.lock
+
+        def record_lock():
+            calls.append("lock")
+            return real_lock()
+
+        original_load = enforcer.load_policy
+        original_get_policy = enforcer.get_policy
+
+        def record_reload():
+            calls.append("reload")
+            return original_load()
+
+        def record_get_policy():
+            calls.append("get_policy")
+            return original_get_policy()
+
+        with (
+            mock.patch(
+                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                side_effect=record_lock,
+            ),
+            mock.patch.object(enforcer, "load_policy", side_effect=record_reload),
+            mock.patch.object(enforcer, "get_policy", side_effect=record_get_policy),
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        # Order: take the lock, reload the enforcer, then read p rows in plan().
+        assert calls.index("lock") < calls.index("reload")
+        assert calls.index("reload") < calls.index("get_policy")
+
+    @staticmethod
+    def _atomic_depth() -> int:
+        """Open atomic-block count on the default connection.
+
+        The test harness wraps each test in one atomic block, so apply() opening
+        its own increments this. Comparing the depth at a point of interest
+        against the baseline tells whether that point ran inside apply's
+        transaction (deeper) or after it closed (back at baseline).
+        """
+        return len(transaction.get_connection().atomic_blocks)
+
+    def test_cache_version_bump_commits_inside_the_transaction(self):
+        """On a change, the version bump runs inside the apply transaction.
+
+        If it ran after the transaction (as it once did), the policy rows would
+        be committed and visible while the version still read old, so a
+        concurrent enforcer would skip its reload and serve stale policy for that
+        window. Bumping inside the transaction makes the version change commit
+        atomically with the rows, closing that reader window.
+        """
+        enforcer = FakeEnforcer()
+        baseline = self._atomic_depth()
+        depth_at_bump: list[int] = []
+
+        def record_invalidate():
+            depth_at_bump.append(self._atomic_depth())
+
+        with mock.patch(
+            "openedx_authz.engine.renderer.AuthzEnforcer.invalidate_policy_cache",
+            side_effect=record_invalidate,
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        # Exactly one bump on the success path, at a deeper nesting than the
+        # baseline — i.e. inside apply's own still-open transaction.
+        assert len(depth_at_bump) == 1
+        assert depth_at_bump[0] > baseline
+
+    def test_failed_apply_bumps_cache_version_after_rollback(self):
+        """On failure the bump runs *outside* the rolled-back transaction.
+
+        A bump inside the transaction would roll back with it, leaving the
+        process enforcing the in-memory rows the database discarded. The failure
+        path must bump after rollback so the new version actually commits and the
+        next enforcer access reloads the committed (pre-apply) state.
+        """
+        enforcer = FakeEnforcer()
+        baseline = self._atomic_depth()
+        depth_at_bump: list[int] = []
+
+        def failing_store(_self, _schema):
+            raise IntegrityError("simulated write failure")
+
+        def record_invalidate():
+            depth_at_bump.append(self._atomic_depth())
+
+        with (
+            mock.patch.object(SchemaApplier, "_store_sources", failing_store),
+            mock.patch(
+                "openedx_authz.engine.renderer.AuthzEnforcer.invalidate_policy_cache",
+                side_effect=record_invalidate,
+            ),
+            pytest.raises(IntegrityError),
+        ):
+            _apply(enforcer, _editor(("courses.view_course",)))
+
+        # One bump, back at the baseline nesting — apply's transaction had already
+        # closed (rolled back), so the bump commits rather than rolling back too.
+        assert len(depth_at_bump) == 1
+        assert depth_at_bump[0] == baseline

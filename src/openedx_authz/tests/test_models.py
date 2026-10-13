@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 
 from casbin_adapter.models import CasbinRule
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
@@ -373,6 +373,52 @@ class TestPolicyCacheControlModel(TestCase):
         instance1.save()
         all_instances = PolicyCacheControl.objects.all()
         self.assertEqual(all_instances.count(), 1)
+
+    def test_lock_returns_the_singleton_inside_a_transaction(self):
+        """lock() returns the singleton row so an apply can serialize on it.
+
+        Expected Result:
+        - lock() returns the pk=1 singleton instance.
+        - Calling it does not create a second row.
+        """
+        PolicyCacheControl.ensure_exists()
+
+        with transaction.atomic():
+            locked = PolicyCacheControl.lock()
+
+        self.assertEqual(locked.pk, 1)
+        self.assertEqual(PolicyCacheControl.objects.count(), 1)
+
+    def test_ensure_exists_creates_the_singleton_when_missing(self):
+        """ensure_exists() creates the lock row so lock() has a row to lock.
+
+        Row creation is separated from lock() because, inside the apply
+        transaction, a creating SELECT/INSERT would pin the Repeatable Read
+        snapshot before the lock is taken. ensure_exists() runs beforehand.
+
+        Expected Result:
+        - With no row present, ensure_exists() creates exactly one pk=1 row.
+        - A subsequent lock() returns that singleton.
+        """
+        PolicyCacheControl.objects.all().delete()
+
+        PolicyCacheControl.ensure_exists()
+        with transaction.atomic():
+            locked = PolicyCacheControl.lock()
+
+        self.assertEqual(locked.pk, 1)
+        self.assertEqual(PolicyCacheControl.objects.count(), 1)
+
+    def test_ensure_exists_is_idempotent(self):
+        """ensure_exists() does not create duplicates when the row already exists.
+
+        Expected Result:
+        - Calling ensure_exists() twice leaves exactly one row.
+        """
+        PolicyCacheControl.ensure_exists()
+        PolicyCacheControl.ensure_exists()
+
+        self.assertEqual(PolicyCacheControl.objects.count(), 1)
 
 
 class TestAuthzCourseAuthoringMigrationRun(TestCase):

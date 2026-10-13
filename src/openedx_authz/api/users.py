@@ -309,6 +309,11 @@ def _filter_candidate_assignments_by_params(
     and are applied only when provided. This runs before the scope-based authorization
     pass to avoid paying the DB cost for assignments that would be dropped anyway.
 
+    When filtering by scope, the hierarchy is respected: assignments at higher levels
+    (org-level and platform-level globs) that apply to the queried scope are also
+    included.  For example, filtering by ``course-v1:OpenedX+DemoX+DemoCourse`` will
+    also keep assignments scoped to ``course-v1:OpenedX+*`` and ``course-v1:*``.
+
     Args:
         assignments: The full assignment list to filter. Each entry has exactly one role
             (one policy line), as produced by get_role_assignments.
@@ -320,7 +325,8 @@ def _filter_candidate_assignments_by_params(
         The filtered assignment list.
     """
     if scopes:
-        assignments = [a for a in assignments if a.scope.external_key in scopes]
+        expanded_scopes = ScopeData.expand_keys_with_ancestors(scopes)
+        assignments = [a for a in assignments if a.scope.external_key in expanded_scopes]
     if orgs:
         assignments = [a for a in assignments if getattr(a.scope, "org", None) in orgs]
     if roles:

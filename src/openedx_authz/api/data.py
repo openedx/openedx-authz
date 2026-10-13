@@ -20,7 +20,15 @@ from openedx_authz.constants.permissions import (
     MANAGE_LIBRARY_TEAM,
     VIEW_LIBRARY_TEAM,
 )
-from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR, ActionData, AuthzBaseClass, AuthZData, PermissionData
+from openedx_authz.data import (
+    AUTHZ_POLICY_ATTRIBUTES_SEPARATOR,
+    ActionData,
+    AuthzBaseClass,
+    AuthZData,
+    GroupingPolicyIndex,
+    PermissionData,
+    PolicyIndex,
+)
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
 ContentLibrary = get_content_library_model()
@@ -53,50 +61,6 @@ __all__ = [
 EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
-
-
-class GroupingPolicyIndex(Enum):
-    """Index positions for fields in a Casbin grouping policy (g or g2).
-
-    Grouping policies represent role assignments that link subjects to roles within scopes.
-    Format: [subject, role, scope, ...]
-
-    Attributes:
-        SUBJECT: Position 0 - The subject identifier (e.g., 'user^john_doe').
-        ROLE: Position 1 - The role identifier (e.g., 'role^instructor').
-        SCOPE: Position 2 - The scope identifier (e.g., 'lib^lib:DemoX:CSPROB').
-
-    Note:
-        Additional fields beyond position 2 are optional and currently ignored.
-    """
-
-    SUBJECT = 0
-    ROLE = 1
-    SCOPE = 2
-    # The rest of the fields are optional and can be ignored for now
-
-
-class PolicyIndex(Enum):
-    """Index positions for fields in a Casbin policy (p).
-
-    Policies define permissions by linking roles to actions within scopes with an effect.
-    Format: [role, action, scope, effect, ...]
-
-    Attributes:
-        ROLE: Position 0 - The role identifier (e.g., 'role^instructor').
-        ACT: Position 1 - The action identifier (e.g., 'act^read').
-        SCOPE: Position 2 - The scope identifier (e.g., 'lib^lib:DemoX:CSPROB').
-        EFFECT: Position 3 - The effect, either 'allow' or 'deny'.
-
-    Note:
-        Additional fields beyond position 3 are optional and currently ignored.
-    """
-
-    ROLE = 0
-    ACT = 1
-    SCOPE = 2
-    EFFECT = 3
-    # The rest of the fields are optional and can be ignored for now
 
 
 class ScopeMeta(type):
@@ -491,6 +455,75 @@ class ScopeData(AuthZData, metaclass=ScopeMeta):
         """Whether this scope represents a glob pattern (org- or platform-level)."""
         return self.IS_ORG_GLOB or self.IS_PLATFORM_GLOB
 
+    @property
+    def ancestors(self) -> set[str]:
+        """External keys of the scopes that hierarchically contain this one.
+
+        The scope hierarchy is::
+
+            specific resource  ->  organization glob  ->  platform glob
+
+        A concrete scope is contained by the org-level glob of its organization and by
+        the platform-level glob of its namespace. Subclasses that already sit higher in
+        the hierarchy override this property to report their own ancestors.
+
+        Returns:
+            set[str]: The external keys of the scopes containing this one. Empty when the
+                scope has no ancestors.
+
+        Examples:
+            >>> ScopeData(external_key='course-v1:DemoX+CS101+2024').ancestors
+            {'course-v1:DemoX+*', 'course-v1:*'}
+            >>> ScopeData(external_key='lib:DemoX:CSPROB').ancestors
+            {'lib:DemoX:*', 'lib:*'}
+        """
+        namespace = type(self).NAMESPACE
+        ancestor_keys: set[str] = set()
+
+        # The base ScopeData has no 'org'; only concrete resource scopes derive one.
+        org = getattr(self, "org", None)
+        if org:  # pragma: no branch
+            org_glob_cls = type(self).org_glob_registry.get(namespace)
+            if org_glob_cls:
+                ancestor_keys.add(org_glob_cls.build_external_key(org))
+
+        platform_glob_cls = type(self).platform_glob_registry.get(namespace)
+        if platform_glob_cls:  # pragma: no branch
+            ancestor_keys.add(platform_glob_cls.build_external_key())
+
+        return ancestor_keys
+
+    @classmethod
+    def expand_keys_with_ancestors(cls, external_keys: list[str]) -> set[str]:
+        """Expand scope external keys to include their hierarchical ancestors.
+
+        For each key, the org-level and platform-level ancestor scopes that also apply
+        according to the scope hierarchy are added to the result. Keys that cannot be
+        resolved to a registered scope type are kept as-is and not expanded, preserving
+        exact-match behaviour for unknown keys.
+
+        Args:
+            external_keys (list[str]): The scope external keys to expand.
+
+        Returns:
+            set[str]: The original keys plus all applicable ancestors.
+
+        Examples:
+            >>> ScopeData.expand_keys_with_ancestors(['course-v1:DemoX+CS101+2024'])
+            {'course-v1:DemoX+CS101+2024', 'course-v1:DemoX+*', 'course-v1:*'}
+        """
+        expanded: set[str] = set(external_keys)
+
+        for external_key in external_keys:
+            try:
+                scope = ScopeData(external_key=external_key)
+            except ValueError:
+                # Unrecognised scope format - keep the original, skip expansion.
+                continue
+            expanded |= scope.ancestors
+
+        return expanded
+
     @classmethod
     def validate_external_key(cls, _: str) -> bool:
         """Validate the external_key format for ScopeData.
@@ -864,6 +897,20 @@ class OrgGlobData(ScopeData):
         """
         return self.get_org(self.external_key)
 
+    @property
+    def ancestors(self) -> set[str]:
+        """External keys of the scopes that hierarchically contain this one.
+
+        An organization-level glob is contained only by the platform-level glob of its
+        namespace (e.g., ``lib:DemoX:*`` is contained by ``lib:*``).
+
+        Returns:
+            set[str]: The platform-level glob external key, or an empty set when the
+                namespace has no registered platform-level glob.
+        """
+        platform_glob_cls = type(self).platform_glob_registry.get(type(self).NAMESPACE)
+        return {platform_glob_cls.build_external_key()} if platform_glob_cls else set()
+
     @classmethod
     def validate_external_key(cls, external_key: str) -> bool:
         """Validate the external_key format for organization-level glob patterns.
@@ -1117,6 +1164,17 @@ class PlatformGlobData(ScopeData):
 
     NAMESPACE: ClassVar[str] = "platform"
     IS_PLATFORM_GLOB: ClassVar[bool] = True
+
+    @property
+    def ancestors(self) -> set[str]:
+        """External keys of the scopes that hierarchically contain this one.
+
+        Platform-level globs sit at the top of the hierarchy, so they have no ancestors.
+
+        Returns:
+            set[str]: Always an empty set.
+        """
+        return set()
 
     @classmethod
     def validate_external_key(cls, external_key: str) -> bool:

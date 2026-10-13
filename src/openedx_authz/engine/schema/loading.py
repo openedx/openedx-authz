@@ -108,8 +108,7 @@ class SchemaLoader:
         top_level = resource.package.split(".", 1)[0]
         try:
             mapping = metadata.packages_distributions()
-        # pylint: disable=broad-exception-caught
-        except Exception:  # noqa: BLE001 - defensive; metadata quirks across envs
+        except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001 - defensive; metadata quirks across envs
             mapping = {}
         candidates = mapping.get(top_level) or []
         if not candidates:

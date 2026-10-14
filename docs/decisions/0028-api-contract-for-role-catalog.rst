@@ -215,7 +215,7 @@ Localization
 the language of the request, following `ADR 0020`_ and Django's normal fallback rules.
 Identifiers (``role``, ``id``) and ``icon`` names are never translated.
 
-Icons are Paragon icon names (validated by the schema, see `ADR 0026`_). The client maps
+Icons are Paragon icon names (validated by the schema, see `ADR 0029`_). The client maps
 the name to its component; the API only returns the name, or ``null``.
 
 Pagination
@@ -398,7 +398,7 @@ References
 * `ADR 0023`_
 * `ADR 0024`_
 * `ADR 0025`_
-* `ADR 0026`_
+* `ADR 0029`_
 
 .. _frontend-app-admin-console: https://github.com/openedx/frontend-app-admin-console
 .. _ADR 0020: 0020-authorization-schema-internationalization.rst
@@ -406,4 +406,4 @@ References
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0024: 0024-api-contract-for-user-grouped-role-assignments.rst
 .. _ADR 0025: 0025-authorization-schema-source-tracking.rst
-.. _ADR 0026: 0026-paragon-icon-list-maintenance.rst
+.. _ADR 0029: 0029-paragon-icon-list-maintenance.rst

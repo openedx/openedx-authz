@@ -7,10 +7,15 @@ scan Python and JavaScript source, so they can't find strings written in YAML.
 
 This module reads every discovered schema resource directly with ``yaml.safe_load``,
 independent of the schema ``load``/``validate``/``compile`` pipeline: it only needs
-the raw ``display_name``/``description`` fields, not resolved role extensions,
-priority conflicts, or any of the richer typed documents those steps build. That
-keeps it usable (and testable) even before the rest of the pipeline exists, and
-immune to changes in how that pipeline models conflicts or precedence.
+the raw ``display_name``/``description`` fields, not the richer typed documents
+those steps build, so it stays usable (and testable) against ad hoc or malformed
+schema directories, not just a fully valid one. It does, however, resolve conflicts
+between files the same way ``engine.schema.compilation`` does: by each document's
+``priority`` (higher wins; identical content merges; a disagreement at equal
+priority is an error), so the generated catalog reflects the same winner the
+compiled schema would use at runtime. Re-deriving that one rule here (rather than
+depending on the loader/compiler) is what keeps this module usable before, or
+independently of, that pipeline.
 
 It emits a generated Python module containing one ``pgettext()`` call per
 translatable field, which ``i18n_tool extract`` (a thin wrapper around Django's
@@ -18,21 +23,20 @@ translatable field, which ``i18n_tool extract`` (a thin wrapper around Django's
 instead of plain ``gettext`` because ADR 0020 requires a permission's display name
 and description to remain separate translation messages even when they contain
 the same English text; a plain ``gettext`` call would merge identical msgids into
-one catalog entry. The context string also carries the field's stable identifier,
-so two different roles that happen to share a one-word name like "Admin" stay
-separate messages too.
+one catalog entry. The first ``pgettext()`` argument is gettext's ``msgctxt``: it
+carries the field's stable identifier, so two different roles that happen to share
+a one-word name like "Admin" stay separate messages too.
 
 This generated module is never imported or executed: its only purpose is to be
-valid Python source for ``makemessages`` to scan. At runtime, the API (once it
-exists, see openedx-authz#432's own note that this depends on the still-unmerged
-schema loader and catalog API) looks up a field's source-language value directly
-in the compiled catalog with the same ``pgettext(context, value)`` pair used here,
-so the generated calls must stay in sync with however that lookup builds its
-context string.
+valid Python source for ``makemessages`` to scan. At runtime, the schema catalog
+API looks up a field's source-language value directly with the same
+``pgettext(context, value)`` pair used here, so the generated calls must stay in
+sync with however that lookup builds its context string.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import yaml
@@ -52,16 +56,23 @@ See openedx_authz.engine.schema.translation for why pgettext is used here.
 from django.utils.translation import pgettext
 '''
 
+# gettext's own internal glue byte between msgctxt and msgid. If it ends up inside
+# either half, tools downstream of extraction (msguniq, as part of `makemessages`)
+# fail outright trying to parse the result back apart, so it can never appear in
+# generated content.
+GETTEXT_CONTEXT_SEPARATOR = "\x04"
+
 
 @dataclass(frozen=True)
 class TranslatableMessage:
     """One ``pgettext(context, message)`` pair extracted from the schema.
 
     Attributes:
-        context: Disambiguates otherwise-identical messages, formatted as
-            ``"{field_kind}.{field_name}:{stable_id}"``, e.g.
-            ``"permission.display_name:courses.view_course"``.
-        message: The source-language (English) string to translate.
+        context: gettext's ``msgctxt``. Disambiguates otherwise-identical
+            messages, formatted as ``"{field_kind}.{field_name}:{stable_id}"``,
+            e.g. ``"permission.display_name:courses.view_course"``.
+        message: gettext's ``msgid``, the source-language (English) string to
+            translate.
     """
 
     context: str
@@ -69,7 +80,38 @@ class TranslatableMessage:
 
 
 class SchemaTranslationExtractionError(Exception):
-    """A schema resource could not be read or parsed for extraction."""
+    """A schema resource could not be read, parsed, or resolved for extraction."""
+
+
+@dataclass(frozen=True)
+class _Candidate:
+    """A :class:`TranslatableMessage` plus the provenance needed to resolve conflicts."""
+
+    message: TranslatableMessage
+    priority: int
+    source: str
+
+
+def _permission_stable_id(entry: dict) -> str:
+    """Build a permission's stable id from its namespace and name, both required."""
+    namespace = entry.get("namespace")
+    name = entry.get("name")
+    if not namespace or not name:
+        return ""
+    return f"{namespace}.{name}"
+
+
+# Each entry is (the document key holding this section's list, the field_kind used
+# in the generated context string, a function pulling this entry's stable id out of
+# its raw mapping). All four sections share the same display_name/description
+# extraction logic (_messages_for_entry); only these three things differ between
+# them, so a data table covers it without a class per section.
+_SECTIONS: tuple[tuple[str, str, Callable[[dict], str]], ...] = (
+    ("permission_categories", "permission_category", lambda entry: str(entry.get("id") or "")),
+    ("permissions", "permission", _permission_stable_id),
+    ("roles", "role", lambda entry: str(entry.get("id") or "")),
+    ("role_extensions", "role_extension", lambda entry: str(entry.get("role") or "")),
+)
 
 
 def extract_messages(resources: list[DiscoveredResource] | None = None) -> list[TranslatableMessage]:
@@ -85,10 +127,13 @@ def extract_messages(resources: list[DiscoveredResource] | None = None) -> list[
         diffs are stable across runs regardless of discovery order.
 
     Raises:
-        SchemaTranslationExtractionError: A resource's bytes couldn't be read,
-            or weren't valid YAML, or the document wasn't a mapping at the top
-            level. A translation build must fail loudly here (ADR 0020) rather
-            than silently skip a file, the same way schema validation does.
+        SchemaTranslationExtractionError: A resource's bytes couldn't be read, it
+            wasn't valid YAML, a section wasn't shaped as the schema requires, an
+            entry was missing its identifying field, a translatable string
+            collided with gettext's own context separator, or two documents
+            disagreed on the same field at equal priority. A translation build
+            must fail loudly here (ADR 0020) rather than silently produce a
+            catalog that doesn't match what the compiled schema would serve.
     """
     if resources is None:
         try:
@@ -96,19 +141,37 @@ def extract_messages(resources: list[DiscoveredResource] | None = None) -> list[
         except SchemaDiscoveryError as exc:
             raise SchemaTranslationExtractionError(str(exc)) from exc
 
-    messages: dict[str, TranslatableMessage] = {}
+    resolved: dict[str, _Candidate] = {}
     for resource in resources:
-        for extracted in _extract_from_resource(resource):
-            # Last one wins on a context collision; in practice this only happens
-            # if two files genuinely define the same stable id, which validation
-            # (a separate step) is responsible for catching.
-            messages[extracted.context] = extracted
+        for candidate in _extract_from_resource(resource):
+            existing = resolved.get(candidate.message.context)
+            resolved[candidate.message.context] = (
+                candidate if existing is None else _resolve_conflict(existing, candidate)
+            )
 
-    return sorted(messages.values(), key=lambda m: m.context)
+    return sorted((candidate.message for candidate in resolved.values()), key=lambda m: m.context)
 
 
-def _extract_from_resource(resource: DiscoveredResource) -> list[TranslatableMessage]:
+def _resolve_conflict(existing: _Candidate, incoming: _Candidate) -> _Candidate:
+    """Resolve two competing messages for the same context, the way compilation.py does.
+
+    Identical messages merge (both files contributed the same text); otherwise
+    higher ``priority`` wins; equal priority with disagreeing text is unresolvable.
+    """
+    if existing.message == incoming.message:
+        return existing
+    if existing.priority == incoming.priority:
+        raise SchemaTranslationExtractionError(
+            f"Conflicting translation for {existing.message.context!r} at equal priority "
+            f"{existing.priority} ({existing.source} vs {incoming.source}): "
+            f"{existing.message.message!r} vs {incoming.message.message!r}."
+        )
+    return existing if existing.priority > incoming.priority else incoming
+
+
+def _extract_from_resource(resource: DiscoveredResource) -> list[_Candidate]:
     """Parse one resource's YAML and pull its translatable fields out."""
+    source = f"{resource.package}:{resource.resource_path}"
     try:
         contents = resource.read_bytes()
     except SchemaDiscoveryError as exc:
@@ -117,47 +180,71 @@ def _extract_from_resource(resource: DiscoveredResource) -> list[TranslatableMes
     try:
         document = yaml.safe_load(contents)
     except yaml.YAMLError as exc:
-        raise SchemaTranslationExtractionError(
-            f"Invalid YAML in {resource.package}:{resource.resource_path}: {exc}"
-        ) from exc
+        raise SchemaTranslationExtractionError(f"Invalid YAML in {source}: {exc}") from exc
 
     if document is None:
         return []
     if not isinstance(document, dict):
         raise SchemaTranslationExtractionError(
-            f"Schema file {resource.package}:{resource.resource_path} must be a mapping "
-            f"at the top level, got {type(document).__name__}."
+            f"Schema file {source} must be a mapping at the top level, got {type(document).__name__}."
         )
 
-    messages: list[TranslatableMessage] = []
-    for category in document.get("permission_categories") or []:
-        messages.extend(_messages_for_entry("permission_category", category.get("id", ""), category))
-    for permission in document.get("permissions") or []:
-        stable_id = f"{permission.get('namespace', '')}.{permission.get('name', '')}"
-        messages.extend(_messages_for_entry("permission", stable_id, permission))
-    for role in document.get("roles") or []:
-        messages.extend(_messages_for_entry("role", role.get("id", ""), role))
-    for extension in document.get("role_extensions") or []:
-        # display_name/description are optional on an extension (it may only
-        # touch permissions or the icon), so only emit the fields it actually
-        # overrides instead of a pair of empty messages for every extension.
-        messages.extend(_messages_for_entry("role_extension", extension.get("role", ""), extension, optional=True))
+    # Required per authz-schema-v1.json; enforcing its presence is validation's job,
+    # not extraction's (same split loading.py makes), so a missing priority reads as
+    # 0, the lowest precedence. A malformed one can't be resolved at all, so that
+    # raises now rather than producing a nonsensical conflict winner later.
+    try:
+        priority = int(document.get("priority", 0))
+    except (TypeError, ValueError) as exc:
+        raise SchemaTranslationExtractionError(
+            f"{source}: 'priority' must be an integer, got {document.get('priority')!r}."
+        ) from exc
 
-    return messages
+    candidates: list[_Candidate] = []
+    for section_key, field_kind, stable_id_of in _SECTIONS:
+        entries = document.get(section_key) or []
+        if not isinstance(entries, list):
+            raise SchemaTranslationExtractionError(
+                f"{source}: {section_key!r} must be a list, got {type(entries).__name__}."
+            )
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise SchemaTranslationExtractionError(
+                    f"{source}: an entry in {section_key!r} must be a mapping, got {type(entry).__name__}."
+                )
+            stable_id = stable_id_of(entry)
+            if not stable_id:
+                raise SchemaTranslationExtractionError(
+                    f"{source}: a {field_kind} entry in {section_key!r} is missing its identifying field(s)."
+                )
+            for message in _messages_for_entry(source, field_kind, stable_id, entry):
+                candidates.append(_Candidate(message=message, priority=priority, source=source))
+
+    return candidates
 
 
-def _messages_for_entry(
-    field_kind: str, stable_id: str, entry: dict, *, optional: bool = False
-) -> list[TranslatableMessage]:
-    """Build the display_name/description messages for one schema entry."""
+def _messages_for_entry(source: str, field_kind: str, stable_id: str, entry: dict) -> list[TranslatableMessage]:
+    """Build the display_name/description messages for one schema entry.
+
+    A field that's absent (common on a ``role_extension``, which only overrides
+    what it mentions, but just as possible on any other entry) is skipped rather
+    than emitting an empty message: requiring these fields is validation's job,
+    not extraction's, so there's nothing useful to translate either way.
+    """
     messages = []
     for field_name in ("display_name", "description"):
         value = entry.get(field_name)
         if value is None:
-            if optional:
-                continue
-            value = ""
-        messages.append(TranslatableMessage(context=f"{field_kind}.{field_name}:{stable_id}", message=str(value)))
+            continue
+        context = f"{field_kind}.{field_name}:{stable_id}"
+        message = str(value)
+        for part, label in ((context, "context"), (message, "text")):
+            if GETTEXT_CONTEXT_SEPARATOR in part:
+                raise SchemaTranslationExtractionError(
+                    f"{source}: the {label} for {context!r} contains U+0004, which gettext reserves as its "
+                    "own context separator and cannot appear in translatable content."
+                )
+        messages.append(TranslatableMessage(context=context, message=message))
     return messages
 
 

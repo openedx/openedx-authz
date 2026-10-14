@@ -8,6 +8,14 @@ The suite is grouped by the behaviour under test:
 * ``TestContextDisambiguation`` -- identical text in different fields stays
   as separate messages, per ADR 0020.
 * ``TestExtractionErrors`` -- malformed input is a hard error.
+* ``TestSectionShapeValidation`` -- a section or entry that isn't a list of
+  mappings is a hard error, not an ``AttributeError``.
+* ``TestStableIdValidation`` -- an entry missing its identifying field(s) is a
+  hard error, since it can't form a unique context.
+* ``TestPriorityConflictResolution`` -- conflicts between documents resolve by
+  ``priority`` the same way ``engine.schema.compilation`` does.
+* ``TestGettextContextSeparatorGuard`` -- content colliding with gettext's own
+  msgctxt/msgid separator byte is a hard error.
 * ``TestRenderModule`` -- the generated module is valid, scannable Python.
 """
 
@@ -173,6 +181,17 @@ roles:
         """An empty YAML file (e.g. all comments) parses to None, not an error."""
         assert extract_messages([_resource("# just a comment, no content\n")]) == []
 
+    def test_missing_display_name_or_description_is_skipped_not_emitted_empty(self):
+        """A missing field is skipped outright: requiring it is validation's job, not extraction's."""
+        messages = extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+roles:
+  - id: course_admin
+    display_name: Admin
+""")])
+        assert messages == [TranslatableMessage("role.display_name:course_admin", "Admin")]
+
 
 class TestContextDisambiguation:
     """ADR 0020: identical English text in different fields stays separate."""
@@ -240,6 +259,147 @@ class TestExtractionErrors:
 
         with pytest.raises(SchemaTranslationExtractionError):
             extract_messages()
+
+
+class TestSectionShapeValidation:
+    """A section or entry that isn't a list of mappings is a hard error, not an AttributeError."""
+
+    @pytest.mark.parametrize("section", ["permission_categories", "permissions", "roles", "role_extensions"])
+    def test_section_not_a_list_raises(self, section):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource(f"""
+schema_version: "1.0"
+priority: 100
+{section}:
+  not: a_list
+""")])
+
+    @pytest.mark.parametrize("section", ["permission_categories", "permissions", "roles", "role_extensions"])
+    def test_entry_not_a_mapping_raises(self, section):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource(f"""
+schema_version: "1.0"
+priority: 100
+{section}:
+  - just_a_string
+""")])
+
+
+class TestStableIdValidation:
+    """An entry missing its identifying field(s) can't form a unique context."""
+
+    def test_category_without_id_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+permission_categories:
+  - display_name: Course content
+""")])
+
+    def test_permission_without_namespace_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+permissions:
+  - name: view_course
+    display_name: View course
+""")])
+
+    def test_permission_without_name_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+permissions:
+  - namespace: courses
+    display_name: View course
+""")])
+
+    def test_role_without_id_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+roles:
+  - display_name: Course Admin
+""")])
+
+    def test_role_extension_without_role_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+role_extensions:
+  - display_name: Course author
+""")])
+
+
+class TestPriorityConflictResolution:
+    """Conflicts between documents resolve by priority the same way compilation.py's do."""
+
+    def _role(self, priority, display_name: str) -> FakeResource:
+        priority_line = "" if priority is None else f"priority: {priority}\n"
+        return _resource(f"""
+schema_version: "1.0"
+{priority_line}roles:
+  - id: course_admin
+    display_name: {display_name}
+""")
+
+    def test_identical_definitions_across_files_merge_without_error(self):
+        messages = extract_messages([self._role(100, "Admin"), self._role(200, "Admin")])
+        assert [m.message for m in messages if m.context == "role.display_name:course_admin"] == ["Admin"]
+
+    def test_higher_priority_wins_regardless_of_file_order(self):
+        low_first = extract_messages([self._role(100, "Low"), self._role(200, "High")])
+        high_first = extract_messages([self._role(200, "High"), self._role(100, "Low")])
+
+        assert low_first == high_first
+        assert [m.message for m in low_first if m.context == "role.display_name:course_admin"] == ["High"]
+
+    def test_equal_priority_with_disagreeing_text_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([self._role(100, "Admin"), self._role(100, "Administrator")])
+
+    def test_malformed_priority_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: not-a-number
+roles:
+  - id: course_admin
+    display_name: Admin
+""")])
+
+    def test_missing_priority_defaults_to_lowest(self):
+        messages = extract_messages([self._role(None, "Low"), self._role(1, "High")])
+        assert [m.message for m in messages if m.context == "role.display_name:course_admin"] == ["High"]
+
+
+class TestGettextContextSeparatorGuard:
+    """gettext's own msgctxt/msgid glue byte (U+0004) can't appear in generated content."""
+
+    def test_separator_in_message_text_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+roles:
+  - id: course_admin
+    display_name: "bad\\x04char"
+""")])
+
+    def test_separator_in_stable_id_raises(self):
+        with pytest.raises(SchemaTranslationExtractionError):
+            extract_messages([_resource("""
+schema_version: "1.0"
+priority: 100
+roles:
+  - id: "bad\\x04id"
+    display_name: Admin
+""")])
 
 
 class TestRenderModule:

@@ -3,10 +3,13 @@ Tests for the `enforcement` Django management command.
 """
 
 import io
-from tempfile import NamedTemporaryFile
-from unittest import TestCase
+import os
+import shutil
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from unittest import TestCase, skipUnless
 from unittest.mock import Mock, patch
 
+import polib
 import pytest
 from ddt import data, ddt
 from django.core.management import call_command
@@ -542,3 +545,35 @@ class ExtractSchemaTranslationsCommandTests(TestCase):
 
         with NamedTemporaryFile(suffix=".py") as output_file, pytest.raises(CommandError):
             call_command("extract_schema_translations", output=output_file.name)
+
+
+@skipUnless(
+    shutil.which("msguniq"),
+    "requires the system gettext tools (xgettext/msguniq) that makemessages shells out to",
+)
+class ExtractSchemaTranslationsEndToEndTests(TestCase):
+    """
+    End to end: the generated module is real, scannable source for Django's
+    `makemessages`, the same tool `i18n_tool extract` wraps around. Skipped
+    wherever the system gettext tools it shells out to aren't installed.
+    """
+
+    def test_generated_module_produces_expected_catalog_entry(self):
+        """extract_schema_translations -> makemessages yields the real catalog entry."""
+        with TemporaryDirectory() as scan_root:
+            os.makedirs(os.path.join(scan_root, "locale"))
+            output_path = os.path.join(scan_root, "generated_translations.py")
+            call_command("extract_schema_translations", output=output_path)
+
+            cwd = os.getcwd()
+            os.chdir(scan_root)
+            try:
+                call_command("makemessages", locale=["en"], domain="django", verbosity=0)
+            finally:
+                os.chdir(cwd)
+
+            catalog = polib.pofile(os.path.join(scan_root, "locale", "en", "LC_MESSAGES", "django.po"))
+
+        entry = catalog.find("Course Admin", msgctxt="role.display_name:course_admin")
+        assert entry is not None
+        assert entry.msgid == "Course Admin"

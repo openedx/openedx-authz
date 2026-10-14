@@ -236,7 +236,8 @@ class ScopesAPIView(generics.ListAPIView):
     - orgs (Optional): Filter scopes by multiple orgs (comma separated list of orgs)
     - page (Optional): Page number for pagination
     - page_size (Optional): Number of items per page
-    - scope_type (Optional): Filter scopes by type. Supported values are `course` and `library`.
+    - scope_type (Optional): Filter scopes by type. Supported values are `course-v1` and `lib`.
+        `course` and `library` are accepted as deprecated aliases.
     - management_permission_only (Optional): Filter scopes either by only the ones to which the user has "manage team"
         permissions (if true), or just "view team" permissions.
 

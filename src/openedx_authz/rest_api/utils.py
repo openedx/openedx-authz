@@ -4,10 +4,12 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
 )
+from openedx_authz.api.utils import get_scope_display_name_map
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
     SearchField,
+    SerializedAssignment,
     SortField,
     SortOrder,
     UserAssignmentSortField,
@@ -181,3 +183,23 @@ def sort_user_assignments(
         list[dict]: The sorted assignments.
     """
     return _sort_by_field(assignments, sort_by, order, UserAssignmentSortField)
+
+
+def inject_scope_display_names(assignments: list[SerializedAssignment]) -> None:
+    """Set ``scope_display_name`` in-place on serialized assignments using one bulk lookup.
+
+    Callers must pass only the assignments of the current page, after filtering,
+    sorting and pagination. This avoids DB lookups for assignments that are not
+    in the response and keeps the cost at one batched query per scope type
+    (libraries and courses) instead of one per assignment. Unresolvable scopes
+    (globs, superadmin entries, missing resources) get an empty string.
+
+    Args:
+        assignments: Serialized assignments for the current page. Each one
+            must have a ``scope`` key. They are modified in-place, and
+            ``scope_display_name`` is set on every entry.
+    """
+    scope_keys = {a["scope"] for a in assignments if a.get("scope")}
+    display_name_map = get_scope_display_name_map(scope_keys)
+    for assignment in assignments:
+        assignment["scope_display_name"] = display_name_map.get(assignment.get("scope", ""), "")

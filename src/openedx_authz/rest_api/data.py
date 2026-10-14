@@ -1,6 +1,7 @@
 """Data classes and enums for the Open edX AuthZ REST API."""
 
 from enum import Enum
+from typing import TypedDict
 
 
 class BaseEnum(str, Enum):
@@ -85,3 +86,13 @@ class ScopesTypeField(BaseEnum):
 
     COURSE = "course"
     LIBRARY = "library"
+
+
+class SerializedAssignment(TypedDict, total=False):
+    """Shape of an inline assignment as produced by ``TeamMemberAssignmentInlineSerializer``."""
+
+    role: str
+    org: str
+    scope: str
+    scope_display_name: str
+    permission_count: int

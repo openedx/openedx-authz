@@ -1695,7 +1695,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
                         regular_7 (library_contributor), regular_8 (library_user)
 
     URL: /api/authz/v1/users/<username>/assignments/
-    Response fields per item: is_superadmin, role, org, scope, permission_count
+    Response fields per item: role, org, scope, scope_display_name, permission_count
 
     Superadmin entries:
         admin_1..3 are staff/superusers, but this endpoint returns role assignments
@@ -1951,8 +1951,9 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         assignment = response.data["results"][0]
-        self.assertFalse(assignment["is_superadmin"])
+        self.assertNotIn("is_superadmin", assignment)
         self.assertEqual(assignment["org"], "*")
+        self.assertEqual(assignment["scope_display_name"], "")
         self.assertEqual(assignment["scope"], PLATFORM_COURSE_GLOB)
         self.assertEqual(assignment["role"], roles.COURSE_STAFF.external_key)
 
@@ -1968,7 +1969,8 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
         Expected result:
             - Returns 200 OK.
-            - Each item has is_superadmin, role, org, scope, and permission_count.
+            - Each item has role, org, scope, scope_display_name, and permission_count.
+            - is_superadmin is absent.
         """
         response = self.client.get(self._url("admin_1"))
 
@@ -1978,13 +1980,79 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         role_item = response.data["results"][0]
         self.assertEqual(
             set(role_item.keys()),
-            {"is_superadmin", "role", "org", "scope", "permission_count"},
+            {"role", "org", "scope", "scope_display_name", "permission_count"},
         )
-        self.assertFalse(role_item["is_superadmin"])
         self.assertEqual(role_item["role"], roles.LIBRARY_ADMIN.external_key)
         self.assertEqual(role_item["org"], "Org1")
         self.assertEqual(role_item["scope"], "lib:Org1:LIB1")
         self.assertGreater(role_item["permission_count"], 0)
+
+    # ------------------------------------------------------------------ #
+    # scope_display_name resolution                                      #
+    # ------------------------------------------------------------------ #
+
+    def test_scope_display_name_resolved_for_libraries(self):
+        """scope_display_name is the learning package title for existing libraries."""
+        org1, _ = Organization.objects.get_or_create(name="Org1", short_name="Org1")
+        lp1, _ = LearningPackage.objects.get_or_create(title="Intro to CS Library")
+        ContentLibrary.objects.get_or_create(
+            slug="LIB1",
+            org=org1,
+            defaults={"locator": "lib:Org1:LIB1", "title": "Intro to CS Library", "learning_package": lp1},
+        )
+
+        response = self.client.get(self._url("admin_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(r for r in response.data["results"] if r["scope"] == "lib:Org1:LIB1")
+        self.assertEqual(item["scope_display_name"], "Intro to CS Library")
+
+    def test_scope_display_name_resolved_for_courses(self):
+        """scope_display_name is CourseOverview.display_name for existing courses."""
+        course_scope = "course-v1:Org1+CS101+2024"
+        CourseOverview.objects.get_or_create(
+            id=course_scope, defaults={"org": "Org1", "display_name": "Introduction to Computer Science"}
+        )
+        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+
+        response = self.client.get(self._url("regular_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(r for r in response.data["results"] if r["scope"] == course_scope)
+        self.assertEqual(item["scope_display_name"], "Introduction to Computer Science")
+
+    def test_scope_display_name_empty_for_missing_resource(self):
+        """scope_display_name is empty when the backing library no longer exists."""
+        orphan_scope = "lib:OrgX:GONE_LIB"
+        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, orphan_scope)
+
+        response = self.client.get(self._url("regular_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(r for r in response.data["results"] if r["scope"] == orphan_scope)
+        self.assertEqual(item["scope_display_name"], "")
+
+    @data("lib:Org1:*", "lib:*")
+    def test_scope_display_name_empty_for_glob_scopes(self, glob_scope: str):
+        """scope_display_name is empty for org-level and platform-level glob scopes."""
+        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, glob_scope)
+
+        response = self.client.get(self._url("regular_1"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(r for r in response.data["results"] if r["scope"] == glob_scope)
+        self.assertEqual(item["scope_display_name"], "")
+
+    @patch("openedx_authz.rest_api.utils.get_scope_display_name_map", return_value={})
+    def test_scope_display_names_resolved_in_single_bulk_call_per_page(self, mock_map):
+        """Names are resolved with one bulk call containing only the current page's scopes."""
+        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, "lib:Org1:*")
+
+        response = self.client.get(self._url("regular_1"), {"page_size": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_map.assert_called_once()
+        self.assertEqual(mock_map.call_args.args[0], {r["scope"] for r in response.data["results"]})
 
     @data("admin_1", "admin_2", "admin_3")
     def test_no_superadmin_entries_in_response(self, target: str):
@@ -1993,21 +2061,22 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for item in response.data["results"]:
-            self.assertFalse(item["is_superadmin"])
+            self.assertNotIn("is_superadmin", item)
 
     def test_no_superadmin_entries_when_filtering_by_org(self):
         """An organization filter does not add superadmin entries."""
         response = self.client.get(self._url("admin_1"), {"orgs": "NonExistentOrg"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(any(item["is_superadmin"] for item in response.data["results"]))
+        self.assertEqual(response.data["results"], [])
 
     def test_no_superadmin_entries_when_filtering_by_role(self):
         """A role filter does not add superadmin entries."""
         response = self.client.get(self._url("admin_1"), {"roles": roles.LIBRARY_ADMIN.external_key})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(any(item["is_superadmin"] for item in response.data["results"]))
+        for item in response.data["results"]:
+            self.assertNotIn("is_superadmin", item)
 
 
 @ddt

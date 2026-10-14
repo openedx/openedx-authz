@@ -17,7 +17,11 @@ from importlib import metadata
 
 import yaml
 
-from openedx_authz.engine.schema.discovery import DiscoveredResource
+from openedx_authz.engine.schema.discovery import (
+    SETTINGS_FILE_VERSION,
+    DiscoveredFileResource,
+    DiscoveredResource,
+)
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
 from openedx_authz.engine.schema.types import (
     PermissionCategory,
@@ -25,6 +29,7 @@ from openedx_authz.engine.schema.types import (
     RoleDefinition,
     RoleExtension,
     SchemaDocument,
+    SourceFileRecord,
     SourceRecord,
 )
 
@@ -53,27 +58,30 @@ class SchemaLoader:
         documents: list[SchemaDocument] = []
         for resource in resources:
             contents = resource.read_bytes()
-            raw = self._parse_yaml(contents, resource)
-            schema_version = str(raw.get("schema_version", ""))
-            source = self._build_source_record(resource, contents, schema_version)
-            documents.append(self._build_document(raw, source))
+            for raw in self._parse_yamls(contents, resource):
+                schema_version = str(raw.get("schema_version", ""))
+                source = self._build_source_record(resource, contents, schema_version)
+                documents.append(self._build_document(raw, source))
         return documents
 
-    def _parse_yaml(self, contents: bytes, resource: DiscoveredResource) -> dict:
-        """Parse YAML bytes into a mapping, raising on malformed input."""
+    def _parse_yamls(self, contents: bytes, resource: DiscoveredResource) -> list[dict]:
+        """Parse YAML bytes as a multi-document stream, skipping empty documents."""
         try:
-            data = yaml.safe_load(contents)
+            data = list(yaml.safe_load_all(contents))
         except yaml.YAMLError as exc:
             raise SchemaLoadError(f"Invalid YAML in {resource.package}:{resource.resource_path}: {exc}") from exc
 
-        if data is None:
-            data = {}
-        if not isinstance(data, dict):
-            raise SchemaLoadError(
-                f"Schema file {resource.package}:{resource.resource_path} must be a mapping "
-                f"at the top level, got {type(data).__name__}."
-            )
-        return data
+        result: list[dict] = []
+        for doc in data:
+            if doc is None:
+                continue  # ADR 0029: empty documents are skipped silently
+            if not isinstance(doc, dict):
+                raise SchemaLoadError(
+                    f"Schema file {resource.package}:{resource.resource_path} "
+                    f"contains a non-mapping document (got {type(doc).__name__})."
+                )
+            result.append(doc)
+        return result
 
     def _build_source_record(self, resource: DiscoveredResource, contents: bytes, schema_version: str) -> SourceRecord:
         """Assemble packaging metadata + content digest into a SourceRecord.
@@ -85,14 +93,17 @@ class SchemaLoader:
         """
         distribution, version = self._resolve_distribution(resource)
         content_digest = hashlib.sha256(contents).hexdigest()
-        return SourceRecord(
-            distribution=distribution,
-            distribution_version=version,
-            module=resource.module,
-            resource_path=resource.resource_path,
-            schema_version=schema_version,
-            content_digest=content_digest,
-        )
+        source_record = {
+            'distribution': distribution,
+            'distribution_version': version,
+            'module': resource.module,
+            'resource_path': resource.resource_path,
+            'schema_version': schema_version,
+            'content_digest': content_digest,
+        }
+        if isinstance(resource, DiscoveredFileResource):
+            return SourceFileRecord(**source_record)
+        return SourceRecord(**source_record)
 
     @classmethod
     def _resolve_distribution(cls, resource: DiscoveredResource) -> tuple[str, str]:
@@ -107,6 +118,8 @@ class SchemaLoader:
         the one that actually ships this resource's file, and only fall back to
         a deterministic (sorted) choice when no single owner can be identified.
         """
+        if isinstance(resource, DiscoveredFileResource):
+            return resource.package, SETTINGS_FILE_VERSION
         top_level = resource.package.split(".", 1)[0]
         try:
             mapping = metadata.packages_distributions()

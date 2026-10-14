@@ -3,6 +3,8 @@
 from enum import Enum
 from typing import TypedDict
 
+from openedx_authz.api.data import ContentLibraryData, CourseOverviewData
+
 
 class BaseEnum(str, Enum):
     """Base enum class."""
@@ -82,10 +84,10 @@ class ScopesQuerySetFields(BaseEnum):
 
 
 class ScopesTypeField(BaseEnum):
-    """Enum for the scope_type query field on the scopes endpoint"""
+    """Enum for the scope types, named after the ``NAMESPACE`` of the scope classes."""
 
-    COURSE = "course"
-    LIBRARY = "library"
+    COURSE = CourseOverviewData.NAMESPACE
+    LIBRARY = ContentLibraryData.NAMESPACE
 
 
 class SerializedAssignment(TypedDict, total=False):
@@ -96,3 +98,10 @@ class SerializedAssignment(TypedDict, total=False):
     scope: str
     scope_display_name: str
     permission_count: int
+
+
+DEPRECATED_SCOPE_TYPE_ALIASES = {
+    "course": ScopesTypeField.COURSE,
+    "library": ScopesTypeField.LIBRARY,
+}
+"""Short names that ``GET /api/authz/v1/scopes/`` still accepts until the Admin Console migrates."""

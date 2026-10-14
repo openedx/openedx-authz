@@ -1,4 +1,4 @@
-"""End-to-end integration tests for schema apply pruning (ADR 0018 §2, §5, §6).
+"""End-to-end integration tests for schema apply pruning (ADR 0018 §2, §5, §6, §8).
 
 Unlike the unit tests in ``tests/schema/test_apply.py`` (which use a fake
 enforcer and stub persistence), these exercise the *real* stack:
@@ -38,11 +38,13 @@ Run these in an edx-platform environment (e.g. tutor)::
 
 from __future__ import annotations
 
+import threading
+import time
 from unittest import mock
 
 import pytest
-from django.db import IntegrityError
-from django.test import TestCase
+from django.db import IntegrityError, connection, connections
+from django.test import TestCase, TransactionTestCase
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
@@ -444,3 +446,195 @@ class TestSchemaApplyFailureIntegration(SchemaApplyIntegrationBase):
         reloaded = AuthzEnforcer.get_enforcer()
         self.assertEqual([row for row in reloaded.get_policy() if row[0] == ROLE_SUBJECT], [])
         self.assertFalse(reloaded.enforce(USER_SUBJECT, VIEW_ACTION, COURSE_SCOPE))
+
+
+class TestSchemaApplyConcurrencyIntegration(TransactionTestCase):
+    """Concurrent applies serialize so the two stores never diverge (ADR 0018 §8, lost-update fix).
+
+    Regression for a lost update between two overlapping applies. When an
+    old-schema apply and an updated-schema apply ran at the same time, each
+    computed its diff against the same pre-change snapshot and then both wrote,
+    leaving the two stores inconsistent: the definition tables kept *both*
+    permissions while the Casbin policy kept only the updated one. Apply now
+    takes an exclusive row lock (``SELECT ... FOR UPDATE`` on the
+    ``PolicyCacheControl`` singleton) as the first statement in its transaction,
+    so a second runner blocks until the first commits and then reconciles against
+    the already-applied state.
+
+    This runs on a real stack across two database connections, so it needs
+    ``TransactionTestCase``: each apply must truly commit for the other
+    connection to see it, which the per-test transaction of ``TestCase`` would
+    prevent. ``select_for_update`` is a no-op on SQLite (and SQLite serializes
+    writers at the file level anyway), so the test is skipped there — it is
+    meaningful only on a backend with real row locking (the MySQL environment
+    these integration tests target).
+
+    Scope: this proves serialization and the consistent end state of a real
+    overlapping race. The individual mechanisms the fix relies on — the lock row
+    being created before the transaction opens (fresh Repeatable Read snapshot)
+    and the enforcer being reloaded under the lock (fresh in-memory p rows) — are
+    asserted deterministically in ``TestApplySerialization`` in
+    ``tests/schema/test_apply.py``, which does not depend on backend-specific MVCC
+    timing.
+    """
+
+    def setUp(self):
+        """Start from a clean, committed policy with one permission applied."""
+        if not connection.features.has_select_for_update:
+            self.skipTest("Backend does not support SELECT ... FOR UPDATE row locking.")
+
+        self.enforcer = AuthzEnforcer.get_enforcer()
+        self.enforcer.clear_policy()
+        # Seed the starting state both overlapping applies will diff against:
+        # the role granting only view_course.
+        self._apply_sync(_document(roles=[_editor_role(("courses.view_course",))]))
+
+    def tearDown(self):
+        """Leave no policy behind for other integration tests."""
+        self.enforcer.clear_policy()
+
+    # -- helpers ------------------------------------------------------------
+
+    @staticmethod
+    def _apply_sync(*documents, force=False):
+        """Compile, render, and apply ``documents`` synchronously (no pause)."""
+        schema = SchemaCompiler().compile(list(documents))
+        rendered = PolicyRenderer().render(schema)
+        return SchemaApplier().apply(rendered, schema, force=force)
+
+    def _p_actions_for_role(self):
+        """Return the set of actions the test role grants in the stored policy."""
+        self.enforcer.load_policy()
+        return {row[1] for row in self.enforcer.get_policy() if row[0] == ROLE_SUBJECT}
+
+    def _definition_actions_for_role(self):
+        """Return the set of permission names the role's definition grants."""
+        return {
+            f"act^{perm.permission.namespace}.{perm.permission.name}"
+            for perm in AuthzRolePermission.objects.select_related("permission").filter(
+                role__role_id="schema_apply_editor"
+            )
+        }
+
+    def test_overlapping_applies_serialize_and_leave_consistent_stores(self):
+        """A stale apply overlapping an updated apply ends with both stores agreeing.
+
+        This drives the exact window that produced the lost update. The seed
+        grants ``view_course``. Thread A applies a schema that *drops*
+        ``view_course`` and grants ``manage_tags`` — a real change — and pauses
+        with its write done but its transaction *not yet committed*, still
+        holding the lock. Thread B then applies a schema granting *both*
+        ``view_course`` and ``manage_tags`` while A holds the lock, so B contends
+        for the lock before A commits.
+
+        The point is what B must observe once it proceeds: A has removed
+        ``view_course``, so B's reconciliation has to re-add it on top of A's
+        committed state. B reads the ``p`` rows (via the enforcer) and the
+        definition tables (via plain ``SELECT``). Under InnoDB Repeatable Read, a
+        read taken before the lock blocks would pin B's snapshot to the pre-A
+        state (``view_course`` present, ``manage_tags`` absent); its diff would
+        then be computed against stale data and the two stores would diverge.
+        Taking the locking read first and reloading the enforcer under the lock
+        makes B see A's commit, so both stores end up granting exactly
+        ``{view_course, manage_tags}`` and agree with each other.
+        """
+        a_schema = _document(roles=[_editor_role(("courses.manage_tags",))])
+        b_schema = _document(roles=[_editor_role(("courses.view_course", "courses.manage_tags"))])
+
+        order, errors, release_fired = self._run_overlapping_applies(a_schema, b_schema)
+
+        self.assertEqual(errors, {}, f"A worker raised: {errors}")
+        self.assertTrue(release_fired, "Thread A never reached its release point")
+
+        # Serialization: B committed only after A committed.
+        self.assertIn("a_committed", order)
+        self.assertIn("b_committed", order)
+        self.assertLess(
+            order.index("a_committed"),
+            order.index("b_committed"),
+            f"B must commit after A; observed order: {order}",
+        )
+
+        # Snapshot freshness + cross-store consistency: B reconciled against A's
+        # committed state (view_course removed), so B re-added it on top. Both
+        # the Casbin policy and the definition tables end up granting exactly
+        # {view_course, manage_tags} and agree with each other. A stale pre-A
+        # snapshot in B would leave the stores disagreeing.
+        expected = {VIEW_ACTION, TAGS_ACTION}
+        self.assertEqual(self._p_actions_for_role(), expected)
+        self.assertEqual(self._definition_actions_for_role(), expected)
+        self.assertEqual(self._p_actions_for_role(), self._definition_actions_for_role())
+
+    def _run_overlapping_applies(self, a_schema, b_schema):
+        """Run two applies that overlap on the lock and return their observed timeline.
+
+        Thread A applies ``a_schema`` but pauses after its writes and before
+        commit, still inside the locked transaction (``_store_sources`` is the
+        last write in ``apply``, so holding there holds the lock with A's change
+        written-but-uncommitted). Thread B applies ``b_schema`` and is released
+        only once A is parked mid-write, so B is forced to contend for the lock
+        while A's change is still uncommitted — the exact window the fix guards.
+
+        Returns:
+            tuple: ``(order, errors, release_fired)`` where ``order`` is the list
+            of timeline markers, ``errors`` maps worker name to any raised
+            exception, and ``release_fired`` is whether A reached its release
+            point (a guard against a silently stuck A).
+        """
+        a_holds_lock_mid_write = threading.Event()
+        release_a = threading.Event()
+        b_contending = threading.Event()
+        order: list[str] = []
+        order_lock = threading.Lock()
+        errors: dict[str, BaseException] = {}
+
+        def mark(event: str) -> None:
+            with order_lock:
+                order.append(event)
+
+        applier_a = SchemaApplier()
+        real_store_sources = applier_a._store_sources  # pylint: disable=protected-access
+
+        def paused_store_sources(schema):
+            real_store_sources(schema)
+            mark("a_wrote")
+            a_holds_lock_mid_write.set()
+            # Wait until B is actively contending for the lock, then hold a touch
+            # longer so B is parked on the lock (not merely about to ask for it)
+            # before A commits. Bounded so a bug cannot hang the suite.
+            b_contending.wait(timeout=10)
+            time.sleep(1)
+            release_a.set()
+
+        def run_a():
+            try:
+                with mock.patch.object(applier_a, "_store_sources", side_effect=paused_store_sources):
+                    schema = SchemaCompiler().compile([a_schema])
+                    applier_a.apply(PolicyRenderer().render(schema), schema)
+                mark("a_committed")
+            except BaseException as exc:
+                errors["a"] = exc
+            finally:
+                connections.close_all()
+
+        def run_b():
+            try:
+                a_holds_lock_mid_write.wait(timeout=10)
+                b_contending.set()
+                self._apply_sync(b_schema)
+                mark("b_committed")
+            except BaseException as exc:
+                errors["b"] = exc
+            finally:
+                connections.close_all()
+
+        thread_a = threading.Thread(name="apply-A", target=run_a)
+        thread_b = threading.Thread(name="apply-B", target=run_b)
+        thread_a.start()
+        thread_b.start()
+        thread_a.join(timeout=25)
+        thread_b.join(timeout=25)
+
+        self.assertFalse(thread_a.is_alive(), "Thread A did not finish")
+        self.assertFalse(thread_b.is_alive(), "Thread B did not finish")
+        return order, errors, release_a.is_set()

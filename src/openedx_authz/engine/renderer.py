@@ -1,4 +1,4 @@
-"""Render compiled definitions to Casbin rows and apply them (ADR 0018 §1, §5).
+"""Render compiled definitions to Casbin rows and apply them (ADR 0018 §1, §5, §8).
 
 This is the only Casbin/Django-aware part of the schema pipeline. It implements
 the ``render`` and ``apply`` lifecycle steps:
@@ -43,6 +43,7 @@ so enforcer initialization still happens after Django settings are configured.
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from crum import get_current_user
@@ -56,6 +57,7 @@ from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
 from openedx_authz.models import schema as schema_models
 from openedx_authz.models.core import RoleAssignmentAudit
+from openedx_authz.models.engine import PolicyCacheControl
 
 logger = logging.getLogger(__name__)
 
@@ -233,32 +235,44 @@ class SchemaApplier:
         invalidated so the enforcer reloads the last committed state rather than
         keeping the uncommitted in-memory rows (ADR 0018 §5).
 
+        Concurrency (ADR 0018 §8): the whole read-modify-write cycle runs inside
+        :meth:`_serialized_section`, which takes an exclusive row lock as the
+        transaction's first statement, reloads the enforcer, and — on a change —
+        bumps the policy cache version *inside* the same transaction. Two
+        concurrent ``load_authz_schema`` runs would otherwise each diff against
+        the same starting snapshot and both write, leaving the Casbin ``p`` rows
+        and the ``Authz*`` definition tables disagreeing (a lost update); the lock
+        serializes them so the second reads the already-applied state. Bumping the
+        version in-transaction also closes the reader stale window: without it the
+        policy writes commit before the version changes, so a concurrent enforcer
+        could serve stale in-memory policy against already-updated rows.
+
         Raises:
             SchemaApplyError: If the plan has blocking assignments and ``force``
                 is False.
         """
-        plan = self.plan(rendered, schema)
-
-        if plan.blocking_assignments and not force:
-            details = ", ".join(f"{role} (assigned to {subject})" for role, subject in plan.blocking_assignments)
-            raise SchemaApplyError(
-                "Refusing to proceed: static roles with existing assignments would be removed: "
-                f"{details}. Re-run with force to remove them together with their assignments."
-            )
-
         policy_store = self._policy_store
 
-        # Reconcile p rows and sync definition/source records atomically.
-        # Definitions are synced even when p rows are unchanged so metadata-only
-        # edits land and pre-existing p rows get adopted on first run.
-        #
-        # add_policy_row/remove_policy_row mutate the enforcer's in-memory model
-        # as well as the database, so a rollback would otherwise leave this
-        # process enforcing rows the database no longer has. Bumping the policy
-        # cache version on the failure path forces a reload from the committed
-        # state, keeping Casbin on the last working version (ADR 0018 §5).
         try:
-            with transaction.atomic():
+            with self._serialized_section():
+                plan = self.plan(rendered, schema)
+
+                # Invariant: this gate must stay *before* any add_policy_row/
+                # remove_policy_row below. SchemaApplyError is caught separately
+                # and re-raised without invalidating the policy cache, which is
+                # only safe while nothing has mutated the in-memory enforcer. If a
+                # future change needs to raise SchemaApplyError after a write, it
+                # must invalidate the cache (like the generic except below) so the
+                # process does not keep enforcing rolled-back rows.
+                if plan.blocking_assignments and not force:
+                    details = ", ".join(
+                        f"{role} (assigned to {subject})" for role, subject in plan.blocking_assignments
+                    )
+                    raise SchemaApplyError(
+                        "Refusing to proceed: static roles with existing assignments would be removed: "
+                        f"{details}. Re-run with force to remove them together with their assignments."
+                    )
+
                 for row in plan.added_rows:
                     policy_store.add_policy_row(row)
                 for row in plan.removed_rows:
@@ -267,20 +281,39 @@ class SchemaApplier:
                 if force and plan.blocking_assignments:
                     removed_assignments = self._remove_assignments(policy_store, plan.blocking_assignments)
                 self._store_sources(schema)
+
+                changed = bool(plan.added_rows or plan.removed_rows)
+                if changed:
+                    # Bump the cache version *inside* the transaction so it commits
+                    # atomically with the p-row writes. If it ran after the block
+                    # (as it once did), the rows would be committed-and-visible
+                    # while the version still read old, and a concurrent enforcer
+                    # would skip the reload and serve stale policy for that window.
+                    AuthzEnforcer.invalidate_policy_cache()
+
                 # Emit the audit events only if the transaction commits, mirroring
                 # unassign_role_from_subject_in_scope, so no audit row is written for
                 # an assignment removal that gets rolled back.
                 if removed_assignments:
                     transaction.on_commit(lambda: self._emit_assignment_deleted(removed_assignments))
+        except SchemaApplyError:
+            # The force gate fired before any write (see the invariant above):
+            # nothing was mutated and the cache does not need bumping. Re-raise
+            # without the failure handling below, which exists for partial-write
+            # rollbacks.
+            raise
         except Exception:
-            # Runs outside the rolled-back block, so the new version commits.
+            # The transaction rolled back the database, but add_policy_row/
+            # remove_policy_row already mutated the enforcer's in-memory model, so
+            # this process would keep enforcing rows the database no longer has.
+            # The in-transaction bump above was rolled back too, so bump again
+            # here — outside the rolled-back block, where it commits — to force a
+            # reload from the committed (pre-apply) state (ADR 0018 §5).
             AuthzEnforcer.invalidate_policy_cache()
             logger.exception("Authz schema apply failed; policy cache invalidated to force a reload.")
             raise
 
-        changed = bool(plan.added_rows or plan.removed_rows)
-        if changed:
-            AuthzEnforcer.invalidate_policy_cache()
+        if plan.added_rows or plan.removed_rows:
             logger.info(
                 "Authz schema apply: added %d p row(s), removed %d p row(s).",
                 len(plan.added_rows),
@@ -295,6 +328,52 @@ class SchemaApplier:
             unchanged=plan.unchanged,
             plan=plan,
         )
+
+    @contextmanager
+    def _serialized_section(self):
+        """Open the serialized critical section for an apply (ADR 0018 §8).
+
+        Owns the concurrency contract so :meth:`apply` reads as plain
+        read-diff-write. On entry it, in order:
+
+        1. ``ensure_exists`` the lock row **before** the transaction opens — a
+           creating ``SELECT``/INSERT inside the transaction would be its first
+           read and, under InnoDB Repeatable Read, pin the consistent-read
+           snapshot before the lock is taken, leaving every post-lock read stale.
+        2. opens ``transaction.atomic()``;
+        3. takes the exclusive row lock as the transaction's first read, so a
+           second runner blocks until the first commits and this runner's reads
+           see the committed state;
+        4. reloads the enforcer, because the lock only makes the *database*
+           current — the version-gated in-memory model would otherwise still hold
+           a prior run's rows, so the ``plan`` read of ``get_policy`` could be
+           stale even with the lock held.
+
+        The caller does its read-diff-write inside the ``with`` block. The lock
+        (a row lock) releases automatically when the transaction commits, rolls
+        back, or the connection dies, so no stale lock can outlive a crashed
+        apply. Keeping the lock, reload, and the cache-version bump the caller
+        performs all within this one transaction is what makes the critical
+        section cohesive and leaves no committed-but-unversioned reader window.
+
+        Two accepted limitations, deferred (ADR 0018 §8):
+
+        * ``PolicyCacheControl`` (the lock) and the ``transaction.atomic()``
+          default to the ``default`` database, while the Casbin ``p`` rows live
+          in ``CASBIN_DB_ALIAS``. Serialization is only meaningful while those
+          coincide, which matches the engine's existing single-database policy
+          storage assumption. If ``CASBIN_DB_ALIAS`` is ever pointed at a
+          separate database, the lock must move there too.
+        * The lock wait is unbounded and silent: a second apply blocks with no
+          ``nowait``/timeout and no log line, so a blocked apply looks like a slow
+          one. Acceptable because apply runs at deploy time, not on the request
+          path.
+        """
+        PolicyCacheControl.ensure_exists()
+        with transaction.atomic():
+            PolicyCacheControl.lock()
+            self._policy_store.reload()
+            yield
 
     @staticmethod
     def _remove_assignments(

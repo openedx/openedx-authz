@@ -87,6 +87,26 @@ An explicit force option allows an operator to remove the role and its remaining
 
 Application and plugin code cannot edit generated static rows directly. During an incident, however, an administrator may use the Django admin, which records who changed what and why, and explains whether the next schema deployment will replace the change.
 
+8. Serialize concurrent applies
+===============================
+
+Section 5 keeps the writes of a single apply atomic. This section covers what happens when two applies run at the same time — for example two deployments racing, or a deployment overlapping an administrative re-run.
+
+Apply is a read-modify-write cycle: it reads the current policy and definitions, computes the difference against the compiled schema, then writes the generated policy and the definition records. Two applies that run concurrently can each read the same starting state, each compute a difference against it, and then both write. The result is a lost update in which the generated policy and the definition records disagree — for instance the definitions retain a permission that the policy no longer grants — even though each apply individually did an atomic write.
+
+An apply therefore runs under a lock that lets only one apply proceed at a time. A second apply waits until the first finishes and then reads the state the first committed, so its difference is computed against current data rather than a stale snapshot. The lock is released automatically when the apply's transaction ends — on success, failure, or a lost connection — so a failed or interrupted apply cannot leave the lock held.
+
+Taking the lock is not sufficient on its own; the apply must also read current data once it holds the lock. Two things make that true. First, the apply reads committed database state under the lock rather than a snapshot captured before the lock was granted, because some databases fix a transaction's read view at its first read. Second, the apply refreshes any in-memory copy of the policy it keeps, so the difference is computed from what the database actually holds and not from a cached view a previous apply left behind.
+
+The signal that tells running services their cached policy is stale is updated inside the same transaction as the policy writes. If that signal were updated after the transaction, the new policy would be committed and visible while the signal still indicated the old version, and a service could serve the superseded policy for that window. Updating the signal together with the writes closes that window: a service either sees both the new policy and the new signal, or neither.
+
+This ADR records the decision to serialize applies and to read current state under the lock. It does not prescribe the specific locking primitive, isolation level, or signalling mechanism; those are implementation choices that depend on the deployment's database.
+
+Two limitations are accepted:
+
+* **Single-database assumption.** Serialization holds only when the generated policy and the lock live in the same database. The engine already assumes one database for its policy storage, so this is consistent with the rest of the system.
+* **Blocking wait without observability.** A second apply waits for the first with no timeout and no distinct signal, so a blocked apply is operationally indistinguishable from a slow one. This is acceptable because apply runs at deployment time, not on the request path.
+
 Consequences
 ************
 
@@ -97,6 +117,7 @@ Consequences
 * Applying a schema requires a database transaction or another mechanism that updates all generated rows together.
 * Operators receive the change report before the database is updated.
 * An assignment to a role being removed blocks deployment unless an operator explicitly removes the role and its assignments together.
+* Concurrent applies are serialized so they cannot interleave into a lost update, and each apply reads current committed state under the lock and updates the cache-staleness signal together with its writes.
 
 References
 **********

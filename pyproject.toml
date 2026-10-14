@@ -114,6 +114,7 @@ test-base = [
     "code-annotations",
     "coverage",
     "ddt",
+    "polib",
     "pytest-cov",
     "pytest-django",
 ]

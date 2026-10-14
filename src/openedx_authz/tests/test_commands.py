@@ -3,10 +3,14 @@ Tests for the `enforcement` Django management command.
 """
 
 import io
-from tempfile import NamedTemporaryFile
-from unittest import TestCase
+import os
+import shutil
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from unittest import TestCase, skipUnless
 from unittest.mock import Mock, patch
 
+import polib
+import pytest
 from ddt import data, ddt
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -22,6 +26,7 @@ from openedx_authz.constants.permissions import (
 )
 from openedx_authz.constants.roles import LIBRARY_ADMIN
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.schema.translation import SchemaTranslationExtractionError
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand
 from openedx_authz.tests.test_utils import (
     make_action_key,
@@ -509,3 +514,66 @@ class LoadPoliciesCommandTests(TestCase):
         command._delete_existing_roles.assert_not_called()
         command._delete_permissions_inheritance.assert_not_called()
         command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+
+
+class ExtractSchemaTranslationsCommandTests(TestCase):
+    """
+    Tests for the `extract_schema_translations` Django management command.
+
+    This test class verifies the behavior of the extract_schema_translations
+    command, including:
+    - Writing a valid, non-empty generated module to the given --output path
+    - Surfacing extraction failures as a CommandError
+    """
+
+    def test_writes_generated_module_to_output_path(self):
+        """The command extracts the real schema and writes it to --output."""
+        with NamedTemporaryFile(suffix=".py") as output_file:
+            call_command("extract_schema_translations", output=output_file.name)
+
+            with open(output_file.name, encoding="utf-8") as generated:
+                source = generated.read()
+
+        assert "pgettext(" in source
+        assert "Do not edit" in source
+        compile(source, "<generated>", "exec")  # Raises SyntaxError if malformed.
+
+    @patch("openedx_authz.management.commands.extract_schema_translations.extract_messages")
+    def test_extraction_failure_raises_command_error(self, mock_extract_messages):
+        """An extraction failure surfaces as a CommandError, not a silent skip."""
+        mock_extract_messages.side_effect = SchemaTranslationExtractionError("broken schema file")
+
+        with NamedTemporaryFile(suffix=".py") as output_file, pytest.raises(CommandError):
+            call_command("extract_schema_translations", output=output_file.name)
+
+
+@skipUnless(
+    shutil.which("msguniq"),
+    "requires the system gettext tools (xgettext/msguniq) that makemessages shells out to",
+)
+class ExtractSchemaTranslationsEndToEndTests(TestCase):
+    """
+    End to end: the generated module is real, scannable source for Django's
+    `makemessages`, the same tool `i18n_tool extract` wraps around. Skipped
+    wherever the system gettext tools it shells out to aren't installed.
+    """
+
+    def test_generated_module_produces_expected_catalog_entry(self):
+        """extract_schema_translations -> makemessages yields the real catalog entry."""
+        with TemporaryDirectory() as scan_root:
+            os.makedirs(os.path.join(scan_root, "locale"))
+            output_path = os.path.join(scan_root, "generated_translations.py")
+            call_command("extract_schema_translations", output=output_path)
+
+            cwd = os.getcwd()
+            os.chdir(scan_root)
+            try:
+                call_command("makemessages", locale=["en"], domain="django", verbosity=0)
+            finally:
+                os.chdir(cwd)
+
+            catalog = polib.pofile(os.path.join(scan_root, "locale", "en", "LC_MESSAGES", "django.po"))
+
+        entry = catalog.find("Course Admin", msgctxt="role.display_name:course_admin")
+        assert entry is not None
+        assert entry.msgid == "Course Admin"

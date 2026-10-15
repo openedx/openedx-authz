@@ -1,0 +1,109 @@
+name: Sync Paragon Icon Allow-List
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-paragon-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get current pinned Paragon version
+        id: current
+        run: |
+          version=$(grep -oP -m 1 'PARAGON_VERSION\s*=\s*"\K[^"]+' scripts/generate_paragon_icons.py)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream Paragon version from frontend-app-admin-console
+        id: upstream
+        run: |
+          version=$(curl -fsSL \
+            https://raw.githubusercontent.com/openedx/frontend-app-admin-console/master/package-lock.json \
+            | jq -r '.packages["node_modules/@openedx/paragon"].version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Upstream @openedx/paragon: $version"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          current="${{ steps.current.outputs.version }}"
+          upstream="${{ steps.upstream.outputs.version }}"
+          if [ "$current" = "$upstream" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ Paragon version unchanged ($current). Nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "🔄 Paragon version changed: $current → $upstream"
+          fi
+
+      - name: Update generator script pinned version
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          new_version="${{ steps.upstream.outputs.version }}"
+          sed -i "s/^PARAGON_VERSION = \"[0-9][0-9.]*\"/PARAGON_VERSION = \"$new_version\"/" \
+            scripts/generate_paragon_icons.py
+
+      - name: Regenerate Paragon icon allow-list
+        if: steps.compare.outputs.changed == 'true'
+        run: make paragon_icons
+
+      - name: Verify regenerated list
+        if: steps.compare.outputs.changed == 'true'
+        run: make paragon_icons_check
+
+      - name: Create Pull Request
+        if: steps.compare.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/sync-paragon-icons
+          delete-branch: true
+          commit-message: |
+            chore: update Paragon icon allow-list to v${{ steps.upstream.outputs.version }}
+
+            frontend-app-admin-console updated @openedx/paragon from
+            ${{ steps.current.outputs.version }} to ${{ steps.upstream.outputs.version }}.
+
+            Regenerated via `make paragon_icons` (ADR 0029).
+          title: "chore: sync Paragon icon allow-list to v${{ steps.upstream.outputs.version }}"
+          body: |
+            ## Summary
+
+            `frontend-app-admin-console` updated its `@openedx/paragon` dependency
+            from `${{ steps.current.outputs.version }}` to `${{ steps.upstream.outputs.version }}`.
+
+            This PR updates the vendored Paragon icon allow-list to match (see [ADR 0029]).
+
+            ## Changes
+
+            - Updated `PARAGON_VERSION` in `scripts/generate_paragon_icons.py`
+            - Regenerated `src/openedx_authz/engine/schema/paragon_icons.py`
+
+            ## Verification
+
+            The workflow already ran `make paragon_icons_check` to confirm the
+            regenerated file is consistent. After merge you can verify locally:
+
+            ```
+            make paragon_icons_check
+            ```
+
+            [ADR 0029]: docs/decisions/0029-paragon-icon-list-maintenance.rst
+
+            ---
+            *Automated by the [Sync Paragon Icon Allow-List](${{ github.server_url }}/${{ github.repository }}/actions/workflows/sync-paragon-icons.yml) workflow.*
+          labels: |
+            dependencies
+            automated

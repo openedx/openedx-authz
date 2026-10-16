@@ -18,7 +18,7 @@ Integration with edx-platform
 
 This repository became an edx-platform's dependency starting with the Ulmo release. From that release onwards, system policies are automatically updated.
 
-If you need to update the policies manually, it is recommended to use the ``./manage.py lms load_policies`` command.
+To update the static authorization definitions manually, run ``./manage.py lms load_authz_schema``.
 
 .. note::
     Currently, this package only supports the `content libraries' roles and permissions as documented here`_, and the migration of data from the old system to the new one is performed automatically.

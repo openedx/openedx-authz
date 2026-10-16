@@ -1,4 +1,4 @@
-"""Test utilities for creating namespaced keys using class constants."""
+"""Test utilities for authorization schemas and namespaced keys."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -15,9 +15,28 @@ from openedx_authz.api.data import (
     ScopeData,
     UserData,
 )
+from openedx_authz.engine.renderer import PolicyRenderer
+from openedx_authz.engine.schema.compilation import SchemaCompiler
+from openedx_authz.engine.schema.discovery import SchemaDiscovery
+from openedx_authz.engine.schema.loading import SchemaLoader
 from openedx_authz.utils import get_waffle_flag_states
 
 FLAG_NAME = "authz.enable_course_authoring"
+
+
+def seed_static_authorization_policies(target_enforcer) -> list[list[str]]:
+    """Seed schema-defined role-permission policies."""
+    discovered = SchemaDiscovery(
+        passed_in_directories=["openedx_authz/authz/schema"]
+    ).discover()
+    documents = SchemaLoader().load(discovered)
+    schema = SchemaCompiler().compile(documents)
+    policies = [row.as_policy() for row in PolicyRenderer().render(schema).rows]
+
+    for policy in policies:
+        target_enforcer.add_policy(*policy)
+
+    return policies
 
 
 def make_policy(role_key: str, action_key: str, scope_key: str, effect: str = "allow") -> list[str]:

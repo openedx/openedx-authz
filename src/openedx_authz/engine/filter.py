@@ -37,7 +37,6 @@ class Filter:
 
     - ``p``  → Policy rule (permissions).
     - ``g``  → Grouping rule (user ↔ role).
-    - ``g2`` → Action grouping (parent action ↔ child action).
     """
 
     v0: Optional[list[str]] = attr.field(factory=list)
@@ -45,7 +44,6 @@ class Filter:
 
     - For ``p`` → Subject (e.g., ``role^org_admin``, ``user^alice``).
     - For ``g`` → User (e.g., ``user^alice``).
-    - For ``g2`` → Parent action (e.g., ``act^manage``).
     """
 
     v1: Optional[list[str]] = attr.field(factory=list)
@@ -53,7 +51,6 @@ class Filter:
 
     - For ``p`` → Action (e.g., ``act^manage``, ``act^edit``).
     - For ``g`` → Role (e.g., ``role^org_admin``).
-    - For ``g2`` → Child action (e.g., ``act^edit``).
     """
 
     v2: Optional[list[str]] = attr.field(factory=list)
@@ -61,7 +58,6 @@ class Filter:
 
     - For ``p`` → Object or resource (e.g., ``lib^*``, ``org^MIT``).
     - For ``g`` → Scope or resource (e.g., ``org^MIT``).
-    - For ``g2`` → Not used.
     """
 
     v3: Optional[list[str]] = attr.field(factory=list)

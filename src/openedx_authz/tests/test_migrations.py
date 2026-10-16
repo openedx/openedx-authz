@@ -1,11 +1,15 @@
 """Unit Tests for openedx_authz migrations."""
 
+from importlib import import_module
 from unittest.mock import MagicMock, patch
 
+from casbin_adapter.models import CasbinRule
 from ddt import data, ddt, unpack
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
+from django.db import DatabaseError
 from django.test import TestCase
 from opaque_keys.edx.django.models import CourseKeyField
 
@@ -58,6 +62,65 @@ from openedx_authz.tests.stubs.models import (
 )
 
 User = get_user_model()
+
+
+class TestRemoveActionGroupingMigration(TestCase):
+    """The model cleanup removes obsolete action-grouping rows only."""
+
+    def test_remove_action_grouping_rows(self):
+        """The migration deletes g2 rows and preserves explicit policies."""
+        CasbinRule.objects.create(ptype="g2", v0="act^manage", v1="act^view")
+        explicit_policy = CasbinRule.objects.create(
+            ptype="p",
+            v0="role^admin",
+            v1="act^view",
+            v2="lib^*",
+            v3="allow",
+        )
+
+        migration = import_module("openedx_authz.migrations.0012_remove_action_grouping")
+        schema_editor = MagicMock()
+        schema_editor.connection.alias = "default"
+        migration.remove_action_grouping(apps, schema_editor)
+
+        self.assertFalse(CasbinRule.objects.filter(ptype="g2").exists())
+        self.assertTrue(CasbinRule.objects.filter(pk=explicit_policy.pk).exists())
+
+    def test_missing_casbin_model_does_not_block_migration(self):
+        """A missing historical CasbinRule model does not block migration."""
+        historical_apps = MagicMock()
+        historical_apps.get_model.side_effect = LookupError("CasbinRule is unavailable")
+        migration = import_module("openedx_authz.migrations.0012_remove_action_grouping")
+
+        with self.assertLogs(migration.logger, level="WARNING") as logs:
+            migration.remove_action_grouping(historical_apps, MagicMock())
+
+        self.assertIn("Skipping action-grouping cleanup", logs.output[0])
+
+    def test_database_error_does_not_block_migration(self):
+        """A database cleanup error does not block migration."""
+        historical_apps = MagicMock()
+        casbin_rule = historical_apps.get_model.return_value
+        casbin_rule.objects.using.return_value.filter.return_value.delete.side_effect = DatabaseError("unavailable")
+        schema_editor = MagicMock()
+        schema_editor.connection.alias = "authz"
+        migration = import_module("openedx_authz.migrations.0012_remove_action_grouping")
+
+        with self.assertLogs(migration.logger, level="WARNING") as logs:
+            migration.remove_action_grouping(historical_apps, schema_editor)
+
+        self.assertIn("Could not remove action-grouping rows", logs.output[0])
+
+    def test_cleanup_uses_migration_database(self):
+        """The cleanup runs against the database selected by the schema editor."""
+        historical_apps = MagicMock()
+        schema_editor = MagicMock()
+        schema_editor.connection.alias = "authz"
+        migration = import_module("openedx_authz.migrations.0012_remove_action_grouping")
+
+        migration.remove_action_grouping(historical_apps, schema_editor)
+
+        historical_apps.get_model.return_value.objects.using.assert_called_once_with("authz")
 
 # Specify a unique prefix to avoid collisions with existing data
 OBJECT_PREFIX = "tmlp_"

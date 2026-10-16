@@ -31,7 +31,7 @@ from openedx_authz.models.authz_migration import AuthzCourseAuthoringMigrationRu
 
 logger = logging.getLogger(__name__)
 
-GROUPING_POLICY_PTYPES = ["g", "g2", "g3", "g4", "g5", "g6"]
+GROUPING_POLICY_PTYPES = ["g", "g3", "g4", "g5", "g6"]
 
 
 # Map new roles back to legacy roles for rollback purposes

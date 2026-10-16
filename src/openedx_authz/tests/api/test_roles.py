@@ -5,10 +5,8 @@ including role creation, assignment, permission management, and querying
 roles and permissions within specific scopes.
 """
 
-from importlib.resources import files
 from unittest.mock import patch
 
-import casbin
 from ddt import data as ddt_data
 from ddt import ddt, unpack
 from django.test import TestCase
@@ -50,8 +48,8 @@ from openedx_authz.constants.roles import (
     LIBRARY_USER_PERMISSIONS,
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.tests.test_utils import seed_static_authorization_policies
 
 
 def _mock_get_or_create_scope(scope_data):
@@ -83,13 +81,7 @@ class BaseRolesTestCase(TestCase):
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.load_policy()
-        model_path = str(files("openedx_authz.engine").joinpath("config/model.conf"))
-        policy_path = str(files("openedx_authz.engine").joinpath("config/authz.policy"))
-
-        migrate_policy_between_enforcers(
-            source_enforcer=casbin.Enforcer(model_path, policy_path),
-            target_enforcer=global_enforcer,
-        )
+        seed_static_authorization_policies(global_enforcer)
         global_enforcer.clear_policy()  # Clear to simulate fresh start for each test
 
     @classmethod
@@ -181,7 +173,7 @@ class RolesTestSetupMixin(BaseRolesTestCase):
         super().setUpClass()
         # Define specific assignments for this test class
         assignments = [
-            # Basic library roles from authz.policy
+            # Basic library roles from the authorization schema
             {
                 "subject_name": "alice",
                 "role_name": roles.LIBRARY_ADMIN.external_key,
@@ -202,7 +194,7 @@ class RolesTestSetupMixin(BaseRolesTestCase):
                 "role_name": roles.LIBRARY_USER.external_key,
                 "scope_name": "lib:Org1:english_101",
             },
-            # Basic course roles from authz.policy
+            # Basic course roles from the authorization schema
             {
                 "subject_name": "daniel",
                 "role_name": roles.COURSE_STAFF.external_key,
@@ -430,17 +422,17 @@ class TestRolesAPI(RolesTestSetupMixin):
             self.assertFalse(ExtendedCasbinRule.objects.filter(subject=subj_obj, scope=scope_obj).exists())
 
     @ddt_data(
-        # Library Admin role with actual permissions from authz.policy
+        # Library Admin role with permissions from the authorization schema
         (
             roles.LIBRARY_ADMIN.external_key,
             LIBRARY_ADMIN_PERMISSIONS,
         ),
-        # Library Author role with actual permissions from authz.policy
+        # Library Author role with permissions from the authorization schema
         (
             roles.LIBRARY_AUTHOR.external_key,
             LIBRARY_AUTHOR_PERMISSIONS,
         ),
-        # Library Contributor role with actual permissions from authz.policy
+        # Library Contributor role with permissions from the authorization schema
         (
             roles.LIBRARY_CONTRIBUTOR.external_key,
             LIBRARY_CONTRIBUTOR_PERMISSIONS,
@@ -466,7 +458,7 @@ class TestRolesAPI(RolesTestSetupMixin):
         """
         assigned_permissions = get_permissions_for_single_role(RoleData(external_key=role_name))
 
-        self.assertEqual(assigned_permissions, expected_permissions)
+        self.assertEqual(sorted(assigned_permissions, key=str), sorted(expected_permissions, key=str))
 
     @ddt_data(
         # Role assigned to multiple users in different scopes
@@ -502,8 +494,8 @@ class TestRolesAPI(RolesTestSetupMixin):
 
         self.assertIn(role_name, assigned_permissions)
         self.assertEqual(
-            assigned_permissions[role_name]["permissions"],
-            expected_permissions,
+            sorted(assigned_permissions[role_name]["permissions"], key=str),
+            sorted(expected_permissions, key=str),
         )
 
     @ddt_data(
@@ -544,14 +536,17 @@ class TestRolesAPI(RolesTestSetupMixin):
         """Test retrieving role definitions from policy for a namespace wildcard scope.
 
         Expected result:
-            - Role definitions defined in authz.policy for the scope are returned.
+            - Role definitions compiled from the schema for the scope are returned.
             - Each role includes the permissions declared in its policy rules.
         """
         roles_in_scope = get_role_definitions_in_scope(ScopeData(namespaced_key=namespaced_scope))
         roles_by_key = {role.external_key: role for role in roles_in_scope}
 
         self.assertEqual(set(roles_by_key.keys()), expected_roles)
-        self.assertEqual(roles_by_key[sample_role].permissions, expected_permissions)
+        self.assertEqual(
+            sorted(roles_by_key[sample_role].permissions, key=str),
+            sorted(expected_permissions, key=str),
+        )
 
     def test_get_role_definitions_in_scope_returns_empty_for_concrete_scope(self):
         """Concrete scopes do not match namespace wildcard policy definitions."""

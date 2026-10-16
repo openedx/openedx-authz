@@ -5,36 +5,34 @@ including filtered loading, scope-based loading, and lifecycle management
 that would be used in production environments.
 """
 
-import os
 import time
 from uuid import uuid4
 
-import casbin
 from ddt import data as ddt_data
 from ddt import ddt
 from django.conf import settings
 from django.test import TestCase, TransactionTestCase, override_settings
 
-from openedx_authz import ROOT_DIRECTORY
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.filter import Filter
-from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models.engine import PolicyCacheControl
-from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
-
-MODEL_CONF_PATH = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
-AUTHZ_POLICY_PATH = os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
+from openedx_authz.tests.test_utils import (
+    make_action_key,
+    make_role_key,
+    make_scope_key,
+    make_user_key,
+    seed_static_authorization_policies,
+)
 
 
 class PolicyLoadingTestSetupMixin(TestCase):
     """Mixin providing policy loading test utilities."""
 
-    @staticmethod
-    def _count_policies_in_file(scope_pattern: str = None, role: str = None):
-        """Count policies in the authz.policy file matching the given criteria.
+    def _count_schema_policies(self, scope_pattern: str = None, role: str = None):
+        """Count rendered schema policies matching the given criteria.
 
         This provides a dynamic way to get expected policy counts without
-        hardcoding values that might change as the policy file evolves.
+        hardcoding values that might change as the schema evolves.
 
         Args:
             scope_pattern: Scope pattern to match (e.g., 'lib^*')
@@ -43,32 +41,14 @@ class PolicyLoadingTestSetupMixin(TestCase):
         Returns:
             int: Number of matching policies
         """
-        count = 0
-        with open(AUTHZ_POLICY_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if not line.startswith("p,"):
-                    continue
-
-                parts = [p.strip() for p in line.split(",")]
-                if len(parts) < 4:
-                    continue
-
-                # parts[0] = 'p', parts[1] = role, parts[2] = action, parts[3] = scope
-                matches = True
-                if role and parts[1] != role:
-                    matches = False
-                if scope_pattern and parts[3] != scope_pattern:
-                    matches = False
-
-                if matches:
-                    count += 1
-        return count
+        return sum(
+            1
+            for policy in self.schema_policies
+            if (not role or policy[0] == role) and (not scope_pattern or policy[2] == scope_pattern)
+        )
 
     def _seed_database_with_policies(self):
-        """Seed the database with policies from the policy file.
+        """Seed static role-permission policies from the authorization schema.
 
         This simulates the one-time database seeding that would happen
         during application deployment, separate from runtime policy loading.
@@ -77,13 +57,7 @@ class PolicyLoadingTestSetupMixin(TestCase):
         global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.clear_policy()
 
-        migrate_policy_between_enforcers(
-            source_enforcer=casbin.Enforcer(
-                MODEL_CONF_PATH,
-                AUTHZ_POLICY_PATH,
-            ),
-            target_enforcer=global_enforcer,
-        )
+        self.schema_policies = seed_static_authorization_policies(global_enforcer)
         # Ensure enforcer memory is clean for test isolation
         global_enforcer.clear_policy()
 
@@ -169,7 +143,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
 
     These tests demonstrate how policy loading would work in real-world scenarios,
     including scope-based loading, user-context loading, and role-specific loading.
-    All based on our basic policy setup in authz.policy file.
+    Static role-permission policies come from the authorization schema.
     """
 
     LIBRARY_ROLES = [
@@ -190,7 +164,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         super().tearDown()
 
     @ddt_data(
-        "lib^*",  # Library policies from authz.policy file
+        "lib^*",  # Library policies from the authorization schema
         "course^*",  # No course policies in basic setup
         "org^*",  # No org policies in basic setup
     )
@@ -206,7 +180,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - Policy count matches expected for scope
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
-        expected_policy_count = self._count_policies_in_file(scope_pattern=scope)
+        expected_policy_count = self._count_schema_policies(scope_pattern=scope)
         initial_policy_count = len(global_enforcer.get_policy())
 
         self._load_policies_for_scope(scope)
@@ -382,7 +356,7 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
             - All loaded policies contain the specified role
         """
         global_enforcer = AuthzEnforcer.get_enforcer()
-        expected_count = self._count_policies_in_file(role=role_name)
+        expected_count = self._count_schema_policies(role=role_name)
 
         self._load_policies_for_role_management(role_name)
         loaded_policies = global_enforcer.get_policy()
@@ -404,8 +378,8 @@ class TestPolicyLoadingStrategies(PolicyLoadingTestSetupMixin):
         course_scope = "course-v1^*"
         org_scope = "org^*"
 
-        expected_lib_count = self._count_policies_in_file(scope_pattern=lib_scope)
-        expected_course_count = self._count_policies_in_file(scope_pattern=course_scope)
+        expected_lib_count = self._count_schema_policies(scope_pattern=lib_scope)
+        expected_course_count = self._count_schema_policies(scope_pattern=course_scope)
         self._add_test_policies_for_multiple_scopes()
         # The previous function added 6 custom policies for courses, add to expected
         expected_course_count += 6
@@ -449,17 +423,11 @@ class TestAutoLoadPolicy(TransactionTestCase):
         AuthzEnforcer._enforcer = None  # pylint: disable=protected-access
 
     def _seed_database_with_policies(self):
-        """Seed the database with policies from the policy file."""
+        """Seed static role-permission policies from the authorization schema."""
         global_enforcer = AuthzEnforcer.get_enforcer()
         global_enforcer.clear_policy()
 
-        migrate_policy_between_enforcers(
-            source_enforcer=casbin.Enforcer(
-                MODEL_CONF_PATH,
-                AUTHZ_POLICY_PATH,
-            ),
-            target_enforcer=global_enforcer,
-        )
+        seed_static_authorization_policies(global_enforcer)
         global_enforcer.clear_policy()
 
     def _wait_for_auto_load(self) -> None:

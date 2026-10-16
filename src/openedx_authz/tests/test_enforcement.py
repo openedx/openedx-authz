@@ -58,16 +58,6 @@ class AuthRequest(TypedDict):
     expected_result: bool
 
 
-COMMON_ACTION_GROUPING = [
-    # manage implies edit and delete
-    ["g2", make_action_key("manage"), make_action_key("edit")],
-    ["g2", make_action_key("manage"), make_action_key("delete")],
-    # edit implies read and write
-    ["g2", make_action_key("edit"), make_action_key("read")],
-    ["g2", make_action_key("edit"), make_action_key("write")],
-]
-
-
 @pytest.mark.django_db
 @ddt
 class CasbinEnforcementTestCase(TestCase):
@@ -98,16 +88,15 @@ class CasbinEnforcementTestCase(TestCase):
         Load policy rules into the Casbin enforcer.
 
         This method clears any existing policies and loads the provided policy rules
-        into the appropriate policy stores (p for policies, g for role assignments,
-        g2 for action groupings).
+        into the appropriate policy stores (p for policies and g for role assignments).
 
         Args:
             policy (list[str]): List of policy rules where each rule is a
-                list starting with the rule type ('p', 'g', or 'g2') followed by
+                list starting with the rule type ('p' or 'g') followed by
                 the rule parameters.
 
         Raises:
-            ValueError: If a policy rule has an invalid type (not 'p', 'g', or 'g2').
+            ValueError: If a policy rule has an invalid type.
         """
         self.enforcer.clear_policy()
         for rule in policy:
@@ -115,8 +104,6 @@ class CasbinEnforcementTestCase(TestCase):
                 self.enforcer.add_named_policy("p", rule[1:])
             elif rule[0] == "g":
                 self.enforcer.add_named_grouping_policy("g", rule[1:])
-            elif rule[0] == "g2":
-                self.enforcer.add_named_grouping_policy("g2", rule[1:])
             else:
                 raise ValueError(f"Invalid policy rule: {rule}")
 
@@ -149,7 +136,7 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
     POLICY = [
         ["p", make_role_key("platform_admin"), make_action_key("manage"), GLOBAL_SCOPE_WILDCARD, "allow"],
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
-    ] + COMMON_ACTION_GROUPING
+    ]
 
     GENERAL_CASES = [
         {
@@ -173,64 +160,17 @@ class SystemWideRoleTests(CasbinEnforcementTestCase):
 
 
 @ddt
-class ActionGroupingTests(CasbinEnforcementTestCase):
-    """
-    Tests for action grouping and permission inheritance.
+class ExplicitActionTests(CasbinEnforcementTestCase):
+    """Tests that every authorized action requires an explicit policy."""
 
-    This test class verifies that action grouping works correctly, where high-level
-    actions (like 'manage') automatically grant access to lower-level actions
-    (like 'edit', 'read', 'write', 'delete') through the g2 grouping mechanism.
-    """
-
-    ORG_COURSE_SCOPE = make_course_key("course-v1:any-org+*")
-
-    POLICY = [
-        [
-            "p",
-            make_role_key("role-1"),
-            make_action_key("manage"),
-            make_scope_key("course-v1", GLOBAL_SCOPE_WILDCARD),
-            "allow",
-        ],
-        [
-            "g",
-            make_user_key("user-1"),
-            make_role_key("role-1"),
-            ORG_COURSE_SCOPE,
-        ],
-    ] + COMMON_ACTION_GROUPING
-
-    CASES = [
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("edit"),
-            "scope": ORG_COURSE_SCOPE,
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("read"),
-            "scope": ORG_COURSE_SCOPE,
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("write"),
-            "scope": ORG_COURSE_SCOPE,
-            "expected_result": True,
-        },
-        {
-            "subject": make_user_key("user-1"),
-            "action": make_action_key("delete"),
-            "scope": ORG_COURSE_SCOPE,
-            "expected_result": True,
-        },
-    ]
-
-    @data(*CASES)
-    def test_action_grouping_access(self, request: AuthRequest):
-        """Test that users have access through action grouping."""
-        self._test_enforcement(self.POLICY, request)
+    def test_action_grouping_is_not_supported(self):
+        """The authorization model accepts only explicit action policies."""
+        with self.assertRaises(KeyError):
+            self.enforcer.add_named_grouping_policy(
+                "g2",
+                make_action_key("manage"),
+                make_action_key("edit"),
+            )
 
 
 @ddt
@@ -354,7 +294,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
             make_role_key(roles.LIBRARY_AUTHOR.external_key),
             make_library_key("lib:DemoX:CSPROB"),
         ],
-    ] + COMMON_ACTION_GROUPING
+    ]
 
     CASES = [
         {
@@ -440,7 +380,7 @@ class DeniedAccessTests(CasbinEnforcementTestCase):
             "deny",
         ],
         ["g", make_user_key("user-1"), make_role_key("platform_admin"), GLOBAL_SCOPE_WILDCARD],
-    ] + COMMON_ACTION_GROUPING
+    ]
 
     CASES = [
         {
@@ -516,7 +456,7 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         # Role assignments
         ["g", make_user_key("user-1"), make_role_key(roles.COURSE_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
         ["g", make_user_key("user-2"), make_role_key(roles.LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
-    ] + COMMON_ACTION_GROUPING
+    ]
 
     @data(
         (make_course_key("course-v1:OpenedX+DemoX+CS101"), True),

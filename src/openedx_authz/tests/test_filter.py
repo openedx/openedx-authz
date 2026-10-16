@@ -106,19 +106,12 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(f.ptype, ["g"])
         self.assertIn("g", f.ptype)
 
-    def test_filter_action_grouping_only(self):
-        """Test filter for action grouping (g2) only."""
-        f = Filter(ptype=["g2"])
-        self.assertEqual(f.ptype, ["g2"])
-        self.assertIn("g2", f.ptype)
-
     def test_filter_multiple_policy_types(self):
         """Test filter for multiple policy types."""
-        f = Filter(ptype=["p", "g", "g2"])
-        self.assertEqual(len(f.ptype), 3)
+        f = Filter(ptype=["p", "g"])
+        self.assertEqual(len(f.ptype), 2)
         self.assertIn("p", f.ptype)
         self.assertIn("g", f.ptype)
-        self.assertIn("g2", f.ptype)
 
     def test_filter_user_permissions(self):
         """Test filter for a specific user's permissions."""
@@ -150,12 +143,6 @@ class TestFilter(unittest.TestCase):
         f = Filter(ptype=["p"], v1=[make_action_key("edit"), make_action_key("delete")])
         self.assertEqual(f.ptype, ["p"])
         self.assertEqual(f.v1, [make_action_key("edit"), make_action_key("delete")])
-
-    def test_filter_action_hierarchy(self):
-        """Test filter for action grouping hierarchy."""
-        f = Filter(ptype=["g2"], v0=[make_action_key("manage")])
-        self.assertEqual(f.ptype, ["g2"])
-        self.assertEqual(f.v0, [make_action_key("manage")])
 
     def test_filter_deny_policies(self):
         """Test filter for deny effect policies."""

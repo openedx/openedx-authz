@@ -1332,7 +1332,7 @@ class TestArbitraryRoleSupport(ViewTestMixin):
     def setUpClass(cls):
         super().setUpClass()
         # Defined with the same wildcard library scope as the built-in library roles
-        # (see authz.policy), so it's visible for any specific library scope.
+        # (see library_roles.yaml), so it's visible for any specific library scope.
         AuthzEnforcer.get_enforcer().add_policy(
             make_role_key(cls.CUSTOM_ROLE),
             make_action_key(cls.CUSTOM_ACTION),

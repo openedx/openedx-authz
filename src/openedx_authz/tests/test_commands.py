@@ -11,7 +11,6 @@ from ddt import data, ddt
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
 from openedx_authz.api.data import ContentLibraryData
 from openedx_authz.constants.permissions import (
@@ -87,17 +86,9 @@ class EnforcementCommandTests(TestCase):
                 make_wildcard_key(ContentLibraryData.NAMESPACE),
             ]
         ]
-        self.action_grouping = [
-            [
-                make_action_key(DELETE_LIBRARY.identifier),
-                make_action_key(VIEW_LIBRARY.identifier),
-            ]
-        ]
-
         self.enforcer = Mock()
         self.enforcer.get_policy.return_value = self.policies
         self.enforcer.get_grouping_policy.return_value = self.roles
-        self.enforcer.get_named_grouping_policy.return_value = self.action_grouping
 
     @patch.object(AuthzEnforcer, "get_enforcer")
     @patch("openedx_authz.management.commands.enforcement.disabled_logging")
@@ -170,7 +161,6 @@ class EnforcementCommandTests(TestCase):
         output = self.buffer.getvalue()
         self.assertIn(f"✓ Loaded {len(self.policies)} policies", output)
         self.assertIn(f"✓ Loaded {len(self.roles)} role assignments", output)
-        self.assertIn(f"✓ Loaded {len(self.action_grouping)} action grouping rules", output)
 
     @patch.object(AuthzEnforcer, "get_enforcer")
     @patch.object(authz_api, "is_user_allowed")
@@ -328,9 +318,7 @@ class LoadPoliciesCommandTests(TestCase):
     """
     Tests for the `load_policies` Django management command.
 
-    This test class verifies the behavior of the load_policies command, including:
-    - Default file path handling
-    - Clearing existing policies
+    This test class verifies custom policy files and optional role clearing.
     """
 
     def setUp(self):
@@ -338,72 +326,38 @@ class LoadPoliciesCommandTests(TestCase):
         self.buffer = io.StringIO()
 
     @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
-    @patch("casbin.Enforcer")
-    @patch("os.path.join")
-    @patch("click.confirm")
-    def test_handle_with_default_paths(self, mock_confirm, mock_join, mock_casbin_enforcer, mock_get_enforcer):
-        """Test handle method with default policy and model paths."""
-        # Setup mocks
-        mock_target_enforcer = Mock()
-        mock_get_enforcer.return_value = mock_target_enforcer
+    def test_handle_without_policy_file_is_a_deprecated_noop(self, mock_get_enforcer):
+        """Existing deployment calls remain safe until they move to the schema command."""
+        command = LoadPoliciesCommand(stdout=self.buffer)
 
-        mock_source_enforcer = Mock()
-        mock_casbin_enforcer.return_value = mock_source_enforcer
-
-        policy_path = f"{ROOT_DIRECTORY}/engine/config/authz.policy"
-        model_path = f"{ROOT_DIRECTORY}/engine/config/model.conf"
-
-        # Define paths that will be joined
-        mock_join.side_effect = (
-            policy_path,
-            model_path,
-        )
-
-        # Create command instance
-        command = LoadPoliciesCommand()
-        command.migrate_policies = Mock()
-
-        # Call handle method
         command.handle(policy_file_path=None, model_file_path=None, clear_existing=False)
 
-        # Assertions
-        mock_casbin_enforcer.assert_called_once_with(
-            model_path,
-            policy_path,
-        )
-        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "authz.policy")
-        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "model.conf")
-        mock_confirm.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        self.assertIn("No policy file supplied", self.buffer.getvalue())
+        mock_get_enforcer.assert_not_called()
 
     @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
     @patch("casbin.Enforcer")
     @patch("click.confirm")
     def test_handle_with_custom_paths(self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer):
         """Test handle method with custom policy and model paths."""
-        # Setup mocks
         mock_target_enforcer = Mock()
         mock_get_enforcer.return_value = mock_target_enforcer
 
         mock_source_enforcer = Mock()
         mock_casbin_enforcer.return_value = mock_source_enforcer
 
-        # Create command instance
         command = LoadPoliciesCommand()
         command.migrate_policies = Mock()
 
-        # Custom paths
         policy_path = "/custom/path/to/policy.csv"
         model_path = "/custom/path/to/model.conf"
 
-        # Call handle method
         command.handle(
             policy_file_path=policy_path,
             model_file_path=model_path,
             clear_existing=False,
         )
 
-        # Assertions
         mock_casbin_enforcer.assert_called_once_with(model_path, policy_path)
         mock_confirm.assert_not_called()
         command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
@@ -416,96 +370,46 @@ class LoadPoliciesCommandTests(TestCase):
         self, mock_style, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
     ):
         """Test handle method with clear_existing and confirmed delete roles."""
-        # Setup mocks
         mock_target_enforcer = Mock()
         mock_get_enforcer.return_value = mock_target_enforcer
 
         mock_source_enforcer = Mock()
         mock_casbin_enforcer.return_value = mock_source_enforcer
 
-        # Setup click mocks
         mock_style.return_value = "styled message"
-        mock_confirm.side_effect = [True, False]  # Confirm roles, deny permissions
+        mock_confirm.return_value = True
 
-        # Create command instance
         command = LoadPoliciesCommand()
         command.migrate_policies = Mock()
         command._delete_existing_roles = Mock()
-        command._delete_permissions_inheritance = Mock()
 
-        # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
+        command.handle(policy_file_path="/custom/policy.csv", model_file_path=None, clear_existing=True)
 
-        # Assertions
         mock_target_enforcer.load_policy.assert_called_once()
         mock_confirm.assert_called_with(mock_style.return_value, default=False)
         command._delete_existing_roles.assert_called_once_with(mock_target_enforcer)
-        command._delete_permissions_inheritance.assert_not_called()
         command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
 
     @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
     @patch("casbin.Enforcer")
     @patch("click.confirm")
-    @patch("click.style")
-    def test_handle_clear_existing_permissions_confirmed(
-        self, mock_style, mock_confirm, mock_casbin_enforcer, mock_get_enforcer
-    ):
-        """Test handle method with clear_existing and confirmed delete permissions."""
-        # Setup mocks
+    def test_handle_clear_existing_roles_denied(self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer):
+        """Declining role deletion still imports the supplied file."""
         mock_target_enforcer = Mock()
         mock_get_enforcer.return_value = mock_target_enforcer
 
         mock_source_enforcer = Mock()
         mock_casbin_enforcer.return_value = mock_source_enforcer
 
-        # Setup click mocks
-        mock_style.return_value = "styled message"
-        mock_confirm.side_effect = [False, True]  # Deny roles, confirm permissions
+        mock_confirm.return_value = False
 
-        # Create command instance
         command = LoadPoliciesCommand()
         command.migrate_policies = Mock()
         command._delete_existing_roles = Mock()
-        command._delete_permissions_inheritance = Mock()
 
-        # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
+        command.handle(policy_file_path="/custom/policy.csv", model_file_path=None, clear_existing=True)
 
-        # Assertions
         mock_target_enforcer.load_policy.assert_called_once()
-        mock_confirm.assert_called_with(mock_style.return_value, default=False)
+        mock_confirm.assert_called_once()
         command._delete_existing_roles.assert_not_called()
-        command._delete_permissions_inheritance.assert_called_once_with(mock_target_enforcer)
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
-
-    @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
-    @patch("casbin.Enforcer")
-    @patch("click.confirm")
-    def test_handle_clear_existing_both_denied(self, mock_confirm, mock_casbin_enforcer, mock_get_enforcer):
-        """Test handle method with clear_existing but denied deletions."""
-        expected_mock_confirm_calls = 2
-        # Setup mocks
-        mock_target_enforcer = Mock()
-        mock_get_enforcer.return_value = mock_target_enforcer
-
-        mock_source_enforcer = Mock()
-        mock_casbin_enforcer.return_value = mock_source_enforcer
-
-        # Setup click mocks
-        mock_confirm.side_effect = [False, False]  # Deny both roles and permissions
-
-        # Create command instance
-        command = LoadPoliciesCommand()
-        command.migrate_policies = Mock()
-        command._delete_existing_roles = Mock()
-        command._delete_permissions_inheritance = Mock()
-
-        # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
-
-        # Assertions
-        mock_target_enforcer.load_policy.assert_called_once()
-        assert mock_confirm.call_count == expected_mock_confirm_calls
-        command._delete_existing_roles.assert_not_called()
-        command._delete_permissions_inheritance.assert_not_called()
         command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)

@@ -56,7 +56,7 @@ Setting ``hidden: true`` removes the role from the normal API results used to di
 
 The compiler resolves extensions after it loads every static role and permission. It rejects an extension when the target role or one of the permissions does not exist. Adding a permission that the role already has or removing one it does not have produces a warning and leaves the result unchanged.
 
-Several applications or deployment files may extend the same role. Changes to different fields are combined, while priority resolves changes to the same metadata field or permission. If two contributions with the same priority disagree, validation stops before the database changes.
+Several applications or deployment files may extend the same role. Changes to different fields are combined, while priority resolves changes to the same metadata field or permission. If two contributions with the same priority disagree, validation stops before the database changes. Priority resolves conflicts between extensions only; it does not let an extension or a competing base definition replace a role's base definition, which stays single-source-of-truth (`ADR 0031`_).
 
 4. Tutor patch
 ==============
@@ -131,10 +131,12 @@ References
 * `ADR 0017`_
 * `ADR 0018`_
 * `ADR 0019`_
+* `ADR 0031`_
 * :ref:`Authorization Schema Reference`
 * `Tutor plugin development`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst
 .. _ADR 0018: 0018-authorization-schema-lifecycle.rst
 .. _ADR 0019: 0019-authorization-schema-discovery.rst
+.. _ADR 0031: 0031-priority-applies-to-role-extensions-only.rst
 .. _Tutor plugin development: https://docs.tutor.edly.io/plugins/v0/gettingstarted.html

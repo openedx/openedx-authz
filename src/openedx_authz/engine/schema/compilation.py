@@ -112,10 +112,11 @@ class SchemaCompiler:
         )
 
     def _collect(self, documents: list[SchemaDocument], kind: DefinitionKind, key) -> dict[str, _Tracked]:
-        """Gather base definitions keyed by identifier, resolving by priority.
+        """Gather base definitions keyed by identifier.
 
-        Higher priority wins on conflict; equal priority with differing content
-        raises; identical duplicates merge their sources.
+        Identical duplicates merge their sources; differing definitions for the
+        same identifier are a conflict and raise, regardless of priority
+        (ADR 0031). Priority applies only to role extensions.
         """
         tracked: dict[str, _Tracked] = {}
         for document in documents:
@@ -130,7 +131,7 @@ class SchemaCompiler:
                     )
                     continue
 
-                tracked[identifier] = self._resolve_priority(
+                tracked[identifier] = self._merge_base_definition(
                     kind.label,
                     identifier,
                     existing=existing,
@@ -142,7 +143,7 @@ class SchemaCompiler:
                 )
         return tracked
 
-    def _resolve_priority(
+    def _merge_base_definition(
         self,
         kind: str,
         identifier: str,
@@ -150,41 +151,26 @@ class SchemaCompiler:
         existing: _Tracked,
         incoming: _Tracked,
     ) -> _Tracked:
-        """Resolve two competing definitions for one identifier by priority.
+        """Combine two base definitions for the same identifier.
 
-        Single responsibility: decide which of two :class:`_Tracked` entries for
-        the same identifier survives.
+        A base definition is a single source of truth, so ``priority`` does not
+        pick a winner between two of them (ADR 0031).
 
-        * Identical definitions merge their sources (both files contributed the
-          same thing).
-        * Otherwise higher priority wins; the loser is warned about (ADR 0017
-          §4) so a valid-but-ineffective file does not look like it took effect.
-        * Equal priority with disagreeing definitions is unresolvable and raises
-          :class:`SchemaCompileError` so deployment stops before the database
-          changes.
-
-        Each ``_Tracked`` carries a single source; ``existing`` and ``incoming``
-        are symmetric, so this also serves conflicts between extension
-        contributions where only priority (not load order) decides the winner.
+        * Identical definitions merge their sources: both files declared the
+          same thing, so the result records both as contributors.
+        * Differing definitions are an unresolvable conflict and raise
+          :class:`SchemaCompileError`, regardless of priority, so deployment
+          stops before the database changes. Whole-set validation rejects this
+          case first; raising here keeps the compiler safe on a direct call.
         """
         if existing.definition == incoming.definition:
             return replace(existing, sources=existing.sources + incoming.sources)
-        if incoming.priority == existing.priority:
-            raise SchemaCompileError(
-                f"Conflicting {kind} definition for {identifier!r} at equal priority "
-                f"{incoming.priority} "
-                f"({existing.sources[0].source_id} vs {incoming.sources[0].source_id})."
-            )
-        winner, loser = (incoming, existing) if incoming.priority > existing.priority else (existing, incoming)
-        self._warn_discarded(
-            kind,
-            identifier,
-            loser=loser.sources[0],
-            loser_priority=loser.priority,
-            winner=winner.sources[0],
-            winner_priority=winner.priority,
+        raise SchemaCompileError(
+            f"Conflicting {kind} definition for {identifier!r} "
+            f"({existing.sources[0].source_id} vs {incoming.sources[0].source_id}). "
+            f"Priority does not resolve base definitions (ADR 0031); "
+            f"use role_extensions to adapt an existing role."
         )
-        return winner
 
     @staticmethod
     def _warn_discarded(
@@ -390,10 +376,11 @@ class SchemaCompiler:
     ) -> tuple[object, int, list[SourceRecord]]:
         """Pick the winning value among competing extension contributions.
 
-        The batch counterpart to :meth:`_resolve_priority`: where that method
-        decides between two base definitions pairwise, this decides among any
-        number of ``(value, priority, source)`` contributions to the same
-        extension field or permission.
+        This resolves extension contributions, where priority does decide a
+        winner (ADR 0023). It picks among any number of
+        ``(value, priority, source)`` contributions to the same extension field
+        or permission. Base definitions are handled separately by
+        :meth:`_merge_base_definition`, which does not use priority (ADR 0031).
 
         The highest priority wins. Every contribution in the top-priority group
         must agree; if they do not, ``on_tie(top_values)`` builds the message

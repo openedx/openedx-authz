@@ -102,7 +102,11 @@ class TestExtensions:
 
 
 class TestPriorityResolution:
-    """How priority resolves conflicting contributions (higher wins; ties fail)."""
+    """How priority resolves conflicting role-extension contributions (higher wins; ties fail).
+
+    Priority applies to role extensions only; base-definition conflicts are
+    covered by :class:`TestBaseDefinitionConflicts` (ADR 0031).
+    """
 
     def test_equal_priority_metadata_conflict_raises(self):
         """Two extensions setting the same field at equal priority is an error."""
@@ -133,19 +137,57 @@ class TestPriorityResolution:
         with pytest.raises(SchemaCompileError):
             SchemaCompiler().compile([_base(), add, rem])
 
+
+class TestBaseDefinitionConflicts:
+    """Priority does not resolve conflicting base definitions (ADR 0031).
+
+    A base definition (category, permission, or role) is a single source of
+    truth. Two files that declare the same identifier differently are an
+    unresolvable conflict regardless of priority; only identical declarations
+    merge. Contrast with :class:`TestPriorityResolution`, where priority does
+    pick a winner among role extensions.
+    """
+
     def test_conflicting_base_definition_equal_priority_raises(self):
-        """Two base definitions of the same role at equal priority is an error."""
+        """Two differing base definitions at equal priority is an error."""
         a = make_document("a", priority=100, roles=[role(rid="dup", display_name="A", permissions=())])
         b = make_document("b", priority=100, roles=[role(rid="dup", display_name="B", permissions=())])
-        with pytest.raises(SchemaCompileError):
+        with pytest.raises(SchemaCompileError, match="Conflicting role definition"):
             SchemaCompiler().compile([a, b])
 
-    def test_higher_priority_base_definition_wins(self):
-        """The higher-priority base definition replaces the lower one."""
+    def test_higher_priority_does_not_win_for_base_definitions(self):
+        """A higher-priority base definition does not replace a lower-priority one.
+
+        Unlike role extensions, the disagreement is an unresolvable conflict and
+        raises regardless of priority.
+        """
         lo = make_document("lo", priority=100, roles=[role(rid="dup", display_name="Lo", permissions=())])
         hi = make_document("hi", priority=200, roles=[role(rid="dup", display_name="Hi", permissions=())])
-        compiled = SchemaCompiler().compile([lo, hi])
-        assert compiled.roles["dup"].definition.display_name == "Hi"
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([lo, hi])
+
+    def test_base_definition_conflict_raises_regardless_of_order(self):
+        """Discovery order must not change the outcome; both orders raise."""
+        lo = make_document("lo", priority=100, roles=[role(rid="dup", display_name="Lo", permissions=())])
+        hi = make_document("hi", priority=200, roles=[role(rid="dup", display_name="Hi", permissions=())])
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([lo, hi])
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([hi, lo])
+
+    def test_error_mentions_priority_does_not_apply(self):
+        """The conflict error points the author to role_extensions (ADR 0031)."""
+        lo = make_document("lo", priority=100, categories=[category("cat", display_name="Lo")])
+        hi = make_document("hi", priority=200, categories=[category("cat", display_name="Hi")])
+        with pytest.raises(SchemaCompileError, match="Priority does not resolve base definitions"):
+            SchemaCompiler().compile([lo, hi])
+
+    def test_identical_base_definitions_merge_regardless_of_priority(self):
+        """Identical declarations are not a conflict; their sources merge."""
+        first = make_document("first", priority=100, roles=[role(rid="dup", permissions=())])
+        second = make_document("second", priority=200, roles=[role(rid="dup", permissions=())])
+        compiled = SchemaCompiler().compile([first, second])
+        assert len(compiled.roles["dup"].sources) == 2
 
 
 class TestProvenance:
@@ -186,55 +228,19 @@ class TestProvenance:
 
 
 class TestDiscardedContributionWarnings:
-    """Priority silently picks a winner; the loser must be reported.
+    """Priority silently picks a winner among role extensions; the loser must be reported.
 
-    ADR 0017 §4 requires warning about contributions that do not take effect
-    because another file has a higher priority. A losing file is valid and was
-    loaded, so without a warning it looks like it applied.
+    ADR 0017 §4 requires warning about extension contributions that do not take
+    effect because another file has a higher priority. A losing file is valid
+    and was loaded, so without a warning it looks like it applied. Priority does
+    not resolve base definitions (ADR 0031), so a losing base definition is not
+    a case here; conflicting base definitions raise instead (see
+    :class:`TestBaseDefinitionConflicts`).
     """
 
     @staticmethod
     def _compile(*documents):
         return SchemaCompiler().compile(list(documents))
-
-    def test_lower_priority_base_definition_warns(self, caplog):
-        """A base definition that loses on priority is reported as having no effect."""
-        low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
-        high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
-
-        with caplog.at_level(logging.WARNING):
-            compiled = self._compile(high, low)
-
-        assert compiled.roles["course_editor"].definition.display_name == "Author"
-        assert "has no effect" in caplog.text
-        assert make_source("low").source_id in caplog.text
-        assert make_source("high").source_id in caplog.text
-
-    def test_warning_names_both_priorities(self, caplog):
-        """The discard warning names both the losing and winning priorities."""
-        low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
-        high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
-
-        with caplog.at_level(logging.WARNING):
-            self._compile(low, high)
-
-        assert "priority 100" in caplog.text
-        assert "priority 200" in caplog.text
-
-    def test_warns_regardless_of_document_order(self, caplog):
-        """Discovery order must not decide whether the operator is told."""
-        low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
-        high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
-
-        with caplog.at_level(logging.WARNING):
-            self._compile(low, high)
-        ascending = caplog.text
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            self._compile(high, low)
-
-        assert "has no effect" in ascending
-        assert "has no effect" in caplog.text
 
     def test_identical_duplicate_does_not_warn(self):
         """An identical definition merges sources; nothing is discarded."""
@@ -244,17 +250,6 @@ class TestDiscardedContributionWarnings:
         compiled = self._compile(first, second)
 
         assert len(compiled.roles["course_editor"].sources) == 2
-
-    def test_uses_singular_kind_label(self, caplog):
-        """Messages say 'category', not the truncated attribute name."""
-        low = make_document("low", priority=100, categories=[category("cat", display_name="Low")])
-        high = make_document("high", priority=200, categories=[category("cat", display_name="High")])
-
-        with caplog.at_level(logging.WARNING):
-            self._compile(low, high)
-
-        assert "category 'cat'" in caplog.text
-        assert "categorie" not in caplog.text
 
     def test_conflict_error_uses_singular_kind_label(self):
         """A conflict error uses the singular kind label ('category')."""
@@ -377,12 +372,14 @@ class TestDefensiveBranches:
 
         assert len(compiled.permissions["courses.view_course"].sources) == 2
 
-    def test_lower_priority_base_definition_is_kept_out(self):
-        """The 'keep existing' branch: a later, lower-priority file loses."""
+    def test_differing_base_definition_raises_even_though_validation_guards_it(self):
+        """Validation errors on this first; compilation must still raise, not pick a winner.
+
+        Priority does not resolve base definitions (ADR 0031), so a direct call
+        to the compiler with two differing base definitions is a conflict.
+        """
         high = make_document("high", priority=200, roles=[role(rid="course_editor", display_name="Author")])
         low = make_document("low", priority=100, roles=[role(rid="course_editor", display_name="Editor")])
 
-        compiled = SchemaCompiler().compile([high, low])
-
-        assert compiled.roles["course_editor"].definition.display_name == "Author"
-        assert [s.source_id for s in compiled.roles["course_editor"].sources] == [make_source("high").source_id]
+        with pytest.raises(SchemaCompileError):
+            SchemaCompiler().compile([high, low])

@@ -96,6 +96,18 @@ Example rendered file with two plugin contributions:
        display_name: Course author
        description: Creates and exports course content.
 
+4. Source tracking for filesystem-contributed schemas
+=====================================================
+
+Schemas discovered through ``OPENEDX_AUTHZ_SCHEMA_FILES`` have no Python package or module. To satisfy the source-tracking requirements of `ADR 0025`_, their source record uses:
+
+* ``distribution`` = ``<tutor-patch>`` — a sentinel value that is an invalid Python package name, guaranteeing no collision with any installed distribution.
+* ``module`` = ``null`` — filesystem sources have no owning Python module, and using the absolute path would be inconsistent with the field's semantics elsewhere in the model.
+* ``resource_path`` = the absolute filesystem path of the schema file (e.g. ``/openedx/config/authz-schema.yml``).
+* ``distribution_version`` = ``0.0.0`` — a sentinel value, since filesystem sources carry no package version.
+
+If multiple files are listed in ``OPENEDX_AUTHZ_SCHEMA_FILES``, they share the same ``(distribution, module)`` identity.
+
 Consequences
 ************
 
@@ -127,6 +139,8 @@ References
 
 * `ADR 0019`_
 * `ADR 0023`_
+* `ADR 0025`_
 
 .. _ADR 0019: 0019-authorization-schema-discovery.rst
 .. _ADR 0023: 0023-extend-static-roles.rst
+.. _ADR 0025: 0025-authorization-schema-source-tracking.rst

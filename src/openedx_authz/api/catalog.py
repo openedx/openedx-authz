@@ -4,14 +4,11 @@ The catalog is read from the authz schema models, the same data the Casbin polic
 rendered from, using a constant number of queries (see ADR 0028).
 """
 
-from collections import defaultdict
-
 from openedx_authz.api.data import DefinitionKind
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
     AuthzRoleDefinition,
-    AuthzRolePermission,
 )
 
 __all__ = ["get_permission_catalog", "get_category_catalog", "get_role_catalog"]
@@ -27,15 +24,12 @@ def get_permission_catalog(scope_types: list[str]) -> list[AuthzPermissionDefini
         scope_types (list[str]): The scope types (e.g., ['course-v1', 'lib']).
 
     Returns:
-        list[AuthzPermissionDefinition]: The matching permissions, ordered by identifier
+        list[AuthzPermissionDefinition]: The matching permissions, ordered by namespace and name
     """
-    return sorted(
-        (
-            permission
-            for permission in AuthzPermissionDefinition.objects.select_related("category")
-            if any(scope_type in permission.scopes for scope_type in scope_types)
-        ),
-        key=lambda permission: permission.identifier,
+    return list(
+        AuthzPermissionDefinition.objects.supporting_scope_types(scope_types)
+        .select_related("category")
+        .order_by("namespace", "name")
     )
 
 
@@ -80,24 +74,16 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
         - ``permissions``: Sorted identifiers of the permissions the role grants in the scope types.
         - ``scope_types``: Sorted scope types, among the requested ones, in which the role has grants.
     """
-    grants = defaultdict(set)
-    role_scopes = defaultdict(set)
-    for role_id, scope, namespace, name in AuthzRolePermission.objects.filter(
-        scope__in=scope_types, role__hidden=False
-    ).values_list("role__role_id", "scope", "permission__namespace", "permission__name"):
-        grants[role_id].add(f"{namespace}.{name}")
-        role_scopes[role_id].add(scope)
-
-    definitions = AuthzRoleDefinition.objects.filter(role_id__in=grants)
+    roles = AuthzRoleDefinition.objects.visible().with_grants_in_scope_types(scope_types)
     return [
         {
-            "role": definition.role_id,
-            "display_name": definition.display_name,
-            "description": definition.description,
-            "icon": definition.icon,
+            "role": role.role_id,
+            "display_name": role.display_name,
+            "description": role.description,
+            "icon": role.icon,
             "definition_kind": DefinitionKind.STATIC.value,
-            "permissions": sorted(grants[definition.role_id]),
-            "scope_types": sorted(role_scopes[definition.role_id]),
+            "permissions": sorted({grant.permission.identifier for grant in role.grants}),
+            "scope_types": sorted({grant.scope for grant in role.grants}),
         }
-        for definition in definitions.order_by("role_id")
+        for role in roles.order_by("role_id")
     ]

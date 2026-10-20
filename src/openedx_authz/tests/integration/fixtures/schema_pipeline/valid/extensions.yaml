@@ -1,0 +1,5 @@
+schema_version: "1.0"
+priority: 200
+role_extensions:
+  - role_id: pipeline_editor
+    add_permissions: [pipeline.edit_content]

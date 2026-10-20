@@ -1,0 +1,6 @@
+schema_version: "1.0"
+priority: 100
+permission_categories:
+  - id: pipeline_content
+    display_name: Pipeline content
+    description: Permissions used by the schema pipeline integration test.

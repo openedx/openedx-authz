@@ -43,23 +43,6 @@ class TestDocumentValidation:
         )
         assert not _errors(SchemaValidator().validate([doc]))
 
-    def test_unsupported_schema_version_is_error(self):
-        """A ``schema_version`` the validator cannot read is rejected."""
-        doc = make_document(schema_version="9.9", categories=[category()])
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-        assert any("Unsupported schema_version" in m for m in messages)
-
-    def test_non_snakecase_identifier_is_error(self):
-        """Identifiers must be lowercase snake_case."""
-        doc = make_document(permissions=[permission(namespace="Courses")])
-        assert _errors(SchemaValidator().validate([doc]))
-
-    def test_casbin_internal_form_rejected(self):
-        """An identifier using an internal Casbin form (``act^``) is rejected."""
-        doc = make_document(categories=[category("act^foo")])
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-        assert any("internal Casbin form" in m for m in messages)
-
     def test_unknown_category_reference_is_error(self):
         """A permission referencing a category not defined in the schema fails."""
         doc = make_document(permissions=[permission(cat="missing")])
@@ -87,15 +70,6 @@ class TestDocumentValidation:
         doc = make_document(role_extensions=[extension("ghost", add_permissions=("courses.view_course",))])
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
         assert any("unknown role" in m for m in messages)
-
-    def test_missing_scope_is_error(self):
-        """A permission must declare at least one scope."""
-        doc = make_document(
-            categories=[category("cat")],
-            permissions=[permission(cat="cat", scopes=())],
-        )
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-        assert any("at least one scope" in m for m in messages)
 
     def test_conflicting_duplicate_definition_is_error(self):
         """Two definitions with the same id but different content conflict."""
@@ -149,89 +123,6 @@ class TestDuplicateSeverity:
         issues = _warnings(SchemaValidator().validate([first, second]))
 
         assert [i.source_id for i in issues] == [make_source("second").source_id]
-
-
-class TestIdentifierAndScopeRules:
-    """Field-shape rules from ADR 0017 §4."""
-
-    @pytest.mark.parametrize("value", ["courses", "courses.view.course", "courses.", ".view", "courses..view", ""])
-    def test_permission_id_must_be_namespace_dot_name(self, value):
-        """A permission id must be exactly two identifiers joined by one period."""
-        doc = make_document(roles=[role(permissions=(value,))])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("permission id" in m and "must match" in m for m in messages)
-
-    def test_permission_id_halves_are_validated(self):
-        """Both halves of a permission id must be lowercase snake_case."""
-        doc = make_document(roles=[role(permissions=("Courses.View_Course",))])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("lowercase snake_case" in m for m in messages)
-
-    @pytest.mark.parametrize("prefix", ["act^", "role^", "sub^", "scope^", "g^", "p^"])
-    def test_every_casbin_prefix_is_rejected(self, prefix):
-        """Every reserved Casbin prefix (act^, role^, ...) is rejected in an id."""
-        doc = make_document(roles=[role(rid=f"{prefix}thing")])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("internal Casbin form" in m for m in messages)
-
-    @pytest.mark.parametrize("scope", ["Course-V1", "1course", "course v1", "course.v1"])
-    def test_invalid_scope_namespace_is_error(self, scope):
-        """A malformed scope namespace (caps, leading digit, spaces, dots) is rejected."""
-        doc = make_document(
-            categories=[category("cat")],
-            permissions=[permission(cat="cat", scopes=(scope,))],
-        )
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("invalid scope namespace" in m for m in messages)
-
-    def test_hyphenated_scope_is_allowed(self):
-        """Scope namespaces keep their registered spelling, e.g. ``course-v1``."""
-        doc = make_document(
-            categories=[category("cat")],
-            permissions=[permission(cat="cat", scopes=("course-v1",))],
-        )
-
-        assert not _errors(SchemaValidator().validate([doc]))
-
-    def test_role_without_scopes_is_error(self):
-        """A role must declare at least one scope."""
-        doc = make_document(roles=[role(scopes=())])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("at least one scope" in m for m in messages)
-
-
-class TestRequiredFields:
-    """The subset of required fields the validator enforces today.
-
-    Fuller required-field coverage (display fields, unknown keys, sizes) arrives
-    with JSON Schema validation; these pin the rules already in place.
-    """
-
-    def test_empty_category_id_is_error(self):
-        """A category with an empty id is a missing-required-field error."""
-        doc = make_document(categories=[category("")])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("Missing required field: category id" in m for m in messages)
-
-    def test_permission_without_a_category_is_error(self):
-        """A permission missing its required category is an error."""
-        doc = make_document(permissions=[permission(cat="")])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("Missing required field: category for courses.view_course" in m for m in messages)
 
 
 class TestExtensionReferences:
@@ -455,15 +346,6 @@ class TestIconRules:
 
         assert not _errors(SchemaValidator().validate([doc]))
 
-    @pytest.mark.parametrize("icon", ["remove_red_eye", "removeRedEye", "Remove-Red-Eye", "9Mp lowercase"])
-    def test_non_pascalcase_icon_is_error(self, icon):
-        """An icon name that is not PascalCase is rejected before the export check."""
-        doc = make_document(categories=[category("cat", icon=icon)])
-
-        messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
-
-        assert any("must be a PascalCase Paragon icon name" in m for m in messages)
-
     def test_unknown_but_wellformed_icon_is_error(self):
         """A PascalCase name that Paragon does not export is rejected."""
         doc = make_document(categories=[category("cat", icon="NotARealParagonIcon")])
@@ -476,12 +358,15 @@ class TestIconRules:
         """A permission's icon is validated and the error names the permission."""
         doc = make_document(
             categories=[category("cat")],
-            permissions=[permission(cat="cat", icon="totally_wrong")],
+            permissions=[permission(cat="cat", icon="NotARealParagonIcon")],
         )
 
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
 
-        assert any("permission courses.view_course" in m and "PascalCase" in m for m in messages)
+        assert any(
+            "permission courses.view_course" in message and "not a valid @openedx/paragon/icons" in message
+            for message in messages
+        )
 
     def test_role_icon_is_validated(self):
         """A role's icon is validated and the error names the role."""
@@ -499,7 +384,7 @@ class TestIconRules:
             permissions=[permission(cat="cat")],
             roles=[role()],
         )
-        ext = make_document("ext", role_extensions=[extension("course_editor", icon="not_valid")])
+        ext = make_document("ext", role_extensions=[extension("course_editor", icon="NotARealParagonIcon")])
 
         messages = [i.message for i in _errors(SchemaValidator().validate([base, ext]))]
 

@@ -8,10 +8,9 @@ import pytest
 from openedx_authz.engine.schema.discovery import DiscoveredResource, Origin, SchemaDiscovery
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
 from openedx_authz.engine.schema.loading import SchemaLoader
+from openedx_authz.engine.schema.parsing import UNKNOWN_DISTRIBUTION, SchemaParser
 
 from .factories import InMemoryResource
-
-UNKNOWN_DISTRIBUTION = SchemaLoader._UNKNOWN_DISTRIBUTION  # pylint: disable=protected-access
 
 VALID_YAML = b"""
 schema_version: "1.0"
@@ -48,7 +47,7 @@ role_extensions:
 
 def _load(contents: bytes):
     resource = InMemoryResource(contents, package="pkg", module="pkg.mod")
-    return SchemaLoader().load([resource])
+    return SchemaLoader().load(SchemaParser().parse([resource]))
 
 
 class TestDocumentLoading:
@@ -107,13 +106,10 @@ class TestDocumentLoading:
         assert docs[0].categories == []
         assert docs[0].roles == []
 
-    def test_completely_empty_file_is_treated_as_an_empty_mapping(self):
-        """An empty file parses to ``None``; validation rejects it, loading must not."""
-        docs = _load(b"")
-
-        assert docs[0].priority == 0
-        assert docs[0].source.schema_version == ""
-        assert docs[0].roles == []
+    def test_completely_empty_file_cannot_be_loaded_as_a_typed_document(self):
+        """An empty root must pass structural validation before typed loading."""
+        with pytest.raises(SchemaLoadError, match="must be a mapping"):
+            _load(b"")
 
     def test_invalid_yaml_raises_load_error(self):
         """Malformed YAML surfaces as ``SchemaLoadError``."""
@@ -164,7 +160,7 @@ class TestSourceIdentity:
     def test_installed_package_resolves_to_its_distribution(self):
         """A module shipped by this package resolves to the real distribution."""
         discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
-        docs = SchemaLoader().load(discovery.discover())
+        docs = SchemaParser().parse(discovery.discover())
 
         assert {doc.source.distribution for doc in docs} == {"openedx-authz"}
         assert all(doc.source.distribution_version != UNKNOWN_DISTRIBUTION for doc in docs)
@@ -172,7 +168,7 @@ class TestSourceIdentity:
     def test_module_is_recorded_as_the_dotted_path(self):
         """The source module is recorded as the resource's dotted import path."""
         discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
-        docs = SchemaLoader().load(discovery.discover())
+        docs = SchemaParser().parse(discovery.discover())
 
         assert {doc.source.module for doc in docs} == {"openedx_authz.authz.schema"}
 
@@ -376,9 +372,9 @@ class TestDistributionAmbiguityLogging:
         Ensures test isolation and order-independence by resetting the dedupe set
         that prevents duplicate logging of the same ambiguity.
         """
-        SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+        SchemaParser.distribution_ambiguity_warned.clear()
         yield
-        SchemaLoader._distribution_ambiguity_warned.clear()  # pylint: disable=protected-access
+        SchemaParser.distribution_ambiguity_warned.clear()
 
     def test_single_candidate_no_log(
         self,
@@ -393,7 +389,7 @@ class TestDistributionAmbiguityLogging:
             origin=Origin.ENTRY_POINT,
         )
 
-        result = SchemaLoader._select_owning_distribution(["dist1"], resource)  # pylint: disable=protected-access
+        result = SchemaParser.select_owning_distribution(["dist1"], resource)
 
         assert result == "dist1"
         assert len(caplog.records) == 0
@@ -416,9 +412,9 @@ class TestDistributionAmbiguityLogging:
         def mock_ships(distribution: str, _installed_path: str) -> bool:
             return distribution == "dist1"
 
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(mock_ships))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(mock_ships))
 
-        result = SchemaLoader._select_owning_distribution(["dist1", "dist2"], resource)  # pylint: disable=protected-access
+        result = SchemaParser.select_owning_distribution(["dist1", "dist2"], resource)
 
         assert result == "dist1"
         assert len(caplog.records) == 0
@@ -438,9 +434,9 @@ class TestDistributionAmbiguityLogging:
         )
 
         # Mock _distribution_ships so no distribution claims the resource
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
-        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+        SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
 
         # Should emit exactly one log record
         assert len(caplog.records) == 1
@@ -460,9 +456,9 @@ class TestDistributionAmbiguityLogging:
             module="test_package.schema",
             origin=Origin.ENTRY_POINT,
         )
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
-        result = SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+        result = SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
 
         assert result == "dist1"
         log_msg = caplog.records[0].message
@@ -482,9 +478,9 @@ class TestDistributionAmbiguityLogging:
             module="test_package.schema",
             origin=Origin.ENTRY_POINT,
         )
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
-        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+        SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
 
         record = caplog.records[0]
         assert hasattr(record, "package")
@@ -509,7 +505,7 @@ class TestDistributionAmbiguityLogging:
         the same process.
         """
         caplog.set_level(logging.INFO)
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
         resource = DiscoveredResource(
             package="test_package",
@@ -520,7 +516,7 @@ class TestDistributionAmbiguityLogging:
 
         # Call multiple times with the same resource
         for _ in range(3):
-            SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+            SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
 
         # Should emit exactly one log record despite three calls
         assert len(caplog.records) == 1
@@ -532,7 +528,7 @@ class TestDistributionAmbiguityLogging:
     ) -> None:
         """Different resources (even with same candidates) each log once."""
         caplog.set_level(logging.INFO)
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
         resource1 = DiscoveredResource(
             package="test_package",
@@ -547,8 +543,8 @@ class TestDistributionAmbiguityLogging:
             origin=Origin.ENTRY_POINT,
         )
 
-        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource1)  # pylint: disable=protected-access
-        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource2)  # pylint: disable=protected-access
+        SchemaParser.select_owning_distribution(["dist2", "dist1"], resource1)
+        SchemaParser.select_owning_distribution(["dist2", "dist1"], resource2)
 
         # Should emit two log records (one per unique resource_path)
         assert len(caplog.records) == 2
@@ -565,11 +561,11 @@ class TestDistributionAmbiguityLogging:
             origin=Origin.ENTRY_POINT,
         )
         # Test with various orderings; should always return sorted[0]
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
         candidates = ["zebra", "apple", "banana"]
 
-        result = SchemaLoader._select_owning_distribution(candidates, resource)  # pylint: disable=protected-access
+        result = SchemaParser.select_owning_distribution(candidates, resource)
 
         assert result == "apple"  # sorted(candidates)[0]
 
@@ -586,9 +582,9 @@ class TestDistributionAmbiguityLogging:
             module="test_package.schema",
             origin=Origin.ENTRY_POINT,
         )
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
-        SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
+        SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
 
         assert len(caplog.records) == 1
         record = caplog.records[0]
@@ -607,7 +603,7 @@ class TestDistributionAmbiguityLogging:
         identical fallbacks and thus deduplicate.
         """
         caplog.set_level(logging.INFO)
-        monkeypatch.setattr(SchemaLoader, "_distribution_ships", staticmethod(lambda *args: False))
+        monkeypatch.setattr(SchemaParser, "distribution_ships", staticmethod(lambda *args: False))
 
         resource = DiscoveredResource(
             package="test_package",
@@ -617,8 +613,8 @@ class TestDistributionAmbiguityLogging:
         )
 
         # Both orderings should select the same deterministic fallback
-        result1 = SchemaLoader._select_owning_distribution(["dist2", "dist1"], resource)  # pylint: disable=protected-access
-        result2 = SchemaLoader._select_owning_distribution(["dist1", "dist2"], resource)  # pylint: disable=protected-access
+        result1 = SchemaParser.select_owning_distribution(["dist2", "dist1"], resource)
+        result2 = SchemaParser.select_owning_distribution(["dist1", "dist2"], resource)
 
         assert result1 == result2 == "dist1"
         # Only one log record because the warn_key is identical

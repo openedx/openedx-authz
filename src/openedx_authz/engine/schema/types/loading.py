@@ -60,6 +60,14 @@ class SourceRecord:
         return f"{self.distribution}:{module_path}/{filename}"
 
 
+@dataclass(frozen=True)
+class ParsedSchemaDocument:
+    """One parsed YAML value and the provenance of the resource that supplied it."""
+
+    source: SourceRecord
+    data: object
+
+
 @dataclass
 class SchemaDocument:
     """One loaded ``.yaml`` schema file plus its provenance and priority.

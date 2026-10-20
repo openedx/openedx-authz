@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from openedx_authz.engine.schema.discovery import DiscoveredResource, Origin
 from openedx_authz.engine.schema.types import (
+    ParsedSchemaDocument,
     PermissionCategory,
     PermissionDefinition,
     RoleDefinition,
@@ -44,6 +45,11 @@ def make_document(
         roles=roles or [],
         role_extensions=role_extensions or [],
     )
+
+
+def make_parsed_document(data: object, name: str = "doc") -> ParsedSchemaDocument:
+    """Build a parsed document for structural validation tests."""
+    return ParsedSchemaDocument(source=make_source(name), data=data)
 
 
 def category(cid: str = "cat", **kwargs) -> PermissionCategory:

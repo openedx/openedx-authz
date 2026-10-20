@@ -8,8 +8,10 @@ schema exposes for rendering.
 from openedx_authz.engine.schema.types import (
     CompiledDefinition,
     CompiledSchema,
+    PermissionCategory,
     PermissionDefinition,
     RoleDefinition,
+    SchemaDocument,
     SourceRecord,
 )
 
@@ -40,6 +42,16 @@ class TestSchemaTypeHelpers:
             scopes=("course-v1",),
         )
         assert perm.identifier == "courses.view_course"
+
+    def test_schema_document_keeps_typed_definition_fields(self):
+        """A loaded document contains typed definitions without raw parsed data."""
+        source = SourceRecord("dist", "1.0", "pkg", "schema.yaml", "1.0", "digest")
+        category = PermissionCategory("cat", "Category", "Description")
+
+        document = SchemaDocument(source, 100, [category])
+
+        assert document.categories == [category]
+        assert not hasattr(document, "data")
 
     def test_role_permission_pairs_are_sorted_and_flattened(self):
         """``role_permission_pairs`` returns ``(role, permission)`` pairs sorted deterministically."""

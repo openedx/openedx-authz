@@ -5,6 +5,7 @@ Common settings for openedx_authz plugin.
 import os
 
 from openedx_authz import ROOT_DIRECTORY
+from openedx_authz.constants.schema import DEFAULT_AUTHZ_JSON_SCHEMA
 
 
 def plugin_settings(settings):
@@ -59,3 +60,6 @@ def plugin_settings(settings):
     # This setting defines whether to enable automatic course migration. See ADR-0013 for more details.
     if not hasattr(settings, "ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION"):
         settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION = False
+
+    if not hasattr(settings, "OPENEDX_AUTHZ_JSON_SCHEMA"):
+        settings.OPENEDX_AUTHZ_JSON_SCHEMA = DEFAULT_AUTHZ_JSON_SCHEMA

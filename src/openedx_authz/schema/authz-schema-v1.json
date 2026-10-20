@@ -121,7 +121,7 @@
     "scope_namespace": {
       "description": "A scope namespace registered by a ScopeData type.",
       "type": "string",
-      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_-]*$",
       "examples": ["course-v1"]
     },
     "display_name": {
@@ -139,7 +139,7 @@
     "icon": {
       "description": "A case-sensitive icon name exported by @openedx/paragon/icons.",
       "type": "string",
-      "minLength": 1,
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
       "examples": ["Visibility"]
     },
     "permission_list": {

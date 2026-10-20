@@ -105,6 +105,11 @@ Rejected Alternatives
 **Adding application-specific visibility rules to reusable endpoint code**
   This would make reusable authorization code interpret data that authorization does not own. A general hook keeps the rule in a separate implementation, and `openedx_catalog`_ follows a related approach for installation-specific visibility rules.
 
+Addendum 2026-10-20
+*******************
+
+`ADR 0032`_ replaces the package layout in decisions 4, 6, and 8, so client-specific and cross-domain endpoints now belong in the applet for the capability they serve, while the ownership rules in this ADR still apply.
+
 References
 **********
 
@@ -115,6 +120,7 @@ References
 * `Issue #377`_
 * `PR #361`_
 * `openedx_catalog`_
+* `ADR 0032`_
 
 .. _edX DDD Bounded Contexts: https://openedx.atlassian.net/wiki/spaces/AC/pages/663224968/edX+DDD+Bounded+Contexts
 .. _ADR 0018 in openedx-events: https://github.com/openedx/openedx-events/blob/main/docs/decisions/0018-supporting-subdomain-modules.rst
@@ -123,3 +129,4 @@ References
 .. _Issue #377: https://github.com/openedx/openedx-authz/issues/377
 .. _PR #361: https://github.com/openedx/openedx-authz/pull/361
 .. _openedx_catalog: https://github.com/openedx/openedx-core/blob/main/src/openedx_catalog/api.py
+.. _ADR 0032: 0032-applets-for-built-in-authorization-capabilities.rst

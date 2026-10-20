@@ -293,7 +293,6 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.assertTrue(response.data[1]["allowed"])
 
 
-
 @ddt
 class TestRoleUserAPIView(ViewTestMixin):
     """Test suite for RoleUserAPIView."""
@@ -753,9 +752,12 @@ class TestRoleUserAPIView(ViewTestMixin):
             "users": ["regular_2"],
         }
 
-        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
-            return_value=False,
+        with (
+            patch.object(api.CourseOverviewData, "exists", return_value=True),
+            patch(
+                "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+                return_value=False,
+            ),
         ):
             response = self.client.put(self.url, data=request_data, format="json")
 
@@ -967,9 +969,12 @@ class TestRoleUserAPIView(ViewTestMixin):
             "users": "regular_2",
         }
 
-        with patch.object(api.CourseOverviewData, "exists", return_value=True), patch(
-            "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
-            return_value=False,
+        with (
+            patch.object(api.CourseOverviewData, "exists", return_value=True),
+            patch(
+                "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring",
+                return_value=False,
+            ),
         ):
             response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
 
@@ -1430,17 +1435,42 @@ class TestRoleListView(ViewTestMixin):
         self.assertEqual(response.status_code, status_code)
 
     @data("", "global", "course", "library", "lib,global", "lib,")
-    def test_get_roles_unsupported_scope_type_reaches_the_view_for_regular_users(self, scope_type: str):
-        """An unsupported scope_types value is not rejected by the permission class.
+    def test_get_roles_unsupported_scope_type_is_denied_for_regular_users(self, scope_type: str):
+        """An unsupported scope_types value is denied by default to non-privileged users.
 
         Expected result:
-            - A regular user gets 400 BAD REQUEST from the serializer, not 403 FORBIDDEN
+            - A regular user gets 403 FORBIDDEN, not 400 BAD REQUEST
         """
         self.client.force_authenticate(user=User.objects.get(username="regular_9"))
 
         response = self.client.get(self.url, {"scope_types": scope_type})
 
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("", "global", "course", "library", "lib,global", "lib,")
+    def test_get_roles_unsupported_scope_type_reaches_the_view_for_privileged_users(self, scope_type: str):
+        """An unsupported scope_types value reaches the serializer for privileged users.
+
+        Expected result:
+            - An admin gets 400 BAD REQUEST from the serializer
+        """
+        self.client.force_authenticate(user=User.objects.get(username="admin_1"))
+
+        response = self.client.get(self.url, {"scope_types": scope_type})
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_roles_missing_scope_types_is_denied_for_regular_users(self):
+        """A missing scope_types is denied to non-privileged users.
+
+        Expected result:
+            - A regular user gets 403 FORBIDDEN
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):

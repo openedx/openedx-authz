@@ -387,7 +387,8 @@ class ScopeTypePermission(UserScopesPermission):
     org or platform glob), like ``AnyScopePermission``, but only the permission mapped to that
     type counts.
 
-    A missing or unsupported ``scope_types`` is not rejected here: the view serializer answers 400.
+    A missing or unsupported ``scope_types`` is denied, so only privileged users reach the view
+    serializer, which answers 400.
     """
 
     SCOPE_TYPE_PERMISSIONS: ClassVar[dict[str, str]] = {
@@ -400,12 +401,12 @@ class ScopeTypePermission(UserScopesPermission):
         """Check if the user holds the permission of each requested scope type in any scope.
 
         Returns:
-            bool: True if the user may read every requested scope type, or if ``scope_types`` is
-                missing or unsupported, so the view can answer 400.
+            bool: True if the user may read every requested scope type; False if ``scope_types`` is
+                missing or unsupported.
         """
         scope_types = parse_scope_types(request.query_params.get("scope_types"))
         if scope_types is None:
-            return True
+            return False
         return all(
             self.has_permission_in_any_scope(request.user, self.SCOPE_TYPE_PERMISSIONS[scope_type])
             for scope_type in scope_types

@@ -352,11 +352,12 @@ Possible response codes:
 
 -  200: Ok, includes the Response Body defined above.
 -  400: Bad Request, ``scope_types`` is missing, has an empty value or has a value that is
-   not supported.
+   not supported. Only staff and superusers get this response; other users get 403.
 -  401: Unauthorized, the user is not authenticated.
 -  403: Forbidden, the user lacks ``courses.view_course_team`` (``course-v1``) or
    ``content_libraries.view_library_team`` (``lib``) in any scope, for any of the
-   requested scope types.
+   requested scope types, or ``scope_types`` is missing or not supported (access is denied by
+   default).
 
 Consequences
 ************

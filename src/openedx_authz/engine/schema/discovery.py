@@ -79,13 +79,14 @@ class DiscoveredResource:
             (e.g. ``authz/schema/course_roles.yaml``).
         module: Dotted path of the owning directory, used as the source-record
             module and provenance identity (e.g. ``openedx_authz.authz.schema``).
+            ``None`` for filesystem-contributed resources (ADR 0030 §4).
         origin: Which contribution route produced this resource, as an
             ``Origin`` member; diagnostics only.
     """
 
     package: str
     resource_path: str
-    module: str
+    module: str | None
     origin: Origin
 
     def read_bytes(self) -> bytes:
@@ -110,26 +111,27 @@ class DiscoveredResource:
 
 @dataclass(frozen=True)
 class DiscoveredFileResource(DiscoveredResource):
-    """A schema file discovered via an absolute filesystem path (ADR 0029).
+    """A schema file discovered via an absolute filesystem path (ADR 0030).
 
     Unlike :class:`DiscoveredResource`, which resolves through
     ``importlib.resources``, this variant reads directly from the filesystem.
-    Fields are populated with sentinel values: ``package`` is
-    :data:`SETTINGS_FILE_SENTINEL` and both ``module`` and ``resource_path``
-    hold the absolute path.
+    ``package`` is :data:`SETTINGS_FILE_SENTINEL`, ``module`` is ``None``
+    (filesystem sources have no owning Python module), and ``resource_path``
+    holds the absolute path.
     """
 
     @classmethod
     def from_path(cls, file_path: str) -> DiscoveredFileResource:
         """Build a resource from an absolute filesystem path.
 
-        Sentinel values are used for ``package`` and ``module`` because the
-        file is not anchored on any Python package.
+        ``package`` uses the sentinel :data:`SETTINGS_FILE_SENTINEL` and
+        ``module`` is ``None`` because the file is not anchored on any
+        Python package (ADR 0030 §4).
         """
         return cls(
             package=SETTINGS_FILE_SENTINEL,
             resource_path=file_path,
-            module=file_path,
+            module=None,
             origin=Origin.SETTINGS,
         )
 

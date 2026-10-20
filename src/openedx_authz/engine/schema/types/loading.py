@@ -31,7 +31,8 @@ class SourceRecord:
     Attributes:
         distribution: Installed distribution name, e.g. ``"openedx-authz"``.
         distribution_version: Version of that distribution.
-        module: Python module that owns the resource.
+        module: Python module that owns the resource, or ``None`` for
+            filesystem-contributed sources (ADR 0030 §4).
         resource_path: Resource path within that module.
         schema_version: The ``schema_version`` declared by the file.
         content_digest: Digest of the resource contents (change detection).
@@ -39,7 +40,7 @@ class SourceRecord:
 
     distribution: str
     distribution_version: str
-    module: str
+    module: str | None
     resource_path: str
     schema_version: str
     content_digest: str
@@ -62,12 +63,11 @@ class SourceRecord:
 
 @dataclass(frozen=True)
 class SourceFileRecord(SourceRecord):
-    """Source record for a filesystem-path schema resource (ADR 0029).
+    """Source record for a filesystem-path schema resource (ADR 0030).
 
-    Overrides :attr:`source_id` to use the absolute path directly, since the
-    parent's ``module.replace(".", "/")`` convention assumes dotted Python
-    module paths and would corrupt a filesystem path containing a file
-    extension.
+    Overrides :attr:`source_id` because ``module`` is ``None`` for filesystem
+    sources (they have no owning Python module), so the parent's
+    ``module.replace(".", "/")`` convention cannot be used.
     """
 
     @property

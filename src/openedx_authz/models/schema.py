@@ -116,7 +116,11 @@ class AuthzSchemaSource(TimeStampedModel):
     )
     module = models.CharField(
         max_length=255,
-        help_text="Python module that owns the schema resource (e.g. 'openedx_authz.authz').",
+        null=True,
+        help_text=(
+            "Python module that owns the schema resource (e.g. 'openedx_authz.authz'). "
+            "Null for filesystem-contributed sources."
+        ),
     )
     distribution_version = models.CharField(max_length=64, blank=True, default="")
     resource_path = models.CharField(
@@ -137,7 +141,13 @@ class AuthzSchemaSource(TimeStampedModel):
 
     @property
     def source_id(self) -> str:
-        """Stable identifier, e.g. ``'openedx-authz:openedx_authz/authz'``."""
+        """Stable identifier, e.g. ``'openedx-authz:openedx_authz/authz'``.
+
+        For filesystem sources where ``module`` is ``None``, falls back to
+        ``resource_path`` (the absolute filesystem path).
+        """
+        if self.module is None:
+            return f"{self.distribution}:{self.resource_path}"
         return f"{self.distribution}:{self.module.replace('.', '/')}"
 
     def __str__(self):

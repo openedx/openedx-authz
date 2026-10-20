@@ -64,6 +64,13 @@ Notes
   assignments. ``--force`` removes the role together with its assignments and writes a
   ``RoleAssignmentAudit`` record for each one.
 
+Fixed
+=====
+
+* ``DELETE /api/authz/v1/roles/users/`` no longer lets a user remove its own ``library_admin`` or
+  ``course_admin`` role, matching the admin console. The user is reported in ``errors`` with
+  ``cannot_remove_own_admin_role`` and keeps the role; other users in the request are processed.
+
 1.24.0 - 2026-09-14
 *******************
 

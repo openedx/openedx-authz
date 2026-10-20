@@ -1,0 +1,8 @@
+schema_version: "1.0"
+priority: 100
+roles:
+  - id: pipeline_editor
+    display_name: Pipeline editor
+    description: Edits content in the pipeline integration test.
+    scopes: [course-v1]
+    permissions: [pipeline.view_content]

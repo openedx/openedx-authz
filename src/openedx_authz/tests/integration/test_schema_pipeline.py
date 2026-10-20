@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.schema.discovery import SchemaDiscovery
-from openedx_authz.engine.schema.exceptions import SchemaValidationError
+from openedx_authz.engine.schema.exceptions import SchemaLoadError, SchemaValidationError
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
@@ -96,3 +96,22 @@ class TestSchemaPipelineIntegration(TestCase):
         self.assertTrue(any("unknown category" in issue.message for issue in error.exception.issues))
         self.assertFalse(AuthzSchemaSource.objects.exists())
         self.assertFalse(AuthzPermissionDefinition.objects.exists())
+
+    @mock.patch("openedx_authz.engine.schema.discovery.metadata.entry_points", return_value=[])
+    def test_malformed_yaml_stops_before_database_writes(self, _entry_points):
+        """Malformed YAML fails during parsing before any persistence begins."""
+        with self.assertRaises(SchemaLoadError):
+            self.pipeline("invalid_parse").apply()
+
+        self.assertFalse(AuthzSchemaSource.objects.exists())
+        self.assertFalse(AuthzPermissionDefinition.objects.exists())
+
+    @mock.patch("openedx_authz.engine.schema.discovery.metadata.entry_points", return_value=[])
+    def test_compiled_semantic_error_stops_before_database_writes(self, _entry_points):
+        """An extension scope conflict fails after compilation without writes."""
+        with self.assertRaises(SchemaValidationError) as error:
+            self.pipeline("invalid_compiled").apply()
+
+        self.assertTrue(any("does not support" in issue.message for issue in error.exception.issues))
+        self.assertFalse(AuthzSchemaSource.objects.exists())
+        self.assertFalse(AuthzRolePermission.objects.exists())

@@ -1,0 +1,15 @@
+schema_version: "1.0"
+priority: 100
+permissions:
+  - namespace: pipeline
+    name: view_content
+    display_name: View content
+    description: View content in the pipeline integration test.
+    category_id: pipeline_content
+    scopes: [course-v1]
+  - namespace: pipeline
+    name: edit_content
+    display_name: Edit content
+    description: Edit content outside the role scope.
+    category_id: pipeline_content
+    scopes: [org-v1]

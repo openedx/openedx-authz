@@ -11,7 +11,7 @@ from openedx_authz.engine.schema.pipeline import SchemaPipeline
 COMPILED_SCHEMA_FIXTURE = Path(__file__).with_name("fixtures") / "compiled_schema.json"
 
 
-def _schema_data(compiled):
+def schema_data(compiled):
     """Return the behavior-bearing compiled schema fields in a stable form."""
     role_definitions = {}
     for key, value in sorted(compiled.roles.items()):
@@ -32,11 +32,14 @@ class TestBuiltinAppletDefinitions:
     """Built-in applets compose the expected public authorization schema."""
 
     def test_compiled_schema_matches_expected_definitions(self):
-        """The compiled applet schema matches the checked-in definition set."""
+        """The compiled applet schema matches the checked-in definition set.
+
+        Regenerate the fixture with ``make compiled_schema_fixture`` after changing an applet schema.
+        """
         compiled = SchemaPipeline().compile()
         expected = json.loads(COMPILED_SCHEMA_FIXTURE.read_text(encoding="utf-8"))
 
-        assert _schema_data(compiled) == expected
+        assert schema_data(compiled) == expected
 
     def test_compiled_roles_match_public_role_constants(self):
         """Every compiled role has a public constant, and every constant names a compiled role."""

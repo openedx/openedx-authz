@@ -5,3 +5,4 @@ References
    :maxdepth: 1
 
    authorization-schema
+   compiled-schema

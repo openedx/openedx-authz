@@ -114,6 +114,7 @@ test-base = [
     "code-annotations",
     "coverage",
     "ddt",
+    "jsonschema",
     "pytest-cov",
     "pytest-django",
 ]
@@ -174,4 +175,3 @@ build_command = "python -m pip install --upgrade build && SETUPTOOLS_SCM_PRETEND
 major_on_zero = false
 allow_zero_version = true
 tag_format = "v{version}"
-

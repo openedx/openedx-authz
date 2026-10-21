@@ -151,6 +151,14 @@
       "minItems": 1,
       "uniqueItems": true
     },
+    "role_permission_list": {
+      "description": "A list of unique, complete permission identifiers. The list may be empty when role extensions contribute every permission.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_id"
+      },
+      "uniqueItems": true
+    },
     "scope_list": {
       "description": "A non-empty list of unique scope namespaces.",
       "type": "array",
@@ -269,9 +277,9 @@
         },
         "permissions": {
           "title": "Role permissions",
-          "description": "Every permission assigned to this role. Permissions are not inferred from other permissions.",
+          "description": "Permissions assigned by this base definition. Role extensions may contribute the complete permission set.",
           "examples": [["courses.view_course"]],
-          "$ref": "#/$defs/permission_list"
+          "$ref": "#/$defs/role_permission_list"
         },
         "icon": {
           "title": "Role icon",

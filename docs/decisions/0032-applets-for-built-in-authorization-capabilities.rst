@@ -62,7 +62,9 @@ Applets do not import each other, since role extensions in YAML already connect 
 
 A permission belongs to the applet responsible for the action or data that the permission controls. For example, the ``enrollments`` applet defines the permissions for viewing or changing enrollments, along with their metadata, constants, and contributions to shared roles, so code elsewhere may check those permissions through the public API while their definitions remain in ``enrollments``.
 
-The `edX DDD Bounded Contexts`_ map guides this choice, especially when a user interface combines several capabilities. To place a new permission, we find the bounded context that owns its action or data in the map and add the permission to that context's applet, or create an applet when the context has none yet. Applet names describe the definitions they hold, so the following table records which bounded context each one stands for:
+A role belongs to the applet for the bounded context where it is assigned, as with the library roles, and other applets add the permissions they own through ``role_extensions``. Roles that cut across several contexts need a specific decision about where they live, which `ADR 0033`_ makes for the course-team roles.
+
+Both rules rely on the `edX DDD Bounded Contexts`_ map, which shows the context that owns each action or data even when a user interface combines several capabilities. To place a new permission, we find the bounded context that owns its action or data in the map and add the permission to that context's applet, or create an applet when the context has none yet. Applet names describe the definitions they hold, so the following table records which bounded context each one stands for:
 
 .. list-table::
    :header-rows: 1
@@ -95,7 +97,7 @@ The `edX DDD Bounded Contexts`_ map guides this choice, especially when a user i
 3. Course roles
 ===============
 
-Following these rules, ``course_team_roles`` defines the identifiers and metadata for ``course_admin`` and ``course_staff``, whose base definitions have empty permission lists, and each capability applet then adds the permissions it owns through ``role_extensions``:
+Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadata for ``course_admin`` and ``course_staff``, whose base definitions have empty permission lists, and each capability applet then adds the permissions it owns through ``role_extensions``:
 
 .. code-block:: yaml
 
@@ -172,6 +174,7 @@ References
 * `ADR 0019`_
 * `ADR 0023`_
 * `ADR 0026`_
+* `ADR 0033`_
 
 .. _Issue #484: https://github.com/openedx/openedx-authz/issues/484
 .. _PR #421: https://github.com/openedx/openedx-authz/pull/421
@@ -181,3 +184,4 @@ References
 .. _ADR 0019: 0019-authorization-schema-discovery.rst
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0026: 0026-rest-api-domain-ownership-boundary.rst
+.. _ADR 0033: 0033-shared-applet-for-course-team-roles.rst

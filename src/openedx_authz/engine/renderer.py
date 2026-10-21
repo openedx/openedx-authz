@@ -30,7 +30,7 @@ records that the compiled schema no longer contains, all in one transaction.
 
 The definition/source model (ADR 0018 §3, ADR 0025) is the ownership record
 that makes precise pruning safe, and it is consulted rather than assumed:
-removal candidates are intersected with the stored role-permission rows (see
+removal candidates are intersected with the stored role-permission grants (see
 :meth:`SchemaApplier._managed_rows`), so unmanaged ``p`` rows, dynamic roles,
 and user assignments are all preserved.
 

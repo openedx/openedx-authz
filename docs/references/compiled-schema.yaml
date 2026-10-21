@@ -44,6 +44,19 @@ roles:
       - courses.view_schedule_and_details
       course_team_roles:
       - courses.legacy_instructor_role_permissions
+      enrollments:
+      - courses.enroll_learners
+      - courses.unenroll_learners
+      - courses.view_enrollments
+      learner_administration:
+      - courses.manage_cohorts
+      - courses.manage_learner_extensions
+      - courses.view_cohorts
+      - courses.view_course_info
+      - courses.view_learner_extensions
+      learner_grading:
+      - courses.manage_learner_grading
+      - courses.view_gradebook
   course_auditor:
     display_name: Course Auditor
     description: Can view course content and settings, but cannot make changes.
@@ -167,6 +180,19 @@ roles:
       - courses.view_schedule_and_details
       course_team_roles:
       - courses.legacy_staff_role_permissions
+      enrollments:
+      - courses.enroll_learners
+      - courses.unenroll_learners
+      - courses.view_enrollments
+      learner_administration:
+      - courses.manage_cohorts
+      - courses.manage_learner_extensions
+      - courses.view_cohorts
+      - courses.view_course_info
+      - courses.view_learner_extensions
+      learner_grading:
+      - courses.manage_learner_grading
+      - courses.view_gradebook
   library_admin:
     display_name: Library Admin
     description: The Library Admin has full control over the library, including managing users, modifying content, and handling publishing workflows. They ensure content is properly maintained and accessible as needed.
@@ -415,6 +441,16 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+  courses.enroll_learners:
+    applet: enrollments
+    namespace: courses
+    name: enroll_learners
+    display_name: Enroll learners
+    description: Enroll learners in the course, individually or in bulk.
+    category_id: course_enrollments
+    scopes:
+    - course-v1
+    icon: PersonAdd
   courses.export_course:
     applet: course_authoring
     namespace: courses
@@ -515,6 +551,16 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+  courses.manage_cohorts:
+    applet: learner_administration
+    namespace: courses
+    name: manage_cohorts
+    display_name: Manage cohorts
+    description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
+    category_id: course_cohorts
+    scopes:
+    - course-v1
+    icon: Settings
   courses.manage_course_team:
     applet: course_authoring
     namespace: courses
@@ -542,6 +588,26 @@ permissions:
     display_name: Manage group configurations
     description: Create and manage content groups used to target course content to specific learners.
     category_id: course_team_group
+    scopes:
+    - course-v1
+    icon: Settings
+  courses.manage_learner_extensions:
+    applet: learner_administration
+    namespace: courses
+    name: manage_learner_extensions
+    display_name: Manage learner extensions
+    description: Grant or modify individual learner extensions and reset due dates to the course default.
+    category_id: course_learner_extensions
+    scopes:
+    - course-v1
+    icon: Settings
+  courses.manage_learner_grading:
+    applet: learner_grading
+    namespace: courses
+    name: manage_learner_grading
+    display_name: Manage learner grading
+    description: Use grading tools for an individual learner or all learners. Includes viewing learner progress, resetting attempts, rescoring submissions, overriding scores, deleting learner problem state, and checking task status where available.
+    category_id: course_learner_grading
     scopes:
     - course-v1
     icon: Settings
@@ -595,6 +661,16 @@ permissions:
     scopes:
     - course-v1
     icon: DownloadDone
+  courses.unenroll_learners:
+    applet: enrollments
+    namespace: courses
+    name: unenroll_learners
+    display_name: Unenroll learners
+    description: Remove learners' enrollments from the course.
+    category_id: course_enrollments
+    scopes:
+    - course-v1
+    icon: PersonRemove
   courses.view_advanced_settings:
     applet: course_authoring
     namespace: courses
@@ -625,6 +701,16 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+  courses.view_cohorts:
+    applet: learner_administration
+    namespace: courses
+    name: view_cohorts
+    display_name: View cohorts
+    description: View course cohorts, their configuration, and their members.
+    category_id: course_cohorts
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
   courses.view_course:
     applet: course_authoring
     namespace: courses
@@ -632,6 +718,16 @@ permissions:
     display_name: View course
     description: See the course in the Studio home and access the course outline in read-only mode. Includes the "View Live" option to preview the course as a learner in the LMS.
     category_id: course_access_content
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
+  courses.view_course_info:
+    applet: learner_administration
+    namespace: courses
+    name: view_course_info
+    display_name: View course info
+    description: View general course information and enrollment counts.
+    category_id: course_information
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -655,6 +751,16 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+  courses.view_enrollments:
+    applet: enrollments
+    namespace: courses
+    name: view_enrollments
+    display_name: View enrollments
+    description: View and search course enrollments and check a learner's enrollment status.
+    category_id: course_enrollments
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
   courses.view_files:
     applet: course_authoring
     namespace: courses
@@ -662,6 +768,16 @@ permissions:
     display_name: View files
     description: See the list of files and assets uploaded to the course.
     category_id: course_files
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
+  courses.view_gradebook:
+    applet: learner_grading
+    namespace: courses
+    name: view_gradebook
+    display_name: View gradebook
+    description: View grades for learners enrolled in the course.
+    category_id: course_learner_grading
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -682,6 +798,16 @@ permissions:
     display_name: View group configurations
     description: See the list of content groups and their configurations for this course.
     category_id: course_team_group
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
+  courses.view_learner_extensions:
+    applet: learner_administration
+    namespace: courses
+    name: view_learner_extensions
+    display_name: View learner extensions
+    description: View and search granted learner extensions and their extended due dates.
+    category_id: course_learner_extensions
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -726,6 +852,16 @@ categories:
     display_name: Advanced & certificates
     description: Permissions for managing advanced course settings and course certificates.
     icon: CheckCircle
+  course_cohorts:
+    applet: learner_administration
+    display_name: Cohorts
+    description: Permissions for viewing and managing course cohorts and their members.
+    icon: Groups
+  course_enrollments:
+    applet: enrollments
+    display_name: Enrollments
+    description: Permissions for viewing course enrollments and for enrolling or unenrolling learners.
+    icon: People
   course_files:
     applet: course_authoring
     display_name: Files
@@ -741,6 +877,21 @@ categories:
     display_name: Import / export
     description: Permissions for importing and exporting course content and related data.
     icon: Download
+  course_information:
+    applet: learner_administration
+    display_name: Course information
+    description: Permissions for viewing general course information.
+    icon: Info
+  course_learner_extensions:
+    applet: learner_administration
+    display_name: Learner extensions
+    description: Permissions for viewing and managing due date extensions for individual learners.
+    icon: Event
+  course_learner_grading:
+    applet: learner_grading
+    display_name: Learner grading
+    description: Permissions for viewing learner grades and using grading tools for individual learners or all learners.
+    icon: Grading
   course_legacy:
     applet: course_team_roles
     display_name: Legacy compatibility

@@ -61,9 +61,7 @@ class TestBuiltinAppletDefinitions:
     def test_compiled_permissions_match_public_permission_constants(self):
         """Every compiled permission has a public constant, and every constant names a compiled permission."""
         public_permissions = {
-            constant.identifier
-            for constant in (getattr(permissions, name) for name in permissions.__all__)
-            if isinstance(constant, PermissionData)
+            constant.identifier for constant in vars(permissions).values() if isinstance(constant, PermissionData)
         }
 
         compiled = SchemaPipeline().compile()

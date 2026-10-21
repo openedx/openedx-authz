@@ -16,6 +16,9 @@ EXPECTED_SCHEMA_DIRECTORIES = (
     "openedx_authz/applets/content_libraries/schema",
     "openedx_authz/applets/course_team_roles/schema",
     "openedx_authz/applets/course_authoring/schema",
+    "openedx_authz/applets/enrollments/schema",
+    "openedx_authz/applets/learner_grading/schema",
+    "openedx_authz/applets/learner_administration/schema",
 )
 
 

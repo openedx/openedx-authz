@@ -51,6 +51,7 @@ Added
   against the set of names exported by ``@openedx/paragon/icons``, vendored in
   ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
   ``make paragon_icons`` (ADR 0029).
+* Added the Instructor Dashboard permissions from issue #484 for course information, enrollments, learner grading, learner extensions, and cohorts. The ``enrollments``, ``learner_grading``, and ``learner_administration`` applets define them and add them to the ``course_admin`` and ``course_staff`` roles.
 
 Changed
 ========

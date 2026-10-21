@@ -1,0 +1,1 @@
+"""Enrollments authorization definitions."""

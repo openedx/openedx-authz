@@ -31,6 +31,12 @@ EXPECTED_BUILTIN_PATHS = {
     "applets/course_authoring/schema/role_extensions.yaml",
     "applets/course_team_roles/schema/legacy_permissions.yaml",
     "applets/course_team_roles/schema/roles.yaml",
+    "applets/enrollments/schema/permissions.yaml",
+    "applets/enrollments/schema/role_extensions.yaml",
+    "applets/learner_administration/schema/permissions.yaml",
+    "applets/learner_administration/schema/role_extensions.yaml",
+    "applets/learner_grading/schema/permissions.yaml",
+    "applets/learner_grading/schema/role_extensions.yaml",
 }
 
 

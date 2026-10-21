@@ -1,0 +1,36 @@
+schema_version: "1.0"
+priority: 100
+
+# Icons are Paragon icon names (@openedx/paragon/icons).
+
+permission_categories:
+  - id: course_enrollments
+    display_name: Enrollments
+    description: Permissions for viewing course enrollments and for enrolling or unenrolling learners.
+    icon: People
+
+permissions:
+  - namespace: courses
+    name: view_enrollments
+    display_name: View enrollments
+    description: View and search course enrollments and check a learner's enrollment status.
+    category_id: course_enrollments
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: enroll_learners
+    display_name: Enroll learners
+    description: Enroll learners in the course, individually or in bulk.
+    category_id: course_enrollments
+    scopes:
+      - course-v1
+    icon: PersonAdd
+  - namespace: courses
+    name: unenroll_learners
+    display_name: Unenroll learners
+    description: Remove learners' enrollments from the course.
+    category_id: course_enrollments
+    scopes:
+      - course-v1
+    icon: PersonRemove

@@ -5,23 +5,14 @@ Each constant identifies a role. Its permissions are defined in the applets' YAM
 """
 
 from openedx_authz.api.data import RoleData
-from openedx_authz.applets.course_team_roles.constants import (
-    COURSE_ADMIN_ID,
-    COURSE_AUDITOR_ID,
-    COURSE_BETA_TESTER_ID,
-    COURSE_DATA_RESEARCHER_ID,
-    COURSE_EDITOR_ID,
-    COURSE_LIMITED_STAFF_ID,
-    COURSE_STAFF_ID,
-)
 
-COURSE_AUDITOR = RoleData(external_key=COURSE_AUDITOR_ID)
-COURSE_EDITOR = RoleData(external_key=COURSE_EDITOR_ID)
-COURSE_ADMIN = RoleData(external_key=COURSE_ADMIN_ID)
-COURSE_STAFF = RoleData(external_key=COURSE_STAFF_ID)
-COURSE_LIMITED_STAFF = RoleData(external_key=COURSE_LIMITED_STAFF_ID)
-COURSE_DATA_RESEARCHER = RoleData(external_key=COURSE_DATA_RESEARCHER_ID)
-COURSE_BETA_TESTER = RoleData(external_key=COURSE_BETA_TESTER_ID)
+COURSE_AUDITOR = RoleData(external_key="course_auditor")
+COURSE_EDITOR = RoleData(external_key="course_editor")
+COURSE_ADMIN = RoleData(external_key="course_admin")
+COURSE_STAFF = RoleData(external_key="course_staff")
+COURSE_LIMITED_STAFF = RoleData(external_key="course_limited_staff")
+COURSE_DATA_RESEARCHER = RoleData(external_key="course_data_researcher")
+COURSE_BETA_TESTER = RoleData(external_key="course_beta_tester")
 
 # This is a known LMS-only permission, but doesn't actually grant anything yet.
 #

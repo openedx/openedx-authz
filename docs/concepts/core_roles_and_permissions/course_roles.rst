@@ -36,7 +36,6 @@ The following permissions are associated with the course roles:
 Course Access & Content
 =========================
 - **View course** (``courses.view_course``): Allows users to view the course and access the course outline in read-only mode.
-- **Create course** (``courses.create_course``): Allows users to create a new course in Studio.
 - **Edit course content** (``courses.edit_course_content``): Allows users to edit course content, outline, units, and components.
 - **Publish course content** (``courses.publish_course_content``): Allows users to publish course content.
 
@@ -132,7 +131,6 @@ Roles and Permissions Summary Table
    **Access & Content**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_course                           ✅             ✅             ✅                    ✅
-   courses.create_course                         ❌             ❌             ❌                    ❌
    courses.publish_course_content                ✅             ✅             ❌                    ❌
    courses.edit_course_content                   ✅             ✅             ✅                    ❌
    **Files**

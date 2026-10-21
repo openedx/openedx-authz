@@ -7,7 +7,6 @@ __all__ = [
     "COURSES_VIEW_COURSE",
     "COURSES_VIEW_COURSE_TEAM",
     "COURSES_MANAGE_COURSE_TEAM",
-    "COURSES_CREATE_COURSE",
     "COURSES_EDIT_COURSE_CONTENT",
     "COURSES_PUBLISH_COURSE_CONTENT",
     "COURSES_VIEW_LIBRARY_UPDATES",
@@ -53,11 +52,6 @@ COURSES_VIEW_COURSE_TEAM = PermissionData(
 
 COURSES_MANAGE_COURSE_TEAM = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.manage_course_team"),
-    effect="allow",
-)
-
-COURSES_CREATE_COURSE = PermissionData(
-    action=ActionData(external_key=f"{COURSES_NAMESPACE}.create_course"),
     effect="allow",
 )
 

@@ -12,8 +12,9 @@ from unittest import mock
 from openedx_authz.engine.policy import PolicyStore
 from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
 from openedx_authz.engine.schema.compilation import SchemaCompiler
+from openedx_authz.engine.schema.validation import SchemaValidator
 
-from .factories import category, make_document, permission, role
+from .factories import category, extension, make_document, permission, role
 
 
 class TestPolicyRendering:
@@ -67,6 +68,29 @@ class TestPolicyRendering:
         rendered = PolicyRenderer().render(SchemaCompiler().compile([doc]))
         scopes = {row.scope for row in rendered.rows}
         assert scopes == {"course-v1^*", "ccx-v1^*"}
+
+    def test_role_extensions_supply_all_permissions_for_an_empty_base_role(self):
+        """An empty base role validates, compiles, and renders its extension permissions."""
+        base = make_document(
+            "roles",
+            categories=[category("enrollments")],
+            permissions=[permission(name="view_enrollments", cat="enrollments")],
+            roles=[role(rid="course_staff", permissions=())],
+        )
+        contribution = make_document(
+            "enrollments",
+            role_extensions=[extension("course_staff", add_permissions=("courses.view_enrollments",))],
+        )
+        validator = SchemaValidator()
+
+        assert not validator.has_errors(validator.validate([base, contribution]))
+        schema = SchemaCompiler().compile([base, contribution])
+        assert not validator.has_errors(validator.validate_compiled(schema))
+
+        rendered = PolicyRenderer().render(schema)
+        assert [row.as_policy() for row in rendered.rows] == [
+            ["role^course_staff", "act^courses.view_enrollments", "course-v1^*", "allow"]
+        ]
 
 
 class TestPolicyStoreInjection:

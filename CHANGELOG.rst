@@ -52,6 +52,12 @@ Added
   ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
   ``make paragon_icons`` (ADR 0029).
 
+Changed
+========
+
+* Static roles may declare an empty permission list when ``role_extensions`` contribute their
+  permissions. Permission lists used by extension edits remain non-empty.
+
 Fixed
 =====
 

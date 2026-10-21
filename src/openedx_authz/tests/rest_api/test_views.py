@@ -29,6 +29,7 @@ from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.views import UserValidationAPIView
 from openedx_authz.tests.rest_api.mixins import ViewTestMixin
+from openedx_authz.tests.role_permissions import LIBRARY_ADMIN_PERMISSIONS
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_wildcard_key
 
 User = get_user_model()
@@ -105,7 +106,7 @@ class TestPermissionValidationMeView(ViewTestMixin):
             - For non-library scopes: Permissions follow normal authorization (False)
         """
         self.client.force_authenticate(user=self.admin_user)
-        request_data = [{"action": perm.identifier, "scope": scope} for perm in roles.LIBRARY_ADMIN_PERMISSIONS]
+        request_data = [{"action": perm.identifier, "scope": scope} for perm in LIBRARY_ADMIN_PERMISSIONS]
         expected_response = request_data.copy()
         for item in expected_response:
             item["allowed"] = expected_result

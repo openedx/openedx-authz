@@ -38,7 +38,6 @@ from openedx_authz.api.users import (
     validate_users,
 )
 from openedx_authz.constants import permissions, roles
-from openedx_authz.constants.roles import LIBRARY_ADMIN_PERMISSIONS, LIBRARY_AUTHOR_PERMISSIONS
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
 
@@ -268,10 +267,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 RoleAssignmentData(
                     subject=UserData(external_key="alice"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_ADMIN.external_key,
-                            permissions=LIBRARY_ADMIN_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
                     ],
                     scope=ContentLibraryData(external_key="lib:Org1:math_101"),
                 ),
@@ -283,10 +279,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 RoleAssignmentData(
                     subject=UserData(external_key="bob"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_AUTHOR.external_key,
-                            permissions=LIBRARY_AUTHOR_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)
                     ],
                     scope=ContentLibraryData(external_key="lib:Org1:history_201"),
                 ),
@@ -298,10 +291,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
                 RoleAssignmentData(
                     subject=UserData(external_key="eve"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_ADMIN.external_key,
-                            permissions=LIBRARY_ADMIN_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
                     ],
                     scope=ContentLibraryData(external_key="lib:Org2:physics_401"),
                 ),

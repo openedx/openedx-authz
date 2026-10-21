@@ -38,7 +38,7 @@ class TestBuiltinAppletDefinitions:
         assert _schema_data(compiled) == expected
 
     def test_compiled_roles_match_public_role_constants(self):
-        """Every compiled role contains the permissions exposed by its public constant."""
+        """Every compiled role has a public constant, and every constant names a compiled role."""
         public_roles = (
             roles.LIBRARY_ADMIN,
             roles.LIBRARY_AUTHOR,
@@ -56,10 +56,6 @@ class TestBuiltinAppletDefinitions:
         compiled = SchemaPipeline().compile()
 
         assert set(compiled.roles) == {role.external_key for role in public_roles}
-        for role in public_roles:
-            assert set(compiled.roles[role.external_key].definition.permissions) == set(
-                role.get_permission_identifiers()
-            )
 
     def test_compiled_sources_belong_to_their_owning_applets(self):
         """Compiled definitions expose their owning applet through source metadata."""

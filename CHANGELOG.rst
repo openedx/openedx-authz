@@ -54,11 +54,8 @@ Added
 Changed
 ========
 
-* Removed ``authz.policy`` and Casbin action grouping. Built-in roles list every permission
-  explicitly in the authorization schema, so the existing ``g2`` rows did not change their access.
-  Migration ``0012_remove_action_grouping`` removes stored ``g2`` rows from existing databases.
-* Calls to the deprecated ``load_policies`` command without an explicit policy file are now a
-  no-op while deployment integrations move to ``load_authz_schema``.
+* Removed ``authz.policy`` and Casbin action grouping. Built-in roles list every permission explicitly in the authorization schema, so the existing ``g2`` rows did not change their access. Migration ``0012_remove_action_grouping`` removes stored ``g2`` rows from existing databases.
+* Calls to the deprecated ``load_policies`` command without an explicit policy file are now a no-op while deployment integrations move to ``load_authz_schema``.
 
 Notes
 =====

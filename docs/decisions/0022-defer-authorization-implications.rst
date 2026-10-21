@@ -48,13 +48,9 @@ Consequences
 Addendum: Remove Existing Action Grouping (2026-10-16)
 ======================================================
 
-The built-in roles list every permission covered by the existing ``g2`` action-grouping
-rows, so those rows do not change their effective permissions. The Casbin model now uses
-exact action matches and a data migration removes stored ``g2`` rows.
+The built-in roles list every permission covered by the existing ``g2`` action-grouping rows, so those rows do not change their effective permissions. The Casbin model now uses exact action matches and a data migration removes stored ``g2`` rows.
 
-Permission grouping and role inheritance remain future work in `Issue #91`_ and `Issue #523`_.
-Any later implementation still requires the schema-version change and migration guidance
-described in this ADR.
+Permission grouping and role inheritance remain future work in `Issue #91`_ and `Issue #523`_. Any later implementation still requires the schema-version change and migration guidance described in this ADR.
 
 Rejected Alternatives
 *********************

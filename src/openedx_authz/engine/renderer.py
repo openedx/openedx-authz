@@ -587,9 +587,8 @@ class SchemaApplier:
             )
             category_objs[cid] = obj
             for record in compiled.sources:
-                source = source_obj(record)
                 schema_models.AuthzCategorySource.objects.update_or_create(
-                    category=obj, source=source, defaults={"origin_kind": schema_models.OriginKind.BASE}
+                    category=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Permissions.
@@ -609,9 +608,8 @@ class SchemaApplier:
             )
             permission_objs[pid] = obj
             for record in compiled.sources:
-                source = source_obj(record)
                 schema_models.AuthzPermissionSource.objects.update_or_create(
-                    permission=obj, source=source, defaults={"origin_kind": schema_models.OriginKind.BASE}
+                    permission=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Roles.
@@ -630,9 +628,8 @@ class SchemaApplier:
             )
             role_objs[rid] = obj
             for record in compiled.sources:
-                source = source_obj(record)
                 schema_models.AuthzRoleSource.objects.update_or_create(
-                    role=obj, source=source, defaults={"origin_kind": schema_models.OriginKind.BASE}
+                    role=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
         # Role-permission grants (one per rendered role/permission/scope triple).
@@ -652,10 +649,9 @@ class SchemaApplier:
                     )
                     live_grant_ids.add(grant.pk)
                     for rel in schema.role_permission_sources.get((rid, perm_id), []):
-                        source = source_obj(rel.source)
                         schema_models.AuthzRolePermissionSource.objects.update_or_create(
                             role_permission=grant,
-                            source=source,
+                            source=source_obj(rel.source),
                             defaults={"origin_kind": rel.origin_kind, "priority": rel.priority},
                         )
 

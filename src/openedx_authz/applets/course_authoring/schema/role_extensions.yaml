@@ -10,11 +10,11 @@ role_extensions:
       - courses.view_files
       - courses.view_grading_settings
       - courses.view_checklists
+      - courses.view_course_team
       - courses.view_schedule_and_details
       - courses.view_advanced_settings
       - courses.view_certificates
       - courses.view_group_configurations
-      - courses.view_course_team
       - courses.view_library_updates
       - courses.edit_course_content
       - courses.manage_library_updates
@@ -24,7 +24,6 @@ role_extensions:
       - courses.edit_files
       - courses.edit_grading_settings
       - courses.manage_group_configurations
-      - courses.manage_course_team
       - courses.edit_details
       - courses.manage_tags
       - courses.publish_course_content
@@ -35,6 +34,7 @@ role_extensions:
       - courses.import_course
       - courses.export_course
       - courses.export_tags
+      - courses.manage_course_team
       - courses.manage_taxonomies
 
   - role_id: course_staff
@@ -45,11 +45,11 @@ role_extensions:
       - courses.view_files
       - courses.view_grading_settings
       - courses.view_checklists
+      - courses.view_course_team
       - courses.view_schedule_and_details
       - courses.view_advanced_settings
       - courses.view_certificates
       - courses.view_group_configurations
-      - courses.view_course_team
       - courses.view_library_updates
       - courses.edit_course_content
       - courses.manage_library_updates
@@ -78,11 +78,11 @@ role_extensions:
       - courses.view_files
       - courses.view_grading_settings
       - courses.view_checklists
+      - courses.view_course_team
       - courses.view_schedule_and_details
       - courses.view_advanced_settings
       - courses.view_certificates
       - courses.view_group_configurations
-      - courses.view_course_team
       - courses.view_library_updates
       - courses.edit_course_content
       - courses.manage_library_updates
@@ -103,9 +103,9 @@ role_extensions:
       - courses.view_files
       - courses.view_grading_settings
       - courses.view_checklists
+      - courses.view_course_team
       - courses.view_schedule_and_details
       - courses.view_advanced_settings
       - courses.view_certificates
       - courses.view_group_configurations
-      - courses.view_course_team
       - courses.view_library_updates

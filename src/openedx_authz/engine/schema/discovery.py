@@ -4,7 +4,7 @@ Providers register **directories** (not individual files); the loader reads
 every ``.yaml`` file inside them. Two contribution sources are merged:
 
 1. The ``authz.schema`` entry-point group. Each registered callable returns
-   directory paths in the package-anchored format below (for example,
+   directory paths in the package-anchored format below (e.g.
    ``["openedx_authz/applets/content_libraries/schema"]``).
 2. The ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` Django setting, a list of directory
    path strings in the same format. This lets operators and CI contribute

@@ -22,6 +22,7 @@ from openedx_authz.engine.schema.discovery import (
 )
 
 SCHEMA_DIR = "openedx_authz/applets/content_libraries/schema"
+SCHEMA_MODULE = "openedx_authz.applets.content_libraries.schema"
 EXPECTED_FILES = {"permissions.yaml", "roles.yaml"}
 EXPECTED_BUILTIN_PATHS = {
     "applets/content_libraries/schema/permissions.yaml",
@@ -39,27 +40,33 @@ class TestDirectoryExpansion:
 
     def test_directory_is_expanded_to_yaml_files(self):
         """Passing a directory yields exactly its YAML files, by name."""
-        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
-            SCHEMA_DIR, origin=Origin.PASSED_IN
-        )
+        resources = [
+            resource
+            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+            if resource.module == SCHEMA_MODULE
+        ]
         names = {r.resource_path.rsplit("/", 1)[-1] for r in resources}
         assert names == EXPECTED_FILES
 
     def test_discovered_resource_anchors_and_module_are_set(self):
         """Each resource records its import anchor, resource path, and module."""
-        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
-            SCHEMA_DIR, origin=Origin.PASSED_IN
-        )
+        resources = [
+            resource
+            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+            if resource.module == SCHEMA_MODULE
+        ]
         sample = resources[0]
         assert sample.package == "openedx_authz"  # importable anchor
         assert sample.resource_path.startswith("applets/content_libraries/schema/")
-        assert sample.module == "openedx_authz.applets.content_libraries.schema"  # source identity
+        assert sample.module == SCHEMA_MODULE  # source identity
 
     def test_contents_are_readable(self):
         """A discovered resource can be read back as non-empty bytes."""
-        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
-            SCHEMA_DIR, origin=Origin.PASSED_IN
-        )
+        resources = [
+            resource
+            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+            if resource.module == SCHEMA_MODULE
+        ]
         assert resources[0].read_bytes()  # non-empty bytes
 
     def test_discovery_is_deterministic(self):
@@ -85,7 +92,7 @@ class TestDirectoryExpansion:
         content_library_paths = [
             resource.resource_path
             for resource in resources
-            if resource.module == "openedx_authz.applets.content_libraries.schema"
+            if resource.module == SCHEMA_MODULE
         ]
         assert len(content_library_paths) == len(set(content_library_paths)) == len(EXPECTED_FILES)
 

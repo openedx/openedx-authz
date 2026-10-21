@@ -56,6 +56,8 @@ Changed
 ========
 
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
+* Built-in Content Library and course authorization definitions now live in capability applets,
+  while the existing public imports and compiled authorization schema remain unchanged.
 
 Fixed
 =====

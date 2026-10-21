@@ -49,7 +49,7 @@ class SourceRecord:
         """Stable, human-readable id.
 
         Combines the distribution with the module directory path and the file
-        name, e.g. ``"openedx-authz:openedx_authz/authz/schema/roles.yaml"``.
+        name, e.g. ``"openedx-authz:openedx_authz/applets/course_team_roles/schema/roles.yaml"``.
 
         ``module`` is the dotted path of the owning directory and ``resource_path``
         is anchor-relative (so it may repeat the directory); only the file name

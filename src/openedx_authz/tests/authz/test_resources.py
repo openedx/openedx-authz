@@ -12,6 +12,12 @@ from unittest import TestCase
 
 from openedx_authz import authz
 
+EXPECTED_SCHEMA_DIRECTORIES = (
+    "openedx_authz/applets/content_libraries/schema",
+    "openedx_authz/applets/course_team_roles/schema",
+    "openedx_authz/applets/course_authoring/schema",
+)
+
 
 class TestSchemaProvider(TestCase):
     """Test the ``openedx_authz`` schema-provider entry point."""
@@ -20,6 +26,7 @@ class TestSchemaProvider(TestCase):
         """The entry point returns the declared directories as a fresh list."""
         result = authz.get_schema_resources()
 
+        self.assertEqual(authz.SCHEMA_DIRECTORIES, EXPECTED_SCHEMA_DIRECTORIES)
         self.assertEqual(result, list(authz.SCHEMA_DIRECTORIES))
         # Must be a list (a copy), not the underlying tuple, so callers can
         # mutate the result without affecting module state.

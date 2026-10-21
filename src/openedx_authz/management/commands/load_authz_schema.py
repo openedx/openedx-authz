@@ -10,7 +10,7 @@ Usage::
     python manage.py load_authz_schema --dry-run       # report only, no writes
     python manage.py load_authz_schema --force         # allow role removals
     python manage.py load_authz_schema \\
-        --dir openedx_authz/authz/schema               # explicit directory (CI/local)
+        --dir openedx_authz/applets/content_libraries/schema  # explicit directory
 
 The command must run at a point where all contributing packages are installed
 and Django settings/DB are available (ADR 0018 / plugin timing constraint).
@@ -53,7 +53,8 @@ class Command(BaseCommand):
             help=(
                 "Explicitly include a schema directory (repeatable), in addition to discovered "
                 "entry points and settings. The loader reads every .yaml file in it. "
-                "Path format is 'top_level_package/sub/dir' (e.g. 'openedx_authz/authz/schema'). "
+                "Path format is 'top_level_package/sub/dir' "
+                "(e.g. 'openedx_authz/applets/content_libraries/schema'). "
                 "Intended for CI and local development."
             ),
         )

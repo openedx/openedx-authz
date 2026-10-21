@@ -7,14 +7,16 @@ roles:
     description: Can manage the course team and all course settings.
     scopes:
       - course-v1
-    permissions: []
+    permissions:
+      - courses.legacy_instructor_role_permissions
 
   - id: course_staff
     display_name: Course Staff
     description: Can publish content and manage the course lifecycle in Studio.
     scopes:
       - course-v1
-    permissions: []
+    permissions:
+      - courses.legacy_staff_role_permissions
 
   - id: course_editor
     display_name: Course Editor
@@ -38,7 +40,8 @@ roles:
     scopes:
       - course-v1
     hidden: true
-    permissions: []
+    permissions:
+      - courses.legacy_limited_staff_role_permissions
 
   - id: course_data_researcher
     display_name: Course Data Researcher (legacy)
@@ -46,7 +49,8 @@ roles:
     scopes:
       - course-v1
     hidden: true
-    permissions: []
+    permissions:
+      - courses.legacy_data_researcher_permissions
 
   - id: course_beta_tester
     display_name: Course Beta Tester (legacy)
@@ -54,4 +58,5 @@ roles:
     scopes:
       - course-v1
     hidden: true
-    permissions: []
+    permissions:
+      - courses.legacy_beta_tester_permissions

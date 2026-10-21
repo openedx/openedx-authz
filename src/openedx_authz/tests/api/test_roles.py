@@ -40,15 +40,16 @@ from openedx_authz.api.roles import (
     unassign_subject_from_all_roles,
 )
 from openedx_authz.constants import permissions, roles
-from openedx_authz.constants.roles import (
+from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.utils import migrate_policy_between_enforcers
+from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
+from openedx_authz.tests.role_permissions import (
     COURSE_AUDITOR_PERMISSIONS,
     LIBRARY_ADMIN_PERMISSIONS,
     LIBRARY_AUTHOR_PERMISSIONS,
     LIBRARY_CONTRIBUTOR_PERMISSIONS,
     LIBRARY_USER_PERMISSIONS,
 )
-from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.test_utils import seed_static_authorization_policies
 
 
@@ -598,36 +599,21 @@ class TestRolesAPI(RolesTestSetupMixin):
         (
             "alice",
             [
-                RoleData(
-                    external_key=roles.LIBRARY_ADMIN.external_key,
-                    permissions=LIBRARY_ADMIN_PERMISSIONS,
-                ),
+                RoleData(external_key=roles.LIBRARY_ADMIN.external_key),
             ],
         ),
         (
             "eve",
             [
-                RoleData(
-                    external_key=roles.LIBRARY_ADMIN.external_key,
-                    permissions=LIBRARY_ADMIN_PERMISSIONS,
-                ),
-                RoleData(
-                    external_key=roles.LIBRARY_AUTHOR.external_key,
-                    permissions=LIBRARY_AUTHOR_PERMISSIONS,
-                ),
-                RoleData(
-                    external_key=roles.LIBRARY_USER.external_key,
-                    permissions=LIBRARY_USER_PERMISSIONS,
-                ),
+                RoleData(external_key=roles.LIBRARY_ADMIN.external_key),
+                RoleData(external_key=roles.LIBRARY_AUTHOR.external_key),
+                RoleData(external_key=roles.LIBRARY_USER.external_key),
             ],
         ),
         (
             "frank",
             [
-                RoleData(
-                    external_key=roles.LIBRARY_USER.external_key,
-                    permissions=LIBRARY_USER_PERMISSIONS,
-                ),
+                RoleData(external_key=roles.LIBRARY_USER.external_key),
             ],
         ),
         ("non_existent_user", []),
@@ -1071,10 +1057,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleAssignmentData(
                     subject=SubjectData(external_key="alice"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_ADMIN.external_key,
-                            permissions=LIBRARY_ADMIN_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
                     ],
                     scope=ScopeData(external_key="lib:Org1:math_101"),
                 )
@@ -1086,10 +1069,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleAssignmentData(
                     subject=SubjectData(external_key="bob"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_AUTHOR.external_key,
-                            permissions=LIBRARY_AUTHOR_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)
                     ],
                     scope=ScopeData(external_key="lib:Org1:history_201"),
                 )
@@ -1101,10 +1081,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleAssignmentData(
                     subject=SubjectData(external_key="carol"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_CONTRIBUTOR.external_key,
-                            permissions=LIBRARY_CONTRIBUTOR_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_CONTRIBUTOR.external_key)
                     ],
                     scope=ScopeData(external_key="lib:Org1:science_301"),
                 )
@@ -1116,10 +1093,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
                 RoleAssignmentData(
                     subject=SubjectData(external_key="dave"),
                     roles=[
-                        RoleData(
-                            external_key=roles.LIBRARY_USER.external_key,
-                            permissions=LIBRARY_USER_PERMISSIONS,
-                        )
+                        RoleData(external_key=roles.LIBRARY_USER.external_key)
                     ],
                     scope=ScopeData(external_key="lib:Org1:english_101"),
                 )

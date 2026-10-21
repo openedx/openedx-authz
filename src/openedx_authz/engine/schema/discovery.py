@@ -4,8 +4,8 @@ Providers register **directories** (not individual files); the loader reads
 every ``.yaml`` file inside them. Two contribution sources are merged:
 
 1. The ``authz.schema`` entry-point group. Each registered callable returns
-   directory paths in the package-anchored format below (e.g.
-   openedx-authz's ``["openedx_authz/authz/schema"]``).
+   directory paths in the package-anchored format below (for example,
+   ``["openedx_authz/applets/content_libraries/schema"]``).
 2. The ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` Django setting, a list of directory
    path strings in the same format. This lets operators and CI contribute
    directories without shipping a package entry point.
@@ -14,8 +14,8 @@ Directory format: these are **not** filesystem paths (neither relative nor
 absolute). Each is a package-anchored ``importlib.resources`` path: the first
 segment is an importable top-level package (the *anchor*) and the remaining
 forward-slash segments name a resource container within it. For example
-``"openedx_authz/authz/schema"`` anchors on the ``openedx_authz`` package and
-addresses its ``authz/schema`` subdirectory. Resolving through
+``"openedx_authz/applets/content_libraries/schema"`` anchors on the
+``openedx_authz`` package and addresses the applet's ``schema`` subdirectory. Resolving through
 ``importlib.resources`` (rather than the filesystem) means discovery does not
 depend on virtualenv or container layout, and works even when the package is
 imported from a zip. If any provider raises, discovery
@@ -69,9 +69,10 @@ class DiscoveredResource:
         package: Importable top-level package used as the ``importlib.resources``
             anchor (e.g. ``openedx_authz``).
         resource_path: Path to the file within that anchor
-            (e.g. ``authz/schema/course_roles.yaml``).
+            (e.g. ``applets/course_team_roles/schema/roles.yaml``).
         module: Dotted path of the owning directory, used as the source-record
-            module and provenance identity (e.g. ``openedx_authz.authz.schema``).
+            module and provenance identity (e.g.
+            ``openedx_authz.applets.course_team_roles.schema``).
         origin: Which contribution route produced this resource, as an
             ``Origin`` member; diagnostics only.
     """
@@ -189,8 +190,8 @@ class SchemaDiscovery:
 
         The path's first segment is an importable top-level package used as the
         anchor; the remainder is a subdirectory within it. For example
-        ``"openedx_authz/authz/schema"`` anchors on ``openedx_authz`` and reads
-        the ``authz/schema`` subdirectory.
+        ``"openedx_authz/applets/content_libraries/schema"`` anchors on
+        ``openedx_authz`` and reads the applet's ``schema`` subdirectory.
         """
         parts = [segment for segment in directory.strip("/").split("/") if segment]
         if not parts:

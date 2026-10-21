@@ -454,7 +454,6 @@ class TestDefinitionPruning(TestCase):
         assert AuthzPermissionDefinition.objects.count() == 0
         assert AuthzPermissionCategory.objects.count() == 0
 
-
 @pytest.mark.django_db
 @pytest.mark.usefixtures("cache_invalidation")
 class TestDefinitionChangeReport:

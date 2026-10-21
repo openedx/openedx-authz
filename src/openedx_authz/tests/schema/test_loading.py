@@ -163,7 +163,7 @@ class TestSourceIdentity:
 
     def test_installed_package_resolves_to_its_distribution(self):
         """A module shipped by this package resolves to the real distribution."""
-        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
+        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/applets/content_libraries/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
         assert {doc.source.distribution for doc in docs} == {"openedx-authz"}
@@ -171,10 +171,13 @@ class TestSourceIdentity:
 
     def test_module_is_recorded_as_the_dotted_path(self):
         """The source module is recorded as the resource's dotted import path."""
-        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
+        discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/applets/content_libraries/schema"])
         docs = SchemaLoader().load(discovery.discover())
 
-        assert {doc.source.module for doc in docs} == {"openedx_authz.authz.schema"}
+        content_library_docs = [
+            doc for doc in docs if doc.source.module == "openedx_authz.applets.content_libraries.schema"
+        ]
+        assert len(content_library_docs) == 2
 
     def test_unknown_package_falls_back_to_its_top_level_name(self):
         """An operator-supplied directory need not belong to a distribution."""

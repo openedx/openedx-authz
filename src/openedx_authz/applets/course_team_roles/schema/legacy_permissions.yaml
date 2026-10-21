@@ -1,0 +1,50 @@
+schema_version: "1.0"
+priority: 100
+
+permission_categories:
+  - id: course_legacy
+    display_name: Legacy compatibility
+    description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.
+    icon: DrawShapes
+
+permissions:
+  - namespace: courses
+    name: legacy_instructor_role_permissions
+    display_name: Legacy instructor permissions
+    description: Compatibility action mapping the legacy course instructor role into the authorization system.
+    category_id: course_legacy
+    scopes:
+      - course-v1
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_staff_role_permissions
+    display_name: Legacy staff permissions
+    description: Compatibility action mapping the legacy course staff role into the authorization system.
+    category_id: course_legacy
+    scopes:
+      - course-v1
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_limited_staff_role_permissions
+    display_name: Legacy limited staff permissions
+    description: Compatibility action mapping the legacy course limited staff role into the authorization system.
+    category_id: course_legacy
+    scopes:
+      - course-v1
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_data_researcher_permissions
+    display_name: Legacy data researcher permissions
+    description: Compatibility action mapping the legacy course data researcher role into the authorization system.
+    category_id: course_legacy
+    scopes:
+      - course-v1
+    icon: DrawShapes
+  - namespace: courses
+    name: legacy_beta_tester_permissions
+    display_name: Legacy beta tester permissions
+    description: Compatibility action mapping the legacy course beta tester role into the authorization system.
+    category_id: course_legacy
+    scopes:
+      - course-v1
+    icon: DrawShapes

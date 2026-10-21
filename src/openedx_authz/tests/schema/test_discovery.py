@@ -21,12 +21,16 @@ from openedx_authz.engine.schema.discovery import (
     SchemaDiscoveryError,
 )
 
-SCHEMA_DIR = "openedx_authz/authz/schema"
-EXPECTED_FILES = {
-    "course_permissions.yaml",
-    "course_roles.yaml",
-    "library_permissions.yaml",
-    "library_roles.yaml",
+SCHEMA_DIR = "openedx_authz/applets/content_libraries/schema"
+EXPECTED_FILES = {"permissions.yaml", "roles.yaml"}
+EXPECTED_BUILTIN_PATHS = {
+    "applets/content_libraries/schema/permissions.yaml",
+    "applets/content_libraries/schema/roles.yaml",
+    "applets/course_authoring/schema/permissions.yaml",
+    "applets/course_authoring/schema/role_extensions.yaml",
+    "applets/course_team_roles/schema/legacy_permissions.yaml",
+    "applets/course_team_roles/schema/role_extensions.yaml",
+    "applets/course_team_roles/schema/roles.yaml",
 }
 
 
@@ -35,21 +39,27 @@ class TestDirectoryExpansion:
 
     def test_directory_is_expanded_to_yaml_files(self):
         """Passing a directory yields exactly its YAML files, by name."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
+            SCHEMA_DIR, origin=Origin.PASSED_IN
+        )
         names = {r.resource_path.rsplit("/", 1)[-1] for r in resources}
         assert names == EXPECTED_FILES
 
     def test_discovered_resource_anchors_and_module_are_set(self):
         """Each resource records its import anchor, resource path, and module."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
+            SCHEMA_DIR, origin=Origin.PASSED_IN
+        )
         sample = resources[0]
         assert sample.package == "openedx_authz"  # importable anchor
-        assert sample.resource_path.startswith("authz/schema/")
-        assert sample.module == "openedx_authz.authz.schema"  # source identity
+        assert sample.resource_path.startswith("applets/content_libraries/schema/")
+        assert sample.module == "openedx_authz.applets.content_libraries.schema"  # source identity
 
     def test_contents_are_readable(self):
         """A discovered resource can be read back as non-empty bytes."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery()._iter_directory(  # pylint: disable=protected-access
+            SCHEMA_DIR, origin=Origin.PASSED_IN
+        )
         assert resources[0].read_bytes()  # non-empty bytes
 
     def test_discovery_is_deterministic(self):
@@ -66,14 +76,18 @@ class TestDirectoryExpansion:
     def test_own_entry_point_directory_is_discovered(self):
         """The installed ``authz.schema`` entry point yields this package's files."""
         resources = SchemaDiscovery().discover()
-        names = {r.resource_path.rsplit("/", 1)[-1] for r in resources}
-        assert EXPECTED_FILES.issubset(names)
+        paths = {resource.resource_path for resource in resources if resource.package == "openedx_authz"}
+        assert paths == EXPECTED_BUILTIN_PATHS
 
     def test_duplicate_directories_are_deduplicated(self):
         """The same directory passed twice yields each file only once."""
         resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR, SCHEMA_DIR]).discover()
-        paths = [r.resource_path for r in resources]
-        assert len(paths) == len(set(paths)) == len(EXPECTED_FILES)
+        content_library_paths = [
+            resource.resource_path
+            for resource in resources
+            if resource.module == "openedx_authz.applets.content_libraries.schema"
+        ]
+        assert len(content_library_paths) == len(set(content_library_paths)) == len(EXPECTED_FILES)
 
 
 class TestSettingsDirectories:
@@ -167,7 +181,7 @@ class TestDiscoverySourcePrecedence:
         resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
 
         assert {r.origin for r in resources} == {Origin.ENTRY_POINT}
-        assert len(resources) == len(EXPECTED_FILES)
+        assert {resource.resource_path for resource in resources} == EXPECTED_BUILTIN_PATHS
 
     def test_passed_in_only_directory_is_marked_passed_in(self):
         """A directory reached only via the constructor keeps the passed-in origin."""

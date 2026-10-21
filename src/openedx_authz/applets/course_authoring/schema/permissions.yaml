@@ -55,12 +55,6 @@ permission_categories:
     display_name: Other
     description: Additional permissions not included in other categories, such as viewing checklists.
     icon: DrawShapes
-  # Backend-only category for legacy compatibility actions that have no frontend
-  # display metadata. These are referenced by legacy roles in authz.policy.
-  - id: course_legacy
-    display_name: Legacy compatibility
-    description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.
-    icon: DrawShapes
 
 permissions:
   - namespace: courses
@@ -208,6 +202,14 @@ permissions:
       - course-v1
     icon: EditOutline
   - namespace: courses
+    name: view_group_configurations
+    display_name: View group configurations
+    description: See the list of content groups and their configurations for this course.
+    category_id: course_team_group
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
     name: view_course_team
     display_name: View course team
     description: See the list of users with a role assigned to this course.
@@ -223,14 +225,6 @@ permissions:
     scopes:
       - course-v1
     icon: Settings
-  - namespace: courses
-    name: view_group_configurations
-    display_name: View group configurations
-    description: See the list of content groups and their configurations for this course.
-    category_id: course_team_group
-    scopes:
-      - course-v1
-    icon: RemoveRedEye
   - namespace: courses
     name: manage_group_configurations
     display_name: Manage group configurations
@@ -319,50 +313,3 @@ permissions:
     scopes:
       - course-v1
     icon: LocalOffer
-
-  # ------------------------------------------------------------
-  # Legacy compatibility course permissions
-  # Used for code paths that have not been upgraded to the
-  # new openedx-authz permissions.
-  # ------------------------------------------------------------
-
-  - namespace: courses
-    name: legacy_instructor_role_permissions
-    display_name: Legacy instructor permissions
-    description: Compatibility action mapping the legacy course instructor role into the authorization system.
-    category_id: course_legacy
-    scopes:
-      - course-v1
-    icon: DrawShapes
-  - namespace: courses
-    name: legacy_staff_role_permissions
-    display_name: Legacy staff permissions
-    description: Compatibility action mapping the legacy course staff role into the authorization system.
-    category_id: course_legacy
-    scopes:
-      - course-v1
-    icon: DrawShapes
-  - namespace: courses
-    name: legacy_limited_staff_role_permissions
-    display_name: Legacy limited staff permissions
-    description: Compatibility action mapping the legacy course limited staff role into the authorization system.
-    category_id: course_legacy
-    scopes:
-      - course-v1
-    icon: DrawShapes
-  - namespace: courses
-    name: legacy_data_researcher_permissions
-    display_name: Legacy data researcher permissions
-    description: Compatibility action mapping the legacy course data researcher role into the authorization system.
-    category_id: course_legacy
-    scopes:
-      - course-v1
-    icon: DrawShapes
-  - namespace: courses
-    name: legacy_beta_tester_permissions
-    display_name: Legacy beta tester permissions
-    description: Compatibility action mapping the legacy course beta tester role into the authorization system.
-    category_id: course_legacy
-    scopes:
-      - course-v1
-    icon: DrawShapes

@@ -62,6 +62,7 @@ Removed
 =======
 
 * Removed the role permission lists from ``openedx_authz.constants.roles``, such as ``COURSE_ADMIN_PERMISSIONS`` and ``LIBRARY_ADMIN_PERMISSIONS``. Role constants now identify a role and have an empty ``permissions`` list. Use ``openedx_authz.api.get_permissions_for_single_role`` or the compiled schema to read a role's permissions.
+* Removed ``COURSES_CREATE_COURSE`` (``courses.create_course``) from ``openedx_authz.constants.permissions``. No schema file defined it, so no role could include it.
 
 Fixed
 =====

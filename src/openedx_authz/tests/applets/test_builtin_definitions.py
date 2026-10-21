@@ -4,7 +4,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from openedx_authz.constants import roles
+from openedx_authz.constants import permissions, roles
+from openedx_authz.data import PermissionData
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
 
 COMPILED_SCHEMA_FIXTURE = Path(__file__).with_name("fixtures") / "compiled_schema.json"
@@ -56,6 +57,18 @@ class TestBuiltinAppletDefinitions:
         compiled = SchemaPipeline().compile()
 
         assert set(compiled.roles) == {role.external_key for role in public_roles}
+
+    def test_compiled_permissions_match_public_permission_constants(self):
+        """Every compiled permission has a public constant, and every constant names a compiled permission."""
+        public_permissions = {
+            constant.identifier
+            for constant in (getattr(permissions, name) for name in permissions.__all__)
+            if isinstance(constant, PermissionData)
+        }
+
+        compiled = SchemaPipeline().compile()
+
+        assert set(compiled.permissions) == public_permissions
 
     def test_compiled_sources_belong_to_their_owning_applets(self):
         """Compiled definitions expose their owning applet through source metadata."""

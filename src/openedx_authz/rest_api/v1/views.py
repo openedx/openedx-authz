@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 from openedx_authz import api
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
+from openedx_authz.constants.roles import COURSE_ADMIN, LIBRARY_ADMIN
 from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
@@ -47,6 +48,10 @@ from openedx_authz.utils import get_user_by_username_or_email
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+# Admin roles a user may not remove from itself, so a scope is not left without an
+# admin by accident. Another user who can manage the team can still revoke them.
+SELF_PROTECTED_ROLES = (LIBRARY_ADMIN.external_key, COURSE_ADMIN.external_key)
 
 
 @view_auth_classes()
@@ -242,6 +247,9 @@ class RoleUserAPIView(APIView):
             "errors": [{"user_identifier": "jane_doe", "error": "user_does_not_have_role"}]
         }
 
+    A user cannot remove its own ``library_admin`` or ``course_admin`` role; that user is
+    reported in ``errors`` with ``cannot_remove_own_admin_role`` and keeps the role.
+
     **Authentication and Permissions**
 
     - Requires authenticated user.
@@ -375,6 +383,10 @@ class RoleUserAPIView(APIView):
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
+                if user.pk == request.user.pk and data["role"] in SELF_PROTECTED_ROLES:
+                    response_dict["error"] = RoleOperationError.CANNOT_REMOVE_OWN_ADMIN_ROLE
+                    errors.append(response_dict)
+                    continue
                 result = api.unassign_role_from_user(user.username, data["role"], data["scope"])
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_REMOVED

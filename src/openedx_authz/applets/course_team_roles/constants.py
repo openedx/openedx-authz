@@ -1,4 +1,4 @@
-"""Course-team role identifiers and legacy compatibility permissions."""
+"""Legacy compatibility permissions for course-team roles."""
 
 from openedx_authz.data import ActionData, PermissionData
 
@@ -27,11 +27,3 @@ COURSES_LEGACY_DATA_RESEARCHER_PERMISSIONS = PermissionData(
 COURSES_LEGACY_BETA_TESTER_PERMISSIONS = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.legacy_beta_tester_permissions"), effect="allow"
 )
-
-COURSE_ADMIN_ID = "course_admin"
-COURSE_STAFF_ID = "course_staff"
-COURSE_EDITOR_ID = "course_editor"
-COURSE_AUDITOR_ID = "course_auditor"
-COURSE_LIMITED_STAFF_ID = "course_limited_staff"
-COURSE_DATA_RESEARCHER_ID = "course_data_researcher"
-COURSE_BETA_TESTER_ID = "course_beta_tester"

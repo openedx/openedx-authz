@@ -202,14 +202,6 @@ permissions:
       - course-v1
     icon: EditOutline
   - namespace: courses
-    name: view_group_configurations
-    display_name: View group configurations
-    description: See the list of content groups and their configurations for this course.
-    category_id: course_team_group
-    scopes:
-      - course-v1
-    icon: RemoveRedEye
-  - namespace: courses
     name: view_course_team
     display_name: View course team
     description: See the list of users with a role assigned to this course.
@@ -225,6 +217,14 @@ permissions:
     scopes:
       - course-v1
     icon: Settings
+  - namespace: courses
+    name: view_group_configurations
+    display_name: View group configurations
+    description: See the list of content groups and their configurations for this course.
+    category_id: course_team_group
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
   - namespace: courses
     name: manage_group_configurations
     display_name: Manage group configurations

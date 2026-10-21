@@ -1,9 +1,10 @@
 """openedx-authz's own static authorization schema resources.
 
 This package exposes the built-in applet schema directories through the
-``authz.schema`` entry point (ADR 0019). Openedx-authz is a schema provider like
-any other distribution, and its directories are discovered the same way a
-third-party application's would be.
+``authz.schema`` entry point (ADR 0019). openedx-authz is a schema provider like
+any other distribution; its directories are discovered the same way a
+third-party application's would be, and the loader reads every ``.yaml`` file
+inside them.
 
 Register in setup.py / pyproject.toml::
 

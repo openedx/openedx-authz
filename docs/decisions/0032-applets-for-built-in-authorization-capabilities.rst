@@ -62,14 +62,35 @@ Applets do not import each other, since role extensions in YAML already connect 
 
 A permission belongs to the applet responsible for the action or data that the permission controls. For example, the ``enrollments`` applet defines the permissions for viewing or changing enrollments, along with their metadata, constants, and contributions to shared roles, so code elsewhere may check those permissions through the public API while their definitions remain in ``enrollments``.
 
-The `edX DDD Bounded Contexts`_ map guides this choice when a user interface combines several capabilities. The initial applets are:
+The `edX DDD Bounded Contexts`_ map guides this choice, especially when a user interface combines several capabilities. To place a new permission, we find the bounded context that owns its action or data in the map and add the permission to that context's applet, or create an applet when the context has none yet. Applet names describe the definitions they hold, so the following table records which bounded context each one stands for:
 
-* ``course_team_roles`` for roles held by members of a course team;
-* ``course_authoring`` for course authoring and course-team permissions;
-* ``content_libraries`` for the library roles and permissions;
-* ``enrollments`` for enrollments;
-* ``learner_grading`` for the gradebook and learner grading;
-* ``role_management`` for the Admin Console role assignment workflows.
+.. list-table::
+   :header-rows: 1
+
+   * - Applet
+     - Bounded context
+     - Definitions
+   * - ``course_authoring``
+     - Course Run Authoring and Learning Content Authoring
+     - Course authoring and course-team permissions
+   * - ``content_libraries``
+     - Learning Content Authoring and Learning Content Repository
+     - Library roles and permissions
+   * - ``enrollments``
+     - Content Access / Enrollments
+     - Viewing and changing course enrollments
+   * - ``learner_grading``
+     - Consuming Learning Content
+     - The gradebook and grading tools for individual learners
+   * - ``learner_administration``
+     - Support Learning
+     - Course information, learner extensions, and cohorts
+   * - ``course_team_roles``
+     - Shared by several bounded contexts
+     - Roles held by members of a course team
+   * - ``role_management``
+     - Authorization
+     - Admin Console role assignment workflows
 
 3. Course roles
 ===============

@@ -1,0 +1,15 @@
+schema_version: "1.0"
+priority: 100
+
+role_extensions:
+  - role_id: course_admin
+    add_permissions:
+      - courses.view_enrollments
+      - courses.enroll_learners
+      - courses.unenroll_learners
+
+  - role_id: course_staff
+    add_permissions:
+      - courses.view_enrollments
+      - courses.enroll_learners
+      - courses.unenroll_learners

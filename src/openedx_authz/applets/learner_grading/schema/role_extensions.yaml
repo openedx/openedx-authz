@@ -1,0 +1,13 @@
+schema_version: "1.0"
+priority: 100
+
+role_extensions:
+  - role_id: course_admin
+    add_permissions:
+      - courses.view_gradebook
+      - courses.manage_learner_grading
+
+  - role_id: course_staff
+    add_permissions:
+      - courses.view_gradebook
+      - courses.manage_learner_grading

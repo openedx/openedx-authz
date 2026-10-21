@@ -1,0 +1,60 @@
+schema_version: "1.0"
+priority: 100
+
+# Icons are Paragon icon names (@openedx/paragon/icons).
+
+permission_categories:
+  - id: course_information
+    display_name: Course information
+    description: Permissions for viewing general course information.
+    icon: Info
+  - id: course_learner_extensions
+    display_name: Learner extensions
+    description: Permissions for viewing and managing due date extensions for individual learners.
+    icon: Event
+  - id: course_cohorts
+    display_name: Cohorts
+    description: Permissions for viewing and managing course cohorts and their members.
+    icon: Groups
+
+permissions:
+  - namespace: courses
+    name: view_course_info
+    display_name: View course info
+    description: View general course information and enrollment counts.
+    category_id: course_information
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: view_learner_extensions
+    display_name: View learner extensions
+    description: View and search granted learner extensions and their extended due dates.
+    category_id: course_learner_extensions
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_learner_extensions
+    display_name: Manage learner extensions
+    description: Grant or modify individual learner extensions and reset due dates to the course default.
+    category_id: course_learner_extensions
+    scopes:
+      - course-v1
+    icon: Settings
+  - namespace: courses
+    name: view_cohorts
+    display_name: View cohorts
+    description: View course cohorts, their configuration, and their members.
+    category_id: course_cohorts
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_cohorts
+    display_name: Manage cohorts
+    description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
+    category_id: course_cohorts
+    scopes:
+      - course-v1
+    icon: Settings

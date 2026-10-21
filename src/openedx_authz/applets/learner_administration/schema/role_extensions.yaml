@@ -1,0 +1,19 @@
+schema_version: "1.0"
+priority: 100
+
+role_extensions:
+  - role_id: course_admin
+    add_permissions:
+      - courses.view_course_info
+      - courses.view_learner_extensions
+      - courses.manage_learner_extensions
+      - courses.view_cohorts
+      - courses.manage_cohorts
+
+  - role_id: course_staff
+    add_permissions:
+      - courses.view_course_info
+      - courses.view_learner_extensions
+      - courses.manage_learner_extensions
+      - courses.view_cohorts
+      - courses.manage_cohorts

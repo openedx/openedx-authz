@@ -16,7 +16,7 @@
     },
     "priority": {
       "title": "priority",
-      "description": "The precedence used when contributions extend the same role. A higher number takes precedence when extensions conflict.",
+      "description": "The precedence used only when role_extensions contributions change the same role. A higher number takes precedence when extensions conflict. Priority does not resolve conflicting base definitions (permission categories, permissions, or roles); conflicting base definitions are rejected regardless of priority.",
       "type": "integer",
       "examples": [100]
     },

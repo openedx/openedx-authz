@@ -181,6 +181,11 @@ Scope types in the response
 The top-level ``scope_types`` field lists the scope types requested in ``scope_types``,
 with the same values (``course-v1``, ``lib``).
 
+Every role returns ``scope_types``, the requested scope types in which the role has permission
+grants. When several scope types are queried, a client can tell where each role applies
+without checking its permissions. Unlike the ``scope_types`` of a permission, it only lists
+requested scope types.
+
 Every permission also returns ``scope_types``, the scope types it supports (for example
 ``["course-v1"]``). It lists all the scope types the permission supports, even those not
 requested, so a client can tell which scope types a permission applies to when it queries
@@ -281,6 +286,7 @@ Response Body:
            icon: string | null
            definition_kind: "static" | "user_defined"
            permissions: string[]   // ids of entries of "permissions"
+           scope_types: Array<"course-v1" | "lib">   // requested scope types in which the role has grants
        }>
    }
 
@@ -326,7 +332,8 @@ Example:
                "description": "Can edit and publish course content.",
                "icon": null,
                "definition_kind": "static",
-               "permissions": ["courses.view_course"]
+               "permissions": ["courses.view_course"],
+               "scope_types": ["course-v1"]
            },
            {
                "role": "course_auditor",
@@ -334,7 +341,8 @@ Example:
                "description": "Can view the course.",
                "icon": null,
                "definition_kind": "static",
-               "permissions": ["courses.view_course"]
+               "permissions": ["courses.view_course"],
+               "scope_types": ["course-v1"]
            }
        ]
    }
@@ -344,11 +352,12 @@ Possible response codes:
 
 -  200: Ok, includes the Response Body defined above.
 -  400: Bad Request, ``scope_types`` is missing, has an empty value or has a value that is
-   not supported.
+   not supported. Only staff and superusers get this response; other users get 403.
 -  401: Unauthorized, the user is not authenticated.
 -  403: Forbidden, the user lacks ``courses.view_course_team`` (``course-v1``) or
    ``content_libraries.view_library_team`` (``lib``) in any scope, for any of the
-   requested scope types.
+   requested scope types, or ``scope_types`` is missing or not supported (access is denied by
+   default).
 
 Consequences
 ************
@@ -357,14 +366,14 @@ Consequences
   sub-table and the wizard role list from one request and drop ``course/constants.ts`` and
   ``library/constants.ts``. Roles and permissions contributed by other applications show up
   without a frontend release.
-* This is a breaking change to ``GET /api/authz/v1/roles/``: the ``scope`` query parameter
-  becomes ``scope_types``, the response returns the requested scope types in
-  ``scope_types`` (``course-v1`` and ``lib``), ``user_count`` is removed because no
-  client uses it, and the response adds the ``categories`` and ``permissions`` catalogs
-  (each permission with its ``scope_types``) next to the paginated roles. It is low risk
-  because no released client calls the endpoint. Tests and docs that reference the old
-  shape must be updated, and the deviation from the compatibility promise of `ADR 0021`_
-  is intentional.
+* This is a breaking change to ``GET /api/authz/v1/roles/``. The ``scope`` query
+  parameter becomes ``scope_types``. The response returns the requested scope types
+  (``course-v1`` and ``lib``) in ``scope_types``, adds the ``categories`` and
+  ``permissions`` catalogs next to the paginated roles, and adds ``scope_types`` to
+  each role and permission. ``user_count`` is removed because no client uses it. It is
+  low risk because no released client calls the endpoint. Tests and docs that reference
+  the old shape must be updated, and the deviation from the compatibility promise of
+  `ADR 0021`_ is intentional.
 * ``GET /api/authz/v1/scopes/`` changes the values of its ``scope_type`` query parameter
   from ``course``/``library`` to ``course-v1``/``lib``. To avoid a breaking change, the old
   values are still accepted as deprecated aliases until the Admin Console migrates, which is

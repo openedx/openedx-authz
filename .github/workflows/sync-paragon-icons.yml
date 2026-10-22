@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -13,10 +14,10 @@ jobs:
   sync-paragon-icons:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -32,42 +33,44 @@ jobs:
           version=$(curl -fsSL \
             https://raw.githubusercontent.com/openedx/frontend-app-admin-console/master/package-lock.json \
             | jq -r '.packages["node_modules/@openedx/paragon"].version')
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected Paragon version: '$version'"
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Upstream @openedx/paragon: $version"
 
       - name: Compare versions
         id: compare
+        env:
+          CURRENT: ${{ steps.current.outputs.version }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
         run: |
-          current="${{ steps.current.outputs.version }}"
-          upstream="${{ steps.upstream.outputs.version }}"
-          if [ "$current" = "$upstream" ]; then
+          if [ "$CURRENT" = "$UPSTREAM" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "✅ Paragon version unchanged ($current). Nothing to do."
+            echo "✅ Paragon version unchanged ($CURRENT). Nothing to do."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "🔄 Paragon version changed: $current → $upstream"
+            echo "🔄 Paragon version changed: $CURRENT → $UPSTREAM"
           fi
 
       - name: Update generator script pinned version
         if: steps.compare.outputs.changed == 'true'
+        env:
+          NEW_VERSION: ${{ steps.upstream.outputs.version }}
         run: |
-          new_version="${{ steps.upstream.outputs.version }}"
-          sed -i "s/^PARAGON_VERSION = \"[0-9][0-9.]*\"/PARAGON_VERSION = \"$new_version\"/" \
+          sed -i "s/^PARAGON_VERSION = \"[0-9][0-9.]*\"/PARAGON_VERSION = \"$NEW_VERSION\"/" \
             scripts/generate_paragon_icons.py
 
       - name: Regenerate Paragon icon allow-list
         if: steps.compare.outputs.changed == 'true'
         run: make paragon_icons
 
-      - name: Verify regenerated list
-        if: steps.compare.outputs.changed == 'true'
-        run: make paragon_icons_check
-
       - name: Create Pull Request
         if: steps.compare.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v8.1.1
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           branch: bot/sync-paragon-icons
           delete-branch: true
           commit-message: |
@@ -93,8 +96,7 @@ jobs:
 
             ## Verification
 
-            The workflow already ran `make paragon_icons_check` to confirm the
-            regenerated file is consistent. After merge you can verify locally:
+            After merge you can verify locally:
 
             ```
             make paragon_icons_check
@@ -107,3 +109,9 @@ jobs:
           labels: |
             dependencies
             automated
+
+      - name: Trigger CI on the bot branch
+        if: steps.cpr.outputs.pull-request-operation == 'created' || steps.cpr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref bot/sync-paragon-icons

@@ -25,7 +25,7 @@ cachetools==6.2.0
     #   tox
 casbin-django-orm-adapter==1.7.0
     # via -r requirements/quality.txt
-certifi==2025.8.3
+certifi==2026.10.19
     # via
     #   -r requirements/quality.txt
     #   requests
@@ -197,7 +197,7 @@ packaging==25.0
     #   tox
 path==16.16.0
     # via edx-i18n-tools
-pip-tools==7.5.2
+pip-tools==7.6.2
     # via -r requirements/pip-tools.txt
 platformdirs==4.4.0
     # via

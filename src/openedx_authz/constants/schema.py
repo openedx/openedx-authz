@@ -12,6 +12,9 @@ from __future__ import annotations
 
 from enum import Enum
 
+AUTHZ_JSON_SCHEMA_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMA"
+DEFAULT_AUTHZ_JSON_SCHEMA = "openedx_authz.engine.schema/authz-schema-v1.json"
+
 
 class SchemaOriginKind(str, Enum):
     """Whether a schema contribution is a base definition or an extension.

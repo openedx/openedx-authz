@@ -1,0 +1,9 @@
+schema_version: "1.0"
+priority: 100
+permissions:
+  - namespace: pipeline
+    name: orphaned
+    display_name: Orphaned permission
+    description: References a category that does not exist.
+    category_id: missing_category
+    scopes: [course-v1]

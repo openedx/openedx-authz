@@ -107,6 +107,25 @@ Two limitations are accepted:
 * **Single-database assumption.** Serialization holds only when the generated policy and the lock live in the same database. The engine already assumes one database for its policy storage, so this is consistent with the rest of the system.
 * **Blocking wait without observability.** A second apply waits for the first with no timeout and no distinct signal, so a blocked apply is operationally indistinguishable from a slow one. This is acceptable because apply runs at deployment time, not on the request path.
 
+Addendum: Separate structural and semantic validation
+======================================================
+
+**2026-10-20**
+
+Schema processing separates parsing, structural validation, typed loading, and semantic validation into ordered phases.
+
+The lifecycle begins with these phases:
+
+1. **Discover** identifies the contributed schema resources.
+2. **Parse** reads each resource as YAML and preserves the resulting value with its source information.
+3. **Validate structure** checks every parsed value against the configured JSON Schema. The pipeline reports all structural errors and stops when it finds any.
+4. **Load** constructs typed schema definitions from structurally valid mappings.
+5. **Validate semantics** checks relationships across definitions, conflicts between contributions, supported scopes, and values that depend on application data such as the vendored Paragon icon names.
+
+Compile, render, apply, and consume keep the responsibilities defined above. Typed loading and semantic validation do not run when structural validation fails. This ordering lets JSON Schema report malformed collection shapes and value types before typed construction assumes those structures are valid.
+
+The separation adds an intermediate parsed-document representation and another explicit pipeline boundary. Callers that previously treated loading as both YAML parsing and typed construction must use the corresponding phase for the representation they need.
+
 Consequences
 ************
 

@@ -15,7 +15,7 @@ from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.engine.schema.validation import ValidationIssue
 
 
-def _pipeline(*, issues=None, compiled_issues=None):
+def _pipeline(*, syntax_issues=None, issues=None, compiled_issues=None):
     """Build a SchemaPipeline with every component mocked.
 
     ``issues`` seeds the document-level validator result and ``compiled_issues``
@@ -23,6 +23,12 @@ def _pipeline(*, issues=None, compiled_issues=None):
     """
     discovery = mock.Mock(name="discovery")
     discovery.discover.return_value = ["resource"]
+
+    parser = mock.Mock(name="parser")
+    parser.parse.return_value = ["parsed-document"]
+
+    syntax_validator = mock.Mock(name="syntax-validator")
+    syntax_validator.validate.return_value = syntax_issues or []
 
     loader = mock.Mock(name="loader")
     loader.load.return_value = ["document"]
@@ -42,6 +48,8 @@ def _pipeline(*, issues=None, compiled_issues=None):
 
     pipeline = SchemaPipeline(
         discovery=discovery,
+        parser=parser,
+        syntax_validator=syntax_validator,
         loader=loader,
         validator=validator,
         compiler=compiler,
@@ -50,6 +58,8 @@ def _pipeline(*, issues=None, compiled_issues=None):
     )
     return pipeline, {
         "discovery": discovery,
+        "parser": parser,
+        "syntax_validator": syntax_validator,
         "loader": loader,
         "validator": validator,
         "compiler": compiler,
@@ -62,14 +72,16 @@ class TestCompile:
     """Cover SchemaPipeline.compile step ordering and validation gating."""
 
     def test_runs_steps_in_order_and_returns_compiled_schema(self):
-        """Compile runs discover -> load -> validate -> compile -> validate_compiled in order."""
+        """Compile runs discover, parse, syntax, load, semantics, compile, and compiled validation in order."""
         pipeline, m = _pipeline()
 
         result = pipeline.compile()
 
         assert result == "compiled-schema"
         m["discovery"].discover.assert_called_once_with()
-        m["loader"].load.assert_called_once_with(["resource"])
+        m["parser"].parse.assert_called_once_with(["resource"])
+        m["syntax_validator"].validate.assert_called_once_with(["parsed-document"])
+        m["loader"].load.assert_called_once_with(["parsed-document"])
         m["validator"].validate.assert_called_once_with(["document"])
         m["compiler"].compile.assert_called_once_with(["document"])
         m["validator"].validate_compiled.assert_called_once_with("compiled-schema")
@@ -88,6 +100,22 @@ class TestCompile:
 
         assert exc_info.value.issues == [error]
         m["compiler"].compile.assert_called_once()
+
+    def test_structural_errors_stop_before_typed_loading(self):
+        """All structural findings stop loading and later lifecycle stages."""
+        errors = [
+            ValidationIssue("error", "bad first document", "first"),
+            ValidationIssue("error", "bad second document", "second"),
+        ]
+        pipeline, components = _pipeline(syntax_issues=errors)
+
+        with pytest.raises(SchemaValidationError) as exc_info:
+            pipeline.compile()
+
+        assert exc_info.value.issues == errors
+        components["loader"].load.assert_not_called()
+        components["validator"].validate.assert_not_called()
+        components["compiler"].compile.assert_not_called()
 
     def test_compiled_errors_stop_before_render_and_apply(self):
         """A post-compile error aborts apply before rendering or applying."""
@@ -193,6 +221,8 @@ class TestDefaultComponents:
         # only assert the orchestrator is fully constructed.
         # pylint: disable=protected-access
         assert pipeline._discovery is not None
+        assert pipeline._parser is not None
+        assert pipeline._syntax_validator is not None
         assert pipeline._loader is not None
         assert pipeline._validator is not None
         assert pipeline._compiler is not None

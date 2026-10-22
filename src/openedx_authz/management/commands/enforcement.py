@@ -13,7 +13,7 @@ requests with two operational modes:
 The command supports:
 - Interactive testing with format: subject action scope
 - Real-time enforcement results with visual feedback (✓ ALLOWED / ✗ DENIED)
-- Display of loaded policies, role assignments, and action grouping rules
+- Display of loaded policies and role assignments
 
 Example usage:
     # Use policies from database with default model
@@ -83,7 +83,7 @@ class Command(BaseCommand):
             help=(
                 "Path to the Casbin policy CSV file. When provided, switches to file mode using a "
                 "custom enforcer instead of the database. Supports CSV format with policies, roles, "
-                "and action grouping."
+                "and role assignments."
             ),
         )
         parser.add_argument(
@@ -178,18 +178,15 @@ class Command(BaseCommand):
             raise CommandError(f"Error creating Casbin enforcer: {str(e)}") from e
 
     def _display_loaded_policies(self, enforcer: Enforcer) -> None:
-        """Display statistics about loaded policies, roles, and action grouping.
+        """Display statistics about loaded policies and roles.
 
         Args:
             enforcer (Enforcer): The Casbin enforcer instance with loaded policies.
         """
         policies = enforcer.get_policy()
         roles = enforcer.get_grouping_policy()
-        action_grouping = enforcer.get_named_grouping_policy("g2")
-
         self.stdout.write(f"✓ Loaded {len(policies)} policies")
         self.stdout.write(f"✓ Loaded {len(roles)} role assignments")
-        self.stdout.write(f"✓ Loaded {len(action_grouping)} action grouping rules")
         self.stdout.write("")
 
     def _run_interactive_mode(self) -> None:

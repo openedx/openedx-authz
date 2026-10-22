@@ -45,6 +45,13 @@ Consequences
 * The current policy loader continues to handle existing Casbin grouping rows.
 * Introducing implication later requires a schema-version change and migration guidance.
 
+Addendum: Remove Existing Action Grouping (2026-10-16)
+======================================================
+
+The built-in roles list every permission covered by the existing ``g2`` action-grouping rows, so those rows do not change their effective permissions. The Casbin model now uses exact action matches and a data migration removes stored ``g2`` rows.
+
+Permission grouping and role inheritance remain future work in `Issue #91`_ and `Issue #523`_. Any later implementation still requires the schema-version change and migration guidance described in this ADR.
+
 Rejected Alternatives
 *********************
 
@@ -62,5 +69,9 @@ References
 **********
 
 * `ADR 0017`_
+* `Issue #91`_
+* `Issue #523`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst
+.. _Issue #91: https://github.com/openedx/openedx-authz/issues/91
+.. _Issue #523: https://github.com/openedx/openedx-authz/issues/523

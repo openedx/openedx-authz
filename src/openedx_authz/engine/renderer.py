@@ -6,8 +6,7 @@ the ``render`` and ``apply`` lifecycle steps:
 * ``render`` builds the Casbin ``p`` rows for a :class:`CompiledSchema` in
   memory, without touching the database.
 * ``apply`` persists the rows in a single transaction, while preserving data
-  owned by other services (ADR 0018 §3): dynamic roles, user assignments, and
-  the legacy ``g2`` action-inheritance rows that still live in ``authz.policy``.
+  owned by other services (ADR 0018 §3), including dynamic roles and user assignments.
 
 Key semantics:
     * Idempotent (ADR 0018 §2): re-applying identical definitions changes
@@ -33,7 +32,7 @@ The definition/source model (ADR 0018 §3, ADR 0025) is the ownership record
 that makes precise pruning safe, and it is consulted rather than assumed:
 removal candidates are intersected with the stored role-permission grants (see
 :meth:`SchemaApplier._managed_rows`), so unmanaged ``p`` rows, dynamic roles,
-user assignments, and legacy ``g2`` action inheritance are all preserved.
+and user assignments are all preserved.
 
 ``render`` is pure in behavior — it touches no database and holds no Casbin
 state. ``plan``/``apply`` resolve the enforcer only when called (not at import),
@@ -145,8 +144,8 @@ class PolicyRenderer:
     def render(self, schema: CompiledSchema) -> RenderedPolicy:
         """Produce one ``p`` row per (role, permission, supported scope).
 
-        Emits definition (``p``) rows only — never ``g`` (assignments) or ``g2``
-        (action inheritance). Applies the internal Casbin namespacing here.
+        Emits definition (``p``) rows only, never ``g`` assignments. Applies the
+        internal Casbin namespacing here.
         Performs no database access. Output order is deterministic.
         """
         rows: list[PolicyRow] = []
@@ -224,7 +223,7 @@ class SchemaApplier:
         Adds rendered rows not already present, removes stale schema-owned rows
         no longer rendered, prunes definition/source records the compiled schema
         no longer contains, and invalidates the policy cache so the enforcer
-        reloads. Preserves dynamic roles, user assignments, and ``g2`` rows.
+        reloads. Preserves dynamic roles and user assignments.
 
         A role slated for removal that still has user assignments is blocking:
         without ``force`` the apply aborts before any write; with ``force`` the

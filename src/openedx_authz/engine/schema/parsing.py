@@ -17,9 +17,13 @@ from importlib import metadata
 
 import yaml
 
-from openedx_authz.engine.schema.discovery import DiscoveredResource
+from openedx_authz.engine.schema.discovery import (
+    SETTINGS_FILE_VERSION,
+    DiscoveredFileResource,
+    DiscoveredResource,
+)
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
-from openedx_authz.engine.schema.types import ParsedSchemaDocument, SourceRecord
+from openedx_authz.engine.schema.types import ParsedSchemaDocument, SourceFileRecord, SourceRecord
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +46,19 @@ class SchemaParser:
         documents = []
         for resource in resources:
             contents = resource.read_bytes()
-            data = self.parse_yaml(contents, resource)
-            schema_version = str(data.get("schema_version", "")) if isinstance(data, dict) else ""
-            source = self.build_source_record(resource, contents, schema_version)
-            documents.append(ParsedSchemaDocument(source=source, data=data))
+            for data in self.parse_yamls(contents, resource):
+                schema_version = str(data.get("schema_version", "")) if isinstance(data, dict) else ""
+                source = self.build_source_record(resource, contents, schema_version)
+                documents.append(ParsedSchemaDocument(source=source, data=data))
         return documents
 
     @staticmethod
-    def parse_yaml(contents: bytes, resource: DiscoveredResource) -> object:
-        """Parse YAML bytes and preserve the resulting root value."""
+    def parse_yamls(contents: bytes, resource: DiscoveredResource) -> list[object]:
+        """Parse YAML bytes as a multi-document stream
+        Skipping empty documents, and preserve the resulting root value.
+        """
         try:
-            return yaml.safe_load(contents)
+            return [doc for doc in yaml.safe_load_all(contents) if doc is not None]
         except yaml.YAMLError as exc:
             raise SchemaLoadError(f"Invalid YAML in {resource.package}:{resource.resource_path}: {exc}") from exc
 
@@ -66,14 +72,17 @@ class SchemaParser:
         """
         distribution, version = self.resolve_distribution(resource)
         content_digest = hashlib.sha256(contents).hexdigest()
-        return SourceRecord(
-            distribution=distribution,
-            distribution_version=version,
-            module=resource.module,
-            resource_path=resource.resource_path,
-            schema_version=schema_version,
-            content_digest=content_digest,
-        )
+        source_record = {
+            'distribution': distribution,
+            'distribution_version': version,
+            'module': resource.module,
+            'resource_path': resource.resource_path,
+            'schema_version': schema_version,
+            'content_digest': content_digest,
+        }
+        if isinstance(resource, DiscoveredFileResource):
+            return SourceFileRecord(**source_record)
+        return SourceRecord(**source_record)
 
     @classmethod
     def resolve_distribution(cls, resource: DiscoveredResource) -> tuple[str, str]:
@@ -88,6 +97,8 @@ class SchemaParser:
         the one that actually ships this resource's file, and only fall back to
         a deterministic (sorted) choice when no single owner can be identified.
         """
+        if isinstance(resource, DiscoveredFileResource):
+            return resource.package, SETTINGS_FILE_VERSION
         top_level = resource.package.split(".", 1)[0]
         try:
             mapping = metadata.packages_distributions()

@@ -5,10 +5,18 @@ from importlib import metadata
 
 import pytest
 
-from openedx_authz.engine.schema.discovery import DiscoveredResource, Origin, SchemaDiscovery
+from openedx_authz.engine.schema.discovery import (
+    SETTINGS_FILE_SENTINEL,
+    SETTINGS_FILE_VERSION,
+    DiscoveredFileResource,
+    DiscoveredResource,
+    Origin,
+    SchemaDiscovery,
+)
 from openedx_authz.engine.schema.exceptions import SchemaLoadError
 from openedx_authz.engine.schema.loading import SchemaLoader
 from openedx_authz.engine.schema.parsing import UNKNOWN_DISTRIBUTION, SchemaParser
+from openedx_authz.engine.schema.types import SourceFileRecord
 
 from .factories import InMemoryResource
 
@@ -106,10 +114,15 @@ class TestDocumentLoading:
         assert docs[0].categories == []
         assert docs[0].roles == []
 
-    def test_completely_empty_file_cannot_be_loaded_as_a_typed_document(self):
-        """An empty root must pass structural validation before typed loading."""
-        with pytest.raises(SchemaLoadError, match="must be a mapping"):
-            _load(b"")
+    def test_completely_empty_file_yields_no_documents(self):
+        """An empty file parses to no YAML documents and yields an empty list.
+
+        With ``safe_load_all``, an empty stream produces no documents (ADR 0030:
+        empty documents are skipped silently). Validation is not reached.
+        """
+        docs = _load(b"")
+
+        assert not docs
 
     def test_invalid_yaml_raises_load_error(self):
         """Malformed YAML surfaces as ``SchemaLoadError``."""
@@ -619,3 +632,152 @@ class TestDistributionAmbiguityLogging:
         assert result1 == result2 == "dist1"
         # Only one log record because the warn_key is identical
         assert len(caplog.records) == 1
+
+
+class TestMultiDocumentStreams:
+    """Multi-document YAML loading (ADR 0030).
+
+    A single schema file may contain multiple ``---``-separated YAML documents,
+    each a complete, independent contribution with its own ``schema_version``
+    and ``priority``. This is how Tutor concatenates several plugin
+    contributions into one rendered file.
+    """
+
+    MULTI_DOC = b"""
+schema_version: '1.0'
+priority: 200
+
+role_extensions:
+  - role_id: course_editor
+    add_permissions: [courses.export_course]
+---
+schema_version: '1.0'
+priority: 100
+
+role_extensions:
+  - role_id: course_editor
+    remove_permissions: [courses.manage_tags]
+"""
+
+    def test_multi_document_stream_yields_multiple_documents(self):
+        """Two ``---``-separated documents yield two :class:`SchemaDocument` objects."""
+        docs = _load(self.MULTI_DOC)
+
+        assert len(docs) == 2
+        assert docs[0].priority == 200
+        assert docs[1].priority == 100
+
+    def test_each_document_has_its_own_schema_version(self):
+        """Each document carries its own ``schema_version``."""
+        docs = _load(self.MULTI_DOC)
+
+        assert docs[0].source.schema_version == "1.0"
+        assert docs[1].source.schema_version == "1.0"
+
+    def test_each_document_has_independent_extensions(self):
+        """Extensions from separate documents stay separate."""
+        docs = _load(self.MULTI_DOC)
+
+        assert docs[0].role_extensions[0].add_permissions == ("courses.export_course",)
+        assert docs[1].role_extensions[0].remove_permissions == ("courses.manage_tags",)
+
+    def test_trailing_separator_is_ignored(self):
+        """A trailing ``---`` produces a ``None`` document that is skipped."""
+        contents = b"schema_version: '1.0'\npriority: 1\n---\n"
+
+        docs = _load(contents)
+
+        assert len(docs) == 1
+        assert docs[0].priority == 1
+
+    def test_empty_document_between_separators_is_skipped(self):
+        """An empty ``---`` block between contributions is silently dropped."""
+        contents = (
+            b"schema_version: '1.0'\npriority: 1\n"
+            b"---\n"
+            b"---\n"
+            b"schema_version: '1.0'\npriority: 2\n"
+        )
+
+        docs = _load(contents)
+
+        assert len(docs) == 2
+        assert docs[0].priority == 1
+        assert docs[1].priority == 2
+
+    def test_comment_only_document_is_skipped(self):
+        """A document consisting solely of comments parses as ``None`` and is skipped."""
+        contents = b"# Just a comment\n---\nschema_version: '1.0'\npriority: 1\n"
+
+        docs = _load(contents)
+
+        assert len(docs) == 1
+        assert docs[0].priority == 1
+
+    def test_non_mapping_document_in_stream_raises(self):
+        """A non-mapping document embedded in a stream raises ``SchemaLoadError``."""
+        contents = b"schema_version: '1.0'\npriority: 1\n---\n- just\n- a\n- list\n"
+
+        with pytest.raises(SchemaLoadError, match="schema document must be a mapping"):
+            _load(contents)
+
+    def test_all_documents_share_the_same_content_digest(self):
+        """The content digest is per-resource (file), not per-document.
+
+        Multiple documents from the same file share the same digest since it is
+        computed from the raw file bytes.
+        """
+        docs = _load(self.MULTI_DOC)
+
+        assert docs[0].source.content_digest == docs[1].source.content_digest
+
+
+class TestFileSourceIdentity:
+    """Source identity for filesystem-path resources (ADR 0030).
+
+    Filesystem resources use sentinel values for distribution and version,
+    and ``SourceFileRecord`` overrides ``source_id`` to avoid garbling the
+    absolute path.
+    """
+
+    @staticmethod
+    def _load_file(tmp_path, contents: bytes = b"schema_version: '1.0'\npriority: 1\n"):
+        """Write a temp schema file, discover it, and load it."""
+        schema_file = tmp_path / "authz-schema.yaml"
+        schema_file.write_bytes(contents)
+        resource = DiscoveredFileResource.from_path(str(schema_file))
+        parsed_documents = SchemaParser().parse([resource])
+        return SchemaLoader().load(parsed_documents)
+
+    def test_distribution_is_the_sentinel(self, tmp_path):
+        """Filesystem resources use the ``<tutor-patch>`` sentinel as distribution."""
+        docs = self._load_file(tmp_path)
+
+        assert docs[0].source.distribution == SETTINGS_FILE_SENTINEL
+
+    def test_distribution_version_is_the_sentinel(self, tmp_path):
+        """Filesystem resources use ``0.0.0`` as their version sentinel."""
+        docs = self._load_file(tmp_path)
+
+        assert docs[0].source.distribution_version == SETTINGS_FILE_VERSION
+
+    def test_source_id_uses_the_absolute_path(self, tmp_path):
+        """``source_id`` is ``"<tutor-patch>:<absolute_path>"`` — no dot corruption."""
+        docs = self._load_file(tmp_path)
+        expected_path = str(tmp_path / "authz-schema.yaml")
+
+        assert docs[0].source.source_id == f"{SETTINGS_FILE_SENTINEL}:{expected_path}"
+
+    def test_source_record_is_a_source_file_record(self, tmp_path):
+        """The loader produces a ``SourceFileRecord`` for filesystem resources."""
+        docs = self._load_file(tmp_path)
+
+        assert isinstance(docs[0].source, SourceFileRecord)
+
+    def test_module_is_none_and_resource_path_is_the_absolute_path(self, tmp_path):
+        """``module`` is ``None`` for filesystem sources; ``resource_path`` records the path."""
+        docs = self._load_file(tmp_path)
+        expected_path = str(tmp_path / "authz-schema.yaml")
+
+        assert docs[0].source.module is None
+        assert docs[0].source.resource_path == expected_path

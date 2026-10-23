@@ -1,7 +1,7 @@
 """Discover static authz schema resources (the ``discover`` step, ADR 0019).
 
-Providers register **directories** (not individual files); the loader reads
-every ``.yaml`` file inside them. Two contribution sources are merged:
+Providers register **directories** of ``.yaml`` files, or individual absolute
+filesystem paths. Three contribution sources are merged:
 
 1. The ``authz.schema`` entry-point group. Each registered callable returns
    directory paths in the package-anchored format below (e.g.
@@ -9,6 +9,10 @@ every ``.yaml`` file inside them. Two contribution sources are merged:
 2. The ``OPENEDX_AUTHZ_SCHEMA_DIRECTORIES`` Django setting, a list of directory
    path strings in the same format. This lets operators and CI contribute
    directories without shipping a package entry point.
+3. The ``OPENEDX_AUTHZ_SCHEMA_FILES`` Django setting, a list of absolute
+   filesystem paths each naming one schema file (ADR 0030). This is the route
+   used by the Tutor ``openedx-authz-schema`` patch to feed a rendered file
+   into discovery without anchoring it on a Python package.
 
 Directory format: these are **not** filesystem paths (neither relative nor
 absolute). Each is a package-anchored ``importlib.resources`` path: the first
@@ -36,12 +40,15 @@ import logging
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib import metadata, resources
+from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 ENTRY_POINT_GROUP = "authz.schema"
 SETTINGS_DIRECTORIES_NAME = "OPENEDX_AUTHZ_SCHEMA_DIRECTORIES"
+SETTINGS_FILE_SENTINEL = "<tutor-patch>"
+SETTINGS_FILE_VERSION = "0.0.0"
 SCHEMA_FILE_SUFFIXES = (".yaml", ".yml")
 
 logger = logging.getLogger(__name__)
@@ -72,13 +79,14 @@ class DiscoveredResource:
             (e.g. ``authz/schema/course_roles.yaml``).
         module: Dotted path of the owning directory, used as the source-record
             module and provenance identity (e.g. ``openedx_authz.authz.schema``).
+            ``None`` for filesystem-contributed resources (ADR 0030 §4).
         origin: Which contribution route produced this resource, as an
             ``Origin`` member; diagnostics only.
     """
 
     package: str
     resource_path: str
-    module: str
+    module: str | None
     origin: Origin
 
     def read_bytes(self) -> bytes:
@@ -98,6 +106,46 @@ class DiscoveredResource:
         except (ModuleNotFoundError, OSError) as exc:
             raise SchemaDiscoveryError(
                 f"Could not read schema resource {self.resource_path!r} from package {self.package!r}: {exc}"
+            ) from exc
+
+
+@dataclass(frozen=True)
+class DiscoveredFileResource(DiscoveredResource):
+    """A schema file discovered via an absolute filesystem path (ADR 0030).
+
+    Unlike :class:`DiscoveredResource`, which resolves through
+    ``importlib.resources``, this variant reads directly from the filesystem.
+    ``package`` is :data:`SETTINGS_FILE_SENTINEL`, ``module`` is ``None``
+    (filesystem sources have no owning Python module), and ``resource_path``
+    holds the absolute path.
+    """
+
+    @classmethod
+    def from_path(cls, file_path: str) -> DiscoveredFileResource:
+        """Build a resource from an absolute filesystem path.
+
+        ``package`` uses the sentinel :data:`SETTINGS_FILE_SENTINEL` and
+        ``module`` is ``None`` because the file is not anchored on any
+        Python package (ADR 0030 §4).
+        """
+        return cls(
+            package=SETTINGS_FILE_SENTINEL,
+            resource_path=file_path,
+            module=None,
+            origin=Origin.SETTINGS,
+        )
+
+    def read_bytes(self) -> bytes:
+        """Read the file directly from the filesystem via :class:`pathlib.Path`.
+
+        Raises:
+            SchemaDiscoveryError: If the file cannot be read.
+        """
+        try:
+            return Path(self.resource_path).read_bytes()
+        except OSError as exc:
+            raise SchemaDiscoveryError(
+                f"Could not read schema file {self.resource_path!r}: {exc}"
             ) from exc
 
 
@@ -139,6 +187,7 @@ class SchemaDiscovery:
         found: list[DiscoveredResource] = []
         found.extend(self._discover_entry_points())
         found.extend(self._discover_settings_directories())
+        found.extend(self._discover_settings_files())
         for directory in self._passed_in_directories:
             found.extend(self._iter_directory(directory, origin=Origin.PASSED_IN))
 
@@ -182,6 +231,45 @@ class SchemaDiscovery:
         discovered: list[DiscoveredResource] = []
         for directory in directories:
             discovered.extend(self._iter_directory(directory, origin=Origin.SETTINGS))
+        return discovered
+
+    def _discover_settings_files(self) -> list[DiscoveredResource]:
+        """Read ``OPENEDX_AUTHZ_SCHEMA_FILES`` from Django settings (ADR 0030).
+
+        Each item is an absolute filesystem path to a single schema file.
+        Unlike ``_discover_settings_directories``, every listed path must exist
+        and have a supported extension; a missing or misnamed file is treated
+        as a misconfiguration and raises ``SchemaDiscoveryError``.
+
+        Absent, empty, or unconfigured settings yield nothing. As with
+        ``_discover_settings_directories``, ``ImproperlyConfigured`` degrades
+        to no contribution so CI can run outside a Django process.
+        """
+        try:
+            file_paths = getattr(settings, "OPENEDX_AUTHZ_SCHEMA_FILES", None) or []
+        except ImproperlyConfigured:
+            return []
+        if not isinstance(file_paths, list):
+            raise ImproperlyConfigured
+        discovered: list[DiscoveredResource] = []
+        for file_path in file_paths:
+            if not file_path.endswith(SCHEMA_FILE_SUFFIXES):
+                raise SchemaDiscoveryError(
+                    f"Schema file {file_path!r} contributed through "
+                    "OPENEDX_AUTHZ_SCHEMA_FILES has an unsupported file extension, "
+                    f"accepted extensions: {SCHEMA_FILE_SUFFIXES}"
+                )
+
+            path = Path(file_path)
+            if not path.is_file():
+                raise SchemaDiscoveryError(
+                    f"Schema file {file_path!r} contributed through "
+                    "OPENEDX_AUTHZ_SCHEMA_FILES is not an actual file"
+                )
+
+            discovered.append(
+                DiscoveredFileResource.from_path(file_path)
+            )
         return discovered
 
     def _iter_directory(self, directory: str, *, origin: Origin) -> list[DiscoveredResource]:

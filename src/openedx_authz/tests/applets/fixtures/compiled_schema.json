@@ -1,0 +1,1432 @@
+{
+  "categories": {
+    "course_access_content": {
+      "description": "Permissions related to accessing the course and managing core course content, including creating, editing, and publishing materials.",
+      "display_name": "Course access & content",
+      "icon": "BookOpen",
+      "id": "course_access_content"
+    },
+    "course_advanced_certificates": {
+      "description": "Permissions for managing advanced course settings and course certificates.",
+      "display_name": "Advanced & certificates",
+      "icon": "CheckCircle",
+      "id": "course_advanced_certificates"
+    },
+    "course_files": {
+      "description": "Permissions for viewing and managing files and assets uploaded to the course.",
+      "display_name": "Files",
+      "icon": "Folder",
+      "id": "course_files"
+    },
+    "course_grading": {
+      "description": "Permissions related to viewing and managing grading configuration and grading policies.",
+      "display_name": "Grading",
+      "icon": "Award",
+      "id": "course_grading"
+    },
+    "course_import_export": {
+      "description": "Permissions for importing and exporting course content and related data.",
+      "display_name": "Import / export",
+      "icon": "Download",
+      "id": "course_import_export"
+    },
+    "course_legacy": {
+      "description": "Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.",
+      "display_name": "Legacy compatibility",
+      "icon": "DrawShapes",
+      "id": "course_legacy"
+    },
+    "course_library_updates": {
+      "description": "Permissions for reviewing and managing updates made to content libraries connected to the course.",
+      "display_name": "Library updates",
+      "icon": "LibraryBooks",
+      "id": "course_library_updates"
+    },
+    "course_other": {
+      "description": "Additional permissions not included in other categories, such as viewing checklists.",
+      "display_name": "Other",
+      "icon": "DrawShapes",
+      "id": "course_other"
+    },
+    "course_pages_resources": {
+      "description": "Permissions for viewing and managing course pages and additional learning resources.",
+      "display_name": "Pages & resources",
+      "icon": "Article",
+      "id": "course_pages_resources"
+    },
+    "course_schedule_details": {
+      "description": "Permissions for viewing and editing the course schedule and course information.",
+      "display_name": "Schedule & details",
+      "icon": "Calendar",
+      "id": "course_schedule_details"
+    },
+    "course_tags_taxonomies": {
+      "description": "Permissions for managing tags used to organize course content.",
+      "display_name": "Tags",
+      "icon": "LocalOffer",
+      "id": "course_tags_taxonomies"
+    },
+    "course_team_group": {
+      "description": "Permissions for viewing and managing the course team, learner groups, and group configurations.",
+      "display_name": "Course team & groups",
+      "icon": "Group",
+      "id": "course_team_group"
+    },
+    "course_updates_handouts": {
+      "description": "Permissions for viewing and managing course updates and handouts that are visible to learners.",
+      "display_name": "Course updates & handouts",
+      "icon": "Sync",
+      "id": "course_updates_handouts"
+    },
+    "library": {
+      "description": "Permissions related to viewing, managing, and publishing the library structure and metadata.",
+      "display_name": "Library",
+      "icon": "CollectionsBookmark",
+      "id": "library"
+    },
+    "library_collection": {
+      "description": "Permissions for creating and managing content collections within the library.",
+      "display_name": "Collection",
+      "icon": "AutoAwesomeMosaic",
+      "id": "library_collection"
+    },
+    "library_content": {
+      "description": "Permissions for editing, publishing, and reusing content within the library.",
+      "display_name": "Content",
+      "icon": "Notes",
+      "id": "library_content"
+    },
+    "library_team": {
+      "description": "Permissions for viewing and managing users who have access to the library.",
+      "display_name": "Team",
+      "icon": "Group",
+      "id": "library_team"
+    }
+  },
+  "permissions": {
+    "content_libraries.create_library_collection": {
+      "category_id": "library_collection",
+      "description": "Create new collections to organize content within the library.",
+      "display_name": "Create",
+      "icon": "Plus",
+      "name": "create_library_collection",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.delete_library": {
+      "category_id": "library",
+      "description": "Allows users to delete the entire content library.",
+      "display_name": "Delete",
+      "icon": "Delete",
+      "name": "delete_library",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.delete_library_collection": {
+      "category_id": "library_collection",
+      "description": "Permanently remove collections from the library.",
+      "display_name": "Delete",
+      "icon": "Delete",
+      "name": "delete_library_collection",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.edit_library_collection": {
+      "category_id": "library_collection",
+      "description": "Update the name and contents of existing collections.",
+      "display_name": "Edit",
+      "icon": "EditOutline",
+      "name": "edit_library_collection",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.edit_library_content": {
+      "category_id": "library_content",
+      "description": "Create, edit, and delete content items in the library.",
+      "display_name": "Edit",
+      "icon": "EditOutline",
+      "name": "edit_library_content",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.manage_library_tags": {
+      "category_id": "library",
+      "description": "Create, edit, and delete tags on this library.",
+      "display_name": "Manage tags",
+      "icon": "Settings",
+      "name": "manage_library_tags",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.manage_library_team": {
+      "category_id": "library_team",
+      "description": "Add, change, or remove role assignments for this library from the Roles and Permissions console.",
+      "display_name": "Manage",
+      "icon": "Settings",
+      "name": "manage_library_team",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.publish_library_content": {
+      "category_id": "library_content",
+      "description": "Publish individual content items to make them available for reuse in courses.",
+      "display_name": "Publish",
+      "icon": "DownloadDone",
+      "name": "publish_library_content",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.reuse_library_content": {
+      "category_id": "library_content",
+      "description": "Add published content from this library to a course.",
+      "display_name": "Reuse",
+      "icon": "SpinnerIcon",
+      "name": "reuse_library_content",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.view_library": {
+      "category_id": "library",
+      "description": "See the library in Studio and access its content in read-only mode.",
+      "display_name": "View",
+      "icon": "RemoveRedEye",
+      "name": "view_library",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "content_libraries.view_library_team": {
+      "category_id": "library_team",
+      "description": "See the list of users with a role assigned to this library.",
+      "display_name": "View",
+      "icon": "RemoveRedEye",
+      "name": "view_library_team",
+      "namespace": "content_libraries",
+      "scopes": [
+        "lib"
+      ]
+    },
+    "courses.create_files": {
+      "category_id": "course_files",
+      "description": "Upload new files and assets to the course.",
+      "display_name": "Create files",
+      "icon": "Plus",
+      "name": "create_files",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.delete_files": {
+      "category_id": "course_files",
+      "description": "Permanently remove files and assets from the course.",
+      "display_name": "Delete files",
+      "icon": "Delete",
+      "name": "delete_files",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.edit_course_content": {
+      "category_id": "course_access_content",
+      "description": "Edit the course outline, units, and components.",
+      "display_name": "Edit course content",
+      "icon": "EditOutline",
+      "name": "edit_course_content",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.edit_details": {
+      "category_id": "course_schedule_details",
+      "description": "Update course information including the course summary, pacing, and prerequisites.",
+      "display_name": "Edit course details",
+      "icon": "EditOutline",
+      "name": "edit_details",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.edit_files": {
+      "category_id": "course_files",
+      "description": "Perform non-destructive actions on files, such as locking or unlocking them.",
+      "display_name": "Edit files",
+      "icon": "EditOutline",
+      "name": "edit_files",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.edit_grading_settings": {
+      "category_id": "course_grading",
+      "description": "Update the grading configuration for the course, including assignment types and grading scale.",
+      "display_name": "Edit grading settings",
+      "icon": "EditOutline",
+      "name": "edit_grading_settings",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.edit_schedule": {
+      "category_id": "course_schedule_details",
+      "description": "Update course start and end dates, enrollment dates, and pacing settings.",
+      "display_name": "Edit schedule",
+      "icon": "EditOutline",
+      "name": "edit_schedule",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.export_course": {
+      "category_id": "course_import_export",
+      "description": "Download the course content as a file for backup or reuse in another platform.",
+      "display_name": "Export course",
+      "icon": "Upload",
+      "name": "export_course",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.export_tags": {
+      "category_id": "course_import_export",
+      "description": "Download the tag data associated with this course.",
+      "display_name": "Export tags",
+      "icon": "Upload",
+      "name": "export_tags",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.import_course": {
+      "category_id": "course_import_export",
+      "description": "Import course content from a file. This is a high-privilege action that can overwrite most course content and settings.",
+      "display_name": "Import course",
+      "icon": "Download",
+      "name": "import_course",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.legacy_beta_tester_permissions": {
+      "category_id": "course_legacy",
+      "description": "Compatibility action mapping the legacy course beta tester role into the authorization system.",
+      "display_name": "Legacy beta tester permissions",
+      "icon": "DrawShapes",
+      "name": "legacy_beta_tester_permissions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.legacy_data_researcher_permissions": {
+      "category_id": "course_legacy",
+      "description": "Compatibility action mapping the legacy course data researcher role into the authorization system.",
+      "display_name": "Legacy data researcher permissions",
+      "icon": "DrawShapes",
+      "name": "legacy_data_researcher_permissions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.legacy_instructor_role_permissions": {
+      "category_id": "course_legacy",
+      "description": "Compatibility action mapping the legacy course instructor role into the authorization system.",
+      "display_name": "Legacy instructor permissions",
+      "icon": "DrawShapes",
+      "name": "legacy_instructor_role_permissions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.legacy_limited_staff_role_permissions": {
+      "category_id": "course_legacy",
+      "description": "Compatibility action mapping the legacy course limited staff role into the authorization system.",
+      "display_name": "Legacy limited staff permissions",
+      "icon": "DrawShapes",
+      "name": "legacy_limited_staff_role_permissions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.legacy_staff_role_permissions": {
+      "category_id": "course_legacy",
+      "description": "Compatibility action mapping the legacy course staff role into the authorization system.",
+      "display_name": "Legacy staff permissions",
+      "icon": "DrawShapes",
+      "name": "legacy_staff_role_permissions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_advanced_settings": {
+      "category_id": "course_advanced_certificates",
+      "description": "Edit technical course configurations in the Advanced Settings page in Studio.",
+      "display_name": "Manage advanced settings",
+      "icon": "Settings",
+      "name": "manage_advanced_settings",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_certificates": {
+      "category_id": "course_advanced_certificates",
+      "description": "Create and edit course certificates, including certificate design and eligibility settings.",
+      "display_name": "Manage certificates",
+      "icon": "Settings",
+      "name": "manage_certificates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_course_team": {
+      "category_id": "course_team_group",
+      "description": "Add, change, or remove role assignments for this course from the Roles and Permissions console.",
+      "display_name": "Manage course team",
+      "icon": "Settings",
+      "name": "manage_course_team",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_course_updates": {
+      "category_id": "course_updates_handouts",
+      "description": "Create, edit, and delete course announcements and handouts.",
+      "display_name": "Manage course updates",
+      "icon": "Settings",
+      "name": "manage_course_updates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_group_configurations": {
+      "category_id": "course_team_group",
+      "description": "Create and manage content groups used to target course content to specific learners.",
+      "display_name": "Manage group configurations",
+      "icon": "Settings",
+      "name": "manage_group_configurations",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_library_updates": {
+      "category_id": "course_library_updates",
+      "description": "Accept or reject pending updates from content libraries linked to this course.",
+      "display_name": "Manage library updates",
+      "icon": "Checklist",
+      "name": "manage_library_updates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_pages_and_resources": {
+      "category_id": "course_pages_resources",
+      "description": "Enable or disable course features such as Discussions, the Wiki, Notes, Calculator, and Live. Create and edit Textbooks and Custom pages, and manage their configurations.",
+      "display_name": "Manage pages & resources",
+      "icon": "Settings",
+      "name": "manage_pages_and_resources",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_tags": {
+      "category_id": "course_tags_taxonomies",
+      "description": "Create, edit, and delete tags on this course.",
+      "display_name": "Manage tags",
+      "icon": "Settings",
+      "name": "manage_tags",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_taxonomies": {
+      "category_id": "course_tags_taxonomies",
+      "description": "Manage taxonomies associated with this course. (Granted to course_admin; not currently surfaced in the admin console.)",
+      "display_name": "Manage taxonomies",
+      "icon": "LocalOffer",
+      "name": "manage_taxonomies",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.publish_course_content": {
+      "category_id": "course_access_content",
+      "description": "Make course content visible to learners.",
+      "display_name": "Publish course content",
+      "icon": "DownloadDone",
+      "name": "publish_course_content",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_advanced_settings": {
+      "category_id": "course_advanced_certificates",
+      "description": "Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.",
+      "display_name": "View advanced settings",
+      "icon": "RemoveRedEye",
+      "name": "view_advanced_settings",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_certificates": {
+      "category_id": "course_advanced_certificates",
+      "description": "See the course certificate settings.",
+      "display_name": "View certificates",
+      "icon": "RemoveRedEye",
+      "name": "view_certificates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_checklists": {
+      "category_id": "course_other",
+      "description": "See the course launch checklist in Studio.",
+      "display_name": "View checklists",
+      "icon": "RemoveRedEye",
+      "name": "view_checklists",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_course": {
+      "category_id": "course_access_content",
+      "description": "See the course in the Studio home and access the course outline in read-only mode. Includes the \"View Live\" option to preview the course as a learner in the LMS.",
+      "display_name": "View course",
+      "icon": "RemoveRedEye",
+      "name": "view_course",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_course_team": {
+      "category_id": "course_team_group",
+      "description": "See the list of users with a role assigned to this course.",
+      "display_name": "View course team",
+      "icon": "RemoveRedEye",
+      "name": "view_course_team",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_course_updates": {
+      "category_id": "course_updates_handouts",
+      "description": "See course announcements and handouts visible to learners.",
+      "display_name": "View course updates",
+      "icon": "RemoveRedEye",
+      "name": "view_course_updates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_files": {
+      "category_id": "course_files",
+      "description": "See the list of files and assets uploaded to the course.",
+      "display_name": "View files",
+      "icon": "RemoveRedEye",
+      "name": "view_files",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_grading_settings": {
+      "category_id": "course_grading",
+      "description": "See the grading configuration for the course, including assignment types and grading scale.",
+      "display_name": "View grading settings",
+      "icon": "RemoveRedEye",
+      "name": "view_grading_settings",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_group_configurations": {
+      "category_id": "course_team_group",
+      "description": "See the list of content groups and their configurations for this course.",
+      "display_name": "View group configurations",
+      "icon": "RemoveRedEye",
+      "name": "view_group_configurations",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_library_updates": {
+      "category_id": "course_library_updates",
+      "description": "View pending updates from content libraries linked to this course.",
+      "display_name": "View library updates",
+      "icon": "RemoveRedEye",
+      "name": "view_library_updates",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_pages_and_resources": {
+      "category_id": "course_pages_resources",
+      "description": "See the Pages & Resources section in Studio.",
+      "display_name": "View pages & resources",
+      "icon": "RemoveRedEye",
+      "name": "view_pages_and_resources",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_schedule_and_details": {
+      "category_id": "course_schedule_details",
+      "description": "See the course schedule (start and end dates, enrollment dates, and pacing settings) and course details (summary, pacing, and prerequisites).",
+      "display_name": "View schedule & details",
+      "icon": "RemoveRedEye",
+      "name": "view_schedule_and_details",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    }
+  },
+  "role_permission_pairs": [
+    [
+      "course_admin",
+      "courses.create_files"
+    ],
+    [
+      "course_admin",
+      "courses.delete_files"
+    ],
+    [
+      "course_admin",
+      "courses.edit_course_content"
+    ],
+    [
+      "course_admin",
+      "courses.edit_details"
+    ],
+    [
+      "course_admin",
+      "courses.edit_files"
+    ],
+    [
+      "course_admin",
+      "courses.edit_grading_settings"
+    ],
+    [
+      "course_admin",
+      "courses.edit_schedule"
+    ],
+    [
+      "course_admin",
+      "courses.export_course"
+    ],
+    [
+      "course_admin",
+      "courses.export_tags"
+    ],
+    [
+      "course_admin",
+      "courses.import_course"
+    ],
+    [
+      "course_admin",
+      "courses.legacy_instructor_role_permissions"
+    ],
+    [
+      "course_admin",
+      "courses.manage_advanced_settings"
+    ],
+    [
+      "course_admin",
+      "courses.manage_certificates"
+    ],
+    [
+      "course_admin",
+      "courses.manage_course_team"
+    ],
+    [
+      "course_admin",
+      "courses.manage_course_updates"
+    ],
+    [
+      "course_admin",
+      "courses.manage_group_configurations"
+    ],
+    [
+      "course_admin",
+      "courses.manage_library_updates"
+    ],
+    [
+      "course_admin",
+      "courses.manage_pages_and_resources"
+    ],
+    [
+      "course_admin",
+      "courses.manage_tags"
+    ],
+    [
+      "course_admin",
+      "courses.manage_taxonomies"
+    ],
+    [
+      "course_admin",
+      "courses.publish_course_content"
+    ],
+    [
+      "course_admin",
+      "courses.view_advanced_settings"
+    ],
+    [
+      "course_admin",
+      "courses.view_certificates"
+    ],
+    [
+      "course_admin",
+      "courses.view_checklists"
+    ],
+    [
+      "course_admin",
+      "courses.view_course"
+    ],
+    [
+      "course_admin",
+      "courses.view_course_team"
+    ],
+    [
+      "course_admin",
+      "courses.view_course_updates"
+    ],
+    [
+      "course_admin",
+      "courses.view_files"
+    ],
+    [
+      "course_admin",
+      "courses.view_grading_settings"
+    ],
+    [
+      "course_admin",
+      "courses.view_group_configurations"
+    ],
+    [
+      "course_admin",
+      "courses.view_library_updates"
+    ],
+    [
+      "course_admin",
+      "courses.view_pages_and_resources"
+    ],
+    [
+      "course_admin",
+      "courses.view_schedule_and_details"
+    ],
+    [
+      "course_auditor",
+      "courses.view_advanced_settings"
+    ],
+    [
+      "course_auditor",
+      "courses.view_certificates"
+    ],
+    [
+      "course_auditor",
+      "courses.view_checklists"
+    ],
+    [
+      "course_auditor",
+      "courses.view_course"
+    ],
+    [
+      "course_auditor",
+      "courses.view_course_team"
+    ],
+    [
+      "course_auditor",
+      "courses.view_course_updates"
+    ],
+    [
+      "course_auditor",
+      "courses.view_files"
+    ],
+    [
+      "course_auditor",
+      "courses.view_grading_settings"
+    ],
+    [
+      "course_auditor",
+      "courses.view_group_configurations"
+    ],
+    [
+      "course_auditor",
+      "courses.view_library_updates"
+    ],
+    [
+      "course_auditor",
+      "courses.view_pages_and_resources"
+    ],
+    [
+      "course_auditor",
+      "courses.view_schedule_and_details"
+    ],
+    [
+      "course_beta_tester",
+      "courses.legacy_beta_tester_permissions"
+    ],
+    [
+      "course_data_researcher",
+      "courses.legacy_data_researcher_permissions"
+    ],
+    [
+      "course_editor",
+      "courses.create_files"
+    ],
+    [
+      "course_editor",
+      "courses.edit_course_content"
+    ],
+    [
+      "course_editor",
+      "courses.edit_details"
+    ],
+    [
+      "course_editor",
+      "courses.edit_files"
+    ],
+    [
+      "course_editor",
+      "courses.edit_grading_settings"
+    ],
+    [
+      "course_editor",
+      "courses.manage_course_updates"
+    ],
+    [
+      "course_editor",
+      "courses.manage_group_configurations"
+    ],
+    [
+      "course_editor",
+      "courses.manage_library_updates"
+    ],
+    [
+      "course_editor",
+      "courses.manage_pages_and_resources"
+    ],
+    [
+      "course_editor",
+      "courses.manage_tags"
+    ],
+    [
+      "course_editor",
+      "courses.view_advanced_settings"
+    ],
+    [
+      "course_editor",
+      "courses.view_certificates"
+    ],
+    [
+      "course_editor",
+      "courses.view_checklists"
+    ],
+    [
+      "course_editor",
+      "courses.view_course"
+    ],
+    [
+      "course_editor",
+      "courses.view_course_team"
+    ],
+    [
+      "course_editor",
+      "courses.view_course_updates"
+    ],
+    [
+      "course_editor",
+      "courses.view_files"
+    ],
+    [
+      "course_editor",
+      "courses.view_grading_settings"
+    ],
+    [
+      "course_editor",
+      "courses.view_group_configurations"
+    ],
+    [
+      "course_editor",
+      "courses.view_library_updates"
+    ],
+    [
+      "course_editor",
+      "courses.view_pages_and_resources"
+    ],
+    [
+      "course_editor",
+      "courses.view_schedule_and_details"
+    ],
+    [
+      "course_limited_staff",
+      "courses.legacy_limited_staff_role_permissions"
+    ],
+    [
+      "course_staff",
+      "courses.create_files"
+    ],
+    [
+      "course_staff",
+      "courses.delete_files"
+    ],
+    [
+      "course_staff",
+      "courses.edit_course_content"
+    ],
+    [
+      "course_staff",
+      "courses.edit_details"
+    ],
+    [
+      "course_staff",
+      "courses.edit_files"
+    ],
+    [
+      "course_staff",
+      "courses.edit_grading_settings"
+    ],
+    [
+      "course_staff",
+      "courses.edit_schedule"
+    ],
+    [
+      "course_staff",
+      "courses.export_course"
+    ],
+    [
+      "course_staff",
+      "courses.export_tags"
+    ],
+    [
+      "course_staff",
+      "courses.import_course"
+    ],
+    [
+      "course_staff",
+      "courses.legacy_staff_role_permissions"
+    ],
+    [
+      "course_staff",
+      "courses.manage_advanced_settings"
+    ],
+    [
+      "course_staff",
+      "courses.manage_certificates"
+    ],
+    [
+      "course_staff",
+      "courses.manage_course_updates"
+    ],
+    [
+      "course_staff",
+      "courses.manage_group_configurations"
+    ],
+    [
+      "course_staff",
+      "courses.manage_library_updates"
+    ],
+    [
+      "course_staff",
+      "courses.manage_pages_and_resources"
+    ],
+    [
+      "course_staff",
+      "courses.manage_tags"
+    ],
+    [
+      "course_staff",
+      "courses.publish_course_content"
+    ],
+    [
+      "course_staff",
+      "courses.view_advanced_settings"
+    ],
+    [
+      "course_staff",
+      "courses.view_certificates"
+    ],
+    [
+      "course_staff",
+      "courses.view_checklists"
+    ],
+    [
+      "course_staff",
+      "courses.view_course"
+    ],
+    [
+      "course_staff",
+      "courses.view_course_team"
+    ],
+    [
+      "course_staff",
+      "courses.view_course_updates"
+    ],
+    [
+      "course_staff",
+      "courses.view_files"
+    ],
+    [
+      "course_staff",
+      "courses.view_grading_settings"
+    ],
+    [
+      "course_staff",
+      "courses.view_group_configurations"
+    ],
+    [
+      "course_staff",
+      "courses.view_library_updates"
+    ],
+    [
+      "course_staff",
+      "courses.view_pages_and_resources"
+    ],
+    [
+      "course_staff",
+      "courses.view_schedule_and_details"
+    ],
+    [
+      "library_admin",
+      "content_libraries.create_library_collection"
+    ],
+    [
+      "library_admin",
+      "content_libraries.delete_library"
+    ],
+    [
+      "library_admin",
+      "content_libraries.delete_library_collection"
+    ],
+    [
+      "library_admin",
+      "content_libraries.edit_library_collection"
+    ],
+    [
+      "library_admin",
+      "content_libraries.edit_library_content"
+    ],
+    [
+      "library_admin",
+      "content_libraries.manage_library_tags"
+    ],
+    [
+      "library_admin",
+      "content_libraries.manage_library_team"
+    ],
+    [
+      "library_admin",
+      "content_libraries.publish_library_content"
+    ],
+    [
+      "library_admin",
+      "content_libraries.reuse_library_content"
+    ],
+    [
+      "library_admin",
+      "content_libraries.view_library"
+    ],
+    [
+      "library_admin",
+      "content_libraries.view_library_team"
+    ],
+    [
+      "library_author",
+      "content_libraries.create_library_collection"
+    ],
+    [
+      "library_author",
+      "content_libraries.delete_library_collection"
+    ],
+    [
+      "library_author",
+      "content_libraries.edit_library_collection"
+    ],
+    [
+      "library_author",
+      "content_libraries.edit_library_content"
+    ],
+    [
+      "library_author",
+      "content_libraries.manage_library_tags"
+    ],
+    [
+      "library_author",
+      "content_libraries.publish_library_content"
+    ],
+    [
+      "library_author",
+      "content_libraries.reuse_library_content"
+    ],
+    [
+      "library_author",
+      "content_libraries.view_library"
+    ],
+    [
+      "library_author",
+      "content_libraries.view_library_team"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.create_library_collection"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.delete_library_collection"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.edit_library_collection"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.edit_library_content"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.manage_library_tags"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.reuse_library_content"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.view_library"
+    ],
+    [
+      "library_contributor",
+      "content_libraries.view_library_team"
+    ],
+    [
+      "library_user",
+      "content_libraries.reuse_library_content"
+    ],
+    [
+      "library_user",
+      "content_libraries.view_library"
+    ],
+    [
+      "library_user",
+      "content_libraries.view_library_team"
+    ]
+  ],
+  "roles": {
+    "course_admin": {
+      "description": "Can manage the course team and all course settings.",
+      "display_name": "Course Admin",
+      "hidden": false,
+      "icon": null,
+      "id": "course_admin",
+      "permissions": [
+        "courses.create_files",
+        "courses.delete_files",
+        "courses.edit_course_content",
+        "courses.edit_details",
+        "courses.edit_files",
+        "courses.edit_grading_settings",
+        "courses.edit_schedule",
+        "courses.export_course",
+        "courses.export_tags",
+        "courses.import_course",
+        "courses.legacy_instructor_role_permissions",
+        "courses.manage_advanced_settings",
+        "courses.manage_certificates",
+        "courses.manage_course_team",
+        "courses.manage_course_updates",
+        "courses.manage_group_configurations",
+        "courses.manage_library_updates",
+        "courses.manage_pages_and_resources",
+        "courses.manage_tags",
+        "courses.manage_taxonomies",
+        "courses.publish_course_content",
+        "courses.view_advanced_settings",
+        "courses.view_certificates",
+        "courses.view_checklists",
+        "courses.view_course",
+        "courses.view_course_team",
+        "courses.view_course_updates",
+        "courses.view_files",
+        "courses.view_grading_settings",
+        "courses.view_group_configurations",
+        "courses.view_library_updates",
+        "courses.view_pages_and_resources",
+        "courses.view_schedule_and_details"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_auditor": {
+      "description": "Can view course content and settings, but cannot make changes.",
+      "display_name": "Course Auditor",
+      "hidden": true,
+      "icon": null,
+      "id": "course_auditor",
+      "permissions": [
+        "courses.view_advanced_settings",
+        "courses.view_certificates",
+        "courses.view_checklists",
+        "courses.view_course",
+        "courses.view_course_team",
+        "courses.view_course_updates",
+        "courses.view_files",
+        "courses.view_grading_settings",
+        "courses.view_group_configurations",
+        "courses.view_library_updates",
+        "courses.view_pages_and_resources",
+        "courses.view_schedule_and_details"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_beta_tester": {
+      "description": "Legacy course role retained for backward compatibility. Grants the legacy beta tester compatibility permission.",
+      "display_name": "Course Beta Tester (legacy)",
+      "hidden": true,
+      "icon": null,
+      "id": "course_beta_tester",
+      "permissions": [
+        "courses.legacy_beta_tester_permissions"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_data_researcher": {
+      "description": "Legacy course role retained for backward compatibility. Grants the legacy data researcher compatibility permission.",
+      "display_name": "Course Data Researcher (legacy)",
+      "hidden": true,
+      "icon": null,
+      "id": "course_data_researcher",
+      "permissions": [
+        "courses.legacy_data_researcher_permissions"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_editor": {
+      "description": "Can create and edit course content, but cannot publish or change critical course settings.",
+      "display_name": "Course Editor",
+      "hidden": true,
+      "icon": null,
+      "id": "course_editor",
+      "permissions": [
+        "courses.create_files",
+        "courses.edit_course_content",
+        "courses.edit_details",
+        "courses.edit_files",
+        "courses.edit_grading_settings",
+        "courses.manage_course_updates",
+        "courses.manage_group_configurations",
+        "courses.manage_library_updates",
+        "courses.manage_pages_and_resources",
+        "courses.manage_tags",
+        "courses.view_advanced_settings",
+        "courses.view_certificates",
+        "courses.view_checklists",
+        "courses.view_course",
+        "courses.view_course_team",
+        "courses.view_course_updates",
+        "courses.view_files",
+        "courses.view_grading_settings",
+        "courses.view_group_configurations",
+        "courses.view_library_updates",
+        "courses.view_pages_and_resources",
+        "courses.view_schedule_and_details"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_limited_staff": {
+      "description": "Legacy course role retained for backward compatibility. Grants the legacy limited staff compatibility permission.",
+      "display_name": "Course Limited Staff (legacy)",
+      "hidden": true,
+      "icon": null,
+      "id": "course_limited_staff",
+      "permissions": [
+        "courses.legacy_limited_staff_role_permissions"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "course_staff": {
+      "description": "Can publish content and manage the course lifecycle in Studio.",
+      "display_name": "Course Staff",
+      "hidden": false,
+      "icon": null,
+      "id": "course_staff",
+      "permissions": [
+        "courses.create_files",
+        "courses.delete_files",
+        "courses.edit_course_content",
+        "courses.edit_details",
+        "courses.edit_files",
+        "courses.edit_grading_settings",
+        "courses.edit_schedule",
+        "courses.export_course",
+        "courses.export_tags",
+        "courses.import_course",
+        "courses.legacy_staff_role_permissions",
+        "courses.manage_advanced_settings",
+        "courses.manage_certificates",
+        "courses.manage_course_updates",
+        "courses.manage_group_configurations",
+        "courses.manage_library_updates",
+        "courses.manage_pages_and_resources",
+        "courses.manage_tags",
+        "courses.publish_course_content",
+        "courses.view_advanced_settings",
+        "courses.view_certificates",
+        "courses.view_checklists",
+        "courses.view_course",
+        "courses.view_course_team",
+        "courses.view_course_updates",
+        "courses.view_files",
+        "courses.view_grading_settings",
+        "courses.view_group_configurations",
+        "courses.view_library_updates",
+        "courses.view_pages_and_resources",
+        "courses.view_schedule_and_details"
+      ],
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "library_admin": {
+      "description": "The Library Admin has full control over the library, including managing users, modifying content, and handling publishing workflows. They ensure content is properly maintained and accessible as needed.",
+      "display_name": "Library Admin",
+      "hidden": false,
+      "icon": null,
+      "id": "library_admin",
+      "permissions": [
+        "content_libraries.create_library_collection",
+        "content_libraries.delete_library",
+        "content_libraries.delete_library_collection",
+        "content_libraries.edit_library_collection",
+        "content_libraries.edit_library_content",
+        "content_libraries.manage_library_tags",
+        "content_libraries.manage_library_team",
+        "content_libraries.publish_library_content",
+        "content_libraries.reuse_library_content",
+        "content_libraries.view_library",
+        "content_libraries.view_library_team"
+      ],
+      "scopes": [
+        "lib"
+      ]
+    },
+    "library_author": {
+      "description": "The Library Author is responsible for creating, editing, and publishing content within a library. They can manage tags and collections but cannot delete libraries or manage users.",
+      "display_name": "Library Author",
+      "hidden": false,
+      "icon": null,
+      "id": "library_author",
+      "permissions": [
+        "content_libraries.create_library_collection",
+        "content_libraries.delete_library_collection",
+        "content_libraries.edit_library_collection",
+        "content_libraries.edit_library_content",
+        "content_libraries.manage_library_tags",
+        "content_libraries.publish_library_content",
+        "content_libraries.reuse_library_content",
+        "content_libraries.view_library",
+        "content_libraries.view_library_team"
+      ],
+      "scopes": [
+        "lib"
+      ]
+    },
+    "library_contributor": {
+      "description": "The Library Contributor can create and edit content within a library but cannot publish it. They support the authoring process while leaving final publishing to Authors or Admins.",
+      "display_name": "Library Contributor",
+      "hidden": false,
+      "icon": null,
+      "id": "library_contributor",
+      "permissions": [
+        "content_libraries.create_library_collection",
+        "content_libraries.delete_library_collection",
+        "content_libraries.edit_library_collection",
+        "content_libraries.edit_library_content",
+        "content_libraries.manage_library_tags",
+        "content_libraries.reuse_library_content",
+        "content_libraries.view_library",
+        "content_libraries.view_library_team"
+      ],
+      "scopes": [
+        "lib"
+      ]
+    },
+    "library_user": {
+      "description": "The Library User can view and reuse content but cannot edit or delete any resource.",
+      "display_name": "Library User",
+      "hidden": false,
+      "icon": null,
+      "id": "library_user",
+      "permissions": [
+        "content_libraries.reuse_library_content",
+        "content_libraries.view_library",
+        "content_libraries.view_library_team"
+      ],
+      "scopes": [
+        "lib"
+      ]
+    }
+  }
+}

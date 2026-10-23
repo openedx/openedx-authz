@@ -1,5 +1,5 @@
 .PHONY: clean clean_tox compile_translations coverage diff_cover docs dummy_translations \
-        extract_translations fake_translations help pii_check pull_translations paragon_icons \
+        extract_translations fake_translations help pii_check pull_translations paragon_icons compiled_schema_fixture \
         paragon_icons_check quality requirements selfcheck test test-all upgrade validate \
         install_transifex_client
 
@@ -42,6 +42,9 @@ paragon_icons: ## regenerate the vendored @openedx/paragon icon-name allow-list 
 
 paragon_icons_check: ## fail if the vendored Paragon icon list is out of date (CI)
 	python scripts/generate_paragon_icons.py --check
+
+compiled_schema_fixture: ## regenerate the compiled schema fixture used by the built-in applet tests
+	python scripts/generate_compiled_schema_fixture.py
 
 quality: ## check coding style with pycodestyle and pylint
 	tox -e quality

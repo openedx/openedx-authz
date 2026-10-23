@@ -1,0 +1,1 @@
+"""Course Authoring authorization definitions."""

@@ -1,8 +1,10 @@
 """Unit Tests for openedx_authz migrations."""
 
+from importlib import import_module
 from unittest.mock import MagicMock, patch
 
 from ddt import data, ddt, unpack
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
@@ -48,6 +50,17 @@ from openedx_authz.models.authz_migration import (
     ScopeType,
     Status,
 )
+from openedx_authz.models.schema import (
+    AuthzCategorySource,
+    AuthzPermissionCategory,
+    AuthzPermissionDefinition,
+    AuthzPermissionSource,
+    AuthzRoleDefinition,
+    AuthzRolePermission,
+    AuthzRolePermissionSource,
+    AuthzRoleSource,
+    AuthzSchemaSource,
+)
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
     ContentLibrary,
@@ -71,6 +84,89 @@ group_user_names = [f"{OBJECT_PREFIX}guser{i}" for i in range(3)]
 error_user_name = f"{OBJECT_PREFIX}error_user"
 error_group_name = f"{OBJECT_PREFIX}error_group"
 empty_group_name = f"{OBJECT_PREFIX}empty_group"
+
+schema_source_migration = import_module(
+    "openedx_authz.migrations.0012_move_builtin_schema_sources_to_applets"
+)
+
+
+class TestBuiltinSchemaSourceMigration(TestCase):
+    """Released shared-schema source links move to their owning applets."""
+
+    def test_source_links_are_distributed_by_definition_owner(self):
+        """Each source-link type moves from the shared module to its owner."""
+        old_source = AuthzSchemaSource.objects.create(
+            distribution="openedx-authz",
+            distribution_version="1.34.0",
+            module=schema_source_migration.OLD_MODULE,
+            schema_version="1.0",
+        )
+        category = AuthzPermissionCategory.objects.create(category_id="course_team_group", display_name="Course team")
+        permission = AuthzPermissionDefinition.objects.create(
+            namespace="courses",
+            name="view_course_team",
+            display_name="View course team",
+            category=category,
+            scopes=["course-v1"],
+        )
+        role = AuthzRoleDefinition.objects.create(
+            role_id="course_admin",
+            display_name="Course Admin",
+            scopes=["course-v1"],
+        )
+        role_permission = AuthzRolePermission.objects.create(
+            role=role,
+            permission=permission,
+            scope="course-v1",
+        )
+        AuthzCategorySource.objects.create(category=category, source=old_source)
+        AuthzPermissionSource.objects.create(permission=permission, source=old_source)
+        AuthzRoleSource.objects.create(role=role, source=old_source)
+        AuthzRolePermissionSource.objects.create(role_permission=role_permission, source=old_source)
+
+        schema_source_migration.move_builtin_schema_sources(apps, None)
+
+        self.assertFalse(AuthzSchemaSource.objects.filter(module=schema_source_migration.OLD_MODULE).exists())
+        course_authoring = schema_source_migration.APPLET_MODULES["course_authoring"]
+        course_team_roles = schema_source_migration.APPLET_MODULES["course_team_roles"]
+        self.assertListEqual(
+            list(category.sources.values_list("module", flat=True)),
+            [course_authoring],
+        )
+        self.assertListEqual(list(permission.sources.values_list("module", flat=True)), [course_authoring])
+        self.assertListEqual(list(role.sources.values_list("module", flat=True)), [course_team_roles])
+        self.assertListEqual(list(role_permission.sources.values_list("module", flat=True)), [course_authoring])
+
+    def test_existing_applet_link_is_preserved(self):
+        """An existing destination link keeps its metadata when the old link is removed."""
+        old_source = AuthzSchemaSource.objects.create(
+            distribution="openedx-authz",
+            module=schema_source_migration.OLD_MODULE,
+        )
+        applet_source = AuthzSchemaSource.objects.create(
+            distribution="openedx-authz",
+            module=schema_source_migration.APPLET_MODULES["course_authoring"],
+        )
+        category = AuthzPermissionCategory.objects.create(category_id="course_files", display_name="Files")
+        AuthzCategorySource.objects.create(category=category, source=old_source, priority=10)
+        AuthzCategorySource.objects.create(category=category, source=applet_source, priority=20)
+
+        schema_source_migration.move_builtin_schema_sources(apps, None)
+
+        link = AuthzCategorySource.objects.get(category=category)
+        self.assertEqual(link.source, applet_source)
+        self.assertEqual(link.priority, 20)
+
+    def test_missing_shared_source_is_a_noop(self):
+        """The migration does not load link models when the shared source is absent."""
+        migration_apps = MagicMock()
+        Source = migration_apps.get_model.return_value
+        Source.objects.filter.return_value.exists.return_value = False
+
+        schema_source_migration.move_builtin_schema_sources(migration_apps, None)
+
+        migration_apps.get_model.assert_called_once_with("openedx_authz", "AuthzSchemaSource")
+        Source.objects.filter.assert_called_once_with(module=schema_source_migration.OLD_MODULE)
 
 
 class TestLegacyContentLibraryPermissionsMigration(TestCase):

@@ -176,7 +176,7 @@ class SchemaLoader:
 
         ``Distribution.files`` lists the files the distribution installed, as
         anchor-relative ``PackagePath`` values (e.g.
-        ``openedx_authz/authz/schema/course_roles.yaml``). A resource belongs to
+        ``openedx_authz/applets/course_team_roles/schema/roles.yaml``). A resource belongs to
         the distribution when one of those paths ends with the resource's
         ``package/resource_path``. Metadata gaps (``files`` is ``None`` or the
         distribution is missing) mean "cannot confirm ownership", not an error.

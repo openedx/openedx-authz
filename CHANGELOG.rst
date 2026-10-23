@@ -56,6 +56,13 @@ Changed
 ========
 
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
+* Built-in Content Library and course authorization definitions now live in capability applets. The compiled authorization schema, the permission constants, and the role keys remain unchanged.
+
+Removed
+=======
+
+* Removed the role permission lists from ``openedx_authz.constants.roles``, such as ``COURSE_ADMIN_PERMISSIONS`` and ``LIBRARY_ADMIN_PERMISSIONS``. Role constants now identify a role and have an empty ``permissions`` list. Use ``openedx_authz.api.get_permissions_for_single_role`` or the compiled schema to read a role's permissions.
+* Removed ``COURSES_CREATE_COURSE`` (``courses.create_course``) from ``openedx_authz.constants.permissions``. No schema file defined it, so no role could include it.
 
 Fixed
 =====

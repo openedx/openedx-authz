@@ -97,7 +97,7 @@ Both rules rely on the `edX DDD Bounded Contexts`_ map, which shows the context 
 3. Course roles
 ===============
 
-Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadata for ``course_admin`` and ``course_staff``, whose base definitions have empty permission lists, and each capability applet then adds the permissions it owns through ``role_extensions``:
+Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadata for the course-team roles, and their base definitions list only the permissions that ``course_team_roles`` owns, such as the legacy compatibility permissions, while each capability applet adds the permissions it owns through ``role_extensions``:
 
 .. code-block:: yaml
 
@@ -107,7 +107,8 @@ Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadat
        display_name: Course Admin
        scopes:
          - course-v1
-       permissions: []
+       permissions:
+         - courses.legacy_instructor_role_permissions
 
    # enrollments/schema/role_extensions.yaml
    role_extensions:
@@ -116,7 +117,7 @@ Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadat
          - courses.view_enrollments
          - courses.enroll_learners
 
-Schema version 1 will therefore accept an empty permission list, while the compiled roles will still contain the complete permission lists contributed by the applets.
+Roles such as ``course_editor`` have no permissions of their own, so schema version 1 will accept an empty permission list, while the compiled roles will still contain the complete permission lists contributed by the applets.
 
 4. REST endpoints
 =================

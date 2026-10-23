@@ -12,6 +12,18 @@
       "icon": "CheckCircle",
       "id": "course_advanced_certificates"
     },
+    "course_cohorts": {
+      "description": "Permissions for viewing and managing course cohorts and their members.",
+      "display_name": "Cohorts",
+      "icon": "Groups",
+      "id": "course_cohorts"
+    },
+    "course_enrollments": {
+      "description": "Permissions for viewing course enrollments and for enrolling or unenrolling learners.",
+      "display_name": "Enrollments",
+      "icon": "People",
+      "id": "course_enrollments"
+    },
     "course_files": {
       "description": "Permissions for viewing and managing files and assets uploaded to the course.",
       "display_name": "Files",
@@ -29,6 +41,24 @@
       "display_name": "Import / export",
       "icon": "Download",
       "id": "course_import_export"
+    },
+    "course_information": {
+      "description": "Permissions for viewing general course information.",
+      "display_name": "Course information",
+      "icon": "Info",
+      "id": "course_information"
+    },
+    "course_learner_extensions": {
+      "description": "Permissions for viewing and managing due date extensions for individual learners.",
+      "display_name": "Learner extensions",
+      "icon": "Event",
+      "id": "course_learner_extensions"
+    },
+    "course_learner_grading": {
+      "description": "Permissions for viewing learner grades and using grading tools for individual learners or all learners.",
+      "display_name": "Learner grading",
+      "icon": "Grading",
+      "id": "course_learner_grading"
     },
     "course_legacy": {
       "description": "Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.",
@@ -302,6 +332,17 @@
         "course-v1"
       ]
     },
+    "courses.enroll_learners": {
+      "category_id": "course_enrollments",
+      "description": "Enroll learners in the course, individually or in bulk.",
+      "display_name": "Enroll learners",
+      "icon": "PersonAdd",
+      "name": "enroll_learners",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
     "courses.export_course": {
       "category_id": "course_import_export",
       "description": "Download the course content as a file for backup or reuse in another platform.",
@@ -412,6 +453,17 @@
         "course-v1"
       ]
     },
+    "courses.manage_cohorts": {
+      "category_id": "course_cohorts",
+      "description": "Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.",
+      "display_name": "Manage cohorts",
+      "icon": "Settings",
+      "name": "manage_cohorts",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
     "courses.manage_course_team": {
       "category_id": "course_team_group",
       "description": "Add, change, or remove role assignments for this course from the Roles and Permissions console.",
@@ -440,6 +492,28 @@
       "display_name": "Manage group configurations",
       "icon": "Settings",
       "name": "manage_group_configurations",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_learner_extensions": {
+      "category_id": "course_learner_extensions",
+      "description": "Grant or modify individual learner extensions and reset due dates to the course default.",
+      "display_name": "Manage learner extensions",
+      "icon": "Settings",
+      "name": "manage_learner_extensions",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.manage_learner_grading": {
+      "category_id": "course_learner_grading",
+      "description": "Use grading tools for an individual learner or all learners. Includes viewing learner progress, resetting attempts, rescoring submissions, overriding scores, deleting learner problem state, and checking task status where available.",
+      "display_name": "Manage learner grading",
+      "icon": "Settings",
+      "name": "manage_learner_grading",
       "namespace": "courses",
       "scopes": [
         "course-v1"
@@ -500,6 +574,17 @@
         "course-v1"
       ]
     },
+    "courses.unenroll_learners": {
+      "category_id": "course_enrollments",
+      "description": "Remove learners' enrollments from the course.",
+      "display_name": "Unenroll learners",
+      "icon": "PersonRemove",
+      "name": "unenroll_learners",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
     "courses.view_advanced_settings": {
       "category_id": "course_advanced_certificates",
       "description": "Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.",
@@ -533,12 +618,34 @@
         "course-v1"
       ]
     },
+    "courses.view_cohorts": {
+      "category_id": "course_cohorts",
+      "description": "View course cohorts, their configuration, and their members.",
+      "display_name": "View cohorts",
+      "icon": "RemoveRedEye",
+      "name": "view_cohorts",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
     "courses.view_course": {
       "category_id": "course_access_content",
       "description": "See the course in the Studio home and access the course outline in read-only mode. Includes the \"View Live\" option to preview the course as a learner in the LMS.",
       "display_name": "View course",
       "icon": "RemoveRedEye",
       "name": "view_course",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_course_info": {
+      "category_id": "course_information",
+      "description": "View general course information and enrollment counts.",
+      "display_name": "View course info",
+      "icon": "RemoveRedEye",
+      "name": "view_course_info",
       "namespace": "courses",
       "scopes": [
         "course-v1"
@@ -566,12 +673,34 @@
         "course-v1"
       ]
     },
+    "courses.view_enrollments": {
+      "category_id": "course_enrollments",
+      "description": "View and search course enrollments and check a learner's enrollment status.",
+      "display_name": "View enrollments",
+      "icon": "RemoveRedEye",
+      "name": "view_enrollments",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
     "courses.view_files": {
       "category_id": "course_files",
       "description": "See the list of files and assets uploaded to the course.",
       "display_name": "View files",
       "icon": "RemoveRedEye",
       "name": "view_files",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_gradebook": {
+      "category_id": "course_learner_grading",
+      "description": "View grades for learners enrolled in the course.",
+      "display_name": "View gradebook",
+      "icon": "RemoveRedEye",
+      "name": "view_gradebook",
       "namespace": "courses",
       "scopes": [
         "course-v1"
@@ -594,6 +723,17 @@
       "display_name": "View group configurations",
       "icon": "RemoveRedEye",
       "name": "view_group_configurations",
+      "namespace": "courses",
+      "scopes": [
+        "course-v1"
+      ]
+    },
+    "courses.view_learner_extensions": {
+      "category_id": "course_learner_extensions",
+      "description": "View and search granted learner extensions and their extended due dates.",
+      "display_name": "View learner extensions",
+      "icon": "RemoveRedEye",
+      "name": "view_learner_extensions",
       "namespace": "courses",
       "scopes": [
         "course-v1"
@@ -664,6 +804,10 @@
     ],
     [
       "course_admin",
+      "courses.enroll_learners"
+    ],
+    [
+      "course_admin",
       "courses.export_course"
     ],
     [
@@ -688,6 +832,10 @@
     ],
     [
       "course_admin",
+      "courses.manage_cohorts"
+    ],
+    [
+      "course_admin",
       "courses.manage_course_team"
     ],
     [
@@ -697,6 +845,14 @@
     [
       "course_admin",
       "courses.manage_group_configurations"
+    ],
+    [
+      "course_admin",
+      "courses.manage_learner_extensions"
+    ],
+    [
+      "course_admin",
+      "courses.manage_learner_grading"
     ],
     [
       "course_admin",
@@ -720,6 +876,10 @@
     ],
     [
       "course_admin",
+      "courses.unenroll_learners"
+    ],
+    [
+      "course_admin",
       "courses.view_advanced_settings"
     ],
     [
@@ -732,7 +892,15 @@
     ],
     [
       "course_admin",
+      "courses.view_cohorts"
+    ],
+    [
+      "course_admin",
       "courses.view_course"
+    ],
+    [
+      "course_admin",
+      "courses.view_course_info"
     ],
     [
       "course_admin",
@@ -744,7 +912,15 @@
     ],
     [
       "course_admin",
+      "courses.view_enrollments"
+    ],
+    [
+      "course_admin",
       "courses.view_files"
+    ],
+    [
+      "course_admin",
+      "courses.view_gradebook"
     ],
     [
       "course_admin",
@@ -753,6 +929,10 @@
     [
       "course_admin",
       "courses.view_group_configurations"
+    ],
+    [
+      "course_admin",
+      "courses.view_learner_extensions"
     ],
     [
       "course_admin",
@@ -944,6 +1124,10 @@
     ],
     [
       "course_staff",
+      "courses.enroll_learners"
+    ],
+    [
+      "course_staff",
       "courses.export_course"
     ],
     [
@@ -968,11 +1152,23 @@
     ],
     [
       "course_staff",
+      "courses.manage_cohorts"
+    ],
+    [
+      "course_staff",
       "courses.manage_course_updates"
     ],
     [
       "course_staff",
       "courses.manage_group_configurations"
+    ],
+    [
+      "course_staff",
+      "courses.manage_learner_extensions"
+    ],
+    [
+      "course_staff",
+      "courses.manage_learner_grading"
     ],
     [
       "course_staff",
@@ -992,6 +1188,10 @@
     ],
     [
       "course_staff",
+      "courses.unenroll_learners"
+    ],
+    [
+      "course_staff",
       "courses.view_advanced_settings"
     ],
     [
@@ -1004,7 +1204,15 @@
     ],
     [
       "course_staff",
+      "courses.view_cohorts"
+    ],
+    [
+      "course_staff",
       "courses.view_course"
+    ],
+    [
+      "course_staff",
+      "courses.view_course_info"
     ],
     [
       "course_staff",
@@ -1016,7 +1224,15 @@
     ],
     [
       "course_staff",
+      "courses.view_enrollments"
+    ],
+    [
+      "course_staff",
       "courses.view_files"
+    ],
+    [
+      "course_staff",
+      "courses.view_gradebook"
     ],
     [
       "course_staff",
@@ -1025,6 +1241,10 @@
     [
       "course_staff",
       "courses.view_group_configurations"
+    ],
+    [
+      "course_staff",
+      "courses.view_learner_extensions"
     ],
     [
       "course_staff",
@@ -1178,29 +1398,39 @@
         "courses.edit_files",
         "courses.edit_grading_settings",
         "courses.edit_schedule",
+        "courses.enroll_learners",
         "courses.export_course",
         "courses.export_tags",
         "courses.import_course",
         "courses.legacy_instructor_role_permissions",
         "courses.manage_advanced_settings",
         "courses.manage_certificates",
+        "courses.manage_cohorts",
         "courses.manage_course_team",
         "courses.manage_course_updates",
         "courses.manage_group_configurations",
+        "courses.manage_learner_extensions",
+        "courses.manage_learner_grading",
         "courses.manage_library_updates",
         "courses.manage_pages_and_resources",
         "courses.manage_tags",
         "courses.manage_taxonomies",
         "courses.publish_course_content",
+        "courses.unenroll_learners",
         "courses.view_advanced_settings",
         "courses.view_certificates",
         "courses.view_checklists",
+        "courses.view_cohorts",
         "courses.view_course",
+        "courses.view_course_info",
         "courses.view_course_team",
         "courses.view_course_updates",
+        "courses.view_enrollments",
         "courses.view_files",
+        "courses.view_gradebook",
         "courses.view_grading_settings",
         "courses.view_group_configurations",
+        "courses.view_learner_extensions",
         "courses.view_library_updates",
         "courses.view_pages_and_resources",
         "courses.view_schedule_and_details"
@@ -1320,27 +1550,37 @@
         "courses.edit_files",
         "courses.edit_grading_settings",
         "courses.edit_schedule",
+        "courses.enroll_learners",
         "courses.export_course",
         "courses.export_tags",
         "courses.import_course",
         "courses.legacy_staff_role_permissions",
         "courses.manage_advanced_settings",
         "courses.manage_certificates",
+        "courses.manage_cohorts",
         "courses.manage_course_updates",
         "courses.manage_group_configurations",
+        "courses.manage_learner_extensions",
+        "courses.manage_learner_grading",
         "courses.manage_library_updates",
         "courses.manage_pages_and_resources",
         "courses.manage_tags",
         "courses.publish_course_content",
+        "courses.unenroll_learners",
         "courses.view_advanced_settings",
         "courses.view_certificates",
         "courses.view_checklists",
+        "courses.view_cohorts",
         "courses.view_course",
+        "courses.view_course_info",
         "courses.view_course_team",
         "courses.view_course_updates",
+        "courses.view_enrollments",
         "courses.view_files",
+        "courses.view_gradebook",
         "courses.view_grading_settings",
         "courses.view_group_configurations",
+        "courses.view_learner_extensions",
         "courses.view_library_updates",
         "courses.view_pages_and_resources",
         "courses.view_schedule_and_details"

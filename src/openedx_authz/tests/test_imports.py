@@ -51,6 +51,9 @@ class TestImports(TestCase):
             "openedx_authz.applets.course_team_roles.constants": (
                 "COURSES_LEGACY_INSTRUCTOR_ROLE_PERMISSIONS",
             ),
+            "openedx_authz.applets.enrollments.constants": ("COURSES_VIEW_ENROLLMENTS",),
+            "openedx_authz.applets.learner_grading.constants": ("COURSES_VIEW_GRADEBOOK",),
+            "openedx_authz.applets.learner_administration.constants": ("COURSES_VIEW_COURSE_INFO",),
         }
 
         for module_name, names in applet_constants.items():

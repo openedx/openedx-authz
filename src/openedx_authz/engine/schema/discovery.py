@@ -110,7 +110,7 @@ class DiscoveredResource:
 
 @dataclass(frozen=True)
 class DiscoveredFileResource(DiscoveredResource):
-    """A schema file discovered via an absolute filesystem path (ADR 0029).
+    """A schema file discovered via an absolute filesystem path (ADR 0030).
 
     Unlike :class:`DiscoveredResource`, which resolves through
     ``importlib.resources``, this variant reads directly from the filesystem.

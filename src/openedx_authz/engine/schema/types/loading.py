@@ -62,7 +62,7 @@ class SourceRecord:
 
 @dataclass(frozen=True)
 class SourceFileRecord(SourceRecord):
-    """Source record for a filesystem-path schema resource (ADR 0029).
+    """Source record for a filesystem-path schema resource (ADR 0030).
 
     Overrides :attr:`source_id` to use the absolute path directly, since the
     parent's ``module.replace(".", "/")`` convention assumes dotted Python

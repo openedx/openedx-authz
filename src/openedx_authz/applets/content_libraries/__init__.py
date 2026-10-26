@@ -1,0 +1,1 @@
+"""Content Library authorization definitions."""

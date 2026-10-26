@@ -1,10 +1,10 @@
 """openedx-authz's own static authorization schema resources.
 
-This package ships the platform-default schema files under ``authz/schema`` and
-exposes that directory through the ``authz.schema`` entry point (ADR 0019).
-openedx-authz is a schema provider like any other distribution; its directory is
-discovered the same way a third-party application's would be, and the loader
-reads every ``.yaml`` file inside it.
+This package exposes the built-in applet schema directories through the
+``authz.schema`` entry point (ADR 0019). openedx-authz is a schema provider like
+any other distribution; its directories are discovered the same way a
+third-party application's would be, and the loader reads every ``.yaml`` file
+inside them.
 
 Register in setup.py / pyproject.toml::
 
@@ -20,7 +20,11 @@ from __future__ import annotations
 # Directory paths (relative to an importable top-level package) that contain
 # this distribution's ``.yaml`` schema files. Per ADR 0019, providers return
 # directories, not individual files.
-SCHEMA_DIRECTORIES: tuple[str, ...] = ("openedx_authz/authz/schema",)
+SCHEMA_DIRECTORIES: tuple[str, ...] = (
+    "openedx_authz/applets/content_libraries/schema",
+    "openedx_authz/applets/course_team_roles/schema",
+    "openedx_authz/applets/course_authoring/schema",
+)
 
 
 def get_schema_resources() -> list[str]:

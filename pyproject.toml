@@ -53,7 +53,7 @@ openedx_authz = "openedx_authz.apps:OpenedxAuthzConfig"
 
 # Static authorization schema resources contributed by this package (ADR 0019).
 # openedx-authz is a schema provider like any other distribution; the callable
-# returns resource paths relative to the openedx_authz.authz module.
+# returns package-anchored resource paths for the built-in applets.
 [project.entry-points."authz.schema"]
 openedx_authz = "openedx_authz.authz:get_schema_resources"
 

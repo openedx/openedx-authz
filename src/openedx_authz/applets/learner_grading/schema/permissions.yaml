@@ -1,0 +1,28 @@
+schema_version: "1.0"
+priority: 100
+
+# Icons are Paragon icon names (@openedx/paragon/icons).
+
+permission_categories:
+  - id: course_learner_grading
+    display_name: Learner grading
+    description: Permissions for viewing learner grades and using grading tools for individual learners or all learners.
+    icon: Grading
+
+permissions:
+  - namespace: courses
+    name: view_gradebook
+    display_name: View gradebook
+    description: View grades for learners enrolled in the course.
+    category_id: course_learner_grading
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: manage_learner_grading
+    display_name: Manage learner grading
+    description: Use grading tools for an individual learner or all learners. Includes viewing learner progress, resetting attempts, rescoring submissions, overriding scores, deleting learner problem state, and checking task status where available.
+    category_id: course_learner_grading
+    scopes:
+      - course-v1
+    icon: Settings

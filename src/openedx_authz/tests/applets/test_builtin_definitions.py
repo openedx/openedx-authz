@@ -107,3 +107,12 @@ class TestBuiltinAppletDefinitions:
         assert compiled.permissions["courses.view_course_team"].sources[0].module == (
             "openedx_authz.applets.course_authoring.schema"
         )
+        assert compiled.permissions["courses.view_enrollments"].sources[0].module == (
+            "openedx_authz.applets.enrollments.schema"
+        )
+        assert compiled.permissions["courses.view_gradebook"].sources[0].module == (
+            "openedx_authz.applets.learner_grading.schema"
+        )
+        assert compiled.permissions["courses.view_cohorts"].sources[0].module == (
+            "openedx_authz.applets.learner_administration.schema"
+        )

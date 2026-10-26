@@ -97,6 +97,31 @@ Import / Export
 - **Export course** (``courses.export_course``): Allows users to export course content.
 - **Export tags** (``courses.export_tags``): Allows users to export tags.
 
+Course Information
+==================
+- **View course info** (``courses.view_course_info``): Allows users to view general course information and enrollment counts.
+
+Enrollments
+===========
+- **View enrollments** (``courses.view_enrollments``): Allows users to view and search course enrollments and check a learner's enrollment status.
+- **Enroll learners** (``courses.enroll_learners``): Allows users to enroll learners in the course, individually or in bulk.
+- **Unenroll learners** (``courses.unenroll_learners``): Allows users to remove learners' enrollments from the course.
+
+Learner Grading
+===============
+- **View gradebook** (``courses.view_gradebook``): Allows users to view grades for learners enrolled in the course.
+- **Manage learner grading** (``courses.manage_learner_grading``): Allows users to use grading tools for an individual learner or all learners, including viewing learner progress, resetting attempts, rescoring submissions, overriding scores, and deleting learner problem state.
+
+Learner Extensions
+==================
+- **View learner extensions** (``courses.view_learner_extensions``): Allows users to view and search learner extensions and their extended due dates.
+- **Manage learner extensions** (``courses.manage_learner_extensions``): Allows users to grant or modify individual learner extensions and reset due dates to the course default.
+
+Cohorts
+=======
+- **View cohorts** (``courses.view_cohorts``): Allows users to view course cohorts, their configuration, and their members.
+- **Manage cohorts** (``courses.manage_cohorts``): Allows users to enable, create, and configure cohorts, and to assign or move learners between cohorts.
+
 Other
 =====
 - **View checklists** (``courses.view_checklists``): Allows users to view checklists.
@@ -167,6 +192,26 @@ Roles and Permissions Summary Table
    courses.view_group_configurations             ✅             ✅             ✅                    ✅
    courses.manage_group_configurations           ✅             ✅             ✅                    ❌
    courses.manage_course_team                    ✅             ❌             ❌                    ❌
+   **Course Information**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_course_info                      ✅             ✅             ❌                    ❌
+   **Enrollments**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_enrollments                      ✅             ✅             ❌                    ❌
+   courses.enroll_learners                       ✅             ✅             ❌                    ❌
+   courses.unenroll_learners                     ✅             ✅             ❌                    ❌
+   **Learner Grading**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_gradebook                        ✅             ✅             ❌                    ❌
+   courses.manage_learner_grading                ✅             ✅             ❌                    ❌
+   **Learner Extensions**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_learner_extensions               ✅             ✅             ❌                    ❌
+   courses.manage_learner_extensions             ✅             ✅             ❌                    ❌
+   **Cohorts**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_cohorts                          ✅             ✅             ❌                    ❌
+   courses.manage_cohorts                        ✅             ✅             ❌                    ❌
    **Other**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_checklists                       ✅             ✅             ✅                    ✅

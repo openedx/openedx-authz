@@ -102,7 +102,7 @@ Example rendered file with two plugin contributions:
 Schemas discovered through ``OPENEDX_AUTHZ_SCHEMA_FILES`` have no Python package or module. To satisfy the source-tracking requirements of `ADR 0025`_, their source record uses:
 
 * ``distribution`` = ``<tutor-patch>`` — a sentinel value that is an invalid Python package name, guaranteeing no collision with any installed distribution.
-* ``module`` = ``null`` — filesystem sources have no owning Python module, and using the absolute path would be inconsistent with the field's semantics elsewhere in the model.
+* ``module`` = the absolute filesystem path of the schema file (e.g. ``/openedx/config/authz-schema.yml``). Filesystem sources have no owning Python module, but reusing the path here keeps the ``(distribution, module)`` unique constraint enforceable and avoids the ``NULL``-handling complications that a ``null`` value would introduce across the ORM, migrations, and source-identity logic.
 * ``resource_path`` = the absolute filesystem path of the schema file (e.g. ``/openedx/config/authz-schema.yml``).
 * ``distribution_version`` = ``0.0.0`` — a sentinel value, since filesystem sources carry no package version.
 

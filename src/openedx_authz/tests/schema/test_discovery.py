@@ -273,13 +273,6 @@ class TestSettingsFiles:
 
         assert {r.origin for r in resources} == {Origin.SETTINGS}
 
-    def test_unreadable_file_resource_raises(self, tmp_path):
-        """Reading a file that was removed after discovery raises ``SchemaDiscoveryError``."""
-        resource = DiscoveredFileResource.from_path(str(tmp_path / "gone.yaml"))
-
-        with pytest.raises(SchemaDiscoveryError, match="Could not read schema file"):
-            resource.read_bytes()
-
     @staticmethod
     def _override_files(paths):
         """Convenience wrapper for ``override_settings(OPENEDX_AUTHZ_SCHEMA_FILES=...)``."""

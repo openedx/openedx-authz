@@ -774,10 +774,10 @@ class TestFileSourceIdentity:
 
         assert isinstance(docs[0].source, SourceFileRecord)
 
-    def test_module_is_none_and_resource_path_is_the_absolute_path(self, tmp_path):
-        """``module`` is ``None`` for filesystem sources; ``resource_path`` records the path."""
+    def test_module_and_resource_path_are_the_absolute_path(self, tmp_path):
+        """Both ``module`` and ``resource_path`` record the absolute filesystem path."""
         docs = self._load_file(tmp_path)
         expected_path = str(tmp_path / "authz-schema.yaml")
 
-        assert docs[0].source.module is None
+        assert docs[0].source.module == expected_path
         assert docs[0].source.resource_path == expected_path

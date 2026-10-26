@@ -2,7 +2,6 @@ import os
 from glob import glob
 
 import importlib_resources
-
 from tutor import hooks
 
 from .__about__ import __version__

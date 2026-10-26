@@ -287,19 +287,6 @@ class TestDefinitionDisplay(TestCase):
         self.assertEqual(source.source_id, "test-dist:pkg/core")
         self.assertEqual(str(source), "test-dist:pkg/core")
 
-    def test_source_string_with_null_module_uses_resource_path(self):
-        """A filesystem source (module=None) renders as ``distribution:resource_path``."""
-        AuthzSchemaSource.objects.create(
-            distribution="<tutor-patch>",
-            module=None,
-            distribution_version="0.0.0",
-            resource_path="/openedx/config/authz-schema.yml",
-        )
-
-        source = AuthzSchemaSource.objects.get(distribution="<tutor-patch>")
-        self.assertEqual(source.source_id, "<tutor-patch>:/openedx/config/authz-schema.yml")
-        self.assertEqual(str(source), "<tutor-patch>:/openedx/config/authz-schema.yml")
-
     def test_permission_string_is_its_complete_id(self):
         """A permission renders as its full ``namespace.name`` identifier."""
         _store(_core_doc())

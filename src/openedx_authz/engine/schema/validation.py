@@ -3,13 +3,6 @@
 Rules come from ADR 0017 §4 and the field reference:
 
 Per-document checks:
-    * ``schema_version`` is a supported, quoted ``major.minor`` value.
-    * ``namespace``, ``name``, category ``id``, role ``id`` match
-      :data:`IDENTIFIER_RE` (lowercase snake_case, begins with a letter).
-    * Casbin forms (``act^...``, ``role^...``) are rejected as identifiers.
-    * Required fields are present.
-    * ``scopes`` are non-empty and look like scope namespaces (hyphens allowed,
-      e.g. ``course-v1``); they are exempt from the identifier regex.
     * ``icon`` values, where present, are valid ``@openedx/paragon/icons`` names
       (ADR 0017 §4). The allowed set is vendored in :mod:`paragon_icons`
       (regenerate with ``make paragon_icons``; see ADR 0029).
@@ -27,79 +20,28 @@ Post-compile checks (after extensions and priority are resolved):
     * The resolved permissions and categories still exist.
 
 Validation collects issues rather than raising on the first problem, so the
-deployment report can list every error and warning at once. No Casbin/Django
-imports.
+deployment report can list every error and warning at once. No Casbin imports.
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Container
-from dataclasses import dataclass
-from enum import StrEnum
 
 from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.engine.schema.issues import IssueLevel, ValidationIssue
 from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
 from openedx_authz.engine.schema.types import (
     CompiledSchema,
     SchemaDocument,
 )
 
-_IDENTIFIER = r"[a-z][a-z0-9_]*"
-IDENTIFIER_RE = re.compile(rf"^{_IDENTIFIER}$")
-# A complete permission ID joins ``namespace`` and ``name`` with a single
-# period, each part being a bare identifier. Mirrors the ``permission_id``
-# ``$def`` in ``schema/authz-schema-v1.json``.
-PERMISSION_ID_RE = re.compile(rf"^{_IDENTIFIER}\.{_IDENTIFIER}$")
-# Scope namespaces follow their registered spelling and may contain hyphens.
-SCOPE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
-# Paragon icon names are PascalCase component exports, e.g. ``RemoveRedEye``.
-ICON_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
-
-# Casbin-internal prefixes that must never appear in a schema identifier.
-CASBIN_INTERNAL_PREFIXES = ("act^", "role^", "sub^", "scope^", "g^", "p^")
-
-
-class IssueLevel(StrEnum):
-    """Severity of a :class:`ValidationIssue`.
-
-    Members:
-        ERROR: Blocks deployment.
-        WARNING: Reported only, does not block deployment.
-    """
-
-    ERROR = "error"
-    WARNING = "warning"
-
-
-@dataclass(frozen=True)
-class ValidationIssue:
-    """A single validation finding.
-
-    Attributes:
-        level: :attr:`IssueLevel.ERROR` (blocks deployment) or
-            :attr:`IssueLevel.WARNING` (reported only).
-        message: Human-readable description.
-        source_id: The contributing source, when the issue is file-specific.
-    """
-
-    level: IssueLevel
-    message: str
-    source_id: str | None = None
-
-    @property
-    def is_error(self) -> bool:
-        return self.level == IssueLevel.ERROR
-
 
 class SchemaValidator:
     """Runs per-document and whole-set validation."""
 
-    SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0"})
-
     def validate(self, documents: list[SchemaDocument]) -> list[ValidationIssue]:
         """Run per-document then whole-set validation, returning all issues."""
-        issues: list[ValidationIssue] = []
+        issues = []
         for document in documents:
             issues.extend(self.validate_document(document))
         issues.extend(self.validate_set(documents))
@@ -149,50 +91,22 @@ class SchemaValidator:
 
         return issues
 
-    @staticmethod
-    def has_errors(issues: list[ValidationIssue]) -> bool:
-        """True if any issue is error-level."""
-        return any(issue.is_error for issue in issues)
-
     def validate_document(self, document: SchemaDocument) -> list[ValidationIssue]:
         """Per-file checks that need no cross-file context."""
         issues: list[ValidationIssue] = []
         sid = document.source.source_id
 
-        if document.source.schema_version not in self.SUPPORTED_SCHEMA_VERSIONS:
-            issues.append(
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    f"Unsupported schema_version {document.source.schema_version!r}; "
-                    f"supported: {sorted(self.SUPPORTED_SCHEMA_VERSIONS)}.",
-                    sid,
-                )
-            )
-
         for category in document.categories:
-            issues.extend(self._check_identifier(category.id, "category id", sid))
-            issues.extend(self._require(category.id, "category id", sid))
             issues.extend(self._check_icon(category.icon, f"category {category.id}", sid))
 
         for permission in document.permissions:
-            issues.extend(self._check_identifier(permission.namespace, "permission namespace", sid))
-            issues.extend(self._check_identifier(permission.name, "permission name", sid))
-            issues.extend(self._require(permission.category_id, f"category for {permission.identifier}", sid))
-            issues.extend(self._check_scopes(permission.scopes, f"permission {permission.identifier}", sid))
             issues.extend(self._check_icon(permission.icon, f"permission {permission.identifier}", sid))
 
         for role in document.roles:
-            issues.extend(self._check_identifier(role.id, "role id", sid))
-            issues.extend(self._check_scopes(role.scopes, f"role {role.id}", sid))
             issues.extend(self._check_icon(role.icon, f"role {role.id}", sid))
-            for perm_id in role.permissions:
-                issues.extend(self._check_permission_id(perm_id, f"role {role.id}", sid))
 
         for extension in document.role_extensions:
-            issues.extend(self._check_identifier(extension.role_id, "role_extension target", sid))
             issues.extend(self._check_icon(extension.icon, f"role_extension {extension.role_id}", sid))
-            for perm_id in (*extension.add_permissions, *extension.remove_permissions):
-                issues.extend(self._check_permission_id(perm_id, f"role_extension {extension.role_id}", sid))
 
         return issues
 
@@ -289,49 +203,6 @@ class SchemaValidator:
             return [ValidationIssue(IssueLevel.WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
         return [ValidationIssue(IssueLevel.ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
 
-    def _check_identifier(self, value: str, label: str, sid: str) -> list[ValidationIssue]:
-        """Validate a single identifier is lowercase snake_case and not a Casbin form."""
-        if not value:
-            return []  # emptiness handled by _require where relevant
-        if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
-            return [ValidationIssue(IssueLevel.ERROR, f"{label} {value!r} uses an internal Casbin form.", sid)]
-        if not IDENTIFIER_RE.match(value):
-            return [
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    f"{label} {value!r} must match {IDENTIFIER_RE.pattern} (lowercase snake_case).",
-                    sid,
-                )
-            ]
-        return []
-
-    def _check_permission_id(self, value: str, context: str, sid: str) -> list[ValidationIssue]:
-        """A complete permission id is ``namespace.name`` with both parts valid.
-
-        The shape is checked against :data:`PERMISSION_ID_RE`, which mirrors the
-        ``permission_id`` definition in ``schema/authz-schema-v1.json``: a single
-        period joining two lowercase snake_case identifiers, each beginning with
-        a letter. Internal Casbin forms are rejected with a clearer message.
-        """
-        if any(value.startswith(prefix) for prefix in CASBIN_INTERNAL_PREFIXES):
-            return [
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    f"{context}: permission id {value!r} uses an internal Casbin form.",
-                    sid,
-                )
-            ]
-        if not PERMISSION_ID_RE.match(value):
-            return [
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    f"{context}: permission id {value!r} must match {PERMISSION_ID_RE.pattern} "
-                    "(two lowercase snake_case identifiers joined by a period, e.g. 'courses.view_course').",
-                    sid,
-                )
-            ]
-        return []
-
     @staticmethod
     def _check_role_permission_scope(
         role_id: str,
@@ -388,35 +259,16 @@ class SchemaValidator:
             ]
         return []
 
-    def _check_scopes(self, scopes: tuple[str, ...], context: str, sid: str) -> list[ValidationIssue]:
-        """Validate that at least one scope is declared and each scope namespace is well-formed."""
-        if not scopes:
-            return [ValidationIssue(IssueLevel.ERROR, f"{context} must declare at least one scope.", sid)]
-        issues: list[ValidationIssue] = []
-        for scope in scopes:
-            if not SCOPE_RE.match(scope):
-                issues.append(ValidationIssue(IssueLevel.ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
-        return issues
-
     @staticmethod
     def _check_icon(value: str | None, context: str, sid: str) -> list[ValidationIssue]:
         """Validate an optional Paragon icon name (ADR 0017 §4).
 
-        Icons are optional everywhere, so an empty/``None`` value passes. A
-        present value must be PascalCase and one of the vendored
-        ``@openedx/paragon/icons`` names (see :mod:`paragon_icons`,
-        ``make paragon_icons``). Both failures are errors.
+        JSON Schema owns the value's type and format. This check verifies that
+        the formatted name is one of the vendored ``@openedx/paragon/icons``
+        exports (see :mod:`paragon_icons`, ``make paragon_icons``).
         """
-        if not value:
+        if not isinstance(value, str) or not value:
             return []
-        if not ICON_RE.match(value):
-            return [
-                ValidationIssue(
-                    IssueLevel.ERROR,
-                    f"{context}: icon {value!r} must be a PascalCase Paragon icon name.",
-                    sid,
-                )
-            ]
         if value not in PARAGON_ICON_NAMES:
             return [
                 ValidationIssue(
@@ -425,12 +277,6 @@ class SchemaValidator:
                     sid,
                 )
             ]
-        return []
-
-    @staticmethod
-    def _require(value: str, label: str, sid: str) -> list[ValidationIssue]:
-        if not value:
-            return [ValidationIssue(IssueLevel.ERROR, f"Missing required field: {label}.", sid)]
         return []
 
     @staticmethod

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/openedx/openedx-authz/main/src/openedx_authz/schema/authz-schema-v1.json",
+  "$id": "https://raw.githubusercontent.com/openedx/openedx-authz/main/src/openedx_authz/engine/schema/authz-schema-v1.json",
   "title": "Open edX Authorization schema",
   "description": "A version 1.0 Open edX authorization schema contribution. Applications and deployment configuration use this format to define static permission categories, permissions, roles, and changes to existing roles.",
   "type": "object",
@@ -121,7 +121,7 @@
     "scope_namespace": {
       "description": "A scope namespace registered by a ScopeData type.",
       "type": "string",
-      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_-]*$",
       "examples": ["course-v1"]
     },
     "display_name": {
@@ -139,7 +139,7 @@
     "icon": {
       "description": "A case-sensitive icon name exported by @openedx/paragon/icons.",
       "type": "string",
-      "minLength": 1,
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
       "examples": ["Visibility"]
     },
     "permission_list": {

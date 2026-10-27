@@ -19,7 +19,7 @@ Decision
 1. Schema format and boundary
 =============================
 
-The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used only when role extensions conflict; it does not resolve conflicting base definitions (see `ADR 0031`_). Open edX publishes a :download:`machine-readable JSON Schema <../../src/openedx_authz/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
+The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used only when role extensions conflict; it does not resolve conflicting base definitions (see `ADR 0031`_). Open edX publishes a :download:`machine-readable JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
@@ -154,6 +154,12 @@ Embedded categories on every permission
 =======================================
 
 Repeating category labels makes localization and consistent presentation harder. A normalized category gives permissions one stable grouping reference.
+
+Addendum: 2026-10-20
+********************
+
+The machine-readable JSON Schema now lives with its validation engine at
+:download:`authz-schema-v1.json <../../src/openedx_authz/engine/schema/authz-schema-v1.json>`.
 
 References
 **********

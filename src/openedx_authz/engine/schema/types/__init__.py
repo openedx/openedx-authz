@@ -35,6 +35,7 @@ from openedx_authz.engine.schema.types.definitions import (
     RoleExtension,
 )
 from openedx_authz.engine.schema.types.loading import (
+    ParsedSchemaDocument,
     SchemaDocument,
     SourceRecord,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "RoleExtension",
     # loading
     "SourceRecord",
+    "ParsedSchemaDocument",
     "SchemaDocument",
     # compilation
     "RelationshipSource",

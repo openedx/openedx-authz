@@ -12,10 +12,10 @@ import pytest
 
 from openedx_authz.engine.schema.exceptions import SchemaValidationError
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
-from openedx_authz.engine.schema.validation import ValidationIssue
+from openedx_authz.engine.schema.validation import IssueLevel, ValidationIssue
 
 
-def _pipeline(*, issues=None, compiled_issues=None):
+def _pipeline(*, syntax_issues=None, issues=None, compiled_issues=None):
     """Build a SchemaPipeline with every component mocked.
 
     ``issues`` seeds the document-level validator result and ``compiled_issues``
@@ -24,13 +24,18 @@ def _pipeline(*, issues=None, compiled_issues=None):
     discovery = mock.Mock(name="discovery")
     discovery.discover.return_value = ["resource"]
 
+    parser = mock.Mock(name="parser")
+    parser.parse.return_value = ["parsed-document"]
+
+    syntax_validator = mock.Mock(name="syntax-validator")
+    syntax_validator.validate.return_value = syntax_issues or []
+
     loader = mock.Mock(name="loader")
     loader.load.return_value = ["document"]
 
     validator = mock.Mock(name="validator")
     validator.validate.return_value = issues or []
     validator.validate_compiled.return_value = compiled_issues or []
-    validator.has_errors.side_effect = lambda found: any(i.is_error for i in found)
 
     compiler = mock.Mock(name="compiler")
     compiler.compile.return_value = "compiled-schema"
@@ -42,6 +47,8 @@ def _pipeline(*, issues=None, compiled_issues=None):
 
     pipeline = SchemaPipeline(
         discovery=discovery,
+        parser=parser,
+        syntax_validator=syntax_validator,
         loader=loader,
         validator=validator,
         compiler=compiler,
@@ -50,6 +57,8 @@ def _pipeline(*, issues=None, compiled_issues=None):
     )
     return pipeline, {
         "discovery": discovery,
+        "parser": parser,
+        "syntax_validator": syntax_validator,
         "loader": loader,
         "validator": validator,
         "compiler": compiler,
@@ -62,14 +71,16 @@ class TestCompile:
     """Cover SchemaPipeline.compile step ordering and validation gating."""
 
     def test_runs_steps_in_order_and_returns_compiled_schema(self):
-        """Compile runs discover -> load -> validate -> compile -> validate_compiled in order."""
+        """Compile runs discover, parse, syntax, load, semantics, compile, and compiled validation in order."""
         pipeline, m = _pipeline()
 
         result = pipeline.compile()
 
         assert result == "compiled-schema"
         m["discovery"].discover.assert_called_once_with()
-        m["loader"].load.assert_called_once_with(["resource"])
+        m["parser"].parse.assert_called_once_with(["resource"])
+        m["syntax_validator"].validate.assert_called_once_with(["parsed-document"])
+        m["loader"].load.assert_called_once_with(["parsed-document"])
         m["validator"].validate.assert_called_once_with(["document"])
         m["compiler"].compile.assert_called_once_with(["document"])
         m["validator"].validate_compiled.assert_called_once_with("compiled-schema")
@@ -80,7 +91,7 @@ class TestCompile:
         Extensions and priority resolution can only be checked after they are
         applied, so validation runs again post-compile.
         """
-        error = ValidationIssue("error", "scope not supported", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "scope not supported", "src")
         pipeline, m = _pipeline(compiled_issues=[error])
 
         with pytest.raises(SchemaValidationError) as exc_info:
@@ -89,9 +100,34 @@ class TestCompile:
         assert exc_info.value.issues == [error]
         m["compiler"].compile.assert_called_once()
 
+    def test_structural_errors_stop_before_typed_loading(self):
+        """All structural findings stop loading and later lifecycle stages."""
+        errors = [
+            ValidationIssue(IssueLevel.ERROR, "bad first document", "first"),
+            ValidationIssue(IssueLevel.ERROR, "bad second document", "second"),
+        ]
+        pipeline, components = _pipeline(syntax_issues=errors)
+
+        with pytest.raises(SchemaValidationError) as exc_info:
+            pipeline.compile()
+
+        assert exc_info.value.issues == errors
+        components["loader"].load.assert_not_called()
+        components["validator"].validate.assert_not_called()
+        components["compiler"].compile.assert_not_called()
+
+    def test_structural_warnings_do_not_stop_typed_loading(self):
+        """Structural warnings allow typed loading and later lifecycle stages."""
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
+        pipeline, components = _pipeline(syntax_issues=[warning])
+
+        assert pipeline.compile() == "compiled-schema"
+        components["loader"].load.assert_called_once_with(["parsed-document"])
+        components["validator"].validate.assert_called_once_with(["document"])
+
     def test_compiled_errors_stop_before_render_and_apply(self):
         """A post-compile error aborts apply before rendering or applying."""
-        error = ValidationIssue("error", "scope not supported", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "scope not supported", "src")
         pipeline, m = _pipeline(compiled_issues=[error])
 
         with pytest.raises(SchemaValidationError):
@@ -102,14 +138,14 @@ class TestCompile:
 
     def test_compiled_warnings_do_not_stop_compilation(self):
         """A post-compile warning is non-fatal; compilation still returns the schema."""
-        warning = ValidationIssue("warning", "heads up", "src")
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
         pipeline, _ = _pipeline(compiled_issues=[warning])
 
         assert pipeline.compile() == "compiled-schema"
 
     def test_document_errors_skip_the_compiled_check(self):
         """A failed first gate must not reach the second one."""
-        error = ValidationIssue("error", "boom", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
         pipeline, m = _pipeline(issues=[error])
 
         with pytest.raises(SchemaValidationError):
@@ -119,7 +155,7 @@ class TestCompile:
 
     def test_raises_when_validation_has_errors(self):
         """A document-level validation error stops before compilation runs."""
-        error = ValidationIssue("error", "boom", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
         pipeline, m = _pipeline(issues=[error])
 
         with pytest.raises(SchemaValidationError) as exc_info:
@@ -130,9 +166,20 @@ class TestCompile:
         # Compilation must not run once validation fails.
         m["compiler"].compile.assert_not_called()
 
+    def test_exception_contains_only_errors(self):
+        """The validation exception excludes warnings from a mixed result."""
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
+        pipeline, _ = _pipeline(issues=[warning, error])
+
+        with pytest.raises(SchemaValidationError) as exc_info:
+            pipeline.compile()
+
+        assert exc_info.value.issues == [error]
+
     def test_warning_only_issues_do_not_stop_compilation(self):
         """A document-level warning is non-fatal; compilation still proceeds."""
-        warning = ValidationIssue("warning", "heads up", "src")
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
         pipeline, m = _pipeline(issues=[warning])
 
         result = pipeline.compile()
@@ -193,6 +240,8 @@ class TestDefaultComponents:
         # only assert the orchestrator is fully constructed.
         # pylint: disable=protected-access
         assert pipeline._discovery is not None
+        assert pipeline._parser is not None
+        assert pipeline._syntax_validator is not None
         assert pipeline._loader is not None
         assert pipeline._validator is not None
         assert pipeline._compiler is not None

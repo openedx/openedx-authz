@@ -2,7 +2,7 @@
 
 :class:`SchemaPipeline` wires the steps together:
 
-    discover -> load -> validate -> compile -> render -> (plan) -> apply
+    discover -> parse -> validate structure -> load -> validate semantics -> compile -> render -> (plan) -> apply
 
 The Casbin-free steps (discover..compile) live in :mod:`openedx_authz.engine.schema`;
 render/apply live in :mod:`openedx_authz.engine.renderer`. This orchestrator is
@@ -26,9 +26,12 @@ from openedx_authz.engine.renderer import (
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.discovery import SchemaDiscovery
 from openedx_authz.engine.schema.exceptions import SchemaValidationError
+from openedx_authz.engine.schema.issues import ValidationIssue
 from openedx_authz.engine.schema.loading import SchemaLoader
+from openedx_authz.engine.schema.parsing import SchemaParser
+from openedx_authz.engine.schema.syntax import SchemaSyntaxValidator
 from openedx_authz.engine.schema.types import CompiledSchema
-from openedx_authz.engine.schema.validation import SchemaValidator, ValidationIssue
+from openedx_authz.engine.schema.validation import SchemaValidator
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,8 @@ class SchemaPipeline:
         self,
         *,
         discovery: SchemaDiscovery | None = None,
+        parser: SchemaParser | None = None,
+        syntax_validator: SchemaSyntaxValidator | None = None,
         loader: SchemaLoader | None = None,
         validator: SchemaValidator | None = None,
         compiler: SchemaCompiler | None = None,
@@ -51,6 +56,8 @@ class SchemaPipeline:
         applier: SchemaApplier | None = None,
     ):
         self._discovery = discovery or SchemaDiscovery()
+        self._parser = parser or SchemaParser()
+        self._syntax_validator = syntax_validator or SchemaSyntaxValidator()
         self._loader = loader or SchemaLoader()
         self._validator = validator or SchemaValidator()
         self._compiler = compiler or SchemaCompiler()
@@ -58,7 +65,7 @@ class SchemaPipeline:
         self._applier = applier or SchemaApplier()
 
     def compile(self) -> CompiledSchema:
-        """Run discover -> load -> validate -> compile and return the result.
+        """Run discover -> parse -> validate syntax -> load -> validate semantics -> compile and return the result.
 
         Validation gates twice: once on the loaded documents, then again on the
         compiled schema, because extensions and priority resolution can only be
@@ -70,7 +77,9 @@ class SchemaPipeline:
             SchemaCompileError: On an unresolvable conflict.
         """
         resources = self._discovery.discover()
-        documents = self._loader.load(resources)
+        parsed_documents = self._parser.parse(resources)
+        self._gate(self._syntax_validator.validate(parsed_documents))
+        documents = self._loader.load(parsed_documents)
 
         self._gate(self._validator.validate(documents))
         schema = self._compiler.compile(documents)
@@ -87,7 +96,7 @@ class SchemaPipeline:
         for issue in issues:
             log = logger.error if issue.is_error else logger.warning
             log("authz schema %s: %s [%s]", issue.level, issue.message, issue.source_id or "-")
-        if self._validator.has_errors(issues):
+        if any(issue.is_error for issue in issues):
             raise SchemaValidationError([i for i in issues if i.is_error])
 
     def plan(self) -> ChangePlan:

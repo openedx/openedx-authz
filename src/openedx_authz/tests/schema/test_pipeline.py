@@ -12,7 +12,7 @@ import pytest
 
 from openedx_authz.engine.schema.exceptions import SchemaValidationError
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
-from openedx_authz.engine.schema.validation import ValidationIssue
+from openedx_authz.engine.schema.validation import IssueLevel, ValidationIssue
 
 
 def _pipeline(*, syntax_issues=None, issues=None, compiled_issues=None):
@@ -92,7 +92,7 @@ class TestCompile:
         Extensions and priority resolution can only be checked after they are
         applied, so validation runs again post-compile.
         """
-        error = ValidationIssue("error", "scope not supported", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "scope not supported", "src")
         pipeline, m = _pipeline(compiled_issues=[error])
 
         with pytest.raises(SchemaValidationError) as exc_info:
@@ -104,8 +104,8 @@ class TestCompile:
     def test_structural_errors_stop_before_typed_loading(self):
         """All structural findings stop loading and later lifecycle stages."""
         errors = [
-            ValidationIssue("error", "bad first document", "first"),
-            ValidationIssue("error", "bad second document", "second"),
+            ValidationIssue(IssueLevel.ERROR, "bad first document", "first"),
+            ValidationIssue(IssueLevel.ERROR, "bad second document", "second"),
         ]
         pipeline, components = _pipeline(syntax_issues=errors)
 
@@ -119,7 +119,7 @@ class TestCompile:
 
     def test_compiled_errors_stop_before_render_and_apply(self):
         """A post-compile error aborts apply before rendering or applying."""
-        error = ValidationIssue("error", "scope not supported", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "scope not supported", "src")
         pipeline, m = _pipeline(compiled_issues=[error])
 
         with pytest.raises(SchemaValidationError):
@@ -130,14 +130,14 @@ class TestCompile:
 
     def test_compiled_warnings_do_not_stop_compilation(self):
         """A post-compile warning is non-fatal; compilation still returns the schema."""
-        warning = ValidationIssue("warning", "heads up", "src")
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
         pipeline, _ = _pipeline(compiled_issues=[warning])
 
         assert pipeline.compile() == "compiled-schema"
 
     def test_document_errors_skip_the_compiled_check(self):
         """A failed first gate must not reach the second one."""
-        error = ValidationIssue("error", "boom", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
         pipeline, m = _pipeline(issues=[error])
 
         with pytest.raises(SchemaValidationError):
@@ -147,7 +147,7 @@ class TestCompile:
 
     def test_raises_when_validation_has_errors(self):
         """A document-level validation error stops before compilation runs."""
-        error = ValidationIssue("error", "boom", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
         pipeline, m = _pipeline(issues=[error])
 
         with pytest.raises(SchemaValidationError) as exc_info:
@@ -160,7 +160,7 @@ class TestCompile:
 
     def test_warning_only_issues_do_not_stop_compilation(self):
         """A document-level warning is non-fatal; compilation still proceeds."""
-        warning = ValidationIssue("warning", "heads up", "src")
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
         pipeline, m = _pipeline(issues=[warning])
 
         result = pipeline.compile()

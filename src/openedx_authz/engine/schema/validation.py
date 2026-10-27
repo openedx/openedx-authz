@@ -91,11 +91,6 @@ class SchemaValidator:
 
         return issues
 
-    @staticmethod
-    def has_errors(issues: list[ValidationIssue]) -> bool:
-        """True if any issue is error-level."""
-        return any(issue.is_error for issue in issues)
-
     def validate_document(self, document: SchemaDocument) -> list[ValidationIssue]:
         """Per-file checks that need no cross-file context."""
         issues: list[ValidationIssue] = []

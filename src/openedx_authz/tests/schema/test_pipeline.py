@@ -36,7 +36,6 @@ def _pipeline(*, syntax_issues=None, issues=None, compiled_issues=None):
     validator = mock.Mock(name="validator")
     validator.validate.return_value = issues or []
     validator.validate_compiled.return_value = compiled_issues or []
-    validator.has_errors.side_effect = lambda found: any(i.is_error for i in found)
 
     compiler = mock.Mock(name="compiler")
     compiler.compile.return_value = "compiled-schema"
@@ -117,6 +116,15 @@ class TestCompile:
         components["validator"].validate.assert_not_called()
         components["compiler"].compile.assert_not_called()
 
+    def test_structural_warnings_do_not_stop_typed_loading(self):
+        """Structural warnings allow typed loading and later lifecycle stages."""
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
+        pipeline, components = _pipeline(syntax_issues=[warning])
+
+        assert pipeline.compile() == "compiled-schema"
+        components["loader"].load.assert_called_once_with(["parsed-document"])
+        components["validator"].validate.assert_called_once_with(["document"])
+
     def test_compiled_errors_stop_before_render_and_apply(self):
         """A post-compile error aborts apply before rendering or applying."""
         error = ValidationIssue(IssueLevel.ERROR, "scope not supported", "src")
@@ -157,6 +165,17 @@ class TestCompile:
         assert exc_info.value.issues == [error]
         # Compilation must not run once validation fails.
         m["compiler"].compile.assert_not_called()
+
+    def test_exception_contains_only_errors(self):
+        """The validation exception excludes warnings from a mixed result."""
+        warning = ValidationIssue(IssueLevel.WARNING, "heads up", "src")
+        error = ValidationIssue(IssueLevel.ERROR, "boom", "src")
+        pipeline, _ = _pipeline(issues=[warning, error])
+
+        with pytest.raises(SchemaValidationError) as exc_info:
+            pipeline.compile()
+
+        assert exc_info.value.issues == [error]
 
     def test_warning_only_issues_do_not_stop_compilation(self):
         """A document-level warning is non-fatal; compilation still proceeds."""

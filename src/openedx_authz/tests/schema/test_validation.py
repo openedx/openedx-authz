@@ -1,8 +1,7 @@
 """Unit tests for the schema validation step.
 
 Grouped by concern: per-document validation, duplicate severity, identifier and
-scope rules, required fields, extension references, post-compile validation, and
-the ``has_errors`` gate the pipeline uses to decide whether to stop.
+scope rules, required fields, extension references, and post-compile validation.
 """
 
 import pytest
@@ -389,21 +388,3 @@ class TestIconRules:
         messages = [i.message for i in _errors(SchemaValidator().validate([base, ext]))]
 
         assert any("role_extension course_editor" in m for m in messages)
-
-
-class TestHasErrors:
-    """The gate the pipeline uses to decide whether to stop."""
-
-    def test_true_when_any_issue_is_an_error(self):
-        """``has_errors`` is True when any issue is error-level."""
-        issues = [ValidationIssue(IssueLevel.WARNING, "heads up"), ValidationIssue(IssueLevel.ERROR, "boom")]
-
-        assert SchemaValidator.has_errors(issues) is True
-
-    def test_false_for_warnings_only(self):
-        """``has_errors`` is False when every issue is a warning."""
-        assert SchemaValidator.has_errors([ValidationIssue(IssueLevel.WARNING, "heads up")]) is False
-
-    def test_false_for_no_issues(self):
-        """``has_errors`` is False for an empty issue list."""
-        assert SchemaValidator.has_errors([]) is False

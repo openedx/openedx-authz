@@ -8,11 +8,7 @@ import pytest
 
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
-from openedx_authz.engine.schema.validation import (
-    IssueLevel,
-    SchemaValidator,
-    ValidationIssue,
-)
+from openedx_authz.engine.schema.validation import SchemaValidator
 
 from .factories import category, extension, make_document, make_source, permission, role
 

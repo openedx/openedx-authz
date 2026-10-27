@@ -20,6 +20,7 @@ to avoid name collisions with models from other installed apps.
 from __future__ import annotations
 
 from django.db import models
+from django.db.models import Prefetch
 
 from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.models.base import TimeStampedModel
@@ -143,6 +144,20 @@ class AuthzSchemaSource(TimeStampedModel):
         return self.source_id
 
 
+class AuthzPermissionDefinitionQuerySet(models.QuerySet):
+    """QuerySet for AuthzPermissionDefinition with catalog lookups."""
+
+    def supporting_scope_types(self, scope_types: list[str]) -> "AuthzPermissionDefinitionQuerySet":
+        """Return permissions that can be granted in any of the scope types.
+
+        ``scopes`` is a JSON list, which not every database can query for membership, so the
+        matching is done in Python over ``scopes`` alone and then narrowed by primary key.
+        """
+        wanted = set(scope_types)
+        matching = [pk for pk, scopes in self.values_list("pk", "scopes") if wanted.intersection(scopes)]
+        return self.filter(pk__in=matching)
+
+
 class AuthzPermissionCategory(TimeStampedModel):
     """A display/grouping category for permissions (grants no access).
 
@@ -170,6 +185,8 @@ class AuthzPermissionDefinition(TimeStampedModel):
 
     The complete permission id is ``namespace.name`` (see :attr:`identifier`).
     """
+
+    objects = AuthzPermissionDefinitionQuerySet.as_manager()
 
     namespace = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
@@ -202,6 +219,29 @@ class AuthzPermissionDefinition(TimeStampedModel):
         return self.identifier
 
 
+class AuthzRoleDefinitionQuerySet(models.QuerySet):
+    """QuerySet for AuthzRoleDefinition with catalog lookups.
+
+    Every method returns a queryset, so they can be combined and refined further.
+    """
+
+    def visible(self) -> "AuthzRoleDefinitionQuerySet":
+        """Return the roles that are not hidden."""
+        return self.filter(hidden=False)
+
+    def with_grants_in_scope_types(self, scope_types: list[str]) -> "AuthzRoleDefinitionQuerySet":
+        """Return the roles with a permission grant in any of the scope types, with those grants loaded.
+
+        Each role gets its grants in the scope types, with their permission, in ``grants``.
+        """
+        grants = AuthzRolePermission.objects.filter(scope__in=scope_types).select_related("permission")
+        return (
+            self.filter(role_permissions__scope__in=scope_types)
+            .distinct()
+            .prefetch_related(Prefetch("role_permissions", queryset=grants, to_attr="grants"))
+        )
+
+
 class AuthzRoleDefinition(TimeStampedModel):
     """A compiled role definition.
 
@@ -211,6 +251,8 @@ class AuthzRoleDefinition(TimeStampedModel):
     discovery/selection but keeps its assignments, permission checks, and
     reserved id.
     """
+
+    objects = AuthzRoleDefinitionQuerySet.as_manager()
 
     role_id = models.CharField(max_length=255, unique=True)
     display_name = models.CharField(max_length=255)

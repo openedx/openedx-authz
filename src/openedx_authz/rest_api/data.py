@@ -70,6 +70,7 @@ class RoleOperationError(BaseEnum):
     USER_DOES_NOT_HAVE_ROLE = "user_does_not_have_role"
     ROLE_ASSIGNMENT_ERROR = "role_assignment_error"
     ROLE_REMOVAL_ERROR = "role_removal_error"
+    CANNOT_REMOVE_OWN_ADMIN_ROLE = "cannot_remove_own_admin_role"
 
 
 class ScopesQuerySetFields(BaseEnum):

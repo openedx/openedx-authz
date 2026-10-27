@@ -820,6 +820,73 @@ class TestRoleUserAPIView(ViewTestMixin):
             self.assertEqual(len(response.data["completed"]), expected_completed)
             self.assertEqual(len(response.data["errors"]), expected_errors)
 
+    @data(
+        # library_admin removing its own library_admin: refused
+        ("admin_3", roles.LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3", "api.ContentLibraryData"),
+        # same, naming itself by email
+        ("admin_3", roles.LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3@example.com", "api.ContentLibraryData"),
+        # course_admin removing its own course_admin: refused
+        ("course_admin", roles.COURSE_ADMIN.external_key, COURSE_SCOPE_ORG1, "course_admin", "api.CourseOverviewData"),
+    )
+    @unpack
+    def test_remove_own_admin_role_is_refused(
+        self, username: str, role: str, scope: str, identifier: str, scope_data: str
+    ):
+        """Test that a user cannot remove its own admin role, while other users in the request are removed.
+
+        Expected result:
+            - Returns 207 MULTI-STATUS status
+            - The requester is reported with ``cannot_remove_own_admin_role`` and keeps the role
+            - Another admin in the same request is removed
+        """
+        other = "regular_5" if role == roles.LIBRARY_ADMIN.external_key else "regular_2"
+        if role == roles.COURSE_ADMIN.external_key:
+            self._assign_roles_to_users(
+                assignments=[{"subject_name": other, "role_name": role, "scope_name": scope}]
+            )
+        user = User.objects.get(username=username)
+        self.client.force_authenticate(user=user)
+        query_params = {"role": role, "scope": scope, "users": f"{identifier},{other}"}
+
+        with patch.object(getattr(api, scope_data.split(".")[1]), "exists", return_value=True):
+            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(
+            response.data["errors"],
+            [{"user_identifier": identifier, "error": RoleOperationError.CANNOT_REMOVE_OWN_ADMIN_ROLE}],
+        )
+        self.assertEqual([c["user_identifier"] for c in response.data["completed"]], [other])
+        self.assertIn(
+            role,
+            [r.external_key for a in api.get_user_role_assignments_in_scope(username, scope) for r in a.roles],
+        )
+
+    def test_remove_own_non_admin_role_is_allowed(self):
+        """Test that a user may remove a role of its own that is not an admin role.
+
+        Expected result:
+            - Returns 207 MULTI-STATUS status with the requester in ``completed``
+        """
+        self.client.force_authenticate(user=User.objects.get(username="admin_3"))
+        self._assign_roles_to_users(
+            assignments=[
+                {
+                    "subject_name": "admin_3",
+                    "role_name": roles.LIBRARY_USER.external_key,
+                    "scope_name": "lib:Org3:LIB3",
+                }
+            ]
+        )
+        query_params = {"role": roles.LIBRARY_USER.external_key, "scope": "lib:Org3:LIB3", "users": "admin_3"}
+
+        with patch.object(api.ContentLibraryData, "exists", return_value=True):
+            response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
+
+        self.assertEqual(response.status_code, status.HTTP_207_MULTI_STATUS)
+        self.assertEqual(response.data["errors"], [])
+        self.assertEqual([c["user_identifier"] for c in response.data["completed"]], ["admin_3"])
+
     @patch.object(api, "unassign_role_from_user")
     def test_remove_users_from_role_exception_handling(self, mock_unassign_role_from_user):
         """Test removing users from a role with exception handling."""

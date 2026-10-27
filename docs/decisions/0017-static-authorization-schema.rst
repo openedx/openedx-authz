@@ -19,7 +19,7 @@ Decision
 1. Schema format and boundary
 =============================
 
-The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used when role extensions conflict. Open edX publishes a :download:`machine-readable JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
+The authz schema is a versioned YAML format for static permissions, permission categories, roles, and changes to existing roles. Every file declares ``schema_version`` and ``priority``, which apply to all definitions in that file. Priority is used only when role extensions conflict; it does not resolve conflicting base definitions (see `ADR 0031`_). Open edX publishes a :download:`machine-readable JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` for this format so that editors, CI, and the compiler all apply the same field and validation rules.
 
 The existing static role and permission definitions in Python modules and ``authz.policy`` will move into the schema. Once this migration is complete, the schema becomes the source for static definitions, so developers add a new role or permission there without duplicating it in Python constants or policy files.
 
@@ -97,7 +97,7 @@ In these examples, ``courses.view_course`` appears under ``course_content`` in t
 
    p, role^course_observer, act^courses.view_course, course-v1^*, allow
 
-The compiler also creates a row that links ``course_admin`` to ``courses.delete_course``. Priority resolves conflicts between role extensions; it does not apply to individual permissions or control how roles or permissions appear in the UI.
+The compiler also creates a row that links ``course_admin`` to ``courses.delete_course``. Priority resolves conflicts between role extensions; it does not resolve conflicting base definitions (`ADR 0031`_), does not apply to individual permissions, and does not control how roles or permissions appear in the UI.
 
 The schema contains static definitions, while user assignments and user-defined roles stay in the application database. Casbin's ``model.conf`` and matcher also remain owned by ``openedx-authz``.
 
@@ -119,7 +119,7 @@ After loading every file, validation checks the combined definitions. It rejects
 * references to permissions or categories that do not exist;
 * a role extension whose role does not exist in the combined definitions;
 * a role used in a scope where one of its permissions cannot apply;
-* conflicting static definitions;
+* conflicting static (base) definitions, regardless of their priority (`ADR 0031`_);
 * conflicting role extensions with the same priority; and
 * unsupported combinations of schema versions.
 
@@ -166,12 +166,14 @@ References
 
 * `ADR 0016`_
 * `ADR 0023`_
+* `ADR 0031`_
 * `Casbin adapters`_
 * `JSON Schema`_
 * `Paragon icons`_
 
 .. _ADR 0016: 0016-static-and-dynamic-roles.rst
 .. _ADR 0023: https://github.com/openedx/openedx-authz/pull/430
+.. _ADR 0031: 0031-priority-applies-to-role-extensions-only.rst
 .. _Casbin adapters: https://v3.casbin.org/docs/adapters
 .. _JSON Schema: https://json-schema.org/draft/2020-12/json-schema-core
 .. _Paragon icons: https://paragon-openedx.netlify.app/components/icon/

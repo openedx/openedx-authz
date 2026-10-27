@@ -5,6 +5,7 @@ is part of the Open edX Layer used to abstract the authorization engine and
 provide a simpler interface for other services in the Open edX ecosystem.
 """
 
+from openedx_authz.api.catalog import *
 from openedx_authz.api.data import *
 from openedx_authz.api.permissions import *
 from openedx_authz.api.roles import *

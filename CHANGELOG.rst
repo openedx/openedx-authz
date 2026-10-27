@@ -32,8 +32,9 @@ Added
   removing roles that still have assignments, and repeatable ``--dir`` for CI and local runs.
 * Added ``role_extensions`` support: an application or deployment can add or remove permissions and
   replace the display metadata or ``hidden`` flag of an existing static role without copying its
-  definition. ``priority`` resolves conflicts; an unresolvable equal-priority conflict stops the run
-  before any database change (ADR 0023).
+  definition. ``priority`` resolves conflicts between extensions; an unresolvable equal-priority
+  conflict stops the run before any database change (ADR 0023). Priority does not resolve conflicting
+  base definitions (ADR 0031).
 * Added first-class tables for compiled definitions and their provenance, in migration
   ``0011_authz_schema_definitions``: permission categories, permission definitions, role
   definitions, role-permission grants, schema sources, and one source-link table per definition kind
@@ -51,6 +52,15 @@ Added
   ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
   ``make paragon_icons`` (ADR 0029).
 
+Fixed
+=====
+
+* The schema compiler no longer resolves conflicting base definitions by ``priority``. Two files
+  that declare the same permission category, permission, or role with differing content are now a
+  conflict regardless of priority, matching schema validation; only ``role_extensions`` are resolved
+  by priority. This aligns the compiler with ADR 0031 and removes a path where a higher-priority file
+  could silently replace a role's base definition.
+
 Notes
 =====
 
@@ -63,6 +73,13 @@ Notes
 * Removing a static role that still has user assignments stops the deployment and reports the
   assignments. ``--force`` removes the role together with its assignments and writes a
   ``RoleAssignmentAudit`` record for each one.
+
+Fixed
+=====
+
+* ``DELETE /api/authz/v1/roles/users/`` no longer lets a user remove its own ``library_admin`` or
+  ``course_admin`` role, matching the admin console. The user is reported in ``errors`` with
+  ``cannot_remove_own_admin_role`` and keeps the role; other users in the request are processed.
 
 1.24.0 - 2026-09-14
 *******************

@@ -20,24 +20,23 @@ from rest_framework.views import APIView
 from openedx_authz import api
 from openedx_authz.api.utils import get_user_map
 from openedx_authz.constants import permissions
+from openedx_authz.constants.roles import COURSE_ADMIN, LIBRARY_ADMIN
 from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
-from openedx_authz.rest_api.utils import (
-    filter_users,
-    get_generic_scope,
-    sort_users,
-)
+from openedx_authz.rest_api.utils import filter_users, sort_users
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
+from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission, ScopeTypePermission
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
-    ListRolesWithScopeResponseSerializer,
-    ListRolesWithScopeSerializer,
+    ListRolesQuerySerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
     RemoveUsersFromRoleWithScopeSerializer,
+    RoleCatalogMetaSerializer,
+    RoleCatalogResponseSerializer,
+    RoleCatalogRoleSerializer,
     UserRoleAssignmentSerializer,
     UserValidationAPIViewResponseSerializer,
     UserValidationAPIViewSerializer,
@@ -47,6 +46,10 @@ from openedx_authz.utils import get_user_by_username_or_email
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+# Admin roles a user may not remove from itself, so a scope is not left without an
+# admin by accident. Another user who can manage the team can still revoke them.
+SELF_PROTECTED_ROLES = (LIBRARY_ADMIN.external_key, COURSE_ADMIN.external_key)
 
 
 @view_auth_classes()
@@ -153,9 +156,7 @@ class PermissionValidationMeView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-        response_data, _ = PermissionValidationRequested.run_filter(
-            items=response_data
-        )
+        response_data, _ = PermissionValidationRequested.run_filter(items=response_data)
         serializer = PermissionValidationResponseSerializer(response_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -242,6 +243,9 @@ class RoleUserAPIView(APIView):
             "errors": [{"user_identifier": "jane_doe", "error": "user_does_not_have_role"}]
         }
 
+    A user cannot remove its own ``library_admin`` or ``course_admin`` role; that user is
+    reported in ``errors`` with ``cannot_remove_own_admin_role`` and keeps the role.
+
     **Authentication and Permissions**
 
     - Requires authenticated user.
@@ -317,9 +321,7 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        data, errors = RoleAssignmentRequested.run_filter(
-            items=data
-        )
+        data, errors = RoleAssignmentRequested.run_filter(items=data)
         completed = []
         for scope_value in data["scopes"]:
             for user_identifier in data["users"]:
@@ -367,14 +369,16 @@ class RoleUserAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        data, errors = RoleRemovalRequested.run_filter(
-            items=data
-        )
+        data, errors = RoleRemovalRequested.run_filter(items=data)
         completed = []
         for user_identifier in data["users"]:
             response_dict = {"user_identifier": user_identifier}
             try:
                 user = get_user_by_username_or_email(user_identifier)
+                if user.pk == request.user.pk and data["role"] in SELF_PROTECTED_ROLES:
+                    response_dict["error"] = RoleOperationError.CANNOT_REMOVE_OWN_ADMIN_ROLE
+                    errors.append(response_dict)
+                    continue
                 result = api.unassign_role_from_user(user.username, data["role"], data["scope"])
                 if result:
                     response_dict["status"] = RoleOperationStatus.ROLE_REMOVED
@@ -396,99 +400,84 @@ class RoleUserAPIView(APIView):
 
 @view_auth_classes()
 class RoleListView(APIView):
-    """API view for retrieving role definitions and their associated permissions within a specific scope.
+    """API view for retrieving the roles, permissions and categories of one or more scope types.
 
-    This view provides read-only access to role definitions within a specific
-    authorization scope. It returns detailed information about each role including
-    the permissions granted and the number of users assigned to each role.
+    Returns a catalog that lets the Admin Console build its roles and permissions matrix from a
+    single request (ADR 0028). The roles are paginated; the ``categories`` and ``permissions``
+    catalogs are complete in every page.
 
     **Endpoints**
 
-    - GET: Retrieve all roles and their permissions for a specific scope
+    - GET: Retrieve the catalog for one or more scope types
 
     **Query Parameters**
 
-    - scope (Required): The scope to query roles for (e.g., 'lib:OpenedX:CSPROB')
-    - page (Optional): Page number for pagination
-    - page_size (Optional): Number of items per page
+    - scope_types (Required): Comma-separated list of scope types to query, with at least one value.
+      Each one is ``course-v1`` or ``lib``.
+    - page (Optional): Page number for pagination of the roles
+    - page_size (Optional): Number of roles per page
 
     **Response Format**
 
-    Returns a paginated list of role objects, each containing:
-
-    - role: The role's external identifier (e.g., 'library_author', 'library_user')
-    - permissions: List of permission identifiers granted by this role (e.g., 'content_libraries.delete_library')
-    - user_count: Number of users currently assigned to this role
+    - count, next, previous: Pagination of the roles
+    - scope_types: The requested scope types (``course-v1``, ``lib``)
+    - categories: Categories used by the permissions (id, display_name, description, icon)
+    - permissions: Permissions of the scope types (id, display_name, description, icon, category_id, scope_types)
+    - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
+      (ids of entries of ``permissions``), scope_types (requested scope types in which the role has grants)
 
     **Authentication and Permissions**
 
     - Requires authenticated user.
-    - Requires ``manage_library_team`` permission for the scope.
+    - ``course-v1`` requires ``courses.view_course_team`` in any scope.
+    - ``lib`` requires ``content_libraries.view_library_team`` in any scope.
+    - The user must hold the permission of each requested scope type.
 
     **Example Request**
 
-    GET /api/authz/v1/roles/?scope=lib:OpenedX:CSPROB&page=1&page_size=10
-
-    **Example Response**::
-
-        {
-            "count": 2,
-            "next": null,
-            "previous": null,
-            "results": [
-                {
-                    "role": "library_author",
-                    "permissions": ["delete_library_content", "edit_library"],
-                    "user_count": 5
-                },
-                {
-                    "role": "library_user",
-                    "permissions": ["view_library", "view_library_team", "reuse_library_content"],
-                    "user_count": 12
-                }
-            ]
-        }
+    GET /api/authz/v1/roles/?scope_types=course-v1&page=1&page_size=10
     """
 
     pagination_class = AuthZAPIViewPagination
-    permission_classes = [DynamicScopePermission]
+    permission_classes = [ScopeTypePermission]
 
     @apidocs.schema(
         parameters=[
-            apidocs.query_parameter("scope", str, description="The scope to query roles for"),
+            apidocs.query_parameter(
+                "scope_types", str, description="Comma-separated scope types to query: `course-v1` and/or `lib`"
+            ),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
-            apidocs.query_parameter("page_size", int, description="Number of items per page"),
+            apidocs.query_parameter("page_size", int, description="Number of roles per page"),
         ],
         responses={
-            status.HTTP_200_OK: ListRolesWithScopeResponseSerializer(many=True),
+            status.HTTP_200_OK: RoleCatalogResponseSerializer,
             status.HTTP_400_BAD_REQUEST: "The request parameters are invalid",
-            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.VIEW_LIBRARY.identifier, permissions.COURSES_VIEW_COURSE_TEAM.identifier])
     def get(self, request: HttpRequest) -> Response:
-        """Retrieve all roles and their permissions for a specific scope."""
-        serializer = ListRolesWithScopeSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        query_params = serializer.validated_data
+        """Retrieve the roles, permissions and categories available for one or more scope types."""
+        query_serializer = ListRolesQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        scope_types = query_serializer.validated_data["scope_types"]
 
-        generic_scope = get_generic_scope(query_params["scope"])
-        roles = api.get_role_definitions_in_scope(generic_scope)
-        response_data = []
-        for role in roles:
-            users = api.get_users_for_role_in_scope(role.external_key, query_params["scope"].external_key)
-            response_data.append(
-                {
-                    "role": role.external_key,
-                    "permissions": role.get_permission_identifiers(),
-                    "user_count": len(users),
-                }
-            )
+        permission_catalog = api.get_permission_catalog(scope_types)
+        role_catalog = api.get_role_catalog(scope_types)
 
         paginator = self.pagination_class()
-        paginated_response_data = paginator.paginate_queryset(response_data, request)
-        serialized_data = ListRolesWithScopeResponseSerializer(paginated_response_data, many=True)
-        return paginator.get_paginated_response(serialized_data.data)
+        page = paginator.paginate_queryset(role_catalog, request)
+        response = paginator.get_paginated_response(RoleCatalogRoleSerializer(page, many=True).data)
+        response.data.update(
+            RoleCatalogMetaSerializer(
+                {
+                    "scope_types": scope_types,
+                    "categories": api.get_category_catalog(permission_catalog),
+                    "permissions": permission_catalog,
+                }
+            ).data
+        )
+        return response
 
 
 @view_auth_classes()

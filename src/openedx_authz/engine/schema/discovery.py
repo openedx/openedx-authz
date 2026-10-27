@@ -248,7 +248,10 @@ class SchemaDiscovery:
         except ImproperlyConfigured:
             return []
         if not isinstance(file_paths, list):
-            raise ImproperlyConfigured
+            raise SchemaDiscoveryError(
+                "OPENEDX_AUTHZ_SCHEMA_FILES must be a list of filesystem paths, "
+                f"got {type(file_paths).__name__!r}."
+            )
         discovered: list[DiscoveredResource] = []
         for file_path in file_paths:
             if not file_path.endswith(SCHEMA_FILE_SUFFIXES):

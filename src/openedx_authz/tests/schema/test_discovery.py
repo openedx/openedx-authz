@@ -248,6 +248,12 @@ class TestSettingsFiles:
         # pylint: disable=protected-access
         assert not SchemaDiscovery()._discover_settings_files()
 
+    @override_settings(OPENEDX_AUTHZ_SCHEMA_FILES="/etc/authz/schema.yaml")
+    def test_non_list_setting_raises(self):
+        """A bare string instead of a list is rejected as a misconfiguration."""
+        with pytest.raises(SchemaDiscoveryError, match="must be a list"):
+            SchemaDiscovery().discover()
+
     def test_unconfigured_django_contributes_nothing(self, monkeypatch):
         """``ImproperlyConfigured`` degrades to no contribution."""
         # pylint: disable=import-outside-toplevel

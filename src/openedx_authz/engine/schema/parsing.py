@@ -54,8 +54,8 @@ class SchemaParser:
 
     @staticmethod
     def parse_yamls(contents: bytes, resource: DiscoveredResource) -> list[object]:
-        """Parse YAML bytes as a multi-document stream
-        Skipping empty documents, and preserve the resulting root value.
+        """Parse YAML bytes as a multi-document stream, skipping empty 
+        documents, and preserve the resulting root value.
         """
         try:
             return [doc for doc in yaml.safe_load_all(contents) if doc is not None]

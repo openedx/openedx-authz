@@ -37,6 +37,7 @@ from openedx_authz.engine.schema.types.definitions import (
 from openedx_authz.engine.schema.types.loading import (
     ParsedSchemaDocument,
     SchemaDocument,
+    SourceFileRecord,
     SourceRecord,
 )
 
@@ -49,6 +50,7 @@ __all__ = [
     # loading
     "SourceRecord",
     "ParsedSchemaDocument",
+    "SourceFileRecord",
     "SchemaDocument",
     # compilation
     "RelationshipSource",

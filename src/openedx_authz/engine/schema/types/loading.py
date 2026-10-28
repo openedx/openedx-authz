@@ -61,6 +61,22 @@ class SourceRecord:
 
 
 @dataclass(frozen=True)
+class SourceFileRecord(SourceRecord):
+    """Source record for a filesystem-path schema resource (ADR 0030).
+
+    Overrides :attr:`source_id` to use the absolute path directly, since the
+    parent's ``module.replace(".", "/")`` convention assumes dotted Python
+    module paths and would corrupt a filesystem path containing a file
+    extension.
+    """
+
+    @property
+    def source_id(self) -> str:
+        """Return ``"<distribution>:<absolute_path>"``."""
+        return f"{self.distribution}:{self.resource_path}"
+
+
+@dataclass(frozen=True)
 class ParsedSchemaDocument:
     """One parsed YAML value and the provenance of the resource that supplied it."""
 

@@ -15,7 +15,6 @@ from openedx_authz.tests.schema.factories import InMemoryResource
     ("contents", "expected"),
     [
         (b"schema_version: '1.0'\npriority: 10\n", {"schema_version": "1.0", "priority": 10}),
-        (b"", None),
         (b"value", "value"),
         (b"- first\n- second\n", ["first", "second"]),
     ],

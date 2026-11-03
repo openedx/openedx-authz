@@ -1,9 +1,11 @@
 """Test utilities for creating namespaced keys using class constants."""
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from ddt import data, ddt, unpack
+from django.conf import settings
 from django.test import TestCase
 
 from openedx_authz.api.data import (
@@ -15,9 +17,61 @@ from openedx_authz.api.data import (
     ScopeData,
     UserData,
 )
+from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.renderer import PolicyRenderer
+from openedx_authz.engine.schema.discovery import SchemaDiscovery
+from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.utils import get_waffle_flag_states
 
 FLAG_NAME = "authz.enable_course_authoring"
+
+
+class AuthzEnforcerTestMixin:
+    """Provide deterministic singleton and background-loader lifecycle for tests."""
+
+    def setUp(self):
+        """Start each test without an enforcer or background loader from another test."""
+        super().setUp()
+        self._reset_authz_enforcer()
+
+    def tearDown(self):
+        """Stop background work before Django rolls back or flushes the database."""
+        self._reset_authz_enforcer()
+        super().tearDown()
+
+    @staticmethod
+    def _reset_authz_enforcer() -> None:
+        """Deactivate and clear all singleton state held by ``AuthzEnforcer``."""
+        AuthzEnforcer.deactivate_enforcer()
+        AuthzEnforcer._enforcer = None  # pylint: disable=protected-access
+        AuthzEnforcer._adapter = None  # pylint: disable=protected-access
+        AuthzEnforcer._last_policy_loaded_version = None  # pylint: disable=protected-access
+
+    @contextmanager
+    def pause_authz_auto_load(self, enforcer):
+        """Pause a running policy loader for deterministic database setup."""
+        was_running = enforcer.is_auto_loading_running()
+        if was_running:
+            enforcer.stop_auto_load_policy()
+
+        try:
+            yield
+        finally:
+            interval = settings.CASBIN_AUTO_LOAD_POLICY_INTERVAL
+            if was_running and interval > 0:
+                enforcer.start_auto_load_policy(interval)
+
+
+def seed_static_authorization_policies(target_enforcer) -> list[list[str]]:
+    """Seed schema-defined role-permission policies."""
+    discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
+    schema = SchemaPipeline(discovery=discovery).compile()
+    policies = [row.as_policy() for row in PolicyRenderer().render(schema).rows]
+
+    for policy in policies:
+        target_enforcer.add_policy(*policy)
+
+    return policies
 
 
 def make_policy(role_key: str, action_key: str, scope_key: str, effect: str = "allow") -> list[str]:

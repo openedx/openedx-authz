@@ -1,12 +1,13 @@
 """
 Test suite for engine/utils.py policy migration functionality.
 
-This module tests the migration of policies from file-based storage (authz.policy)
+This module tests the migration of policies from file-based storage
 to database-backed storage, which is the real-world scenario for the load_policies
 management command.
 """
 
 import os
+from tempfile import NamedTemporaryFile
 
 import casbin
 from casbin_adapter.models import CasbinRule
@@ -20,13 +21,16 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
 
+SOURCE_POLICY_COUNT = 3
+SOURCE_G2_COUNT = 3
+
 
 @ddt
 class TestMigratePolicyBetweenEnforcers(TestCase):
     """
     Test case for migrate_policy_between_enforcers function.
 
-    Tests the migration of policies from the authz.policy file to the database:
+    Tests the migration of policies from a policy file to the database:
     - Loading all policies from file to DB
     - Idempotent migration (running twice doesn't duplicate)
     - Partial migration (some policies already in DB)
@@ -35,26 +39,51 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Set up the Casbin model and policy file paths."""
+        """Set up the Casbin model path."""
         super().setUpClass()
         engine_config_dir = os.path.join(ROOT_DIRECTORY, "engine", "config")
         cls.model_file = os.path.join(engine_config_dir, "model.conf")
-        cls.policy_file = os.path.join(engine_config_dir, "authz.policy")
 
         if not os.path.isfile(cls.model_file):
             raise FileNotFoundError(f"Model file not found: {cls.model_file}")
-        if not os.path.isfile(cls.policy_file):
-            raise FileNotFoundError(f"Policy file not found: {cls.policy_file}")
 
     def setUp(self):
         """Set up fresh enforcers for each test.
 
         Creates enforcers matching the load_policies command pattern:
-        - Source enforcer: file-based (loads from authz.policy file, read-only)
+        - Source enforcer: file-based (loads from a test policy file, read-only)
         - Target enforcer: database-backed (global_enforcer, will be cleared)
         """
-        # Source enforcer loads policies from the authz.policy file
-        self.source_enforcer = casbin.Enforcer(self.model_file, self.policy_file)
+        policy_file = NamedTemporaryFile(mode="w", suffix=".policy", delete=False)
+        policy_file.write(
+            f"p, {make_role_key(roles.LIBRARY_ADMIN.external_key)}, "
+            f"{make_action_key(permissions.DELETE_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+        )
+        policy_file.write(
+            f"p, {make_role_key(roles.LIBRARY_USER.external_key)}, "
+            f"{make_action_key(permissions.VIEW_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+        )
+        policy_file.write(
+            f"p, {make_role_key(roles.LIBRARY_AUTHOR.external_key)}, "
+            f"{make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+        )
+        policy_file.write(
+            f"g2, {make_action_key(permissions.DELETE_LIBRARY.identifier)}, "
+            f"{make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}\n"
+        )
+        policy_file.write(
+            f"g2, {make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}, "
+            f"{make_action_key(permissions.VIEW_LIBRARY.identifier)}\n"
+        )
+        policy_file.write(
+            f"g2, {make_action_key(permissions.MANAGE_LIBRARY_TEAM.identifier)}, "
+            f"{make_action_key(permissions.VIEW_LIBRARY_TEAM.identifier)}\n"
+        )
+        policy_file.close()
+        self.addCleanup(os.unlink, policy_file.name)
+
+        # Source enforcer loads policies from the test policy file
+        self.source_enforcer = casbin.Enforcer(self.model_file, policy_file.name)
 
         # Target enforcer is the database-backed global enforcer
         self.target_enforcer = AuthzEnforcer.get_enforcer()
@@ -72,14 +101,14 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.target_enforcer.load_policy()
 
     def test_migrate_all_file_policies_to_database(self):
-        """Test migration of all policies from authz.policy file to database.
+        """Test migration of all policies from a policy file to database.
 
         Expected Result:
             - All policies from the file are loaded into the database
-            - The file contains 132 regular policies (p rules)
+            - The file contains the expected regular policies (p rules)
             - Policy content matches expected file content
         """
-        expected_policy_count = 132
+        expected_policy_count = SOURCE_POLICY_COUNT
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -111,10 +140,10 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
     def test_migrate_no_grouping_policies_from_file(self):
-        """Test that no grouping policies (g rules) exist in the authz.policy file.
+        """Test that no grouping policies (g rules) exist in the policy file.
 
         Expected Result:
-            - The authz.policy file contains no g rules (role assignments)
+            - The policy file contains no g rules (role assignments)
             - These are expected to come from the database, not the file
             - Migration should result in 0 grouping policies
         """
@@ -126,18 +155,18 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.assertEqual(
             len(target_grouping),
             0,
-            "authz.policy file should not contain user role assignments (g rules)",
+            "Policy file should not contain user role assignments (g rules)",
         )
 
     def test_migrate_action_inheritance_from_file(self):
-        """Test migration of g2 policies (action inheritance) from authz.policy file.
+        """Test migration of g2 policies (action inheritance) from a policy file.
 
         Expected Result:
             - All g2 rules from the file are migrated to database
-            - The file contains 10 g2 rules defining action hierarchies
+            - The file contains the expected g2 rules defining action hierarchies
             - Action inheritance relationships are preserved
         """
-        expected_g2_count = 10
+        expected_g2_count = SOURCE_G2_COUNT
 
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
         self.target_enforcer.load_policy()
@@ -208,16 +237,16 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """Test that all policy types from the file are migrated correctly.
 
         Expected Result:
-            - All regular policies (p) are migrated (132 rules)
+            - All regular policies (p) are migrated
             - No role assignments (g) - these come from database
-            - All action inheritance rules (g2) are migrated (10 rules)
+            - All action inheritance rules (g2) are migrated
         """
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         self.assertEqual(
             len(self.target_enforcer.get_policy()),
-            132,
-            "Should have 132 regular policies from file",
+            SOURCE_POLICY_COUNT,
+            "Should have all regular policies from file",
         )
         self.assertEqual(
             len(self.target_enforcer.get_grouping_policy()),
@@ -226,8 +255,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
         self.assertEqual(
             len(self.target_enforcer.get_named_grouping_policy("g2")),
-            10,
-            "Should have 10 g2 rules from file",
+            SOURCE_G2_COUNT,
+            "Should have all g2 rules from file",
         )
 
     def test_migrate_partial_duplicates(self):
@@ -250,8 +279,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         target_policies = self.target_enforcer.get_policy()
         self.assertEqual(
             len(target_policies),
-            132,
-            "Should have 132 policies total, with no duplicates",
+            SOURCE_POLICY_COUNT,
+            "Should have all policies, with no duplicates",
         )
 
         duplicates = CasbinRule.objects.values("v0", "v1", "v2").annotate(total=Count("*")).filter(total__gt=1)
@@ -284,7 +313,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """Test that specific policies from the file are migrated correctly.
 
         Expected Result:
-            - Specific policies from authz.policy file are present in database
+            - Specific policies from the source file are present in database
             - Policy format and content are preserved
         """
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
@@ -315,7 +344,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """Test that specific action inheritance rules from file are migrated correctly.
 
         Expected Result:
-            - Specific g2 rules from authz.policy file are present in database
+            - Specific g2 rules from the source file are present in database
             - Action inheritance relationships are preserved
         """
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
@@ -346,7 +375,9 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         migrate_policy_between_enforcers(self.source_enforcer, self.target_enforcer)
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 133, "Should have 132 file policies + 1 custom policy")
+        self.assertEqual(
+            len(target_policies), SOURCE_POLICY_COUNT + 1, "Should have all file policies + 1 custom policy"
+        )
         self.assertIn(custom_policy, target_policies, "Custom database policy should be preserved")
 
     def test_migrate_preserves_user_role_assignments_in_db(self):
@@ -382,4 +413,4 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
 
         target_policies = self.target_enforcer.get_policy()
-        self.assertEqual(len(target_policies), 132, "All 132 policies from file should be loaded")
+        self.assertEqual(len(target_policies), SOURCE_POLICY_COUNT, "All policies from file should be loaded")

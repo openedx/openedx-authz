@@ -45,6 +45,13 @@ Consequences
 * The current policy loader continues to handle existing Casbin grouping rows.
 * Introducing implication later requires a schema-version change and migration guidance.
 
+Addendum: Remove the Static Policy File (2026-11-03)
+=====================================================
+
+Static role-permission policies moved from ``authz.policy`` to the authorization schema, and the policy file was removed. The Casbin ``g2`` model, matcher behavior, and stored grouping rows remain unchanged.
+
+New installations no longer load the default ``g2`` relationships that were stored in ``authz.policy``. `Issue #91`_ and `Issue #523`_ track defining permission dependencies in the authorization schema.
+
 Rejected Alternatives
 *********************
 
@@ -62,5 +69,9 @@ References
 **********
 
 * `ADR 0017`_
+* `Issue #91`_
+* `Issue #523`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst
+.. _Issue #91: https://github.com/openedx/openedx-authz/issues/91
+.. _Issue #523: https://github.com/openedx/openedx-authz/issues/523

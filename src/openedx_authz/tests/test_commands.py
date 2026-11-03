@@ -15,7 +15,6 @@ from ddt import data, ddt
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from openedx_authz import ROOT_DIRECTORY
 from openedx_authz import api as authz_api
 from openedx_authz.api.data import ContentLibraryData
 from openedx_authz.constants.permissions import (
@@ -334,7 +333,7 @@ class LoadPoliciesCommandTests(TestCase):
     Tests for the `load_policies` Django management command.
 
     This test class verifies the behavior of the load_policies command, including:
-    - Default file path handling
+    - Missing policy file handling
     - Clearing existing policies
     """
 
@@ -343,43 +342,14 @@ class LoadPoliciesCommandTests(TestCase):
         self.buffer = io.StringIO()
 
     @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
-    @patch("casbin.Enforcer")
-    @patch("os.path.join")
-    @patch("click.confirm")
-    def test_handle_with_default_paths(self, mock_confirm, mock_join, mock_casbin_enforcer, mock_get_enforcer):
-        """Test handle method with default policy and model paths."""
-        # Setup mocks
-        mock_target_enforcer = Mock()
-        mock_get_enforcer.return_value = mock_target_enforcer
+    def test_handle_without_policy_file_is_a_deprecated_noop(self, mock_get_enforcer):
+        """Existing deployment calls remain safe until they move to the schema command."""
+        command = LoadPoliciesCommand(stdout=self.buffer)
 
-        mock_source_enforcer = Mock()
-        mock_casbin_enforcer.return_value = mock_source_enforcer
-
-        policy_path = f"{ROOT_DIRECTORY}/engine/config/authz.policy"
-        model_path = f"{ROOT_DIRECTORY}/engine/config/model.conf"
-
-        # Define paths that will be joined
-        mock_join.side_effect = (
-            policy_path,
-            model_path,
-        )
-
-        # Create command instance
-        command = LoadPoliciesCommand()
-        command.migrate_policies = Mock()
-
-        # Call handle method
         command.handle(policy_file_path=None, model_file_path=None, clear_existing=False)
 
-        # Assertions
-        mock_casbin_enforcer.assert_called_once_with(
-            model_path,
-            policy_path,
-        )
-        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "authz.policy")
-        mock_join.assert_any_call(ROOT_DIRECTORY, "engine", "config", "model.conf")
-        mock_confirm.assert_not_called()
-        command.migrate_policies.assert_called_once_with(mock_source_enforcer, mock_target_enforcer)
+        self.assertIn("No policy file supplied", self.buffer.getvalue())
+        mock_get_enforcer.assert_not_called()
 
     @patch("openedx_authz.engine.enforcer.AuthzEnforcer.get_enforcer")
     @patch("casbin.Enforcer")
@@ -439,7 +409,7 @@ class LoadPoliciesCommandTests(TestCase):
         command._delete_permissions_inheritance = Mock()
 
         # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
+        command.handle(policy_file_path="/custom/policy.csv", model_file_path=None, clear_existing=True)
 
         # Assertions
         mock_target_enforcer.load_policy.assert_called_once()
@@ -474,7 +444,7 @@ class LoadPoliciesCommandTests(TestCase):
         command._delete_permissions_inheritance = Mock()
 
         # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
+        command.handle(policy_file_path="/custom/policy.csv", model_file_path=None, clear_existing=True)
 
         # Assertions
         mock_target_enforcer.load_policy.assert_called_once()
@@ -506,7 +476,7 @@ class LoadPoliciesCommandTests(TestCase):
         command._delete_permissions_inheritance = Mock()
 
         # Call handle method
-        command.handle(policy_file_path=None, model_file_path=None, clear_existing=True)
+        command.handle(policy_file_path="/custom/policy.csv", model_file_path=None, clear_existing=True)
 
         # Assertions
         mock_target_enforcer.load_policy.assert_called_once()

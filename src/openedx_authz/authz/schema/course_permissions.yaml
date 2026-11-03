@@ -56,7 +56,7 @@ permission_categories:
     description: Additional permissions not included in other categories, such as viewing checklists.
     icon: DrawShapes
   # Backend-only category for legacy compatibility actions that have no frontend
-  # display metadata. These are referenced by legacy roles in authz.policy.
+  # display metadata. These are referenced by legacy roles in course_roles.yaml.
   - id: course_legacy
     display_name: Legacy compatibility
     description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.

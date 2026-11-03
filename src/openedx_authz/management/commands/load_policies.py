@@ -1,7 +1,7 @@
 """Django management command to load policies into the authz Django model.
 
 The command supports:
-- Specifying the path to the Casbin policy file. Default is 'openedx_authz/engine/config/authz.policy'.
+- Specifying the path to a Casbin policy file. Calls without a file are a no-op.
 - Specifying the Casbin model configuration file. Default is 'openedx_authz/engine/config/model.conf'.
 - Optionally clearing existing policies in the database before loading new ones.
 """
@@ -25,9 +25,8 @@ class Command(BaseCommand):
     and persistence of authorization policies within the Django application.
 
     Example Usage:
-        python manage.py load_policies --policy-file-path /path/to/authz.policy
-        python manage.py load_policies --policy-file-path /path/to/authz.policy --model-file-path /path/to/model.conf
-        python manage.py load_policies
+        python manage.py load_policies --policy-file-path /path/to/custom.policy
+        python manage.py load_policies --policy-file-path /path/to/custom.policy --model-file-path /path/to/model.conf
     """
 
     help = "Load policies from a Casbin policy file into the Django database model."
@@ -74,7 +73,13 @@ class Command(BaseCommand):
             options["model_file_path"],
         )
         if policy_file_path is None:
-            policy_file_path = os.path.join(ROOT_DIRECTORY, "engine", "config", "authz.policy")
+            self.stdout.write(
+                self.style.WARNING(
+                    "No policy file supplied; nothing was loaded. "
+                    "Use load_authz_schema for static role-permission policies."
+                )
+            )
+            return
         if model_file_path is None:
             model_file_path = os.path.join(ROOT_DIRECTORY, "engine", "config", "model.conf")
 

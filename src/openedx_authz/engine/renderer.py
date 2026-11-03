@@ -7,7 +7,7 @@ the ``render`` and ``apply`` lifecycle steps:
   memory, without touching the database.
 * ``apply`` persists the rows in a single transaction, while preserving data
   owned by other services (ADR 0018 §3): dynamic roles, user assignments, and
-  the legacy ``g2`` action-inheritance rows that still live in ``authz.policy``.
+  legacy ``g2`` action-inheritance rows.
 
 Key semantics:
     * Idempotent (ADR 0018 §2): re-applying identical definitions changes

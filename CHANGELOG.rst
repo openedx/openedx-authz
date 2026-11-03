@@ -18,8 +18,8 @@ Added
 =====
 
 * Added the static authorization schema, a versioned YAML format for declaring permissions,
-  permission categories, roles, and role extensions (ADR 0017). The permissions and roles that
-  ``authz.policy`` defines are now also expressed as schema files under
+  permission categories, roles, and role extensions (ADR 0017). The permissions and roles
+  previously defined in ``authz.policy`` are expressed as schema files under
   ``openedx_authz/authz/schema/``.
 * Added the schema loading pipeline in ``openedx_authz/engine/schema/``, covering the discover,
   load, validate and compile phases of the lifecycle (ADR 0018), plus render and apply in
@@ -61,11 +61,18 @@ Fixed
   by priority. This aligns the compiler with ADR 0031 and removes a path where a higher-priority file
   could silently replace a role's base definition.
 
+Changed
+========
+
+* Removed ``authz.policy`` after moving its static role-permission policies to the authorization schema. Existing Casbin action grouping remains supported until permission dependencies move to the schema.
+* Calls to the deprecated ``load_policies`` command without an explicit policy file are now a no-op while deployment integrations move to ``load_authz_schema``.
+
 Notes
 =====
 
-* No authorization behavior changes in this release. Loading ``authz.policy`` works as before, and
-  the new pipeline runs only when ``load_authz_schema`` is invoked.
+* Existing custom policy files can still be loaded by passing their path to ``load_policies``.
+  Calls without a policy file do nothing while deployment integrations move to
+  ``load_authz_schema``.
 * Applying a schema is idempotent and preserves data the loader does not own: user assignments,
   dynamic roles, legacy ``g2`` action-inheritance rows, and pre-existing policy rows that no schema
   declares. Rows that already exist are adopted, gaining definition and source records rather than

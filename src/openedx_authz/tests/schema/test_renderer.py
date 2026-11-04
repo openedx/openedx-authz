@@ -83,9 +83,9 @@ class TestPolicyRendering:
         )
         validator = SchemaValidator()
 
-        assert not validator.has_errors(validator.validate([base, contribution]))
+        assert not any(issue.is_error for issue in validator.validate([base, contribution]))
         schema = SchemaCompiler().compile([base, contribution])
-        assert not validator.has_errors(validator.validate_compiled(schema))
+        assert not any(issue.is_error for issue in validator.validate_compiled(schema))
 
         rendered = PolicyRenderer().render(schema)
         assert [row.as_policy() for row in rendered.rows] == [

@@ -10,7 +10,7 @@ from jsonschema import Draft202012Validator, ValidationError
 @pytest.fixture(name="schema_validator", scope="module")
 def fixture_schema_validator():
     """Build a validator from the packaged version 1 schema."""
-    schema_path = files("openedx_authz.schema").joinpath("authz-schema-v1.json")
+    schema_path = files("openedx_authz.engine.schema").joinpath("authz-schema-v1.json")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     return Draft202012Validator(schema)
 

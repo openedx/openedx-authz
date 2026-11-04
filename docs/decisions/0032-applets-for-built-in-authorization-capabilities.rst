@@ -125,21 +125,14 @@ Roles such as ``course_editor`` have no permissions of their own, so schema vers
 
 REST endpoints continue to follow the ownership rules in `ADR 0026`_, and applets now give those rules a package boundary. The Admin Console endpoints therefore move to ``role_management``, since they support the same role-management workflow, although this placement does not settle the ownership of the organization data returned by ``AdminConsoleOrgsAPIView``, and ``WaffleFlagStatesAPIView`` moves to ``course_authoring``. In both cases, the existing URLs and route names remain unchanged.
 
-5. YAML definitions and Python constants
-========================================
-
-YAML is the source of truth for static definitions. It defines every permission, role, and role extension together with their metadata, and it is the only place that lists a role's permissions, so the schema pipeline composes each role's complete permission list from the ``role_extensions`` contributed by the applets.
-
-Python constants give clients stable identifiers to reference in code, since permission constants name the actions that clients check through the public API and role constants name the roles that clients assign. Role constants do not list permissions, because listing them in Python would repeat the schema composition and make each capability applet import and extend roles owned by ``course_team_roles``, so code that needs a role's permissions reads them through the public API or the compiled schema.
-
-Every permission constant names a permission defined in YAML, and every permission defined in YAML has a constant. Each applet maintains its permission constants manually for now, tests compare them with the compiled schema, and generating them from YAML may replace this process in later work.
-
-6. Imports
+5. Imports
 ==========
 
-Applets are internal packages, so clients import built-in permission and role constants from ``openedx_authz.authz``, which exposes each applet's constants through one public API. The existing ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles`` paths remain compatibility exports.
+Although applets are internal packages, ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles`` continue to export every existing constant, while ``COURSE_ADMIN`` and ``COURSE_STAFF`` continue to contain their complete permission lists, so existing import paths remain valid when code moves into an applet.
 
-7. Future extraction
+YAML remains the source of truth for static definitions, although each applet will maintain its Python constants manually for now, so tests compare those constants with the applet's YAML definitions, and generating them from YAML may replace this process in later work.
+
+6. Future extraction
 ====================
 
 The applets remain inside ``openedx-authz`` for this work, so implementing the ownership model and the permissions from `Issue #484`_ does not require coordinated changes across the services that use the library, and since their definitions describe the underlying actions and data rather than one user interface, another client can reuse the same permissions when it exposes the same responsibility.
@@ -151,13 +144,12 @@ Consequences
 
 1. Each built-in definition has an explicit owner based on the capability it protects.
 2. Adding a capability does not require adding its definitions to shared course permission and role files.
-3. The complete permission list for a course role is assembled from several schema contributions, so readers use the compiled schema or the public API to inspect that list.
+3. The complete permission list for a course role is assembled from several schema contributions, so readers use the compiled schema or the public role constants to inspect that list.
 4. Each permission identifier appears in YAML and Python until generated constants replace the manually maintained files.
 5. The schema accepts an empty base permission list for applets that define roles whose permissions come from other applets. Validation logs a warning so contributors can confirm that the empty list is intentional and that ``role_extensions`` provide the role's permissions.
-6. Role constants no longer list permissions, so code that read a role's permissions from its constant uses the public API instead.
-7. The Admin Console and course-authoring endpoints move again after `ADR 0026`_, although their public URLs, route names, request and response contracts, and import paths remain stable.
-8. Reviewers must identify unwanted dependencies between applets because this decision does not add automated import-boundary checks.
-9. Applets create boundaries that can support later extraction, although moving one to another service requires a separate decision about dependencies and compatibility.
+6. The Admin Console and course-authoring endpoints move again after `ADR 0026`_, although their public URLs, route names, request and response contracts, and import paths remain stable.
+7. Reviewers must identify unwanted dependencies between applets because this decision does not add automated import-boundary checks.
+8. Applets create boundaries that can support later extraction, although moving one to another service requires a separate decision about dependencies and compatibility.
 
 Rejected Alternatives
 *********************
@@ -187,6 +179,17 @@ References
 * `ADR 0026`_
 * `ADR 0033`_
 
+Addendum: 2026-11-04
+********************
+
+Each applet keeps the permission and role constants it owns in one ``constants.py`` file. Clients import these constants from ``openedx_authz.authz``, while ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles`` remain compatibility exports.
+
+``ActionData``, ``PermissionData``, and ``RoleData`` live in ``openedx_authz.data``. This keeps the dependency direction from ``openedx_authz.api.data`` to ``openedx_authz.authz``, then to the applet constants, and finally to the low-level data classes. It also avoids the circular import that previously required action and permission data classes to move below the public API layer in `commit 2b732c3`_.
+
+YAML remains the source of truth for role composition. Role constants identify roles without listing their permissions, so callers use the public API or the compiled schema to read a role's complete permission list.
+
+This addendum replaces the import paths, dependency direction, and role constant behavior described earlier in this decision. The :doc:`Built-In Python Constants <../references/built-in-constants>` reference documents the public imports.
+
 .. _Issue #484: https://github.com/openedx/openedx-authz/issues/484
 .. _PR #421: https://github.com/openedx/openedx-authz/pull/421
 .. _ADR 0005: 0005-architecture-and-data-modeling.rst
@@ -196,3 +199,4 @@ References
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0026: 0026-rest-api-domain-ownership-boundary.rst
 .. _ADR 0033: 0033-shared-applet-for-course-team-roles.rst
+.. _commit 2b732c3: https://github.com/openedx/openedx-authz/commit/2b732c3560b6392b82a5f835e2bf254eefe70d7c

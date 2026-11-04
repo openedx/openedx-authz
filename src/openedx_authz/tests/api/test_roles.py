@@ -44,7 +44,13 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.role_permissions import (
+    COURSE_ADMIN_PERMISSIONS,
     COURSE_AUDITOR_PERMISSIONS,
+    COURSE_BETA_TESTER_PERMISSIONS,
+    COURSE_DATA_RESEARCHER_PERMISSIONS,
+    COURSE_EDITOR_PERMISSIONS,
+    COURSE_LIMITED_STAFF_PERMISSIONS,
+    COURSE_STAFF_PERMISSIONS,
     LIBRARY_ADMIN_PERMISSIONS,
     LIBRARY_AUTHOR_PERMISSIONS,
     LIBRARY_CONTRIBUTOR_PERMISSIONS,
@@ -503,38 +509,32 @@ class TestRolesAPI(RolesTestSetupMixin):
         (
             "lib^*",
             {
-                roles.LIBRARY_ADMIN.external_key,
-                roles.LIBRARY_AUTHOR.external_key,
-                roles.LIBRARY_CONTRIBUTOR.external_key,
-                roles.LIBRARY_USER.external_key,
+                roles.LIBRARY_ADMIN.external_key: LIBRARY_ADMIN_PERMISSIONS,
+                roles.LIBRARY_AUTHOR.external_key: LIBRARY_AUTHOR_PERMISSIONS,
+                roles.LIBRARY_CONTRIBUTOR.external_key: LIBRARY_CONTRIBUTOR_PERMISSIONS,
+                roles.LIBRARY_USER.external_key: LIBRARY_USER_PERMISSIONS,
             },
-            roles.LIBRARY_ADMIN.external_key,
-            LIBRARY_ADMIN_PERMISSIONS,
         ),
         (
             "course-v1^*",
             {
-                roles.COURSE_AUDITOR.external_key,
-                roles.COURSE_EDITOR.external_key,
-                roles.COURSE_STAFF.external_key,
-                roles.COURSE_ADMIN.external_key,
-                roles.COURSE_LIMITED_STAFF.external_key,
-                roles.COURSE_DATA_RESEARCHER.external_key,
-                roles.COURSE_BETA_TESTER.external_key,
+                roles.COURSE_ADMIN.external_key: COURSE_ADMIN_PERMISSIONS,
+                roles.COURSE_AUDITOR.external_key: COURSE_AUDITOR_PERMISSIONS,
+                roles.COURSE_BETA_TESTER.external_key: COURSE_BETA_TESTER_PERMISSIONS,
+                roles.COURSE_DATA_RESEARCHER.external_key: COURSE_DATA_RESEARCHER_PERMISSIONS,
+                roles.COURSE_EDITOR.external_key: COURSE_EDITOR_PERMISSIONS,
+                roles.COURSE_LIMITED_STAFF.external_key: COURSE_LIMITED_STAFF_PERMISSIONS,
+                roles.COURSE_STAFF.external_key: COURSE_STAFF_PERMISSIONS,
             },
-            roles.COURSE_AUDITOR.external_key,
-            COURSE_AUDITOR_PERMISSIONS,
         ),
     )
     @unpack
     def test_get_role_definitions_in_scope(
         self,
         namespaced_scope,
-        expected_roles,
-        sample_role,
-        expected_permissions,
+        expected_permissions_by_role,
     ):
-        """Test retrieving role definitions from policy for a namespace wildcard scope.
+        """Test every role definition returned for a namespace wildcard scope.
 
         Expected result:
             - Role definitions defined in the authorization schema for the scope are returned.
@@ -543,11 +543,10 @@ class TestRolesAPI(RolesTestSetupMixin):
         roles_in_scope = get_role_definitions_in_scope(ScopeData(namespaced_key=namespaced_scope))
         roles_by_key = {role.external_key: role for role in roles_in_scope}
 
-        self.assertEqual(set(roles_by_key.keys()), expected_roles)
-        self.assertEqual(
-            sorted(roles_by_key[sample_role].permissions, key=str),
-            sorted(expected_permissions, key=str),
-        )
+        self.assertEqual(set(roles_by_key), set(expected_permissions_by_role))
+        for role_key, expected_permissions in expected_permissions_by_role.items():
+            with self.subTest(role=role_key):
+                self.assertEqual(roles_by_key[role_key].permissions, expected_permissions)
 
     def test_get_role_definitions_in_scope_returns_empty_for_concrete_scope(self):
         """Concrete scopes do not match namespace wildcard policy definitions."""

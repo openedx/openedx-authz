@@ -262,3 +262,34 @@ class PermissionData:
     def __repr__(self):
         """Developer friendly string representation of the permission."""
         return f"{self.action.namespaced_key} => {self.effect}"
+
+
+@define(eq=False)
+class RoleData(AuthZData):
+    """A named collection of permissions that can be assigned to subjects."""
+
+    NAMESPACE: ClassVar[str] = ROLE_NAMESPACE
+    permissions: list[PermissionData] = []
+
+    def __eq__(self, other):
+        """Compare roles based on their namespaced keys."""
+        if not isinstance(other, RoleData):
+            return False
+        return self.namespaced_key == other.namespaced_key
+
+    @property
+    def name(self) -> str:
+        """Return the role identifier as a human-readable name."""
+        return self.external_key.replace("_", " ").title()
+
+    def get_permission_identifiers(self) -> list[str]:
+        """Return the technical identifiers for the role's permissions."""
+        return [permission.identifier for permission in self.permissions]
+
+    def __str__(self):
+        """Return the role name and its permissions."""
+        return f"{self.name}: {', '.join(str(permission) for permission in self.permissions)}"
+
+    def __repr__(self):
+        """Return the namespaced role identifier."""
+        return self.namespaced_key

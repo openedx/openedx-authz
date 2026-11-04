@@ -6,6 +6,7 @@ from ddt import data, ddt, unpack
 from django.test import TestCase
 from opaque_keys.edx.locator import LibraryLocatorV2
 
+from openedx_authz import data as core_data
 from openedx_authz.api.data import (
     ActionData,
     CCXCourseOverviewData,
@@ -30,6 +31,10 @@ from openedx_authz.tests.stubs.models import ContentLibrary, CourseOverview, Org
 @ddt
 class TestNamespacedData(TestCase):
     """Test data for the authorization API."""
+
+    def test_role_data_is_reexported_from_api_data(self):
+        """The established API path exposes the low-level ``RoleData`` class."""
+        self.assertIs(RoleData, core_data.RoleData)
 
     @data(
         ("instructor",),

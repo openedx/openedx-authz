@@ -28,6 +28,7 @@ from openedx_authz.data import (
     GroupingPolicyIndex,
     PermissionData,
     PolicyIndex,
+    RoleData,
 )
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 
@@ -1504,71 +1505,6 @@ class UserData(SubjectData):
 
     def __repr__(self):
         """Developer friendly string representation of the user."""
-        return self.namespaced_key
-
-
-@define(eq=False)
-class RoleData(AuthZData):
-    """A role is a named collection of permissions that can be assigned to subjects.
-
-    Roles group related permissions together for easier authorization management.
-
-    Attributes:
-        NAMESPACE: 'role' for roles.
-        external_key: The role identifier (e.g., 'instructor', 'library_admin').
-        namespaced_key: The role identifier with namespace (e.g., 'role^instructor').
-        permissions: A list of PermissionData instances associated with this role.
-        name: Property that returns a human-readable role name (e.g., 'Instructor', 'Library Admin').
-
-    Examples:
-        >>> role = RoleData(external_key='instructor')
-        >>> role.namespaced_key
-        'role^instructor'
-        >>> role.name
-        'Instructor'
-        >>> action = ActionData(external_key='read')
-        >>> perm = PermissionData(action=action, effect='allow')
-        >>> role_with_perms = RoleData(external_key='instructor', permissions=[perm])
-        >>> str(role_with_perms)
-        'Instructor: Read - allow'
-    """
-
-    NAMESPACE: ClassVar[str] = "role"
-    permissions: list[PermissionData] = []
-
-    def __eq__(self, other):
-        """Compare roles based on their namespaced_key."""
-        if not isinstance(other, RoleData):
-            return False
-        return self.namespaced_key == other.namespaced_key
-
-    @property
-    def name(self) -> str:
-        """The human-readable name of the role (e.g., 'Library Admin', 'Course Instructor').
-
-        This property transforms the external_key into a human-readable display name
-        by replacing underscores with spaces and capitalizing each word.
-
-        Returns:
-            str: The human-readable role name (e.g., 'Library Admin').
-        """
-        return self.external_key.replace("_", " ").title()
-
-    def get_permission_identifiers(self) -> list[str]:
-        """Get the technical identifiers for all permissions in this role.
-
-        Returns:
-            list[str]: Permission identifiers
-                (e.g., ['content_libraries.delete_library', 'content_libraries.edit_library_content']).
-        """
-        return [permission.identifier for permission in self.permissions]
-
-    def __str__(self):
-        """Human readable string representation of the role and its permissions."""
-        return f"{self.name}: {', '.join(str(p) for p in self.permissions)}"
-
-    def __repr__(self):
-        """Developer friendly string representation of the role."""
         return self.namespaced_key
 
 

@@ -105,6 +105,7 @@ Following `ADR 0033`_, ``course_team_roles`` defines the identifiers and metadat
    roles:
      - id: course_admin
        display_name: Course Admin
+       description: Can manage the course team and all course settings.
        scopes:
          - course-v1
        permissions:

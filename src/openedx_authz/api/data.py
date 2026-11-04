@@ -14,7 +14,7 @@ from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 from organizations.models import Organization
 
-from openedx_authz.constants.permissions import (
+from openedx_authz.authz import (
     COURSES_MANAGE_COURSE_TEAM,
     COURSES_VIEW_COURSE_TEAM,
     MANAGE_LIBRARY_TEAM,

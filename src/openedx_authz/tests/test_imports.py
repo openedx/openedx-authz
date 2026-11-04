@@ -1,9 +1,11 @@
 """Test module imports."""
 
+import subprocess
 import sys
 from importlib import import_module
 from unittest import TestCase
 
+from openedx_authz import authz
 from openedx_authz.constants import permissions, roles
 
 
@@ -38,6 +40,32 @@ class TestImports(TestCase):
             self.assertIsNotNone(AuthzEnforcer)
         except ImportError as e:
             self.fail(f"Failed to import AuthzEnforcer: {e}")
+
+    def test_public_authz_api_reexports_built_in_constants(self):
+        """The public authz API and compatibility modules expose identical objects."""
+        self.assertIs(authz.VIEW_LIBRARY, permissions.VIEW_LIBRARY)
+        self.assertIs(authz.COURSE_ADMIN, roles.COURSE_ADMIN)
+
+    def test_public_modules_import_cleanly_in_any_order(self):
+        """Fresh interpreters can load public modules without circular imports."""
+        import_orders = (
+            ("openedx_authz.authz", "openedx_authz.api.data"),
+            ("openedx_authz.api.data", "openedx_authz.authz"),
+            ("openedx_authz.constants.permissions", "openedx_authz.constants.roles"),
+            ("openedx_authz.constants.roles", "openedx_authz.constants.permissions"),
+        )
+
+        for module_names in import_orders:
+            imports = "; ".join(f"import {module_name}" for module_name in module_names)
+            code = f"import django; django.setup(); {imports}"
+            with self.subTest(module_names=module_names):
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_applet_permission_constants_are_reexported(self):
         """Existing permission imports refer to the objects owned by each applet."""

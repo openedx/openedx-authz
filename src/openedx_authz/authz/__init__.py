@@ -17,6 +17,13 @@ Register in setup.py / pyproject.toml::
 
 from __future__ import annotations
 
+from openedx_authz.applets.content_libraries.constants import *
+from openedx_authz.applets.content_libraries.constants import __all__ as _content_library_constants
+from openedx_authz.applets.course_authoring.constants import *
+from openedx_authz.applets.course_authoring.constants import __all__ as _course_authoring_constants
+from openedx_authz.applets.course_team_roles.constants import *
+from openedx_authz.applets.course_team_roles.constants import __all__ as _course_team_constants
+
 # Directory paths (relative to an importable top-level package) that contain
 # this distribution's ``.yaml`` schema files. Per ADR 0019, providers return
 # directories, not individual files.
@@ -25,6 +32,14 @@ SCHEMA_DIRECTORIES: tuple[str, ...] = (
     "openedx_authz/applets/course_team_roles/schema",
     "openedx_authz/applets/course_authoring/schema",
 )
+
+__all__ = [
+    "SCHEMA_DIRECTORIES",
+    "get_schema_resources",
+    *_content_library_constants,
+    *_course_authoring_constants,
+    *_course_team_constants,
+]
 
 
 def get_schema_resources() -> list[str]:

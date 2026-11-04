@@ -37,26 +37,27 @@ EXPECTED_BUILTIN_PATHS = {
 }
 
 
+def _discover_content_library_resources():
+    """Return resources discovered from the Content Libraries schema directory."""
+    return [
+        resource
+        for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        if resource.module == SCHEMA_MODULE
+    ]
+
+
 class TestDirectoryExpansion:
     """A contributed directory expands to the individual YAML files it holds."""
 
     def test_directory_is_expanded_to_yaml_files(self):
         """Passing a directory yields exactly its YAML files, by name."""
-        resources = [
-            resource
-            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
-            if resource.module == SCHEMA_MODULE
-        ]
+        resources = _discover_content_library_resources()
         names = {r.resource_path.rsplit("/", 1)[-1] for r in resources}
         assert names == EXPECTED_FILES
 
     def test_discovered_resource_anchors_and_module_are_set(self):
         """Each resource records its import anchor, resource path, and module."""
-        resources = [
-            resource
-            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
-            if resource.module == SCHEMA_MODULE
-        ]
+        resources = _discover_content_library_resources()
         sample = resources[0]
         assert sample.package == "openedx_authz"  # importable anchor
         assert sample.resource_path.startswith("applets/content_libraries/schema/")
@@ -64,11 +65,7 @@ class TestDirectoryExpansion:
 
     def test_contents_are_readable(self):
         """A discovered resource can be read back as non-empty bytes."""
-        resources = [
-            resource
-            for resource in SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
-            if resource.module == SCHEMA_MODULE
-        ]
+        resources = _discover_content_library_resources()
         assert resources[0].read_bytes()  # non-empty bytes
 
     def test_discovery_is_deterministic(self):

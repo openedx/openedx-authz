@@ -1,8 +1,8 @@
 """
-Top-level data classes for actions and permissions.
+Low-level data classes for actions, permissions, and roles.
 
 These are defined here (rather than in openedx_authz.api.data) to avoid a
-circular import between openedx_authz.api.data and openedx_authz.constants.permissions.
+circular import when public API data classes use built-in permission constants.
 """
 
 from enum import Enum

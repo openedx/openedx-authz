@@ -66,6 +66,16 @@ class TestDocumentValidation:
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
         assert any("unknown role" in m for m in messages)
 
+    def test_role_without_base_permissions_warns(self):
+        """An empty base permission list is accepted but reported."""
+        doc = make_document("roles", roles=[role(rid="course_editor", permissions=())])
+
+        issues = SchemaValidator().validate([doc])
+
+        assert not _errors(issues)
+        assert any("role 'course_editor' declares no base permissions" in i.message for i in _warnings(issues))
+        assert [i.source_id for i in _warnings(issues)] == [make_source("roles").source_id]
+
     def test_conflicting_duplicate_definition_is_error(self):
         """Two definitions with the same id but different content conflict."""
         doc = make_document(

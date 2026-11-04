@@ -3,6 +3,8 @@
 Rules come from ADR 0017 §4 and the field reference:
 
 Per-document checks:
+    * Roles with no base permissions are accepted with a warning because
+      ``role_extensions`` may contribute their complete permission set.
     * ``icon`` values, where present, are valid ``@openedx/paragon/icons`` names
       (ADR 0017 §4). The allowed set is vendored in :mod:`paragon_icons`
       (regenerate with ``make paragon_icons``; see ADR 0029).
@@ -104,6 +106,7 @@ class SchemaValidator:
 
         for role in document.roles:
             issues.extend(self._check_icon(role.icon, f"role {role.id}", sid))
+            issues.extend(self._check_permissions(role.id, role.permissions, sid))
 
         for extension in document.role_extensions:
             issues.extend(self._check_icon(extension.icon, f"role_extension {extension.role_id}", sid))
@@ -202,6 +205,19 @@ class SchemaValidator:
         if index[key] == value:
             return [ValidationIssue(IssueLevel.WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
         return [ValidationIssue(IssueLevel.ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
+
+    @staticmethod
+    def _check_permissions(role_id: str, permissions: tuple[str, ...], sid: str) -> list[ValidationIssue]:
+        """Warn when a role relies entirely on permissions from role extensions."""
+        if permissions:
+            return []
+        return [
+            ValidationIssue(
+                IssueLevel.WARNING,
+                f"role {role_id!r} declares no base permissions; role_extensions must contribute them.",
+                sid,
+            )
+        ]
 
     @staticmethod
     def _check_role_permission_scope(

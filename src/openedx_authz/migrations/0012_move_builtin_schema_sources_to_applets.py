@@ -14,6 +14,8 @@ load or a partially completed deployment.
 from django.db import migrations
 
 OLD_MODULE = "openedx_authz.authz.schema"
+BASE_ORIGIN = "base"
+EXTENSION_ORIGIN = "extension"
 APPLET_MODULES = {
     "content_libraries": "openedx_authz.applets.content_libraries.schema",
     "course_authoring": "openedx_authz.applets.course_authoring.schema",
@@ -59,12 +61,12 @@ def _get_applet_source(source, owner):
     return applet_source
 
 
-def _move_link(link, source, link_model, owner_field, owner):
+def _move_link(link, source, link_model, owner_field, owner, origin_kind=None):
     """Copy one source relationship to its applet source and remove the old link."""
     applet_source = _get_applet_source(source, owner)
     link_model.objects.get_or_create(
         **{owner_field: getattr(link, owner_field), "source": applet_source},
-        defaults={"origin_kind": link.origin_kind, "priority": link.priority},
+        defaults={"origin_kind": origin_kind or link.origin_kind, "priority": link.priority},
     )
     link.delete()
 
@@ -90,11 +92,22 @@ def move_builtin_schema_sources(apps, _schema_editor):
         for link in list(RoleSource.objects.filter(source=source).select_related("role")):
             _move_link(link, source, RoleSource, "role", _role_owner(link.role.role_id))
         for link in list(
-            RolePermissionSource.objects.filter(source=source).select_related("role_permission__permission")
+            RolePermissionSource.objects.filter(source=source).select_related(
+                "role_permission__permission",
+                "role_permission__role",
+            )
         ):
             permission = link.role_permission.permission
             owner = _permission_owner(permission.namespace, permission.name)
-            _move_link(link, source, RolePermissionSource, "role_permission", owner)
+            role_owner = _role_owner(link.role_permission.role.role_id)
+            _move_link(
+                link,
+                source,
+                RolePermissionSource,
+                "role_permission",
+                owner,
+                origin_kind=BASE_ORIGIN if owner == role_owner else EXTENSION_ORIGIN,
+            )
         source.delete()
 
 

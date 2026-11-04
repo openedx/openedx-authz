@@ -60,6 +60,7 @@ from openedx_authz.models.schema import (
     AuthzRolePermissionSource,
     AuthzRoleSource,
     AuthzSchemaSource,
+    OriginKind,
 )
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
@@ -119,10 +120,24 @@ class TestBuiltinSchemaSourceMigration(TestCase):
             permission=permission,
             scope="course-v1",
         )
+        base_permission = AuthzPermissionDefinition.objects.create(
+            namespace="courses",
+            name="legacy_instructor_role_permissions",
+            display_name="Legacy instructor role permissions",
+            category=category,
+            scopes=["course-v1"],
+        )
+        base_role_permission = AuthzRolePermission.objects.create(
+            role=role,
+            permission=base_permission,
+            scope="course-v1",
+        )
         AuthzCategorySource.objects.create(category=category, source=old_source)
         AuthzPermissionSource.objects.create(permission=permission, source=old_source)
+        AuthzPermissionSource.objects.create(permission=base_permission, source=old_source)
         AuthzRoleSource.objects.create(role=role, source=old_source)
         AuthzRolePermissionSource.objects.create(role_permission=role_permission, source=old_source)
+        AuthzRolePermissionSource.objects.create(role_permission=base_role_permission, source=old_source)
 
         schema_source_migration.move_builtin_schema_sources(apps, None)
 
@@ -136,6 +151,15 @@ class TestBuiltinSchemaSourceMigration(TestCase):
         self.assertListEqual(list(permission.sources.values_list("module", flat=True)), [course_authoring])
         self.assertListEqual(list(role.sources.values_list("module", flat=True)), [course_team_roles])
         self.assertListEqual(list(role_permission.sources.values_list("module", flat=True)), [course_authoring])
+        self.assertEqual(
+            AuthzRolePermissionSource.objects.get(role_permission=role_permission).origin_kind,
+            OriginKind.EXTENSION,
+        )
+        self.assertListEqual(list(base_role_permission.sources.values_list("module", flat=True)), [course_team_roles])
+        self.assertEqual(
+            AuthzRolePermissionSource.objects.get(role_permission=base_role_permission).origin_kind,
+            OriginKind.BASE,
+        )
 
     def test_existing_applet_link_is_preserved(self):
         """An existing destination link keeps its metadata when the old link is removed."""

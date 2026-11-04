@@ -61,7 +61,7 @@ class TestImports(TestCase):
 
     def test_content_library_roles_are_reexported(self):
         """Existing Library role imports refer to the applet-owned role objects."""
-        applet_constants = import_module("openedx_authz.applets.content_libraries.roles")
+        applet_constants = import_module("openedx_authz.applets.content_libraries.constants")
 
         for name in ("LIBRARY_ADMIN", "LIBRARY_AUTHOR", "LIBRARY_CONTRIBUTOR", "LIBRARY_USER"):
             with self.subTest(name=name):
@@ -69,8 +69,18 @@ class TestImports(TestCase):
 
     def test_course_team_roles_are_reexported(self):
         """Existing course role imports refer to the applet-owned role objects."""
-        applet_roles = import_module("openedx_authz.applets.course_team_roles.roles")
+        applet_roles = import_module("openedx_authz.applets.course_team_roles.constants")
 
-        for name in applet_roles.__all__:
+        for name in (
+            "CCX_COACH",
+            "COURSE_ADMIN",
+            "COURSE_AUDITOR",
+            "COURSE_BETA_TESTER",
+            "COURSE_DATA_RESEARCHER",
+            "COURSE_EDITOR",
+            "COURSE_LIMITED_STAFF",
+            "COURSE_STAFF",
+            "LEGACY_COURSE_ROLE_EQUIVALENCES",
+        ):
             with self.subTest(name=name):
                 self.assertIs(getattr(roles, name), getattr(applet_roles, name))

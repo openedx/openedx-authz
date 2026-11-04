@@ -1,6 +1,6 @@
-"""Content Library permission constants."""
+"""Content Library role and permission constants."""
 
-from openedx_authz.data import ActionData, PermissionData
+from openedx_authz.data import ActionData, PermissionData, RoleData
 
 __all__ = [
     "CONTENT_LIBRARIES_NAMESPACE",
@@ -15,6 +15,10 @@ __all__ = [
     "CREATE_LIBRARY_COLLECTION",
     "EDIT_LIBRARY_COLLECTION",
     "DELETE_LIBRARY_COLLECTION",
+    "LIBRARY_ADMIN",
+    "LIBRARY_AUTHOR",
+    "LIBRARY_CONTRIBUTOR",
+    "LIBRARY_USER",
 ]
 
 CONTENT_LIBRARIES_NAMESPACE = "content_libraries"
@@ -52,3 +56,8 @@ EDIT_LIBRARY_COLLECTION = PermissionData(
 DELETE_LIBRARY_COLLECTION = PermissionData(
     action=ActionData(external_key=f"{CONTENT_LIBRARIES_NAMESPACE}.delete_library_collection"), effect="allow"
 )
+
+LIBRARY_ADMIN = RoleData(external_key="library_admin")
+LIBRARY_AUTHOR = RoleData(external_key="library_author")
+LIBRARY_CONTRIBUTOR = RoleData(external_key="library_contributor")
+LIBRARY_USER = RoleData(external_key="library_user")

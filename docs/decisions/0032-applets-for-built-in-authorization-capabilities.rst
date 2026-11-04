@@ -146,9 +146,10 @@ Consequences
 2. Adding a capability does not require adding its definitions to shared course permission and role files.
 3. The complete permission list for a course role is assembled from several schema contributions, so readers use the compiled schema or the public role constants to inspect that list.
 4. Each permission identifier appears in YAML and Python until generated constants replace the manually maintained files.
-5. The Admin Console and course-authoring endpoints move again after `ADR 0026`_, although their public URLs, route names, request and response contracts, and import paths remain stable.
-6. Reviewers must identify unwanted dependencies between applets because this decision does not add automated import-boundary checks.
-7. Applets create boundaries that can support later extraction, although moving one to another service requires a separate decision about dependencies and compatibility.
+5. The schema accepts an empty base permission list for applets that define roles whose permissions come from other applets. Validation logs a warning so contributors can confirm that the empty list is intentional and that ``role_extensions`` provide the role's permissions.
+6. The Admin Console and course-authoring endpoints move again after `ADR 0026`_, although their public URLs, route names, request and response contracts, and import paths remain stable.
+7. Reviewers must identify unwanted dependencies between applets because this decision does not add automated import-boundary checks.
+8. Applets create boundaries that can support later extraction, although moving one to another service requires a separate decision about dependencies and compatibility.
 
 Rejected Alternatives
 *********************

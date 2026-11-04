@@ -137,7 +137,7 @@ Every permission constant names a permission defined in YAML, and every permissi
 6. Imports
 ==========
 
-Applets are internal packages, so clients import the permission and role constants from ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles``, which re-export each applet's constants and keep existing import paths valid when code moves into an applet.
+Applets are internal packages, so clients import built-in permission and role constants from ``openedx_authz.authz``, which exposes each applet's constants through one public API. The existing ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles`` paths remain compatibility exports.
 
 7. Future extraction
 ====================

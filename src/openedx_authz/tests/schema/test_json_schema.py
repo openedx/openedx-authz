@@ -15,32 +15,34 @@ def fixture_schema_validator():
     return Draft202012Validator(schema)
 
 
-def test_role_may_declare_an_empty_permission_list(schema_validator):
-    """A base role may rely entirely on role extensions for its permissions."""
-    contribution = {
-        "schema_version": "1.0",
-        "priority": 100,
-        "roles": [
-            {
-                "id": "course_staff",
-                "display_name": "Course Staff",
-                "description": "Administers a course.",
-                "scopes": ["course-v1"],
-                "permissions": [],
-            }
-        ],
-    }
+class TestPublishedAuthorizationJsonSchema:
+    """The published schema enforces the supported permission-list shapes."""
 
-    schema_validator.validate(contribution)
+    def test_role_may_declare_an_empty_permission_list(self, schema_validator):
+        """A base role may rely entirely on role extensions for its permissions."""
+        contribution = {
+            "schema_version": "1.0",
+            "priority": 100,
+            "roles": [
+                {
+                    "id": "course_staff",
+                    "display_name": "Course Staff",
+                    "description": "Administers a course.",
+                    "scopes": ["course-v1"],
+                    "permissions": [],
+                }
+            ],
+        }
 
-
-def test_role_extension_permission_edits_remain_non_empty(schema_validator):
-    """An extension cannot use an empty permission edit to satisfy its change requirement."""
-    contribution = {
-        "schema_version": "1.0",
-        "priority": 100,
-        "role_extensions": [{"role_id": "course_staff", "add_permissions": []}],
-    }
-
-    with pytest.raises(ValidationError):
         schema_validator.validate(contribution)
+
+    def test_role_extension_permission_edits_remain_non_empty(self, schema_validator):
+        """An extension cannot use an empty permission edit to satisfy its change requirement."""
+        contribution = {
+            "schema_version": "1.0",
+            "priority": 100,
+            "role_extensions": [{"role_id": "course_staff", "add_permissions": []}],
+        }
+
+        with pytest.raises(ValidationError):
+            schema_validator.validate(contribution)

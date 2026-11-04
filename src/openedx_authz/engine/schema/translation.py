@@ -110,7 +110,7 @@ _SECTIONS: tuple[tuple[str, str, Callable[[dict], str]], ...] = (
     ("permission_categories", "permission_category", lambda entry: str(entry.get("id") or "")),
     ("permissions", "permission", _permission_stable_id),
     ("roles", "role", lambda entry: str(entry.get("id") or "")),
-    ("role_extensions", "role_extension", lambda entry: str(entry.get("role") or "")),
+    ("role_extensions", "role_extension", lambda entry: str(entry.get("role_id") or "")),
 )
 
 

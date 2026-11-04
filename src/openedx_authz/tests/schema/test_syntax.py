@@ -218,7 +218,7 @@ class TestSchemaSyntaxValidator:
 
     def test_shipped_documents_match_the_published_schema(self):
         """Every authorization document shipped by this package is structurally valid."""
-        resources = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"]).discover()
+        resources = SchemaDiscovery().discover()
         documents = SchemaParser().parse(resources)
 
         assert documents

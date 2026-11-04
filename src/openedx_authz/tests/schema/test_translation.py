@@ -29,8 +29,6 @@ from openedx_authz.engine.schema.translation import (
     render_module,
 )
 
-SCHEMA_DIR = "openedx_authz/authz/schema"
-
 
 class FakeResource:
     """A minimal stand-in for DiscoveredResource that reads from a string.
@@ -58,7 +56,7 @@ class TestRealSchemaExtraction:
 
     def test_extracts_messages_from_the_real_schema(self):
         """Running against the actual discovered schema yields well-formed messages."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery().discover()
         messages = extract_messages(resources)
 
         assert messages
@@ -69,19 +67,19 @@ class TestRealSchemaExtraction:
 
     def test_known_role_display_name_is_present(self):
         """A role we know exists in course_roles.yaml shows up with its real text."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery().discover()
         messages = {m.context: m.message for m in extract_messages(resources)}
 
         assert messages["role.display_name:course_admin"] == "Course Admin"
 
     def test_is_deterministic(self):
         """Extraction over the same input returns an identical, sorted list."""
-        resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover()
+        resources = SchemaDiscovery().discover()
         assert extract_messages(resources) == extract_messages(resources)
 
     def test_default_resources_are_discovered_when_none_given(self):
         """Calling extract_messages() with no args discovers the real schema itself."""
-        assert extract_messages() == extract_messages(SchemaDiscovery(passed_in_directories=[SCHEMA_DIR]).discover())
+        assert extract_messages() == extract_messages(SchemaDiscovery().discover())
 
 
 class TestFieldExtraction:
@@ -145,7 +143,7 @@ roles:
 schema_version: "1.0"
 priority: 100
 role_extensions:
-  - role: course_editor
+  - role_id: course_editor
     add_permissions: [courses.export_course]
 """)])
         assert messages == []
@@ -155,7 +153,7 @@ role_extensions:
 schema_version: "1.0"
 priority: 100
 role_extensions:
-  - role: course_editor
+  - role_id: course_editor
     display_name: Course author
     description: Creates and exports course content.
 """)])
@@ -326,7 +324,7 @@ roles:
   - display_name: Course Admin
 """)])
 
-    def test_role_extension_without_role_raises(self):
+    def test_role_extension_without_role_id_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
             extract_messages([_resource("""
 schema_version: "1.0"

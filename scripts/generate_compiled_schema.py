@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""Regenerate the compiled schema snapshot in ``docs/references/compiled-schema.yaml``.
+"""
+Regenerate the compiled schema snapshot in ``docs/references/compiled-schema.yaml``.
 
 Usage::
 
@@ -23,8 +24,11 @@ def main():
     django.setup()
 
     # These modules read Django settings on import, so they load after setup.
-    from openedx_authz.engine.schema.pipeline import SchemaPipeline
-    from openedx_authz.tests.applets.test_builtin_definitions import COMPILED_SCHEMA_SNAPSHOT, snapshot_data
+    from openedx_authz.engine.schema.pipeline import SchemaPipeline  # pylint: disable=import-outside-toplevel
+    from openedx_authz.tests.applets.test_builtin_definitions import (  # pylint: disable=import-outside-toplevel
+        COMPILED_SCHEMA_SNAPSHOT,
+        snapshot_data,
+    )
 
     data = snapshot_data(SchemaPipeline().compile())
     content = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=1000)

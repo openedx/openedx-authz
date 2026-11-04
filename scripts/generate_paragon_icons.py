@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""Regenerate the vendored Paragon icon-name allow-list.
+"""
+Regenerate the vendored Paragon icon-name allow-list.
 
 ADR 0017 §4 requires schema validation to reject ``icon`` values that are not
 valid ``@openedx/paragon/icons`` names. There is no Python-side source of truth
@@ -113,6 +114,7 @@ def render_module(names: list[str], version: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Generate the icon module or check that the committed module is current."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",

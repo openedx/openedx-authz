@@ -118,6 +118,11 @@ Consequences
 * Tests check the validation rules and confirm that enforcement results match the explicit role permissions.
 * The Custom Roles API should apply the same role rule to roles that users create.
 
+Addendum: Indirect Dependencies in the Catalog (2026-11-17)
+===========================================================
+
+`ADR 0036`_ adds ``all_depends_on`` to each permission in the role catalog, next to ``depends_on``. It lists every direct and indirect dependency, so clients no longer compute indirect dependencies themselves. This replaces the last part of section 6.
+
 Rejected Alternatives
 *********************
 
@@ -145,6 +150,7 @@ References
 * `ADR 0025`_
 * `ADR 0028`_
 * `ADR 0031`_
+* `ADR 0036`_
 * `Issue #91`_
 * `Issue #523`_
 * `PR #538`_
@@ -156,6 +162,7 @@ References
 .. _ADR 0025: 0025-authorization-schema-source-tracking.rst
 .. _ADR 0028: 0028-api-contract-for-role-catalog.rst
 .. _ADR 0031: 0031-priority-applies-to-role-extensions-only.rst
+.. _ADR 0036: 0036-api-contract-for-custom-roles.rst
 .. _Issue #91: https://github.com/openedx/openedx-authz/issues/91
 .. _Issue #523: https://github.com/openedx/openedx-authz/issues/523
 .. _PR #538: https://github.com/openedx/openedx-authz/pull/538

@@ -399,6 +399,17 @@ Separate permission and category endpoints
 
 The Admin Console would need several requests and would have to join the data itself.
 
+Addendum: 2026-11-05
+********************
+
+`ADR 0036`_ changes this endpoint for the Custom Roles table:
+
+* Each role adds ``user_count`` (brought back, now that the table shows it) and ``updated_at``.
+* The query adds ``search``, ``sort_by`` and ``order``.
+* Search, sorting and pagination run in Python over the roles of the requested scope types,
+  instead of in a single database query, so translated static role names are searched and
+  sorted as the user sees them.
+
 References
 **********
 
@@ -416,3 +427,4 @@ References
 .. _ADR 0024: 0024-api-contract-for-user-grouped-role-assignments.rst
 .. _ADR 0025: 0025-authorization-schema-source-tracking.rst
 .. _ADR 0029: 0029-paragon-icon-list-maintenance.rst
+.. _ADR 0036: 0036-api-contract-for-custom-roles.rst

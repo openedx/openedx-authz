@@ -215,6 +215,13 @@ Consequences
 * Compilation must track provenance at the role-permission grain, and the apply step writes the
   definition, relationship, and source tables in the same transaction as the policy rows.
 
+Addendum (2026-11-05)
+*********************
+
+`ADR 0035`_ stores custom (dynamic) roles in the role-definition and role-permission tables
+defined here. Custom roles have no source links, and the schema loader does not prune them. See
+that ADR for how deployments treat custom roles.
+
 Addendum (2026-11-09)
 *********************
 
@@ -229,6 +236,7 @@ References
 * `ADR 0019`_
 * `ADR 0021`_
 * `ADR 0023`_
+* `ADR 0035`_
 * `ADR 0037`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst
@@ -236,4 +244,5 @@ References
 .. _ADR 0019: 0019-authorization-schema-discovery.rst
 .. _ADR 0021: 0021-authorization-definition-api.rst
 .. _ADR 0023: 0023-extend-static-roles.rst
+.. _ADR 0035: 0035-custom-role-persistence.rst
 .. _ADR 0037: 0037-custom-role-audit-trail.rst

@@ -10,22 +10,10 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.renderer import PolicyRenderer
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
+from openedx_authz.tests.role_permissions import INSTRUCTOR_DASHBOARD_PERMISSIONS
 
 COURSE_KEY = "course-v1:TestOrg+Dashboard+2026_T1"
 OTHER_COURSE_KEY = "course-v1:TestOrg+Dashboard+2026_T2"
-
-INSTRUCTOR_DASHBOARD_PERMISSIONS = (
-    permissions.COURSES_VIEW_COURSE_INFO,
-    permissions.COURSES_VIEW_ENROLLMENTS,
-    permissions.COURSES_ENROLL_LEARNERS,
-    permissions.COURSES_UNENROLL_LEARNERS,
-    permissions.COURSES_VIEW_GRADEBOOK,
-    permissions.COURSES_MANAGE_LEARNER_GRADING,
-    permissions.COURSES_VIEW_LEARNER_EXTENSIONS,
-    permissions.COURSES_MANAGE_LEARNER_EXTENSIONS,
-    permissions.COURSES_VIEW_COHORTS,
-    permissions.COURSES_MANAGE_COHORTS,
-)
 
 USERS_WITH_EXPECTED_ACCESS = (
     ("dashboard_admin", True),

@@ -50,7 +50,7 @@ roles:
     scopes:
     - course-v1
     icon: null
-    hidden: true
+    hidden: false
     permissions:
       course_authoring:
       - courses.view_advanced_settings
@@ -91,7 +91,7 @@ roles:
     scopes:
     - course-v1
     icon: null
-    hidden: true
+    hidden: false
     permissions:
       course_authoring:
       - courses.create_files

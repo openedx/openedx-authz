@@ -83,6 +83,13 @@ class TestBuiltinAppletDefinitions:
 
         assert set(compiled.roles) == {role.external_key for role in public_roles}
 
+    def test_course_editor_and_auditor_remain_visible(self):
+        """The applet split preserves the public visibility of the editor and auditor roles."""
+        compiled = SchemaPipeline().compile()
+
+        assert compiled.roles["course_editor"].definition.hidden is False
+        assert compiled.roles["course_auditor"].definition.hidden is False
+
     def test_compiled_permissions_match_public_permission_constants(self):
         """Every compiled permission has a public constant, and every constant names a compiled permission."""
         public_permissions = {

@@ -23,7 +23,6 @@ roles:
     description: Can create and edit course content, but cannot publish or change critical course settings.
     scopes:
       - course-v1
-    hidden: true
     permissions: []
 
   - id: course_auditor
@@ -31,7 +30,6 @@ roles:
     description: Can view course content and settings, but cannot make changes.
     scopes:
       - course-v1
-    hidden: true
     permissions: []
 
   - id: course_limited_staff

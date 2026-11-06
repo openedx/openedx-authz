@@ -10,7 +10,7 @@ Import built-in permissions and roles from ``openedx_authz.authz``. Pass their e
 
    can_view_course = is_user_allowed(
        user_external_key="alice",
-       action_external_key=COURSES_VIEW_COURSE.action.external_key,
+       action_external_key=COURSES_VIEW_COURSE.identifier,
        scope_external_key="course-v1:edX+DemoX+2026",
    )
 

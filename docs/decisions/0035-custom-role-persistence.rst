@@ -82,16 +82,21 @@ is rejected:
   support the scope's resource type. A user who already holds the target role in that scope keeps
   a single assignment.
 
-Either choice runs in the same transaction as the removal, and each change is recorded like any
-other assignment removal.
+Either choice runs in the same transaction as the removal. Each change is recorded the same way
+assignment changes are recorded today: a removed assignment as a removal, and a reassigned one as a
+removal followed by a new assignment.
 
 5. Schema deployments
 =====================
 
 The schema loader does not create, update, or remove custom roles. When a deployment removes a
-permission, or a scope of a permission, that a custom role grants, it drops those grants and their
-``p`` rows and reports each one as a warning. The deployment continues. A custom role left with no
-permissions remains, so its assignments are kept.
+permission that a custom role grants, it stops before any write and
+reports each affected grant, so Casbin keeps the last applied policy (`ADR 0018`_).
+
+An explicit option, separate from the force option for removing roles, lets the operator drop
+those grants and their ``p`` rows in the same deployment. A release that removes a permission must
+say so in its operator release notes and name this option. A custom role left with no permissions
+remains, so its assignments are kept.
 
 Consequences
 ************
@@ -100,7 +105,8 @@ Consequences
   tables.
 * The schema loader's prune step must skip custom roles and keep their grants, except grants for
   permissions the schema removed.
-* A deployment can narrow a custom role without an administrator's action; operators see a warning.
+* A deployment cannot narrow a custom role unless the operator opts in, and releases that remove
+  permissions must document the option in their operator release notes.
 * Removing a custom role cannot leave orphaned assignments.
 * Schema validation and the :ref:`Authorization Schema Reference` must reserve the ``custom_``
   prefix.

@@ -1,7 +1,5 @@
 """Compatibility exports for built-in role constants."""
 
-# pylint: disable=wildcard-import
-
 from openedx_authz.applets.content_libraries.constants import (
     LIBRARY_ADMIN,
     LIBRARY_AUTHOR,

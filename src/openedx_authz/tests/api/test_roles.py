@@ -41,7 +41,6 @@ from openedx_authz.api.roles import (
 )
 from openedx_authz.constants import permissions, roles
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.models import ExtendedCasbinRule, Scope, Subject
 from openedx_authz.tests.role_permissions import (
     COURSE_ADMIN_PERMISSIONS,

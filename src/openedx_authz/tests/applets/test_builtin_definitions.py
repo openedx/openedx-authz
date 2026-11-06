@@ -1,6 +1,5 @@
 """Compatibility tests for definitions contributed by built-in applets."""
 
-from dataclasses import asdict
 from pathlib import Path
 
 import yaml
@@ -8,46 +7,9 @@ import yaml
 from openedx_authz.constants import permissions, roles
 from openedx_authz.data import PermissionData
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
+from openedx_authz.engine.schema.snapshot import snapshot_data
 
 COMPILED_SCHEMA_SNAPSHOT = Path(__file__).parents[4] / "docs" / "references" / "compiled-schema.yaml"
-
-
-def applet_name(source):
-    """Return the applet that owns a schema source, or its module when no applet owns it."""
-    return source.module.removeprefix("openedx_authz.applets.").removesuffix(".schema")
-
-
-def snapshot_data(compiled):
-    """Return the compiled schema as a readable mapping of roles, permissions, and categories.
-
-    Each role lists its permissions grouped by the applet that adds them, so the snapshot shows
-    how base definitions and role extensions compose each role.
-    """
-    role_definitions = {}
-    for role_id, compiled_role in sorted(compiled.roles.items()):
-        definition = asdict(compiled_role.definition)
-        del definition["id"]
-        definition["scopes"] = list(definition["scopes"])
-        permissions_by_applet = {}
-        for permission in sorted(definition.pop("permissions")):
-            for relationship in compiled.role_permission_sources[(role_id, permission)]:
-                permissions_by_applet.setdefault(applet_name(relationship.source), []).append(permission)
-        definition["permissions"] = dict(sorted(permissions_by_applet.items()))
-        role_definitions[role_id] = definition
-
-    permission_definitions = {}
-    for permission_id, compiled_permission in sorted(compiled.permissions.items()):
-        definition = asdict(compiled_permission.definition)
-        definition["scopes"] = list(definition["scopes"])
-        permission_definitions[permission_id] = {"applet": applet_name(compiled_permission.sources[0]), **definition}
-
-    category_definitions = {}
-    for category_id, compiled_category in sorted(compiled.categories.items()):
-        definition = asdict(compiled_category.definition)
-        del definition["id"]
-        category_definitions[category_id] = {"applet": applet_name(compiled_category.sources[0]), **definition}
-
-    return {"roles": role_definitions, "permissions": permission_definitions, "categories": category_definitions}
 
 
 class TestBuiltinAppletDefinitions:

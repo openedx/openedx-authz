@@ -58,6 +58,9 @@ Changed
 
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
 * Built-in Content Library and course authorization definitions now live in capability applets. The compiled authorization schema, the permission constants, and the role keys remain unchanged.
+* **Breaking**: ``GET /api/authz/v1/scopes/`` no longer accepts ``course`` and ``library`` as
+  ``scope_type`` values. Use ``course-v1`` and ``lib`` instead. Requests with the old values now
+  return a 400 validation error, the same as ``/roles/``.
 
 Removed
 =======

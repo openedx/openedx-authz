@@ -7,7 +7,6 @@ from rest_framework import serializers
 from openedx_authz import api
 from openedx_authz.api.data import UserAssignments
 from openedx_authz.rest_api.data import (
-    DEPRECATED_SCOPE_TYPE_ALIASES,
     AssignmentSortField,
     ScopesTypeField,
     UserAssignmentSortField,
@@ -26,19 +25,11 @@ class OrgMixin(serializers.Serializer):  # pylint: disable=abstract-method
     org = serializers.CharField(required=False, max_length=255)
 
 
-class ScopeTypeAliasField(serializers.ChoiceField):
-    """Scope type choice that also accepts the deprecated short names (``course``, ``library``)."""
-
-    def to_internal_value(self, data):
-        """Map a deprecated short name to its scope type before validating the choice."""
-        return super().to_internal_value(DEPRECATED_SCOPE_TYPE_ALIASES.get(data, data))
-
-
 class ListScopesQuerySerializer(OrgMixin):  # pylint: disable=abstract-method
     """Serializer for validating query parameters in ScopesAPIView."""
 
     management_permission_only = serializers.BooleanField(required=False, default=False)
-    scope_type = ScopeTypeAliasField(
+    scope_type = serializers.ChoiceField(
         choices=[(e.value, e.name) for e in ScopesTypeField], required=False, default=None, allow_null=True
     )
     search = serializers.CharField(required=False, default="", allow_blank=True)

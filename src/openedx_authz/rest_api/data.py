@@ -99,10 +99,3 @@ class SerializedAssignment(TypedDict, total=False):
     scope: str
     scope_display_name: str
     permission_count: int
-
-
-DEPRECATED_SCOPE_TYPE_ALIASES = {
-    "course": ScopesTypeField.COURSE,
-    "library": ScopesTypeField.LIBRARY,
-}
-"""Short names that ``GET /api/authz/v1/scopes/`` still accepts until the Admin Console migrates."""

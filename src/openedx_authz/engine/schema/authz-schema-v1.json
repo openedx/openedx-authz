@@ -248,7 +248,7 @@
     },
     "role": {
       "title": "Role",
-      "description": "A static role and the complete set of permissions assigned to it.",
+      "description": "A static role definition. Permissions may be assigned by this definition or contributed by role extensions.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "display_name", "description", "scopes", "permissions"],

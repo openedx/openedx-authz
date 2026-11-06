@@ -23,6 +23,12 @@ from openedx_authz.applets.course_authoring.constants import *
 from openedx_authz.applets.course_authoring.constants import __all__ as _course_authoring_constants
 from openedx_authz.applets.course_team_roles.constants import *
 from openedx_authz.applets.course_team_roles.constants import __all__ as _course_team_constants
+from openedx_authz.applets.enrollments.constants import *
+from openedx_authz.applets.enrollments.constants import __all__ as _enrollments_constants
+from openedx_authz.applets.learner_administration.constants import *
+from openedx_authz.applets.learner_administration.constants import __all__ as _learner_administration_constants
+from openedx_authz.applets.learner_grading.constants import *
+from openedx_authz.applets.learner_grading.constants import __all__ as _learner_grading_constants
 
 # Directory paths (relative to an importable top-level package) that contain
 # this distribution's ``.yaml`` schema files. Per ADR 0019, providers return
@@ -42,6 +48,9 @@ __all__ = [
     *_content_library_constants,
     *_course_authoring_constants,
     *_course_team_constants,
+    *_enrollments_constants,
+    *_learner_administration_constants,
+    *_learner_grading_constants,
 ]
 
 

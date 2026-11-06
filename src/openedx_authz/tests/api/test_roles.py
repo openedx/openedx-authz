@@ -545,7 +545,10 @@ class TestRolesAPI(RolesTestSetupMixin):
         self.assertEqual(set(roles_by_key), set(expected_permissions_by_role))
         for role_key, expected_permissions in expected_permissions_by_role.items():
             with self.subTest(role=role_key):
-                self.assertEqual(roles_by_key[role_key].permissions, expected_permissions)
+                self.assertEqual(
+                    sorted(roles_by_key[role_key].permissions, key=str),
+                    sorted(expected_permissions, key=str),
+                )
 
     def test_get_role_definitions_in_scope_returns_empty_for_concrete_scope(self):
         """Concrete scopes do not match namespace wildcard policy definitions."""

@@ -19,7 +19,6 @@ from openedx_authz.api.data import (
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.renderer import PolicyRenderer
-from openedx_authz.engine.schema.discovery import SchemaDiscovery
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.utils import get_waffle_flag_states
 
@@ -64,8 +63,7 @@ class AuthzEnforcerTestMixin:
 
 def seed_static_authorization_policies(target_enforcer) -> list[list[str]]:
     """Seed schema-defined role-permission policies."""
-    discovery = SchemaDiscovery(passed_in_directories=["openedx_authz/authz/schema"])
-    schema = SchemaPipeline(discovery=discovery).compile()
+    schema = SchemaPipeline().compile()
     policies = [row.as_policy() for row in PolicyRenderer().render(schema).rows]
 
     for policy in policies:

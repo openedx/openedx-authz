@@ -52,6 +52,11 @@ Static role-permission policies moved from ``authz.policy`` to the authorization
 
 New installations no longer load the default ``g2`` relationships that were stored in ``authz.policy``. `Issue #91`_ and `Issue #523`_ track defining permission dependencies in the authorization schema.
 
+Addendum: Permission Dependencies (2026-11-04)
+==============================================
+
+`ADR 0034`_ adds permission dependencies to schema version 1.1 through an optional ``depends_on`` field, and the renderer generates the ``g2`` rows from it. That ADR replaces the permission-implication part of this decision. Role inheritance remains deferred.
+
 Rejected Alternatives
 *********************
 
@@ -69,9 +74,11 @@ References
 **********
 
 * `ADR 0017`_
+* `ADR 0034`_
 * `Issue #91`_
 * `Issue #523`_
 
 .. _ADR 0017: 0017-static-authorization-schema.rst
+.. _ADR 0034: 0034-permission-dependencies-in-authorization-schema.rst
 .. _Issue #91: https://github.com/openedx/openedx-authz/issues/91
 .. _Issue #523: https://github.com/openedx/openedx-authz/issues/523

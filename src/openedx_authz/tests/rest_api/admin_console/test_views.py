@@ -197,16 +197,10 @@ class TestScopesAPIView(ViewTestMixin):
     @data(
         ("course-v1", "_get_courses_queryset", "_get_libraries_queryset"),
         ("lib", "_get_libraries_queryset", "_get_courses_queryset"),
-        # Deprecated aliases
-        ("course", "_get_courses_queryset", "_get_libraries_queryset"),
-        ("library", "_get_libraries_queryset", "_get_courses_queryset"),
     )
     @unpack
     def test_type_param_calls_only_expected_queryset(self, scope_type, called_method, skipped_method):
-        """When type=course-v1 only courses are fetched; when type=lib only libraries.
-
-        The deprecated aliases ``course`` and ``library`` behave the same.
-        """
+        """When type=course-v1 only courses are fetched; when type=lib only libraries."""
         self.build_qs_patcher.stop()
         with (
             patch.object(ScopesAPIView, called_method, return_value=[]) as mock_called,
@@ -220,9 +214,10 @@ class TestScopesAPIView(ViewTestMixin):
         mock_called.assert_called_once()
         mock_skipped.assert_not_called()
 
-    def test_type_param_invalid_returns_400(self):
-        """An invalid type value returns 400."""
-        response = self.client.get(self.url, {"scope_type": "invalid"})
+    @data("invalid", "course", "library")
+    def test_type_param_invalid_returns_400(self, scope_type):
+        """An invalid type value, including the removed ``course`` and ``library`` aliases, returns 400."""
+        response = self.client.get(self.url, {"scope_type": scope_type})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -399,7 +394,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "course", "management_permission_only": "true"})
+        response = self.client.get(self.url, {"scope_type": "course-v1", "management_permission_only": "true"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -415,7 +410,7 @@ class TestScopesAPIView(ViewTestMixin):
         self.client.force_authenticate(user=user)
         self.build_qs_patcher.stop()
 
-        response = self.client.get(self.url, {"scope_type": "library", "management_permission_only": "true"})
+        response = self.client.get(self.url, {"scope_type": "lib", "management_permission_only": "true"})
 
         self.build_qs_patcher.start()
         self.assertEqual(response.status_code, status.HTTP_200_OK)

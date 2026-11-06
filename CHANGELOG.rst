@@ -56,6 +56,9 @@ Changed
 ========
 
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
+* **Breaking**: ``GET /api/authz/v1/scopes/`` no longer accepts ``course`` and ``library`` as
+  ``scope_type`` values. Use ``course-v1`` and ``lib`` instead. Requests with the old values now
+  return a 400 validation error, the same as ``/roles/``.
 
 Fixed
 =====

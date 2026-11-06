@@ -210,7 +210,7 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
         apidocs.query_parameter(
             "scope_type",
             str,
-            description="Filter by scope type. Either 'course' or 'library'. Returns both if not specified.",
+            description="Filter by scope type. Either 'course-v1' or 'lib'. Returns both if not specified.",
         ),
     ],
     responses={

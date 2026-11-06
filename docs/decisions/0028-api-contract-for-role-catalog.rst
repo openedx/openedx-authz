@@ -163,17 +163,13 @@ Scope type naming
 
 Scope types are named after the ``NAMESPACE`` of the scope classes (``course-v1`` and
 ``lib``) everywhere, instead of the short names ``course`` and ``library`` that
-``GET /api/authz/v1/scopes/`` accepts today in its ``scope_type`` query parameter. It is the
-only place that uses the short names, so aligning it removes the two names for the same
-thing.
+``GET /api/authz/v1/scopes/`` used to accept in its ``scope_type`` query parameter, so there is
+a single name for each scope type.
 
 * ``ScopesTypeField`` accepts ``course-v1`` and ``lib``, derived from the ``NAMESPACE`` of
   the scope classes.
-* To avoid breaking the Admin Console, ``/scopes/`` keeps accepting ``course`` and
-  ``library`` as deprecated aliases of ``course-v1`` and ``lib``. The aliases are only
-  accepted in the request of ``/scopes/``; ``/roles/`` does not accept them.
-* The aliases are removed once the frontend migrates. A ticket in
-  ``frontend-app-admin-console`` tracks updating it to the new values.
+* ``/scopes/`` and ``/roles/`` accept only these values. The short names ``course`` and
+  ``library`` are rejected as invalid choices.
 
 Scope types in the response
 ===========================

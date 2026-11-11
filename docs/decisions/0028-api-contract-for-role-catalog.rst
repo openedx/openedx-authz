@@ -163,13 +163,17 @@ Scope type naming
 
 Scope types are named after the ``NAMESPACE`` of the scope classes (``course-v1`` and
 ``lib``) everywhere, instead of the short names ``course`` and ``library`` that
-``GET /api/authz/v1/scopes/`` used to accept in its ``scope_type`` query parameter, so there is
-a single name for each scope type.
+``GET /api/authz/v1/scopes/`` accepts today in its ``scope_type`` query parameter. It is the
+only place that uses the short names, so aligning it removes the two names for the same
+thing.
 
 * ``ScopesTypeField`` accepts ``course-v1`` and ``lib``, derived from the ``NAMESPACE`` of
   the scope classes.
-* ``/scopes/`` and ``/roles/`` accept only these values. The short names ``course`` and
-  ``library`` are rejected as invalid choices.
+* To avoid breaking the Admin Console, ``/scopes/`` keeps accepting ``course`` and
+  ``library`` as deprecated aliases of ``course-v1`` and ``lib``. The aliases are only
+  accepted in the request of ``/scopes/``; ``/roles/`` does not accept them.
+* The aliases are removed once the frontend migrates. A ticket in
+  ``frontend-app-admin-console`` tracks updating it to the new values.
 
 Scope types in the response
 ===========================
@@ -405,7 +409,15 @@ References
 * `ADR 0025`_
 * `ADR 0029`_
 
+Addendum: 2026-11-11
+********************
+
+The deprecated ``course`` and ``library`` aliases of ``GET /api/authz/v1/scopes/`` were removed after the Admin Console migrated to ``course-v1`` and ``lib`` (`Issue #536`_). ``/scopes/`` and ``/roles/`` now accept only these values, and the short names are rejected as invalid choices.
+
+This addendum replaces the alias bullets in "Scope type naming" and the mention of the aliases in the consequences.
+
 .. _frontend-app-admin-console: https://github.com/openedx/frontend-app-admin-console
+.. _Issue #536: https://github.com/openedx/openedx-authz/issues/536
 .. _ADR 0020: 0020-authorization-schema-internationalization.rst
 .. _ADR 0021: 0021-authorization-definition-api.rst
 .. _ADR 0023: 0023-extend-static-roles.rst

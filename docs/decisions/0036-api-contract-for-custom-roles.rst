@@ -65,7 +65,7 @@ that custom role.
      - ``POST /api/authz/v1/roles/``
    * - Read one role
      - ``GET /api/authz/v1/roles/<role_id>/``
-   * - Edit name, description, or permissions
+   * - Edit description or permissions
      - ``PATCH /api/authz/v1/roles/<role_id>/``
    * - Remove
      - ``DELETE /api/authz/v1/roles/<role_id>/``
@@ -81,9 +81,9 @@ Every role object, in the list and in the detail endpoint, adds two fields to th
   with the role in three courses adds 3 to that user's ``assignment_count`` and 1 to the role's
   ``user_count``. The Members column and the member counts in the edit and remove warnings count
   users, so they use ``user_count``.
-* ``updated_at``: when the name, description, or permissions of a custom role last changed.
-  It is ``null`` for static roles. A permissions-only edit also updates the role row, so the
-  date changes.
+* ``updated_at``: when the description or permissions of a custom role last changed. It is
+  ``null`` for static roles. A permissions-only edit also updates the role row, so the date
+  changes.
 
 4. Filter, search, and sort
 ===========================
@@ -111,7 +111,8 @@ role.
 * A custom role grants at least one permission. Every permission must support the role's resource
   type.
 * The display name is unique among all roles, static and custom, ignoring case. For static roles,
-  the stored name is compared, not its translation. A taken name returns 409.
+  the stored name is compared, not its translation. A taken name returns 409. The name cannot be
+  changed after creation.
 * The description is free text and may be empty. Both fields are stored as entered and are not
   translated (`ADR 0020`_).
 * Static roles are read-only. Editing or removing one returns 400.
@@ -197,8 +198,8 @@ Returns 200 with the role object.
 PATCH /api/authz/v1/roles/<role_id>/
 ====================================
 
-Accepts any of ``display_name``, ``description``, and ``permissions``. ``permissions`` replaces the
-full list. Returns 200 with the role object.
+Accepts any of ``description`` and ``permissions``. ``permissions`` replaces the full list. A
+request that includes ``display_name`` returns 400. Returns 200 with the role object.
 
 DELETE /api/authz/v1/roles/<role_id>/
 =====================================
@@ -243,9 +244,8 @@ before saving, so the client already sends the full definition.
 Generate the name of a copy
 ===========================
 
-A server-generated name such as "Course Staff (copy)" would also set the role ID, which never
-changes (`ADR 0035`_). Roles copied this way would keep IDs that do not describe them after they
-are renamed.
+A server-generated name such as "Course Staff (copy)" would also set the role ID (`ADR 0035`_).
+Since the name cannot be edited, the role would keep a name and ID that do not describe it.
 
 Server-side dependency closure
 ==============================

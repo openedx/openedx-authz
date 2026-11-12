@@ -14,9 +14,9 @@ resource type (courses or libraries), and a set of existing permissions. `ADR 00
 custom roles are stored, how their IDs are built, and what happens to assignments when a role is
 copied or removed. It does not decide who can manage custom roles or the REST API.
 
-The Administrative Console needs to create, read, edit, copy, and remove custom roles, and to move
-a role's members to another role. Its Roles and Permissions table lists static and custom roles
-together, with a member count and a last-updated date, and can be searched and sorted. Before
+The Administrative Console needs to create, read, edit, copy, and remove custom roles. Its Roles and
+Permissions table lists static and custom roles together, with a member count and a last-updated
+date, and can be searched and sorted. Before
 editing or removing a role, the console shows how many members the change affects. Copying a role
 uses the create wizard: the administrator enters a name, picks a source role, and can change the
 permissions copied from it before saving.
@@ -31,10 +31,9 @@ Decision
 1. Authorization
 ================
 
-Django staff and superusers can create, edit, copy, remove, or reassign the members of a role. Other
-users are rejected with 403. This is the rule the other authorization endpoints already follow,
-where staff and superusers bypass the scope checks. No new permission is added for these
-operations.
+Django staff and superusers can create, edit, copy, or remove a role. Other users are rejected with
+403. This is the rule the other authorization endpoints already follow, where staff and superusers
+bypass the scope checks. No new permission is added for these operations.
 
 Staff and superusers already pass every permission check, so a custom role cannot grant more access
 than its creator has.
@@ -65,8 +64,6 @@ authorization endpoints (`ADR 0026`_).
      - ``PATCH /api/authz/v1/roles/<role>/``
    * - Remove
      - ``DELETE /api/authz/v1/roles/<role>/``
-   * - Move members to another role
-     - ``POST /api/authz/v1/roles/<role>/reassign/``
 
 3. Role fields
 ==============
@@ -137,22 +134,14 @@ permission still needs.
 The client uses the ``depends_on`` lists in the catalog to select dependencies before it sends the
 request, so the user sees the full set before saving.
 
-8. Removing and reassigning
-===========================
+8. Removing
+============
 
-Removing a role that has assignments follows `ADR 0035`_. The request must choose what happens to
-the assignments with the ``assignments`` query parameter:
+Removing a role that has assignments must be confirmed explicitly. The request confirms it with the
+``assignments=revoke`` query parameter, which deletes the assignments together with the role.
 
-* ``revoke`` deletes the assignments with the role.
-* ``reassign`` moves them to ``target_role`` and then removes the role.
-
-A request without ``assignments`` for a role that has assignments returns 409. A role with no
-assignments is removed without it.
-
-The reassign endpoint moves every assignment of a role to ``target_role`` at the same scope and
-removes it from the source role, which is kept. The target must support the resource type of each
-assignment's scope, and duplicates are merged, as `ADR 0035`_ decides. If any assignment cannot be
-moved, nothing is moved.
+A request without ``assignments=revoke`` for a role that has assignments returns 409 and removes
+nothing. A role with no assignments is removed without the parameter.
 
 9. Terminology
 ==============
@@ -209,19 +198,8 @@ full list. Returns 200 with the role object.
 DELETE /api/authz/v1/roles/<role>/
 ==================================
 
-Query parameters: ``assignments`` (``revoke`` or ``reassign``) and ``target_role`` (required with
-``reassign``). Returns 204.
-
-POST /api/authz/v1/roles/<role>/reassign/
-=========================================
-
-.. code:: ts
-
-   // Request
-   { target_role: string }
-
-   // Response
-   { reassigned_count: number }
+Query parameter: ``assignments`` (``revoke``), required when the role has assignments. Any other
+value returns 400. Returns 204.
 
 Response codes
 ==============

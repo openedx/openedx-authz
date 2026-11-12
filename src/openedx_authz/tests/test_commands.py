@@ -17,13 +17,13 @@ from django.core.management.base import CommandError
 
 from openedx_authz import api as authz_api
 from openedx_authz.api.data import ContentLibraryData
-from openedx_authz.constants.permissions import (
+from openedx_authz.authz import (
     DELETE_LIBRARY,
+    LIBRARY_ADMIN,
     MANAGE_LIBRARY_TEAM,
     PUBLISH_LIBRARY_CONTENT,
     VIEW_LIBRARY,
 )
-from openedx_authz.constants.roles import LIBRARY_ADMIN
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.schema.translation import SchemaTranslationExtractionError
 from openedx_authz.management.commands.load_policies import Command as LoadPoliciesCommand

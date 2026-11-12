@@ -37,7 +37,26 @@ from openedx_authz.api.users import (
     unassign_role_from_user,
     validate_users,
 )
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    COURSE_STAFF,
+    COURSES_EDIT_COURSE_CONTENT,
+    COURSES_MANAGE_ADVANCED_SETTINGS,
+    COURSES_MANAGE_CERTIFICATES,
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_MANAGE_GROUP_CONFIGURATIONS,
+    COURSES_MANAGE_LIBRARY_UPDATES,
+    COURSES_PUBLISH_COURSE_CONTENT,
+    COURSES_VIEW_COURSE,
+    CREATE_LIBRARY_COLLECTION,
+    DELETE_LIBRARY,
+    EDIT_LIBRARY_CONTENT,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_CONTRIBUTOR,
+    LIBRARY_USER,
+    MANAGE_LIBRARY_TEAM,
+    PUBLISH_LIBRARY_CONTENT,
+)
 from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
 
 
@@ -76,22 +95,22 @@ class TestUserRoleAssignmentsPerScopeType(UserAssignmentsSetupMixin):
     GLOB_SCOPE_TEST_ASSIGNMENTS = [
         {
             "subject_name": "nina",
-            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "role_name": LIBRARY_ADMIN.external_key,
             "scope_name": OrgContentLibraryGlobData.build_external_key("GlobTest"),
         },
         {
             "subject_name": "nina",
-            "role_name": roles.COURSE_STAFF.external_key,
+            "role_name": COURSE_STAFF.external_key,
             "scope_name": OrgCourseOverviewGlobData.build_external_key("GlobTest"),
         },
         {
             "subject_name": "nina",
-            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "role_name": LIBRARY_ADMIN.external_key,
             "scope_name": PlatformContentLibraryGlobData.build_external_key(),
         },
         {
             "subject_name": "nina",
-            "role_name": roles.COURSE_STAFF.external_key,
+            "role_name": COURSE_STAFF.external_key,
             "scope_name": PlatformCourseOverviewGlobData.build_external_key(),
         },
     ]
@@ -144,10 +163,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
     """Test suite for user-role assignment API functions."""
 
     @data(
-        ("john", roles.LIBRARY_ADMIN.external_key, "lib:Org1:math_101", False),
-        ("jane", roles.LIBRARY_USER.external_key, "lib:Org1:english_101", False),
-        (["mary", "charlie"], roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:science_301", True),
-        (["david", "sarah"], roles.LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", True),
+        ("john", LIBRARY_ADMIN.external_key, "lib:Org1:math_101", False),
+        ("jane", LIBRARY_USER.external_key, "lib:Org1:english_101", False),
+        (["mary", "charlie"], LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:science_301", True),
+        (["david", "sarah"], LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", True),
     )
     @unpack
     def test_assign_role_to_user_in_scope(self, username, role, scope_name, batch):
@@ -173,10 +192,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             self.assertIn(role, role_names)
 
     @data(
-        (["grace"], roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:math_advanced", True),
-        (["liam", "maya"], roles.LIBRARY_AUTHOR.external_key, "lib:Org4:art_101", True),
-        ("alice", roles.LIBRARY_ADMIN.external_key, "lib:Org1:math_101", False),
-        ("bob", roles.LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", False),
+        (["grace"], LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:math_advanced", True),
+        (["liam", "maya"], LIBRARY_AUTHOR.external_key, "lib:Org4:art_101", True),
+        ("alice", LIBRARY_ADMIN.external_key, "lib:Org1:math_101", False),
+        ("bob", LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", False),
     )
     @unpack
     def test_unassign_role_from_user(self, username, role, scope_name, batch):
@@ -203,9 +222,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             self.assertNotIn(role, role_names)
 
     @data(
-        ("eve", {roles.LIBRARY_ADMIN.external_key, roles.LIBRARY_AUTHOR.external_key, roles.LIBRARY_USER.external_key}),
-        ("alice", {roles.LIBRARY_ADMIN.external_key}),
-        ("liam", {roles.LIBRARY_AUTHOR.external_key}),
+        ("eve", {LIBRARY_ADMIN.external_key, LIBRARY_AUTHOR.external_key, LIBRARY_USER.external_key}),
+        ("alice", {LIBRARY_ADMIN.external_key}),
+        ("liam", {LIBRARY_AUTHOR.external_key}),
     )
     @unpack
     def test_get_user_role_assignments(self, username, expected_roles):
@@ -221,10 +240,10 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         self.assertEqual(assigned_role_names, expected_roles)
 
     @data(
-        ("alice", "lib:Org1:math_101", {roles.LIBRARY_ADMIN.external_key}),
-        ("bob", "lib:Org1:history_201", {roles.LIBRARY_AUTHOR.external_key}),
-        ("eve", "lib:Org2:physics_401", {roles.LIBRARY_ADMIN.external_key}),
-        ("grace", "lib:Org1:math_advanced", {roles.LIBRARY_CONTRIBUTOR.external_key}),
+        ("alice", "lib:Org1:math_101", {LIBRARY_ADMIN.external_key}),
+        ("bob", "lib:Org1:history_201", {LIBRARY_AUTHOR.external_key}),
+        ("eve", "lib:Org2:physics_401", {LIBRARY_ADMIN.external_key}),
+        ("grace", "lib:Org1:math_advanced", {LIBRARY_CONTRIBUTOR.external_key}),
     )
     @unpack
     def test_get_user_role_assignments_in_scope(self, username, scope_name, expected_roles):
@@ -240,9 +259,9 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         self.assertEqual(role_names, expected_roles)
 
     @data(
-        (roles.LIBRARY_ADMIN.external_key, "lib:Org1:math_101", {"alice"}),
-        (roles.LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", {"bob"}),
-        (roles.LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:math_advanced", {"grace", "heidi"}),
+        (LIBRARY_ADMIN.external_key, "lib:Org1:math_101", {"alice"}),
+        (LIBRARY_AUTHOR.external_key, "lib:Org1:history_201", {"bob"}),
+        (LIBRARY_CONTRIBUTOR.external_key, "lib:Org1:math_advanced", {"grace", "heidi"}),
     )
     @unpack
     def test_get_user_role_assignments_for_role_in_scope(self, role_name, scope_name, expected_users):
@@ -266,7 +285,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="alice"),
-                    roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+                    roles=[RoleData(external_key=LIBRARY_ADMIN.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org1:math_101"),
                 ),
             ],
@@ -276,7 +295,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="bob"),
-                    roles=[RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)],
+                    roles=[RoleData(external_key=LIBRARY_AUTHOR.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org1:history_201"),
                 ),
             ],
@@ -286,7 +305,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="eve"),
-                    roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+                    roles=[RoleData(external_key=LIBRARY_ADMIN.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org2:physics_401"),
                 ),
             ],
@@ -478,7 +497,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
         """
         username = "alice"
         scope = "lib:Org1:math_101"
-        action = permissions.DELETE_LIBRARY.identifier
+        action = DELETE_LIBRARY.identifier
 
         # Verify alice has the permission before unassignment
         has_permission_before = is_user_allowed(
@@ -509,110 +528,110 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
         # Course permissions
         (
             "daniel",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             True,
         ),
         (
             "daniel",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T2",
             False,
         ),
         (
             "judy",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
-        ("judy", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
+        ("judy", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T2", True),
         # Multiple subjects with same role in same scope
         (
             "maria",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T3",
             True,
         ),
-        ("aida", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
+        ("aida", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, "course-v1:TestOrg+TestCourse+2024_T3", True),
         (
             "maria",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "aida",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         # Same user, same role, different scopes
         (
             "carlos",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             True,
         ),
         (
             "carlos",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T2",
             True,
         ),
         (
             "carlos",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T3",
             True,
         ),
         # View/manage permission split: editor and auditor should NOT get manage permissions
         (
             "editor_user",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "auditor_user",
-            permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
+            COURSES_MANAGE_ADVANCED_SETTINGS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "editor_user",
-            permissions.COURSES_MANAGE_CERTIFICATES.identifier,
+            COURSES_MANAGE_CERTIFICATES.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "auditor_user",
-            permissions.COURSES_MANAGE_CERTIFICATES.identifier,
+            COURSES_MANAGE_CERTIFICATES.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "auditor_user",
-            permissions.COURSES_MANAGE_GROUP_CONFIGURATIONS.identifier,
+            COURSES_MANAGE_GROUP_CONFIGURATIONS.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         (
             "auditor_user",
-            permissions.COURSES_MANAGE_LIBRARY_UPDATES.identifier,
+            COURSES_MANAGE_LIBRARY_UPDATES.identifier,
             "course-v1:TestOrg+TestCourse+2024_T1",
             False,
         ),
         # Library permissions
-        ("alice", permissions.DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
-        ("bob", permissions.PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", True),
-        ("eve", permissions.MANAGE_LIBRARY_TEAM.identifier, "lib:Org2:physics_401", True),
-        ("grace", permissions.EDIT_LIBRARY_CONTENT.identifier, "lib:Org1:math_advanced", True),
-        ("heidi", permissions.CREATE_LIBRARY_COLLECTION.identifier, "lib:Org1:math_advanced", True),
-        ("charlie", permissions.DELETE_LIBRARY.identifier, "lib:Org1:science_301", False),
-        ("david", permissions.PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", False),
-        ("mallory", permissions.MANAGE_LIBRARY_TEAM.identifier, "lib:Org1:math_101", False),
-        ("oscar", permissions.EDIT_LIBRARY_CONTENT.identifier, "lib:Org4:art_101", False),
-        ("peggy", permissions.CREATE_LIBRARY_COLLECTION.identifier, "lib:Org2:physics_401", False),
+        ("alice", DELETE_LIBRARY.identifier, "lib:Org1:math_101", True),
+        ("bob", PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", True),
+        ("eve", MANAGE_LIBRARY_TEAM.identifier, "lib:Org2:physics_401", True),
+        ("grace", EDIT_LIBRARY_CONTENT.identifier, "lib:Org1:math_advanced", True),
+        ("heidi", CREATE_LIBRARY_COLLECTION.identifier, "lib:Org1:math_advanced", True),
+        ("charlie", DELETE_LIBRARY.identifier, "lib:Org1:science_301", False),
+        ("david", PUBLISH_LIBRARY_CONTENT.identifier, "lib:Org1:history_201", False),
+        ("mallory", MANAGE_LIBRARY_TEAM.identifier, "lib:Org1:math_101", False),
+        ("oscar", EDIT_LIBRARY_CONTENT.identifier, "lib:Org4:art_101", False),
+        ("peggy", CREATE_LIBRARY_COLLECTION.identifier, "lib:Org2:physics_401", False),
     )
     @unpack
     def test_is_user_allowed(self, username, action, scope_name, expected_result):
@@ -630,26 +649,26 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
 
     @data(
         # alice is library_admin on lib:Org1:math_101, so she holds these in at least one scope.
-        ("alice", permissions.DELETE_LIBRARY.identifier, True),
-        ("alice", permissions.MANAGE_LIBRARY_TEAM.identifier, True),
+        ("alice", DELETE_LIBRARY.identifier, True),
+        ("alice", MANAGE_LIBRARY_TEAM.identifier, True),
         # jane is library_user on lib:Org1:english_101, which never grants these permissions.
-        ("jane", permissions.DELETE_LIBRARY.identifier, False),
-        ("jane", permissions.MANAGE_LIBRARY_TEAM.identifier, False),
+        ("jane", DELETE_LIBRARY.identifier, False),
+        ("jane", MANAGE_LIBRARY_TEAM.identifier, False),
         # daniel is course_staff on course-v1:TestOrg+TestCourse+2024_T1, so he holds the
         # staff course permissions in at least one scope.
-        ("daniel", permissions.COURSES_VIEW_COURSE.identifier, True),
-        ("daniel", permissions.COURSES_EDIT_COURSE_CONTENT.identifier, True),
-        ("daniel", permissions.COURSES_PUBLISH_COURSE_CONTENT.identifier, True),
+        ("daniel", COURSES_VIEW_COURSE.identifier, True),
+        ("daniel", COURSES_EDIT_COURSE_CONTENT.identifier, True),
+        ("daniel", COURSES_PUBLISH_COURSE_CONTENT.identifier, True),
         # course_staff never grants team management, so daniel holds it in no scope.
-        ("daniel", permissions.COURSES_MANAGE_COURSE_TEAM.identifier, False),
+        ("daniel", COURSES_MANAGE_COURSE_TEAM.identifier, False),
         # carlos is course_staff on three different courses; he still holds these in some scope.
-        ("carlos", permissions.COURSES_VIEW_COURSE.identifier, True),
-        ("carlos", permissions.COURSES_MANAGE_ADVANCED_SETTINGS.identifier, True),
+        ("carlos", COURSES_VIEW_COURSE.identifier, True),
+        ("carlos", COURSES_MANAGE_ADVANCED_SETTINGS.identifier, True),
         # jane only holds a library role, so she has no course permission in any scope.
-        ("jane", permissions.COURSES_VIEW_COURSE.identifier, False),
+        ("jane", COURSES_VIEW_COURSE.identifier, False),
         # A user without any assignment is not allowed in any scope.
-        ("nonexistent_user", permissions.MANAGE_LIBRARY_TEAM.identifier, False),
-        ("nonexistent_user", permissions.COURSES_VIEW_COURSE.identifier, False),
+        ("nonexistent_user", MANAGE_LIBRARY_TEAM.identifier, False),
+        ("nonexistent_user", COURSES_VIEW_COURSE.identifier, False),
     )
     @unpack
     def test_is_user_allowed_in_any_scope(self, username, action, expected_result):
@@ -686,7 +705,7 @@ class TestUserPermissions(UserAssignmentsSetupMixin):
 
         result = is_user_allowed_in_any_scope(
             user_external_key=username,
-            action_external_key=permissions.MANAGE_LIBRARY_TEAM.identifier,
+            action_external_key=MANAGE_LIBRARY_TEAM.identifier,
         )
         self.assertTrue(result)
 
@@ -796,12 +815,12 @@ class TestGetVisibleUserRoleAssignmentsFilteredByCurrentUserActiveFilter(UserAss
         supported_scope = ContentLibraryData(external_key="lib:Org1:math_101")
         unsupported_assignment = RoleAssignmentData(
             subject=UserData(external_key="john_doe"),
-            roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            roles=[RoleData(external_key=LIBRARY_ADMIN.external_key)],
             scope=unsupported_scope,
         )
         supported_assignment = RoleAssignmentData(
             subject=UserData(external_key="alice"),
-            roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
+            roles=[RoleData(external_key=LIBRARY_ADMIN.external_key)],
             scope=supported_scope,
         )
 

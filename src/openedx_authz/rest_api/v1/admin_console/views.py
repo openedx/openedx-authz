@@ -38,7 +38,10 @@ from openedx_authz.api.users import (
     get_visible_role_assignments_for_user,
     get_visible_user_role_assignments_filtered_by_current_user,
 )
-from openedx_authz.constants import permissions
+from openedx_authz.authz import (
+    COURSES_VIEW_COURSE_TEAM,
+    VIEW_LIBRARY_TEAM,
+)
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import ScopesQuerySetFields, ScopesTypeField
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
@@ -73,8 +76,8 @@ CourseOverview = get_course_overview_model()
 @method_decorator(
     authz_permissions(
         [
-            permissions.VIEW_LIBRARY_TEAM.identifier,
-            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+            VIEW_LIBRARY_TEAM.identifier,
+            COURSES_VIEW_COURSE_TEAM.identifier,
         ]
     ),
     name="get",
@@ -183,8 +186,8 @@ class AdminConsoleOrgsAPIView(generics.ListAPIView):
 @method_decorator(
     authz_permissions(
         [
-            permissions.VIEW_LIBRARY_TEAM.identifier,
-            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+            VIEW_LIBRARY_TEAM.identifier,
+            COURSES_VIEW_COURSE_TEAM.identifier,
         ]
     ),
     name="get",
@@ -639,8 +642,8 @@ class TeamMembersAPIView(APIView):
     )
     @authz_permissions(
         [
-            permissions.VIEW_LIBRARY_TEAM.identifier,
-            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+            VIEW_LIBRARY_TEAM.identifier,
+            COURSES_VIEW_COURSE_TEAM.identifier,
         ]
     )
     def get(self, request: HttpRequest) -> Response:
@@ -765,8 +768,8 @@ class TeamMemberAssignmentsAPIView(APIView):
     )
     @authz_permissions(
         [
-            permissions.VIEW_LIBRARY_TEAM.identifier,
-            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+            VIEW_LIBRARY_TEAM.identifier,
+            COURSES_VIEW_COURSE_TEAM.identifier,
         ]
     )
     def get(self, request: HttpRequest, username: str) -> Response:
@@ -887,8 +890,8 @@ class AssignmentsAPIView(APIView):
     )
     @authz_permissions(
         [
-            permissions.VIEW_LIBRARY_TEAM.identifier,
-            permissions.COURSES_VIEW_COURSE_TEAM.identifier,
+            VIEW_LIBRARY_TEAM.identifier,
+            COURSES_VIEW_COURSE_TEAM.identifier,
         ]
     )
     def get(self, request: HttpRequest) -> Response:

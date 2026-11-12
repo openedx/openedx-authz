@@ -6,7 +6,7 @@ from typing import ClassVar
 from rest_framework.permissions import BasePermission
 
 from openedx_authz import api
-from openedx_authz.constants.permissions import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
+from openedx_authz.authz import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
 from openedx_authz.rest_api.data import ScopesTypeField
 from openedx_authz.rest_api.utils import parse_scope_types
 

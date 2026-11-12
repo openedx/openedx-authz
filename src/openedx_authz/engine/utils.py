@@ -21,7 +21,7 @@ from openedx_authz.api.users import (
     batch_assign_role_to_users_in_scope,
     batch_unassign_role_from_users,
 )
-from openedx_authz.constants.roles import (
+from openedx_authz.authz import (
     LEGACY_COURSE_ROLE_EQUIVALENCES,
     LIBRARY_ADMIN,
     LIBRARY_AUTHOR,

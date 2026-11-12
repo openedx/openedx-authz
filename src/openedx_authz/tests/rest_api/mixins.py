@@ -4,7 +4,11 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from openedx_authz.api.users import assign_role_to_user_in_scope
-from openedx_authz.constants import roles
+from openedx_authz.authz import (
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_USER,
+)
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 
 User = get_user_model()
@@ -41,48 +45,48 @@ class ViewTestMixin(BaseRolesTestCase):
             # Assign roles to admin users
             {
                 "subject_name": "admin_1",
-                "role_name": roles.LIBRARY_ADMIN.external_key,
+                "role_name": LIBRARY_ADMIN.external_key,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "admin_2",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "admin_3",
-                "role_name": roles.LIBRARY_ADMIN.external_key,
+                "role_name": LIBRARY_ADMIN.external_key,
                 "scope_name": "lib:Org3:LIB3",
             },
             # Assign roles to regular users
             {
                 "subject_name": "regular_1",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "regular_2",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org1:LIB1",
             },
             {
                 "subject_name": "regular_3",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "regular_4",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org2:LIB2",
             },
             {
                 "subject_name": "regular_5",
-                "role_name": roles.LIBRARY_ADMIN.external_key,
+                "role_name": LIBRARY_ADMIN.external_key,
                 "scope_name": "lib:Org3:LIB3",
             },
             {
                 "subject_name": "regular_6",
-                "role_name": roles.LIBRARY_AUTHOR.external_key,
+                "role_name": LIBRARY_AUTHOR.external_key,
                 "scope_name": "lib:Org3:LIB3",
             },
             {
@@ -92,7 +96,7 @@ class ViewTestMixin(BaseRolesTestCase):
             },
             {
                 "subject_name": "regular_8",
-                "role_name": roles.LIBRARY_USER.external_key,
+                "role_name": LIBRARY_USER.external_key,
                 "scope_name": "lib:Org3:LIB3",
             },
         ]

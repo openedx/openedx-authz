@@ -22,7 +22,18 @@ from openedx_authz.api.data import (
     PlatformCourseOverviewGlobData,
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSE_AUDITOR,
+    COURSE_STAFF,
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE_TEAM,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_USER,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY_TEAM,
+)
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.v1.admin_console.views import ScopesAPIView
 from openedx_authz.tests.rest_api.mixins import ViewTestMixin
@@ -68,13 +79,13 @@ class TestScopesAPIView(ViewTestMixin):
                 # regular_9: can view course team on Org1 course
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": cls.COURSE_ORG1,
                 },
                 # regular_10: can manage course team on Org2 course
                 {
                     "subject_name": "regular_10",
-                    "role_name": roles.COURSE_ADMIN.external_key,
+                    "role_name": COURSE_ADMIN.external_key,
                     "scope_name": cls.COURSE_ORG2,
                 },
             ]
@@ -543,8 +554,8 @@ class TestScopesAPIView(ViewTestMixin):
             self.client.get(self.url, {"management_permission_only": "true"})
 
         called_permissions = [call.args[1] for call in mock_get_scopes.call_args_list]
-        self.assertIn(permissions.MANAGE_LIBRARY_TEAM.identifier, called_permissions)
-        self.assertIn(permissions.COURSES_MANAGE_COURSE_TEAM.identifier, called_permissions)
+        self.assertIn(MANAGE_LIBRARY_TEAM.identifier, called_permissions)
+        self.assertIn(COURSES_MANAGE_COURSE_TEAM.identifier, called_permissions)
 
     def test_view_permission_only_uses_view_permission(self):
         """management_permission_only=false (default) calls get_admin_view_permission."""
@@ -558,8 +569,8 @@ class TestScopesAPIView(ViewTestMixin):
             self.client.get(self.url)
 
         called_permissions = [call.args[1] for call in mock_get_scopes.call_args_list]
-        self.assertIn(permissions.VIEW_LIBRARY_TEAM.identifier, called_permissions)
-        self.assertIn(permissions.COURSES_VIEW_COURSE_TEAM.identifier, called_permissions)
+        self.assertIn(VIEW_LIBRARY_TEAM.identifier, called_permissions)
+        self.assertIn(COURSES_VIEW_COURSE_TEAM.identifier, called_permissions)
 
     # ------------------------------------------------------------------ #
     # Org filter                                                          #
@@ -897,7 +908,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
@@ -1055,7 +1066,7 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_1",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
@@ -1100,32 +1111,32 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
 
     @data(
         # Specific (non-glob) scopes
-        ([("lib:AlphaU:LIB_ADMIN_TEST", roles.LIBRARY_USER.external_key)], {"AlphaU"}),
-        ([("course-v1:BetaI+COURSE1+2024", roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        ([("lib:AlphaU:LIB_ADMIN_TEST", LIBRARY_USER.external_key)], {"AlphaU"}),
+        ([("course-v1:BetaI+COURSE1+2024", COURSE_STAFF.external_key)], {"BetaI"}),
         # Org-level glob scopes
-        ([(OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key)], {"AlphaU"}),
-        ([(OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key)], {"BetaI"}),
+        ([(OrgContentLibraryGlobData.build_external_key("AlphaU"), LIBRARY_ADMIN.external_key)], {"AlphaU"}),
+        ([(OrgCourseOverviewGlobData.build_external_key("BetaI"), COURSE_STAFF.external_key)], {"BetaI"}),
         # Multiple assignments across different orgs and scope types
         (
             [
-                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
-                (OrgContentLibraryGlobData.build_external_key("BetaI"), roles.LIBRARY_ADMIN.external_key),
+                ("course-v1:AlphaU+COURSE1+2024", COURSE_STAFF.external_key),
+                (OrgContentLibraryGlobData.build_external_key("BetaI"), LIBRARY_ADMIN.external_key),
             ],
             {"AlphaU", "BetaI"},
         ),
         # Two specific course scopes, different orgs
         (
             [
-                ("course-v1:AlphaU+COURSE1+2024", roles.COURSE_STAFF.external_key),
-                ("course-v1:BetaI+COURSE2+2024", roles.COURSE_STAFF.external_key),
+                ("course-v1:AlphaU+COURSE1+2024", COURSE_STAFF.external_key),
+                ("course-v1:BetaI+COURSE2+2024", COURSE_STAFF.external_key),
             ],
             {"AlphaU", "BetaI"},
         ),
         # Two org-level glob scopes, different orgs
         (
             [
-                (OrgContentLibraryGlobData.build_external_key("AlphaU"), roles.LIBRARY_ADMIN.external_key),
-                (OrgCourseOverviewGlobData.build_external_key("BetaI"), roles.COURSE_STAFF.external_key),
+                (OrgContentLibraryGlobData.build_external_key("AlphaU"), LIBRARY_ADMIN.external_key),
+                (OrgCourseOverviewGlobData.build_external_key("BetaI"), COURSE_STAFF.external_key),
             ],
             {"AlphaU", "BetaI"},
         ),
@@ -1171,8 +1182,8 @@ class TestAdminConsoleOrgsAPIView(ViewTestMixin):
         self.assertEqual(result_short_names, expected_orgs)
 
     @data(
-        (PLATFORM_COURSE_GLOB, roles.COURSE_STAFF.external_key),
-        (PLATFORM_LIBRARY_GLOB, roles.LIBRARY_ADMIN.external_key),
+        (PLATFORM_COURSE_GLOB, COURSE_STAFF.external_key),
+        (PLATFORM_LIBRARY_GLOB, LIBRARY_ADMIN.external_key),
     )
     @unpack
     def test_non_staff_with_platform_glob_sees_all_orgs(self, scope_name: str, role_name: str):
@@ -1482,7 +1493,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         # Add 4 more assignments so total >= 5, exceeding the default limit of 3.
         extra_scopes = ["lib:Org2:LIB2", "lib:Org3:LIB3", "lib:Org4:LIB4", "lib:Org5:LIB5"]
         for scope in extra_scopes:
-            assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, scope)
+            assign_role_to_user_in_scope("regular_1", LIBRARY_USER.external_key, scope)
 
         response = self.client.get(self.url, {"search": "regular_1"})
 
@@ -1503,7 +1514,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         # Assign enough to exceed the requested limit.
         extra_scopes = ["lib:Org2:LIB2", "lib:Org3:LIB3", "lib:Org4:LIB4"]
         for scope in extra_scopes:
-            assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, scope)
+            assign_role_to_user_in_scope("regular_1", LIBRARY_USER.external_key, scope)
 
         response = self.client.get(self.url, {"search": "regular_1", "assignments_limit": 2})
 
@@ -1528,7 +1539,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         # Add 12 more assignments so total >= 12, which exceeds the hard cap of 10.
         extra_scopes = [f"lib:CapOrg{i}:CAPLIB{i}" for i in range(1, 12)]
         for scope in extra_scopes:
-            assign_role_to_user_in_scope("regular_2", roles.LIBRARY_USER.external_key, scope)
+            assign_role_to_user_in_scope("regular_2", LIBRARY_USER.external_key, scope)
 
         response = self.client.get(self.url, {"search": "regular_2", "assignments_limit": 50})
 
@@ -1588,7 +1599,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         CourseOverview.objects.get_or_create(
             id=course_scope, defaults={"org": "Org1", "display_name": "Introduction to Computer Science"}
         )
-        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+        assign_role_to_user_in_scope("regular_1", COURSE_STAFF.external_key, course_scope)
 
         response = self.client.get(self.url, {"search": "regular_1"})
 
@@ -1612,7 +1623,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
               be resolved to a DB record.
         """
         orphan_scope = "lib:OrgX:GONE_LIB"
-        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, orphan_scope)
+        assign_role_to_user_in_scope("regular_1", LIBRARY_USER.external_key, orphan_scope)
 
         response = self.client.get(self.url, {"search": "regular_1"})
 
@@ -1633,7 +1644,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
         Expected result:
             - The glob assignment has scope_display_name == "".
         """
-        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, "lib:Org1:*")
+        assign_role_to_user_in_scope("regular_1", LIBRARY_ADMIN.external_key, "lib:Org1:*")
 
         response = self.client.get(self.url, {"search": "regular_1"})
 
@@ -1681,7 +1692,7 @@ class TestTeamMembersAPIView(ViewTestMixin):
             - scope_display_name is "" for the affected course scopes.
         """
         course_scope = "course-v1:Org1+CS101+2024"
-        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+        assign_role_to_user_in_scope("regular_1", COURSE_STAFF.external_key, course_scope)
         mock_course_overview.objects.filter.side_effect = Exception("DB error")
 
         response = self.client.get(self.url, {"search": "regular_1"})
@@ -1830,12 +1841,12 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     # ------------------------------------------------------------------ #
 
     @data(
-        ("admin_1", roles.LIBRARY_ADMIN.external_key, 1),
-        ("admin_1", roles.LIBRARY_USER.external_key, 0),
-        ("regular_5", roles.LIBRARY_ADMIN.external_key, 1),
-        ("regular_5", roles.LIBRARY_USER.external_key, 0),
-        ("regular_6", roles.LIBRARY_AUTHOR.external_key, 1),
-        ("regular_6", roles.LIBRARY_ADMIN.external_key, 0),
+        ("admin_1", LIBRARY_ADMIN.external_key, 1),
+        ("admin_1", LIBRARY_USER.external_key, 0),
+        ("regular_5", LIBRARY_ADMIN.external_key, 1),
+        ("regular_5", LIBRARY_USER.external_key, 0),
+        ("regular_6", LIBRARY_AUTHOR.external_key, 1),
+        ("regular_6", LIBRARY_ADMIN.external_key, 0),
         ("admin_1", "non_existent_role", 0),
     )
     @unpack
@@ -1859,7 +1870,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         # admin_3 has library_admin in Org3:LIB3; filter for admin + author returns 1 role assignment
         response = self.client.get(
             self._url("admin_3"),
-            {"roles": f"{roles.LIBRARY_ADMIN.external_key},{roles.LIBRARY_AUTHOR.external_key}"},
+            {"roles": f"{LIBRARY_ADMIN.external_key},{LIBRARY_AUTHOR.external_key}"},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1889,7 +1900,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
             - Returns 200 OK.
             - Results are ordered according to the requested field and direction.
         """
-        assign_role_to_user_in_scope("regular_8", roles.LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
+        assign_role_to_user_in_scope("regular_8", LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
 
         response = self.client.get(self._url("regular_8"), {"sort_by": sort_by, "order": order})
 
@@ -1936,7 +1947,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
             - Page contains the expected number of items.
             - `next` link is present only when more pages exist.
         """
-        assign_role_to_user_in_scope("regular_8", roles.LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
+        assign_role_to_user_in_scope("regular_8", LIBRARY_ADMIN.external_key, "lib:Org1:LIB1")
 
         response = self.client.get(self._url("regular_8"), query_params)
 
@@ -1954,8 +1965,8 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         regular_9 is assigned course_admin on the same scope so they can view team
         assignments for that platform-level glob.
         """
-        assign_role_to_user_in_scope("regular_10", roles.COURSE_STAFF.external_key, PLATFORM_COURSE_GLOB)
-        assign_role_to_user_in_scope("regular_9", roles.COURSE_ADMIN.external_key, PLATFORM_COURSE_GLOB)
+        assign_role_to_user_in_scope("regular_10", COURSE_STAFF.external_key, PLATFORM_COURSE_GLOB)
+        assign_role_to_user_in_scope("regular_9", COURSE_ADMIN.external_key, PLATFORM_COURSE_GLOB)
 
         self.client.force_authenticate(user=User.objects.get(username="regular_9"))
         response = self.client.get(self._url("regular_10"))
@@ -1967,7 +1978,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         self.assertEqual(assignment["org"], "*")
         self.assertEqual(assignment["scope_display_name"], "")
         self.assertEqual(assignment["scope"], PLATFORM_COURSE_GLOB)
-        self.assertEqual(assignment["role"], roles.COURSE_STAFF.external_key)
+        self.assertEqual(assignment["role"], COURSE_STAFF.external_key)
 
     # ------------------------------------------------------------------ #
     # Response shape                                                     #
@@ -1994,7 +2005,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
             set(role_item.keys()),
             {"role", "org", "scope", "scope_display_name", "permission_count"},
         )
-        self.assertEqual(role_item["role"], roles.LIBRARY_ADMIN.external_key)
+        self.assertEqual(role_item["role"], LIBRARY_ADMIN.external_key)
         self.assertEqual(role_item["org"], "Org1")
         self.assertEqual(role_item["scope"], "lib:Org1:LIB1")
         self.assertGreater(role_item["permission_count"], 0)
@@ -2025,7 +2036,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
         CourseOverview.objects.get_or_create(
             id=course_scope, defaults={"org": "Org1", "display_name": "Introduction to Computer Science"}
         )
-        assign_role_to_user_in_scope("regular_1", roles.COURSE_STAFF.external_key, course_scope)
+        assign_role_to_user_in_scope("regular_1", COURSE_STAFF.external_key, course_scope)
 
         response = self.client.get(self._url("regular_1"))
 
@@ -2036,7 +2047,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     def test_scope_display_name_empty_for_missing_resource(self):
         """scope_display_name is empty when the backing library no longer exists."""
         orphan_scope = "lib:OrgX:GONE_LIB"
-        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_USER.external_key, orphan_scope)
+        assign_role_to_user_in_scope("regular_1", LIBRARY_USER.external_key, orphan_scope)
 
         response = self.client.get(self._url("regular_1"))
 
@@ -2047,7 +2058,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     @data("lib:Org1:*", "lib:*")
     def test_scope_display_name_empty_for_glob_scopes(self, glob_scope: str):
         """scope_display_name is empty for org-level and platform-level glob scopes."""
-        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, glob_scope)
+        assign_role_to_user_in_scope("regular_1", LIBRARY_ADMIN.external_key, glob_scope)
 
         response = self.client.get(self._url("regular_1"))
 
@@ -2058,7 +2069,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     @patch("openedx_authz.rest_api.utils.get_scope_display_name_map", return_value={})
     def test_scope_display_names_resolved_in_single_bulk_call_per_page(self, mock_map):
         """Names are resolved with one bulk call containing only the current page's scopes."""
-        assign_role_to_user_in_scope("regular_1", roles.LIBRARY_ADMIN.external_key, "lib:Org1:*")
+        assign_role_to_user_in_scope("regular_1", LIBRARY_ADMIN.external_key, "lib:Org1:*")
 
         response = self.client.get(self._url("regular_1"), {"page_size": 1})
 
@@ -2084,7 +2095,7 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
 
     def test_no_superadmin_entries_when_filtering_by_role(self):
         """A role filter does not add superadmin entries."""
-        response = self.client.get(self._url("admin_1"), {"roles": roles.LIBRARY_ADMIN.external_key})
+        response = self.client.get(self._url("admin_1"), {"roles": LIBRARY_ADMIN.external_key})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for item in response.data["results"]:
@@ -2213,11 +2224,11 @@ class TestAssignmentsAPIView(ViewTestMixin):
 
     @data(
         # library_admin: admin_1 (Org1), admin_3 (Org3), regular_5 (Org3) = 3
-        (roles.LIBRARY_ADMIN.external_key, 3),
+        (LIBRARY_ADMIN.external_key, 3),
         # library_user: admin_2 (Org2), regular_1..4 (Org1+Org2), regular_8 (Org3) = 6
-        (roles.LIBRARY_USER.external_key, 6),
+        (LIBRARY_USER.external_key, 6),
         # library_author: regular_6 (Org3) = 1
-        (roles.LIBRARY_AUTHOR.external_key, 1),
+        (LIBRARY_AUTHOR.external_key, 1),
         # library_contributor: regular_7 (Org3) = 1
         ("library_contributor", 1),
         # Non-existent role: no matches
@@ -2244,7 +2255,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         # library_admin (3) + library_author (1) = 4
         response = self.client.get(
             self.url,
-            {"roles": f"{roles.LIBRARY_ADMIN.external_key},{roles.LIBRARY_AUTHOR.external_key}"},
+            {"roles": f"{LIBRARY_ADMIN.external_key},{LIBRARY_AUTHOR.external_key}"},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -2499,7 +2510,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         Expected result:
             - No items with is_superadmin=True in the response.
         """
-        response = self.client.get(self.url, {"roles": roles.LIBRARY_ADMIN.external_key})
+        response = self.client.get(self.url, {"roles": LIBRARY_ADMIN.external_key})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         superadmin_items = [item for item in response.data["results"] if item["is_superadmin"]]
@@ -2560,7 +2571,7 @@ class TestAssignmentsAPIView(ViewTestMixin):
         # library_admin in Org1 = admin_1 (1 assignment)
         response = self.client.get(
             self.url,
-            {"orgs": "Org1", "roles": roles.LIBRARY_ADMIN.external_key},
+            {"orgs": "Org1", "roles": LIBRARY_ADMIN.external_key},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -2657,12 +2668,12 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_SCOPE_ORG1,
                 },
                 {
                     "subject_name": "regular_10",
-                    "role_name": roles.COURSE_AUDITOR.external_key,
+                    "role_name": COURSE_AUDITOR.external_key,
                     "scope_name": COURSE_SCOPE_ORG1,
                 },
             ]
@@ -2836,7 +2847,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_10",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_ORG1_GLOB,
                 },
             ]
@@ -2873,7 +2884,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": "lib:Org1:*",
                 },
             ]
@@ -2907,7 +2918,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": "lib:Org1:*",
                 },
             ]
@@ -2940,7 +2951,7 @@ class TestAssignmentsAPIViewPermissions(ViewTestMixin):
             [
                 {
                     "subject_name": "regular_9",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": "lib:Org1:*",
                 },
             ]

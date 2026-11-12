@@ -23,7 +23,14 @@ from openedx_authz.api.data import (
     SubjectData,
     UserData,
 )
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE_TEAM,
+    DELETE_LIBRARY,
+    LIBRARY_ADMIN,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY_TEAM,
+)
 from openedx_authz.tests.stubs.models import ContentLibrary, CourseOverview, Organization
 
 
@@ -713,7 +720,7 @@ class TestDataRepresentation(TestCase):
         ("read", "Read", "act^read"),
         ("write", "Write", "act^write"),
         (
-            permissions.DELETE_LIBRARY.identifier,
+            DELETE_LIBRARY.identifier,
             "Content Libraries > Delete Library",
             "act^content_libraries.delete_library",
         ),
@@ -757,7 +764,7 @@ class TestDataRepresentation(TestCase):
 
     @data(
         ("instructor", "Instructor", "role^instructor"),
-        (roles.LIBRARY_ADMIN.external_key, "Library Admin", "role^library_admin"),
+        (LIBRARY_ADMIN.external_key, "Library Admin", "role^library_admin"),
         ("course_staff", "Course Staff", "role^course_staff"),
     )
     @unpack
@@ -798,7 +805,7 @@ class TestDataRepresentation(TestCase):
         ("read", "allow", "Read - allow", "act^read => allow"),
         ("write", "deny", "Write - deny", "act^write => deny"),
         (
-            permissions.DELETE_LIBRARY.identifier,
+            DELETE_LIBRARY.identifier,
             "allow",
             "Content Libraries > Delete Library - allow",
             "act^content_libraries.delete_library => allow",
@@ -829,7 +836,7 @@ class TestDataRepresentation(TestCase):
         """
         user = UserData(external_key="john_doe")
         role1 = RoleData(external_key="instructor")
-        role2 = RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
+        role2 = RoleData(external_key=LIBRARY_ADMIN.external_key)
         scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
         assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
 
@@ -846,7 +853,7 @@ class TestDataRepresentation(TestCase):
         """
         user = UserData(external_key="john_doe")
         role1 = RoleData(external_key="instructor")
-        role2 = RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
+        role2 = RoleData(external_key=LIBRARY_ADMIN.external_key)
         scope = ContentLibraryData(external_key="lib:DemoX:CSPROB")
         assignment = RoleAssignmentData(subject=user, roles=[role1, role2], scope=scope)
 
@@ -1227,15 +1234,13 @@ class TestPlatformCourseOverviewGlobData(TestCase):
 
     def test_get_admin_view_permission(self):
         """View permission matches course team view permission."""
-        self.assertEqual(
-            PlatformCourseOverviewGlobData.get_admin_view_permission(), permissions.COURSES_VIEW_COURSE_TEAM
-        )
+        self.assertEqual(PlatformCourseOverviewGlobData.get_admin_view_permission(), COURSES_VIEW_COURSE_TEAM)
 
     def test_get_admin_manage_permission(self):
         """Manage permission matches course team manage permission."""
         self.assertEqual(
             PlatformCourseOverviewGlobData.get_admin_manage_permission(),
-            permissions.COURSES_MANAGE_COURSE_TEAM,
+            COURSES_MANAGE_COURSE_TEAM,
         )
 
     def test_is_platform_glob(self):
@@ -1303,13 +1308,13 @@ class TestPlatformContentLibraryGlobData(TestCase):
 
     def test_get_admin_view_permission(self):
         """View permission matches library team view permission."""
-        self.assertEqual(PlatformContentLibraryGlobData.get_admin_view_permission(), permissions.VIEW_LIBRARY_TEAM)
+        self.assertEqual(PlatformContentLibraryGlobData.get_admin_view_permission(), VIEW_LIBRARY_TEAM)
 
     def test_get_admin_manage_permission(self):
         """Manage permission matches library team manage permission."""
         self.assertEqual(
             PlatformContentLibraryGlobData.get_admin_manage_permission(),
-            permissions.MANAGE_LIBRARY_TEAM,
+            MANAGE_LIBRARY_TEAM,
         )
 
     def test_is_platform_glob(self):

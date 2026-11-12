@@ -4,7 +4,20 @@ from pathlib import Path
 
 import yaml
 
-from openedx_authz.constants import permissions, roles
+from openedx_authz import authz
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSE_AUDITOR,
+    COURSE_BETA_TESTER,
+    COURSE_DATA_RESEARCHER,
+    COURSE_EDITOR,
+    COURSE_LIMITED_STAFF,
+    COURSE_STAFF,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_CONTRIBUTOR,
+    LIBRARY_USER,
+)
 from openedx_authz.data import PermissionData
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.engine.schema.snapshot import snapshot_data
@@ -28,17 +41,17 @@ class TestBuiltinAppletDefinitions:
     def test_compiled_roles_match_public_role_constants(self):
         """Every compiled role has a public constant, and every constant names a compiled role."""
         public_roles = (
-            roles.LIBRARY_ADMIN,
-            roles.LIBRARY_AUTHOR,
-            roles.LIBRARY_CONTRIBUTOR,
-            roles.LIBRARY_USER,
-            roles.COURSE_ADMIN,
-            roles.COURSE_STAFF,
-            roles.COURSE_EDITOR,
-            roles.COURSE_AUDITOR,
-            roles.COURSE_LIMITED_STAFF,
-            roles.COURSE_DATA_RESEARCHER,
-            roles.COURSE_BETA_TESTER,
+            LIBRARY_ADMIN,
+            LIBRARY_AUTHOR,
+            LIBRARY_CONTRIBUTOR,
+            LIBRARY_USER,
+            COURSE_ADMIN,
+            COURSE_STAFF,
+            COURSE_EDITOR,
+            COURSE_AUDITOR,
+            COURSE_LIMITED_STAFF,
+            COURSE_DATA_RESEARCHER,
+            COURSE_BETA_TESTER,
         )
 
         compiled = SchemaPipeline().compile()
@@ -55,7 +68,7 @@ class TestBuiltinAppletDefinitions:
     def test_compiled_permissions_match_public_permission_constants(self):
         """Every compiled permission has a public constant, and every constant names a compiled permission."""
         public_permissions = {
-            constant.identifier for constant in vars(permissions).values() if isinstance(constant, PermissionData)
+            constant.identifier for constant in vars(authz).values() if isinstance(constant, PermissionData)
         }
 
         compiled = SchemaPipeline().compile()

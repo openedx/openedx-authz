@@ -26,7 +26,20 @@ from openedx_authz.api.data import (
     PlatformCourseOverviewGlobData,
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSE_AUDITOR,
+    COURSE_EDITOR,
+    COURSE_STAFF,
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_CONTRIBUTOR,
+    LIBRARY_USER,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY,
+)
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
@@ -62,16 +75,16 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
     @data(
         # Single permission - allowed
-        ([{"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"}], [True]),
+        ([{"action": VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"}], [True]),
         # Single permission - denied (scope not assigned to user)
-        ([{"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"}], [False]),
+        ([{"action": VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"}], [False]),
         # Single permission - denied (action not assigned to user)
         ([{"action": "content_libraries.edit_library", "scope": "lib:Org1:LIB1"}], [False]),
         # Multiple permissions - mixed results
         (
             [
-                {"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"},
-                {"action": permissions.VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"},
+                {"action": VIEW_LIBRARY.identifier, "scope": "lib:Org1:LIB1"},
+                {"action": VIEW_LIBRARY.identifier, "scope": "lib:Org2:LIB2"},
                 {"action": "content_libraries.edit_library", "scope": "lib:Org1:LIB1"},
             ],
             [True, False, False],
@@ -161,15 +174,15 @@ class TestPermissionValidationMeView(ViewTestMixin):
 
     @data(
         # Single action the user has in some scope (LIBRARY_USER on lib:Org1:LIB1) - allowed
-        ([{"action": permissions.VIEW_LIBRARY.identifier}], [True]),
+        ([{"action": VIEW_LIBRARY.identifier}], [True]),
         # Single action the user has in no scope - denied
-        ([{"action": permissions.MANAGE_LIBRARY_TEAM.identifier}], [False]),
+        ([{"action": MANAGE_LIBRARY_TEAM.identifier}], [False]),
         # Multiple actions - mixed results
         (
             [
-                {"action": permissions.VIEW_LIBRARY.identifier},
-                {"action": permissions.MANAGE_LIBRARY_TEAM.identifier},
-                {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier},
+                {"action": VIEW_LIBRARY.identifier},
+                {"action": MANAGE_LIBRARY_TEAM.identifier},
+                {"action": COURSES_MANAGE_COURSE_TEAM.identifier},
             ],
             [True, False, False],
         ),
@@ -204,8 +217,8 @@ class TestPermissionValidationMeView(ViewTestMixin):
         """
         self.client.force_authenticate(user=self.admin_user)
         request_data = [
-            {"action": permissions.MANAGE_LIBRARY_TEAM.identifier},
-            {"action": permissions.COURSES_MANAGE_COURSE_TEAM.identifier},
+            {"action": MANAGE_LIBRARY_TEAM.identifier},
+            {"action": COURSES_MANAGE_COURSE_TEAM.identifier},
         ]
         expected_response = [{"action": perm["action"], "allowed": True} for perm in request_data]
 
@@ -275,12 +288,12 @@ class TestPermissionValidationMeView(ViewTestMixin):
         self.client.force_authenticate(user=self.regular_user)
         assign_role_to_user_in_scope(
             user_external_key=self.regular_user.username,
-            role_external_key=roles.COURSE_STAFF.external_key,
+            role_external_key=COURSE_STAFF.external_key,
             scope_external_key=COURSE_SCOPE_ORG1,
         )
         request_data = [
-            {"action": permissions.COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1},
-            {"action": permissions.VIEW_LIBRARY.identifier, "scope": LIB_SCOPE_ORG1},
+            {"action": COURSES_VIEW_COURSE.identifier, "scope": COURSE_SCOPE_ORG1},
+            {"action": VIEW_LIBRARY.identifier, "scope": LIB_SCOPE_ORG1},
         ]
 
         with patch(
@@ -301,17 +314,17 @@ class TestRoleUserAPIView(ViewTestMixin):
     _COURSE_ASSIGNMENTS = [
         {
             "subject_name": "course_admin",
-            "role_name": roles.COURSE_ADMIN.external_key,
+            "role_name": COURSE_ADMIN.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "course_editor",
-            "role_name": roles.COURSE_EDITOR.external_key,
+            "role_name": COURSE_EDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "course_auditor",
-            "role_name": roles.COURSE_AUDITOR.external_key,
+            "role_name": COURSE_AUDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
     ]
@@ -339,23 +352,23 @@ class TestRoleUserAPIView(ViewTestMixin):
         ({"search": "@example.com"}, 3),
         ({"search": "nonexistent@example.com"}, 0),
         # Search by single role
-        ({"roles": roles.LIBRARY_ADMIN.external_key}, 1),
-        ({"roles": roles.LIBRARY_AUTHOR.external_key}, 0),
-        ({"roles": roles.LIBRARY_USER.external_key}, 2),
+        ({"roles": LIBRARY_ADMIN.external_key}, 1),
+        ({"roles": LIBRARY_AUTHOR.external_key}, 0),
+        ({"roles": LIBRARY_USER.external_key}, 2),
         # Search by multiple roles
         ({"roles": "library_admin,library_author"}, 1),
         ({"roles": "library_author,library_user"}, 2),
         ({"roles": "library_user,library_admin"}, 3),
         ({"roles": "library_admin,library_author,library_user"}, 3),
         # Search by role and username
-        ({"search": "admin_1", "roles": roles.LIBRARY_ADMIN.external_key}, 1),
-        ({"search": "regular_1", "roles": roles.LIBRARY_USER.external_key}, 1),
-        ({"search": "regular_1", "roles": roles.LIBRARY_ADMIN.external_key}, 0),
+        ({"search": "admin_1", "roles": LIBRARY_ADMIN.external_key}, 1),
+        ({"search": "regular_1", "roles": LIBRARY_USER.external_key}, 1),
+        ({"search": "regular_1", "roles": LIBRARY_ADMIN.external_key}, 0),
         # Search by role and email
-        ({"search": "admin_1@example.com", "roles": roles.LIBRARY_ADMIN.external_key}, 1),
-        ({"search": "@example.com", "roles": roles.LIBRARY_ADMIN.external_key}, 1),
-        ({"search": "@example.com", "roles": roles.LIBRARY_USER.external_key}, 2),
-        ({"search": "regular_1@example.com", "roles": roles.LIBRARY_ADMIN.external_key}, 0),
+        ({"search": "admin_1@example.com", "roles": LIBRARY_ADMIN.external_key}, 1),
+        ({"search": "@example.com", "roles": LIBRARY_ADMIN.external_key}, 1),
+        ({"search": "@example.com", "roles": LIBRARY_USER.external_key}, 2),
+        ({"search": "regular_1@example.com", "roles": LIBRARY_ADMIN.external_key}, 0),
     )
     @unpack
     def test_get_users_by_scope_success(self, query_params: dict, expected_count: int):
@@ -499,7 +512,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns 207 MULTI-STATUS status
             - Returns appropriate completed and error counts
         """
-        role = roles.LIBRARY_ADMIN.external_key
+        role = LIBRARY_ADMIN.external_key
         request_data = {"role": role, "scope": "lib:Org1:LIB3", "users": users}
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
@@ -522,7 +535,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     @unpack
     def test_add_users_to_role_already_has_role(self, users: list[str], expected_completed: int, expected_errors: int):
         """Test adding users to a role that already has the role."""
-        role = roles.LIBRARY_USER.external_key
+        role = LIBRARY_USER.external_key
         scope = "lib:Org2:LIB2"
         request_data = {"role": role, "scope": scope, "users": users}
 
@@ -537,7 +550,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     def test_add_users_to_role_exception_handling(self, mock_assign_role_to_user_in_scope):
         """Test adding users to a role with exception handling."""
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org1:LIB1",
             "users": ["regular_1"],
         }
@@ -557,15 +570,15 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @data(
         {},
-        {"role": roles.LIBRARY_ADMIN.external_key},
+        {"role": LIBRARY_ADMIN.external_key},
         {"scope": "lib:Org1:LIB1"},
         {"users": ["admin_1"]},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1"},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1"},
         {"scope": "lib:Org1:LIB1", "users": ["admin_1"]},
-        {"users": ["admin_1", "regular_1"], "role": roles.LIBRARY_ADMIN.external_key},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1", "users": []},
+        {"users": ["admin_1", "regular_1"], "role": LIBRARY_ADMIN.external_key},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1", "users": []},
         {"role": "", "scope": "lib:Org1:LIB1", "users": ["admin_1"]},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "", "users": ["admin_1"]},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "", "users": ["admin_1"]},
     )
     def test_add_users_to_role_invalid_data(self, request_data: dict):
         """Test adding users with invalid request data.
@@ -605,7 +618,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Completed count equals len(users) * len(scopes) when all succeed
             - Each completed entry contains a 'scope' field
         """
-        role = roles.LIBRARY_ADMIN.external_key
+        role = LIBRARY_ADMIN.external_key
         request_data = {"role": role, "scopes": scopes, "users": users}
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
@@ -627,7 +640,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         """
         scope = "lib:Org1:LIB3"
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": scope,
             "users": ["admin_1", "regular_1"],
         }
@@ -644,14 +657,14 @@ class TestRoleUserAPIView(ViewTestMixin):
     @data(
         # Both 'scope' and 'scopes' provided
         {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org1:LIB1",
             "scopes": ["lib:Org2:LIB2"],
             "users": ["admin_1"],
         },
         # 'scopes' as empty list
         {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scopes": [],
             "users": ["admin_1"],
         },
@@ -685,7 +698,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on permissions
         """
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org3:LIB3",
             "users": ["regular_2"],
         }
@@ -721,7 +734,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on course-scope permissions.
         """
         request_data = {
-            "role": roles.COURSE_ADMIN.external_key,
+            "role": COURSE_ADMIN.external_key,
             "scope": COURSE_SCOPE_ORG1,
             "users": ["regular_2"],
         }
@@ -748,7 +761,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         """A scope hidden by the configured filter is reported and never written."""
         self.client.force_authenticate(user=User.objects.get(username="course_admin"))
         request_data = {
-            "role": roles.COURSE_STAFF.external_key,
+            "role": COURSE_STAFF.external_key,
             "scope": COURSE_SCOPE_ORG1,
             "users": ["regular_2"],
         }
@@ -819,7 +832,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate completed and error counts
         """
         query_params = {
-            "role": roles.LIBRARY_USER.external_key,
+            "role": LIBRARY_USER.external_key,
             "scope": "lib:Org2:LIB2",
             "users": ",".join(users),
         }
@@ -833,11 +846,11 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @data(
         # library_admin removing its own library_admin: refused
-        ("admin_3", roles.LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3", "api.ContentLibraryData"),
+        ("admin_3", LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3", "api.ContentLibraryData"),
         # same, naming itself by email
-        ("admin_3", roles.LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3@example.com", "api.ContentLibraryData"),
+        ("admin_3", LIBRARY_ADMIN.external_key, "lib:Org3:LIB3", "admin_3@example.com", "api.ContentLibraryData"),
         # course_admin removing its own course_admin: refused
-        ("course_admin", roles.COURSE_ADMIN.external_key, COURSE_SCOPE_ORG1, "course_admin", "api.CourseOverviewData"),
+        ("course_admin", COURSE_ADMIN.external_key, COURSE_SCOPE_ORG1, "course_admin", "api.CourseOverviewData"),
     )
     @unpack
     def test_remove_own_admin_role_is_refused(
@@ -850,8 +863,8 @@ class TestRoleUserAPIView(ViewTestMixin):
             - The requester is reported with ``cannot_remove_own_admin_role`` and keeps the role
             - Another admin in the same request is removed
         """
-        other = "regular_5" if role == roles.LIBRARY_ADMIN.external_key else "regular_2"
-        if role == roles.COURSE_ADMIN.external_key:
+        other = "regular_5" if role == LIBRARY_ADMIN.external_key else "regular_2"
+        if role == COURSE_ADMIN.external_key:
             self._assign_roles_to_users(assignments=[{"subject_name": other, "role_name": role, "scope_name": scope}])
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
@@ -882,12 +895,12 @@ class TestRoleUserAPIView(ViewTestMixin):
             assignments=[
                 {
                     "subject_name": "admin_3",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": "lib:Org3:LIB3",
                 }
             ]
         )
-        query_params = {"role": roles.LIBRARY_USER.external_key, "scope": "lib:Org3:LIB3", "users": "admin_3"}
+        query_params = {"role": LIBRARY_USER.external_key, "scope": "lib:Org3:LIB3", "users": "admin_3"}
 
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
             response = self.client.delete(f"{self.url}?{urlencode(query_params)}")
@@ -900,7 +913,7 @@ class TestRoleUserAPIView(ViewTestMixin):
     def test_remove_users_from_role_exception_handling(self, mock_unassign_role_from_user):
         """Test removing users from a role with exception handling."""
         query_params = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org1:LIB1",
             "users": "regular_1,regular_2,regular_3",
         }
@@ -929,15 +942,15 @@ class TestRoleUserAPIView(ViewTestMixin):
 
     @data(
         {},
-        {"role": roles.LIBRARY_ADMIN.external_key},
+        {"role": LIBRARY_ADMIN.external_key},
         {"scope": "lib:Org1:LIB1"},
         {"users": "admin_1"},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1"},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1"},
         {"scope": "lib:Org1:LIB1", "users": "admin_1"},
-        {"users": "admin_1,regular_1", "role": roles.LIBRARY_ADMIN.external_key},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1", "users": ""},
+        {"users": "admin_1,regular_1", "role": LIBRARY_ADMIN.external_key},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "lib:Org1:LIB1", "users": ""},
         {"role": "", "scope": "lib:Org1:LIB1", "users": "admin_1"},
-        {"role": roles.LIBRARY_ADMIN.external_key, "scope": "", "users": "admin_1"},
+        {"role": LIBRARY_ADMIN.external_key, "scope": "", "users": "admin_1"},
     )
     def test_remove_users_from_role_invalid_params(self, query_params: dict):
         """Test removing users with invalid query parameters.
@@ -967,7 +980,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on permissions
         """
         query_params = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org3:LIB3",
             "users": "user1,user2",
         }
@@ -1003,7 +1016,7 @@ class TestRoleUserAPIView(ViewTestMixin):
             - Returns appropriate status code based on course-scope permissions.
         """
         query_params = {
-            "role": roles.COURSE_ADMIN.external_key,
+            "role": COURSE_ADMIN.external_key,
             "scope": COURSE_SCOPE_ORG1,
             "users": "regular_2",
         }
@@ -1030,7 +1043,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         """A scope hidden by the configured filter is reported and never written."""
         self.client.force_authenticate(user=User.objects.get(username="course_admin"))
         query_params = {
-            "role": roles.COURSE_STAFF.external_key,
+            "role": COURSE_STAFF.external_key,
             "scope": COURSE_SCOPE_ORG1,
             "users": "regular_2",
         }
@@ -1102,7 +1115,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_put_rejects_malformed_or_overbroad_scope_strings(self, invalid_scope: str):
         """PUT must return 400 when the scope is not a valid concrete key or org-level glob."""
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": invalid_scope,
             "users": ["regular_1"],
         }
@@ -1123,7 +1136,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_delete_rejects_malformed_or_overbroad_scope_strings(self, invalid_scope: str):
         """DELETE must return 400 for the same invalid scope strings as PUT."""
         query_params = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": invalid_scope,
             "users": "regular_1",
         }
@@ -1143,7 +1156,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_put_rejects_scope_that_does_not_exist(self, scope: str):
         """Well-formed keys that do not resolve to an existing org/course must return 400."""
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": scope,
             "users": ["regular_1"],
         }
@@ -1159,7 +1172,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_put_accepts_valid_library_org_glob_scope(self, _mock_exists, _mock_assign):
         """Valid library org glob passes serializer validation and reaches assignment."""
         request_data = {
-            "role": roles.LIBRARY_ADMIN.external_key,
+            "role": LIBRARY_ADMIN.external_key,
             "scope": "lib:Org1:*",
             "users": ["regular_1"],
         }
@@ -1174,7 +1187,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_put_accepts_valid_course_org_glob_scope(self, _mock_exists, _mock_assign):
         """Valid course org glob (course-v1:ORG+*) passes validation for a course role."""
         request_data = {
-            "role": roles.COURSE_STAFF.external_key,
+            "role": COURSE_STAFF.external_key,
             "scope": "course-v1:OpenedX+*",
             "users": ["regular_1"],
         }
@@ -1189,7 +1202,7 @@ class TestRoleUserAPIViewScopeStringValidation(ViewTestMixin):
     def test_put_accepts_valid_full_course_key_scope(self, _mock_exists, _mock_assign):
         """A full course run key is accepted for a course role when the course exists."""
         request_data = {
-            "role": roles.COURSE_STAFF.external_key,
+            "role": COURSE_STAFF.external_key,
             "scope": "course-v1:OpenedX+DemoCourse+2026_T1",
             "users": ["regular_1"],
         }
@@ -1207,22 +1220,22 @@ class TestRoleListView(ViewTestMixin):
     _COURSE_ASSIGNMENTS = [
         {
             "subject_name": "course_admin",
-            "role_name": roles.COURSE_ADMIN.external_key,
+            "role_name": COURSE_ADMIN.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "course_editor",
-            "role_name": roles.COURSE_EDITOR.external_key,
+            "role_name": COURSE_EDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "course_auditor",
-            "role_name": roles.COURSE_AUDITOR.external_key,
+            "role_name": COURSE_AUDITOR.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "regular_9",
-            "role_name": roles.COURSE_STAFF.external_key,
+            "role_name": COURSE_STAFF.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
     ]
@@ -1261,13 +1274,13 @@ class TestRoleListView(ViewTestMixin):
             namespace="courses", name="view_course", display_name="View course", category=category, scopes=["course-v1"]
         )
         author = AuthzRoleDefinition.objects.create(
-            role_id=roles.LIBRARY_AUTHOR.external_key, display_name="Library Author", scopes=["lib"]
+            role_id=LIBRARY_AUTHOR.external_key, display_name="Library Author", scopes=["lib"]
         )
         user = AuthzRoleDefinition.objects.create(
-            role_id=roles.LIBRARY_USER.external_key, display_name="Library User", scopes=["lib"]
+            role_id=LIBRARY_USER.external_key, display_name="Library User", scopes=["lib"]
         )
         hidden = AuthzRoleDefinition.objects.create(
-            role_id=roles.LIBRARY_ADMIN.external_key, display_name="Hidden", scopes=["lib"], hidden=True
+            role_id=LIBRARY_ADMIN.external_key, display_name="Hidden", scopes=["lib"], hidden=True
         )
         for role, permission, scope in [
             (author, view_library, "lib"),
@@ -1317,14 +1330,14 @@ class TestRoleListView(ViewTestMixin):
         )
         by_role = {r["role"]: r for r in response.data["results"]}
         self.assertEqual(response.data["count"], len(by_role))
-        self.assertNotIn(roles.LIBRARY_ADMIN.external_key, by_role)
+        self.assertNotIn(LIBRARY_ADMIN.external_key, by_role)
         self.assertEqual(
-            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            by_role[LIBRARY_AUTHOR.external_key]["permissions"],
             ["content_libraries.edit_library", "content_libraries.view_library"],
         )
-        self.assertEqual(by_role[roles.LIBRARY_AUTHOR.external_key]["definition_kind"], DefinitionKind.STATIC.value)
-        self.assertEqual(by_role[roles.LIBRARY_AUTHOR.external_key]["scope_types"], ["lib"])
-        self.assertEqual(by_role[roles.LIBRARY_USER.external_key]["display_name"], "Library User")
+        self.assertEqual(by_role[LIBRARY_AUTHOR.external_key]["definition_kind"], DefinitionKind.STATIC.value)
+        self.assertEqual(by_role[LIBRARY_AUTHOR.external_key]["scope_types"], ["lib"])
+        self.assertEqual(by_role[LIBRARY_USER.external_key]["display_name"], "Library User")
         self.assertEqual(list(by_role), sorted(by_role))
 
     def test_get_roles_permission_without_category(self):
@@ -1352,12 +1365,12 @@ class TestRoleListView(ViewTestMixin):
         Expected result:
             - The catalog is read from the schema definitions only
         """
-        AuthzRoleDefinition.objects.filter(role_id=roles.LIBRARY_CONTRIBUTOR.external_key).delete()
+        AuthzRoleDefinition.objects.filter(role_id=LIBRARY_CONTRIBUTOR.external_key).delete()
 
         response = self.client.get(self.url, {"scope_types": "lib"})
 
         by_role = {r["role"]: r for r in response.data["results"]}
-        self.assertNotIn(roles.LIBRARY_CONTRIBUTOR.external_key, by_role)
+        self.assertNotIn(LIBRARY_CONTRIBUTOR.external_key, by_role)
 
     def test_get_roles_query_count_does_not_depend_on_roles(self):
         """Definitions are loaded with a constant number of queries.
@@ -1431,7 +1444,7 @@ class TestRoleListView(ViewTestMixin):
         )
         by_role = {r["role"]: r for r in response.data["results"]}
         self.assertEqual(
-            by_role[roles.LIBRARY_AUTHOR.external_key]["permissions"],
+            by_role[LIBRARY_AUTHOR.external_key]["permissions"],
             ["content_libraries.edit_library", "content_libraries.view_library", "courses.view_course"],
         )
 
@@ -1443,7 +1456,7 @@ class TestRoleListView(ViewTestMixin):
         """
         response = self.client.get(self.url, {"scope_types": "course-v1"})
 
-        self.assertEqual([r["role"] for r in response.data["results"]], [roles.LIBRARY_AUTHOR.external_key])
+        self.assertEqual([r["role"] for r in response.data["results"]], [LIBRARY_AUTHOR.external_key])
         self.assertEqual(response.data["results"][0]["permissions"], ["courses.view_course"])
 
     def test_get_roles_pagination_only_paginates_roles(self):
@@ -1906,12 +1919,12 @@ class TestUserValidationAPIView(ViewTestMixin):
         test_user = User.objects.create(username="multi_role_user", email="multi@example.com")
         assign_role_to_user_in_scope(
             user_external_key="multi_role_user",
-            role_external_key=roles.LIBRARY_ADMIN.external_key,
+            role_external_key=LIBRARY_ADMIN.external_key,
             scope_external_key="lib:Org1:LIB1",
         )
         assign_role_to_user_in_scope(
             user_external_key="multi_role_user",
-            role_external_key=roles.LIBRARY_USER.external_key,
+            role_external_key=LIBRARY_USER.external_key,
             scope_external_key="lib:Org2:LIB2",
         )
         self.client.force_authenticate(user=test_user)
@@ -1971,33 +1984,33 @@ class TestScopeHierarchyFiltering(ViewTestMixin):
                 # -- Course hierarchy: Org1 --
                 {
                     "subject_name": "regular_1",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_SCOPE_ORG1,
                 },
                 {
                     "subject_name": "regular_2",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": COURSE_ORG1_GLOB,
                 },
                 {
                     "subject_name": "regular_3",
-                    "role_name": roles.COURSE_STAFF.external_key,
+                    "role_name": COURSE_STAFF.external_key,
                     "scope_name": PLATFORM_COURSE_GLOB,
                 },
                 # -- Library hierarchy: Org1 --
                 {
                     "subject_name": "regular_4",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": LIB_SCOPE_ORG1,
                 },
                 {
                     "subject_name": "regular_5",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": LIB_ORG1_GLOB,
                 },
                 {
                     "subject_name": "regular_6",
-                    "role_name": roles.LIBRARY_USER.external_key,
+                    "role_name": LIBRARY_USER.external_key,
                     "scope_name": PLATFORM_LIBRARY_GLOB,
                 },
             ]
@@ -2201,17 +2214,17 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
     _COURSE_ASSIGNMENTS = [
         {
             "subject_name": "course_admin",
-            "role_name": roles.COURSE_ADMIN.external_key,
+            "role_name": COURSE_ADMIN.external_key,
             "scope_name": COURSE_SCOPE_ORG1,
         },
         {
             "subject_name": "course_admin_org",
-            "role_name": roles.COURSE_ADMIN.external_key,
+            "role_name": COURSE_ADMIN.external_key,
             "scope_name": COURSE_ORG1_GLOB,
         },
         {
             "subject_name": "course_admin_platform",
-            "role_name": roles.COURSE_ADMIN.external_key,
+            "role_name": COURSE_ADMIN.external_key,
             "scope_name": PLATFORM_COURSE_GLOB,
         },
     ]
@@ -2228,7 +2241,7 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
 
         Patches scope existence checks so validation does not depend on the database.
         """
-        request_data = {"role": roles.COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
+        request_data = {"role": COURSE_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
         with (
             patch.object(api.CourseOverviewData, "exists", return_value=True),
             patch.object(api.OrgCourseOverviewGlobData, "exists", return_value=True),
@@ -2240,7 +2253,7 @@ class TestBulkPutScopesAllLogic(ViewTestMixin):
 
         Patches ContentLibraryData.exists so validation does not depend on the database.
         """
-        request_data = {"role": roles.LIBRARY_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
+        request_data = {"role": LIBRARY_ADMIN.external_key, "scopes": scopes, "users": ["regular_2"]}
         with patch.object(api.ContentLibraryData, "exists", return_value=True):
             return self.client.put(self.url, data=request_data, format="json")
 
@@ -2339,17 +2352,17 @@ class TestPlatformGlobLibraryRoleAssignment(ViewTestMixin):
     _LIBRARY_ASSIGNMENTS = [
         {
             "subject_name": "library_admin",
-            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "role_name": LIBRARY_ADMIN.external_key,
             "scope_name": LIB_SCOPE_ORG1,
         },
         {
             "subject_name": "library_admin_org",
-            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "role_name": LIBRARY_ADMIN.external_key,
             "scope_name": LIB_ORG1_GLOB,
         },
         {
             "subject_name": "library_admin_platform",
-            "role_name": roles.LIBRARY_ADMIN.external_key,
+            "role_name": LIBRARY_ADMIN.external_key,
             "scope_name": PLATFORM_LIBRARY_GLOB,
         },
     ]
@@ -2370,10 +2383,10 @@ class TestPlatformGlobLibraryRoleAssignment(ViewTestMixin):
             return self.client.put(self.url, data=request_data, format="json")
 
     @data(
-        roles.LIBRARY_ADMIN.external_key,
-        roles.LIBRARY_AUTHOR.external_key,
-        roles.LIBRARY_CONTRIBUTOR.external_key,
-        roles.LIBRARY_USER.external_key,
+        LIBRARY_ADMIN.external_key,
+        LIBRARY_AUTHOR.external_key,
+        LIBRARY_CONTRIBUTOR.external_key,
+        LIBRARY_USER.external_key,
     )
     def test_platform_library_admin_can_assign_any_role_globally(self, role):
         """A platform library_admin can assign any library role at lib:*."""
@@ -2411,6 +2424,6 @@ class TestPlatformGlobLibraryRoleAssignment(ViewTestMixin):
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
 
-        response = self._put_lib(scopes, roles.LIBRARY_ADMIN.external_key)
+        response = self._put_lib(scopes, LIBRARY_ADMIN.external_key)
 
         self.assertEqual(response.status_code, expected_status)

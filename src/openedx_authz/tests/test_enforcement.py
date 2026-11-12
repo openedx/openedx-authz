@@ -21,10 +21,13 @@ from openedx_authz.api.data import (
     ContentLibraryData,
     CourseOverviewData,
 )
-from openedx_authz.constants import roles
-from openedx_authz.constants.permissions import (
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSE_STAFF,
     COURSES_CREATE_FILES,
     COURSES_VIEW_COURSE,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
     MANAGE_LIBRARY_TEAM,
     VIEW_LIBRARY,
 )
@@ -278,7 +281,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_role_key(LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
             make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
@@ -299,7 +302,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_AUTHOR.external_key),
+            make_role_key(LIBRARY_AUTHOR.external_key),
             make_action_key("write"),
             make_scope_key("lib", GLOBAL_SCOPE_WILDCARD),
             "allow",
@@ -333,7 +336,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-6"),
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_role_key(LIBRARY_ADMIN.external_key),
             make_library_key("lib:DemoX:CSPROB"),
         ],
         [
@@ -351,7 +354,7 @@ class RoleAssignmentTests(CasbinEnforcementTestCase):
         [
             "g",
             make_user_key("user-9"),
-            make_role_key(roles.LIBRARY_AUTHOR.external_key),
+            make_role_key(LIBRARY_AUTHOR.external_key),
             make_library_key("lib:DemoX:CSPROB"),
         ],
     ] + COMMON_ACTION_GROUPING
@@ -501,21 +504,21 @@ class WildcardScopeTests(CasbinEnforcementTestCase):
         # Policies
         [
             "p",
-            make_role_key(roles.COURSE_ADMIN.external_key),
+            make_role_key(COURSE_ADMIN.external_key),
             make_action_key("manage"),
             make_wildcard_key(CourseOverviewData.NAMESPACE),
             "allow",
         ],
         [
             "p",
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_role_key(LIBRARY_ADMIN.external_key),
             make_action_key("manage"),
             make_wildcard_key(ContentLibraryData.NAMESPACE),
             "allow",
         ],
         # Role assignments
-        ["g", make_user_key("user-1"), make_role_key(roles.COURSE_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
-        ["g", make_user_key("user-2"), make_role_key(roles.LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-1"), make_role_key(COURSE_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
+        ["g", make_user_key("user-2"), make_role_key(LIBRARY_ADMIN.external_key), GLOBAL_SCOPE_WILDCARD],
     ] + COMMON_ACTION_GROUPING
 
     @data(
@@ -559,12 +562,10 @@ class OrgGlobCourseEnforcementTests(CasbinEnforcementTestCase):
     scopes that belong to those organizations.
     """
 
-    POLICIES = [
-        make_policy(roles.COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)
-    ]
+    POLICIES = [make_policy(COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)]
 
     ASSIGNMENTS = [
-        make_course_assignment("user1", roles.COURSE_STAFF.external_key, "course-v1:OpenedX+*"),
+        make_course_assignment("user1", COURSE_STAFF.external_key, "course-v1:OpenedX+*"),
     ]
 
     CASES = [
@@ -596,11 +597,11 @@ class OrgGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
     """
 
     POLICIES = [
-        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
+        make_policy(LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
     ]
 
     ASSIGNMENTS = [
-        make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:DemoX:*"),
+        make_library_assignment("user1", LIBRARY_ADMIN.external_key, "lib:DemoX:*"),
     ]
 
     CASES = [
@@ -631,12 +632,10 @@ class PlatformGlobCourseEnforcementTests(CasbinEnforcementTestCase):
     all organizations on the platform.
     """
 
-    POLICIES = [
-        make_policy(roles.COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)
-    ]
+    POLICIES = [make_policy(COURSE_STAFF.external_key, COURSES_VIEW_COURSE.identifier, CourseOverviewData.NAMESPACE)]
 
     ASSIGNMENTS = [
-        make_course_assignment("user1", roles.COURSE_STAFF.external_key, "course-v1:*"),
+        make_course_assignment("user1", COURSE_STAFF.external_key, "course-v1:*"),
     ]
 
     CASES = [
@@ -667,12 +666,12 @@ class PlatformGlobLibraryEnforcementTests(CasbinEnforcementTestCase):
     """
 
     POLICIES = [
-        make_policy(roles.LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
-        make_policy(roles.LIBRARY_ADMIN.external_key, MANAGE_LIBRARY_TEAM.identifier, ContentLibraryData.NAMESPACE),
+        make_policy(LIBRARY_ADMIN.external_key, VIEW_LIBRARY.identifier, ContentLibraryData.NAMESPACE),
+        make_policy(LIBRARY_ADMIN.external_key, MANAGE_LIBRARY_TEAM.identifier, ContentLibraryData.NAMESPACE),
     ]
 
     ASSIGNMENTS = [
-        make_library_assignment("user1", roles.LIBRARY_ADMIN.external_key, "lib:*"),
+        make_library_assignment("user1", LIBRARY_ADMIN.external_key, "lib:*"),
     ]
 
     CASES = [

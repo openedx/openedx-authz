@@ -5,7 +5,13 @@ from itertools import product
 from ddt import data, ddt, unpack
 
 from openedx_authz.api.users import assign_role_to_user_in_scope, is_user_allowed
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSE_STAFF,
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE_TEAM,
+    COURSES_VIEW_GRADING_SETTINGS,
+)
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.renderer import PolicyRenderer
 from openedx_authz.engine.schema.pipeline import SchemaPipeline
@@ -39,8 +45,8 @@ class TestInstructorDashboardPermissions(BaseRolesTestCase):
     def setUpClass(cls):
         """Assign the course-team roles used by every test in the class."""
         super().setUpClass()
-        assign_role_to_user_in_scope("dashboard_admin", roles.COURSE_ADMIN.external_key, COURSE_KEY)
-        assign_role_to_user_in_scope("dashboard_staff", roles.COURSE_STAFF.external_key, COURSE_KEY)
+        assign_role_to_user_in_scope("dashboard_admin", COURSE_ADMIN.external_key, COURSE_KEY)
+        assign_role_to_user_in_scope("dashboard_staff", COURSE_STAFF.external_key, COURSE_KEY)
 
     @data(
         *(
@@ -74,12 +80,12 @@ class TestInstructorDashboardPermissions(BaseRolesTestCase):
         self.assertFalse(result)
 
     @data(
-        ("dashboard_admin", permissions.COURSES_VIEW_COURSE_TEAM, True),
-        ("dashboard_staff", permissions.COURSES_VIEW_COURSE_TEAM, True),
-        ("dashboard_admin", permissions.COURSES_MANAGE_COURSE_TEAM, True),
-        ("dashboard_staff", permissions.COURSES_MANAGE_COURSE_TEAM, False),
-        ("dashboard_admin", permissions.COURSES_VIEW_GRADING_SETTINGS, True),
-        ("dashboard_staff", permissions.COURSES_VIEW_GRADING_SETTINGS, True),
+        ("dashboard_admin", COURSES_VIEW_COURSE_TEAM, True),
+        ("dashboard_staff", COURSES_VIEW_COURSE_TEAM, True),
+        ("dashboard_admin", COURSES_MANAGE_COURSE_TEAM, True),
+        ("dashboard_staff", COURSES_MANAGE_COURSE_TEAM, False),
+        ("dashboard_admin", COURSES_VIEW_GRADING_SETTINGS, True),
+        ("dashboard_staff", COURSES_VIEW_GRADING_SETTINGS, True),
     )
     @unpack
     def test_reused_permissions_keep_their_current_assignments(self, username, permission, expected_result):

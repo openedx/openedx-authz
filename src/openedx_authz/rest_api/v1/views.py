@@ -19,8 +19,14 @@ from rest_framework.views import APIView
 
 from openedx_authz import api
 from openedx_authz.api.utils import get_user_map
-from openedx_authz.constants import permissions
-from openedx_authz.constants.roles import COURSE_ADMIN, LIBRARY_ADMIN
+from openedx_authz.authz import (
+    COURSE_ADMIN,
+    COURSES_MANAGE_COURSE_TEAM,
+    COURSES_VIEW_COURSE_TEAM,
+    LIBRARY_ADMIN,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY,
+)
 from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
@@ -287,7 +293,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.VIEW_LIBRARY.identifier, permissions.COURSES_VIEW_COURSE_TEAM.identifier])
+    @authz_permissions([VIEW_LIBRARY.identifier, COURSES_VIEW_COURSE_TEAM.identifier])
     def get(self, request: HttpRequest) -> Response:
         """Retrieve all users with role assignments within a specific scope."""
         serializer = ListUsersInRoleWithScopeSerializer(data=request.query_params)
@@ -314,7 +320,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier, permissions.COURSES_MANAGE_COURSE_TEAM.identifier])
+    @authz_permissions([MANAGE_LIBRARY_TEAM.identifier, COURSES_MANAGE_COURSE_TEAM.identifier])
     def put(self, request: HttpRequest) -> Response:
         """Assign multiple users to a specific role within one or more scopes."""
         serializer = AddUsersToRoleWithScopeSerializer(data=request.data)
@@ -362,7 +368,7 @@ class RoleUserAPIView(APIView):
             status.HTTP_401_UNAUTHORIZED: "The user is not authenticated or does not have the required permissions",
         },
     )
-    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier, permissions.COURSES_MANAGE_COURSE_TEAM.identifier])
+    @authz_permissions([MANAGE_LIBRARY_TEAM.identifier, COURSES_MANAGE_COURSE_TEAM.identifier])
     def delete(self, request: HttpRequest) -> Response:
         """Remove multiple users from a specific role within a scope."""
         serializer = RemoveUsersFromRoleWithScopeSerializer(data=request.query_params)
@@ -535,7 +541,7 @@ class UserValidationAPIView(APIView):
             status.HTTP_500_INTERNAL_SERVER_ERROR: "An unexpected error occurred while validating users",
         },
     )
-    @authz_permissions([permissions.MANAGE_LIBRARY_TEAM.identifier, permissions.COURSES_MANAGE_COURSE_TEAM.identifier])
+    @authz_permissions([MANAGE_LIBRARY_TEAM.identifier, COURSES_MANAGE_COURSE_TEAM.identifier])
     def post(self, request: HttpRequest) -> Response:
         """Validates the provided usernames or emails correspond to existing users."""
         request_serializer = UserValidationAPIViewSerializer(data=request.data)

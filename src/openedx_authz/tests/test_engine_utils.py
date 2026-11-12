@@ -16,7 +16,16 @@ from django.db.models import Count
 from django.test import TestCase
 
 from openedx_authz import ROOT_DIRECTORY
-from openedx_authz.constants import permissions, roles
+from openedx_authz.authz import (
+    DELETE_LIBRARY,
+    EDIT_LIBRARY_CONTENT,
+    LIBRARY_ADMIN,
+    LIBRARY_AUTHOR,
+    LIBRARY_USER,
+    MANAGE_LIBRARY_TEAM,
+    VIEW_LIBRARY,
+    VIEW_LIBRARY_TEAM,
+)
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.engine.utils import migrate_policy_between_enforcers
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_scope_key, make_user_key
@@ -56,28 +65,27 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """
         policy_file = NamedTemporaryFile(mode="w", suffix=".policy", delete=False)
         policy_file.write(
-            f"p, {make_role_key(roles.LIBRARY_ADMIN.external_key)}, "
-            f"{make_action_key(permissions.DELETE_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+            f"p, {make_role_key(LIBRARY_ADMIN.external_key)}, "
+            f"{make_action_key(DELETE_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
         )
         policy_file.write(
-            f"p, {make_role_key(roles.LIBRARY_USER.external_key)}, "
-            f"{make_action_key(permissions.VIEW_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+            f"p, {make_role_key(LIBRARY_USER.external_key)}, "
+            f"{make_action_key(VIEW_LIBRARY.identifier)}, {make_scope_key('lib', '*')}, allow\n"
         )
         policy_file.write(
-            f"p, {make_role_key(roles.LIBRARY_AUTHOR.external_key)}, "
-            f"{make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}, {make_scope_key('lib', '*')}, allow\n"
+            f"p, {make_role_key(LIBRARY_AUTHOR.external_key)}, "
+            f"{make_action_key(EDIT_LIBRARY_CONTENT.identifier)}, {make_scope_key('lib', '*')}, allow\n"
         )
         policy_file.write(
-            f"g2, {make_action_key(permissions.DELETE_LIBRARY.identifier)}, "
-            f"{make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}\n"
+            f"g2, {make_action_key(DELETE_LIBRARY.identifier)}, "
+            f"{make_action_key(EDIT_LIBRARY_CONTENT.identifier)}\n"
         )
         policy_file.write(
-            f"g2, {make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier)}, "
-            f"{make_action_key(permissions.VIEW_LIBRARY.identifier)}\n"
+            f"g2, {make_action_key(EDIT_LIBRARY_CONTENT.identifier)}, " f"{make_action_key(VIEW_LIBRARY.identifier)}\n"
         )
         policy_file.write(
-            f"g2, {make_action_key(permissions.MANAGE_LIBRARY_TEAM.identifier)}, "
-            f"{make_action_key(permissions.VIEW_LIBRARY_TEAM.identifier)}\n"
+            f"g2, {make_action_key(MANAGE_LIBRARY_TEAM.identifier)}, "
+            f"{make_action_key(VIEW_LIBRARY_TEAM.identifier)}\n"
         )
         policy_file.close()
         self.addCleanup(os.unlink, policy_file.name)
@@ -122,8 +130,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
         self.assertIn(
             [
-                make_role_key(roles.LIBRARY_ADMIN.external_key),
-                make_action_key(permissions.DELETE_LIBRARY.identifier),
+                make_role_key(LIBRARY_ADMIN.external_key),
+                make_action_key(DELETE_LIBRARY.identifier),
                 make_scope_key("lib", "*"),
                 "allow",
             ],
@@ -131,8 +139,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         )
         self.assertIn(
             [
-                make_role_key(roles.LIBRARY_USER.external_key),
-                make_action_key(permissions.VIEW_LIBRARY.identifier),
+                make_role_key(LIBRARY_USER.external_key),
+                make_action_key(VIEW_LIBRARY.identifier),
                 make_scope_key("lib", "*"),
                 "allow",
             ],
@@ -181,15 +189,15 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         # Verify a sample of expected g2 rules from the file
         self.assertIn(
             [
-                make_action_key(permissions.DELETE_LIBRARY.identifier),
-                make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier),
+                make_action_key(DELETE_LIBRARY.identifier),
+                make_action_key(EDIT_LIBRARY_CONTENT.identifier),
             ],
             target_g2,
         )
         self.assertIn(
             [
-                make_action_key(permissions.MANAGE_LIBRARY_TEAM.identifier),
-                make_action_key(permissions.VIEW_LIBRARY_TEAM.identifier),
+                make_action_key(MANAGE_LIBRARY_TEAM.identifier),
+                make_action_key(VIEW_LIBRARY_TEAM.identifier),
             ],
             target_g2,
         )
@@ -268,8 +276,8 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
             - Mixed state is handled correctly
         """
         self.target_enforcer.add_policy(
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
-            make_action_key(permissions.DELETE_LIBRARY.identifier),
+            make_role_key(LIBRARY_ADMIN.external_key),
+            make_action_key(DELETE_LIBRARY.identifier),
             make_scope_key("lib", "*"),
             "allow",
         )
@@ -293,18 +301,18 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
     @data(
         (
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
-            make_action_key(permissions.DELETE_LIBRARY.identifier),
+            make_role_key(LIBRARY_ADMIN.external_key),
+            make_action_key(DELETE_LIBRARY.identifier),
             make_scope_key("lib", "*"),
         ),
         (
-            make_role_key(roles.LIBRARY_USER.external_key),
-            make_action_key(permissions.VIEW_LIBRARY.identifier),
+            make_role_key(LIBRARY_USER.external_key),
+            make_action_key(VIEW_LIBRARY.identifier),
             make_scope_key("lib", "*"),
         ),
         (
-            make_role_key(roles.LIBRARY_AUTHOR.external_key),
-            make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier),
+            make_role_key(LIBRARY_AUTHOR.external_key),
+            make_action_key(EDIT_LIBRARY_CONTENT.identifier),
             make_scope_key("lib", "*"),
         ),
     )
@@ -327,16 +335,16 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
 
     @data(
         (
-            make_action_key(permissions.DELETE_LIBRARY.identifier),
-            make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier),
+            make_action_key(DELETE_LIBRARY.identifier),
+            make_action_key(EDIT_LIBRARY_CONTENT.identifier),
         ),
         (
-            make_action_key(permissions.EDIT_LIBRARY_CONTENT.identifier),
-            make_action_key(permissions.VIEW_LIBRARY.identifier),
+            make_action_key(EDIT_LIBRARY_CONTENT.identifier),
+            make_action_key(VIEW_LIBRARY.identifier),
         ),
         (
-            make_action_key(permissions.MANAGE_LIBRARY_TEAM.identifier),
-            make_action_key(permissions.VIEW_LIBRARY_TEAM.identifier),
+            make_action_key(MANAGE_LIBRARY_TEAM.identifier),
+            make_action_key(VIEW_LIBRARY_TEAM.identifier),
         ),
     )
     @unpack
@@ -390,12 +398,12 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         """
         self.target_enforcer.add_grouping_policy(
             make_user_key("user-1"),
-            make_role_key(roles.LIBRARY_ADMIN.external_key),
+            make_role_key(LIBRARY_ADMIN.external_key),
             make_scope_key("lib", "demo"),
         )
         self.target_enforcer.add_grouping_policy(
             make_user_key("user-2"),
-            make_role_key(roles.LIBRARY_USER.external_key),
+            make_role_key(LIBRARY_USER.external_key),
             make_scope_key("lib", "*"),
         )
 
@@ -406,7 +414,7 @@ class TestMigratePolicyBetweenEnforcers(TestCase):
         self.assertIn(
             [
                 make_user_key("user-1"),
-                make_role_key(roles.LIBRARY_ADMIN.external_key),
+                make_role_key(LIBRARY_ADMIN.external_key),
                 make_scope_key("lib", "demo"),
             ],
             target_grouping,

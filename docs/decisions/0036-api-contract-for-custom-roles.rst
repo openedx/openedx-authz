@@ -49,6 +49,11 @@ in the scope.
 The endpoints extend ``/api/authz/v1/roles/`` and live in ``rest_api/v1/views.py``, as reusable
 authorization endpoints (`ADR 0026`_).
 
+In the endpoints, ``<role_id>`` is the ``role`` field of the role object (`ADR 0028`_). It is the
+same ID for static roles, such as ``course_staff``, and for custom roles, such as
+``custom_course_manager``. For example, ``GET /api/authz/v1/roles/custom_course_manager/`` returns
+that custom role.
+
 .. list-table::
    :header-rows: 1
 
@@ -59,11 +64,11 @@ authorization endpoints (`ADR 0026`_).
    * - Create
      - ``POST /api/authz/v1/roles/``
    * - Read one role
-     - ``GET /api/authz/v1/roles/<role>/``
+     - ``GET /api/authz/v1/roles/<role_id>/``
    * - Edit name, description, or permissions
-     - ``PATCH /api/authz/v1/roles/<role>/``
+     - ``PATCH /api/authz/v1/roles/<role_id>/``
    * - Remove
-     - ``DELETE /api/authz/v1/roles/<role>/``
+     - ``DELETE /api/authz/v1/roles/<role_id>/``
 
 3. Role fields
 ==============
@@ -184,19 +189,19 @@ POST /api/authz/v1/roles/
 
 Returns 201 with the role object.
 
-GET /api/authz/v1/roles/<role>/
-===============================
+GET /api/authz/v1/roles/<role_id>/
+==================================
 
 Returns 200 with the role object.
 
-PATCH /api/authz/v1/roles/<role>/
-=================================
+PATCH /api/authz/v1/roles/<role_id>/
+====================================
 
 Accepts any of ``display_name``, ``description``, and ``permissions``. ``permissions`` replaces the
 full list. Returns 200 with the role object.
 
-DELETE /api/authz/v1/roles/<role>/
-==================================
+DELETE /api/authz/v1/roles/<role_id>/
+=====================================
 
 Query parameter: ``assignments`` (``revoke``), required when the role has assignments. Any other
 value returns 400. Returns 204.

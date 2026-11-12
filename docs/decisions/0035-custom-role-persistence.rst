@@ -60,6 +60,27 @@ The display name and description are stored as entered and are not translated (`
 role's ``scopes`` stays a list, but the API accepts one resource type for now, so supporting several
 later needs no data migration.
 
+Role identifier conflicts (amends ADR 0018 section 4)
+-----------------------------------------------------
+
+`ADR 0018`_ section 4 handles static and custom role name collisions at runtime and leaves custom
+role naming out of scope. The dynamic role API rejects a name used by a static role, and a
+deployment stops when a new static role conflicts with an existing custom role. This ADR sets the
+naming rule that section 4 left open, so it replaces that runtime handling:
+
+* A static role can never collide with a custom role, because static IDs cannot start with
+  ``custom_`` and custom IDs always do. A deployment no longer stops because of a static and
+  custom role name conflict, and the custom role API no longer needs to check names against static
+  roles.
+* A static role ID that starts with ``custom_`` is now a schema validation error, reported before
+  any database change, with the contributing package. This is where a package that already ships
+  such an ID is caught.
+* Uniqueness among custom roles remains a runtime concern, handled by the numeric suffix
+  (``custom_course_designer_2``).
+
+The rest of `ADR 0018`_ section 4 still applies: static and custom roles share one set of role IDs.
+`ADR 0018`_ carries a matching addendum.
+
 3. Changes apply to the definition and the policy together
 ==========================================================
 
@@ -111,6 +132,8 @@ Consequences
 * Schema validation and the :ref:`Authorization Schema Reference` must reserve the ``custom_``
   prefix.
 * Custom roles have no source attribution.
+* Static and custom role name conflicts are prevented by the ``custom_`` prefix rule instead of
+  detected at deployment, which supersedes the runtime conflict handling in `ADR 0018`_ section 4.
 
 This ADR does not decide who can manage custom roles or how to prevent privilege escalation, the
 REST API contract, how dependent permissions are added (proposed in `PR #601`_), a change history for

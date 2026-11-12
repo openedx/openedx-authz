@@ -126,13 +126,27 @@ Compile, render, apply, and consume keep the responsibilities defined above. Typ
 
 The separation adds an intermediate parsed-document representation and another explicit pipeline boundary. Callers that previously treated loading as both YAML parsing and typed construction must use the corresponding phase for the representation they need.
 
+Addendum: Reserved prefix replaces runtime role name conflicts
+==============================================================
+
+**2026-11-12**
+
+`ADR 0035`_ sets the naming rule for dynamic roles that section 4 left out of scope. Custom (dynamic) role IDs use the reserved ``custom_`` prefix, and schema validation rejects static role IDs that start with it.
+
+As a result, a static role and a custom role can no longer share a name. The following parts of section 4 no longer apply:
+
+* The dynamic role API does not need to reject names used by static roles.
+* Deployment does not stop because a new static role conflicts with an existing dynamic role. A static role ID that starts with ``custom_`` fails schema validation instead, before any database change.
+
+Static and dynamic roles still share one set of role IDs, and uniqueness among dynamic roles is still enforced when they are created.
+
 Consequences
 ************
 
 * Deployment compiles the schema before the application begins serving requests for reliability and performance.
 * Repeating a deployment creates no duplicate rows and preserves data owned by runtime services.
 * The schema loader, dynamic role API, and assignment API can update only the rows they own.
-* Role identifier conflicts are reported before either definition is changed.
+* Role identifier conflicts are reported before either definition is changed. Conflicts between static and dynamic roles are prevented by the reserved ``custom_`` prefix (see the addendum on `ADR 0035`_).
 * Applying a schema requires a database transaction or another mechanism that updates all generated rows together.
 * Operators receive the change report before the database is updated.
 * An assignment to a role being removed blocks deployment unless an operator explicitly removes the role and its assignments together.
@@ -146,3 +160,4 @@ References
 
 .. _ADR 0016: 0016-static-and-dynamic-roles.rst
 .. _ADR 0017: 0017-static-authorization-schema.rst
+.. _ADR 0035: 0035-custom-role-persistence.rst

@@ -1297,7 +1297,7 @@ class TestRoleListView(ViewTestMixin):
         Expected result:
             - Returns 200 OK with scopes, categories, permissions and roles of the namespace only
             - Roles reference permissions by id, hidden roles and unused categories are left out
-            - Everything is ordered by identifier
+            - Categories and permissions are ordered by identifier, roles by display name
         """
         response = self.client.get(self.url, {"scope_types": "lib"})
 
@@ -1338,7 +1338,8 @@ class TestRoleListView(ViewTestMixin):
         self.assertEqual(by_role[LIBRARY_AUTHOR.external_key]["definition_kind"], DefinitionKind.STATIC.value)
         self.assertEqual(by_role[LIBRARY_AUTHOR.external_key]["scope_types"], ["lib"])
         self.assertEqual(by_role[LIBRARY_USER.external_key]["display_name"], "Library User")
-        self.assertEqual(list(by_role), sorted(by_role))
+        display_names = [r["display_name"] for r in response.data["results"]]
+        self.assertEqual(display_names, sorted(display_names, key=str.lower))
 
     def test_get_roles_permission_without_category(self):
         """A permission without a category is listed with a null category_id.
@@ -1475,6 +1476,288 @@ class TestRoleListView(ViewTestMixin):
         self.assertNotEqual(first.data["results"][0]["role"], second.data["results"][0]["role"])
         self.assertEqual(first.data["permissions"], second.data["permissions"])
         self.assertEqual(first.data["categories"], second.data["categories"])
+
+    def _get_user_counts(self, user: User) -> dict[str, int]:
+        """Return the ``user_count`` of each library role as seen by the given user."""
+        self.client.force_authenticate(user=user)
+        response = self.client.get(self.url, {"scope_types": "lib"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {r["role"]: r["user_count"] for r in response.data["results"]}
+
+    def test_get_roles_static_role_has_user_count_and_null_updated_at(self):
+        """Every role carries ``user_count`` and ``updated_at``.
+
+        Expected result:
+            - ``user_count`` is an integer and ``updated_at`` is null for static roles
+        """
+        response = self.client.get(self.url, {"scope_types": "lib"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for role in response.data["results"]:
+            self.assertIsInstance(role["user_count"], int)
+            self.assertIsNone(role["updated_at"])
+
+    def test_get_roles_user_count_counts_distinct_active_users(self):
+        """``user_count`` counts distinct active users, not assignments.
+
+        Expected result:
+            - A user with the role in two scopes adds 1
+            - An inactive user adds nothing
+        """
+        before = self._get_user_counts(self.admin_user)
+        User.objects.filter(username="regular_7").update(is_active=False)
+        self._assign_roles_to_users(
+            assignments=[
+                {"subject_name": "regular_6", "role_name": LIBRARY_USER.external_key, "scope_name": scope}
+                for scope in ("lib:Org3:LIB3", "lib:Org9:OTHER")
+            ]
+            + [
+                {
+                    "subject_name": "regular_7",
+                    "role_name": LIBRARY_USER.external_key,
+                    "scope_name": "lib:Org9:OTHER",
+                }
+            ]
+        )
+
+        after = self._get_user_counts(self.admin_user)
+
+        role = LIBRARY_USER.external_key
+        self.assertEqual(after[role], before[role] + 1)
+
+    def test_get_roles_user_count_only_counts_scopes_the_caller_can_view(self):
+        """``user_count`` only counts assignments in scopes the caller can view.
+
+        Expected result:
+            - An admin sees both new users
+            - ``regular_5``, library admin of ``lib:Org3:LIB3`` only, sees the user in that library only
+        """
+        regular_5 = User.objects.get(username="regular_5")
+        role = LIBRARY_USER.external_key
+        admin_before = self._get_user_counts(self.admin_user)[role]
+        viewer_before = self._get_user_counts(regular_5)[role]
+        self._assign_roles_to_users(
+            assignments=[
+                {"subject_name": "regular_6", "role_name": role, "scope_name": "lib:Org3:LIB3"},
+                {"subject_name": "regular_7", "role_name": role, "scope_name": "lib:Org9:OTHER"},
+            ]
+        )
+
+        self.assertEqual(self._get_user_counts(self.admin_user)[role], admin_before + 2)
+        self.assertEqual(self._get_user_counts(regular_5)[role], viewer_before + 1)
+
+    def test_get_roles_user_count_is_zero_without_assignments_in_scope_types(self):
+        """A role with no assignments in the requested scope types has a ``user_count`` of 0.
+
+        Expected result:
+            - ``library_author`` is listed for ``course-v1`` and counts no library assignments there
+        """
+        self._assign_roles_to_users(
+            assignments=[
+                {
+                    "subject_name": "regular_2",
+                    "role_name": LIBRARY_AUTHOR.external_key,
+                    "scope_name": "lib:Org3:LIB3",
+                }
+            ]
+        )
+
+        response = self.client.get(self.url, {"scope_types": "course-v1"})
+
+        self.assertEqual(response.data["results"][0]["role"], LIBRARY_AUTHOR.external_key)
+        self.assertEqual(response.data["results"][0]["user_count"], 0)
+
+    def _get_role_ids_for(self, scope_types: str, query_params: dict) -> list[str]:
+        """Return the role identifiers of the results for the scope types with the given parameters."""
+        response = self.client.get(self.url, {"scope_types": scope_types, "page_size": 100, **query_params})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [r["role"] for r in response.data["results"]]
+
+    def _get_role_ids(self, query_params: dict) -> list[str]:
+        """Return the role identifiers of the results for the library catalog with the given parameters."""
+        return self._get_role_ids_for("lib", query_params)
+
+    def test_get_roles_search_filters_by_display_name(self):
+        """``search`` keeps the roles whose display name contains it, ignoring case.
+
+        Expected result:
+            - Only ``Library Author`` matches ``AUTHOR``, and ``count`` is the filtered total
+            - The permissions catalog is not filtered
+        """
+        unfiltered = self.client.get(self.url, {"scope_types": "lib"})
+
+        response = self.client.get(self.url, {"scope_types": "lib", "search": "AUTHOR"})
+
+        self.assertEqual([r["role"] for r in response.data["results"]], [LIBRARY_AUTHOR.external_key])
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["permissions"], unfiltered.data["permissions"])
+
+    def test_get_roles_definition_kind_filters_roles(self):
+        """``definition_kind`` keeps only the roles of that kind.
+
+        Expected result:
+            - Every listed role is static, and there are no user-defined roles yet
+        """
+        static = self.client.get(self.url, {"scope_types": "lib", "definition_kind": "static"})
+        user_defined = self.client.get(self.url, {"scope_types": "lib", "definition_kind": "user_defined"})
+
+        self.assertGreater(static.data["count"], 0)
+        self.assertTrue(all(r["definition_kind"] == "static" for r in static.data["results"]))
+        self.assertEqual(user_defined.data["count"], 0)
+        self.assertEqual(user_defined.data["results"], [])
+
+    def test_get_roles_are_sorted_by_display_name_by_default(self):
+        """Without ``sort_by``, roles are sorted by display name, ascending.
+
+        Expected result:
+            - ``Library Author`` is listed before ``Library User``, and ``desc`` reverses them
+        """
+        AuthzRoleDefinition.objects.filter(role_id=LIBRARY_AUTHOR.external_key).update(display_name="Zeta")
+
+        ascending = self._get_role_ids({})
+        descending = self._get_role_ids({"order": "desc"})
+
+        self.assertLess(ascending.index(LIBRARY_USER.external_key), ascending.index("library_author"))
+        self.assertEqual(descending[0], LIBRARY_AUTHOR.external_key)
+
+    def test_get_roles_sort_by_user_count(self):
+        """``sort_by=user_count`` sorts by the number of users.
+
+        Expected result:
+            - The role with the most users comes first in ``desc`` and last in ``asc``
+        """
+        self._assign_roles_to_users(
+            assignments=[
+                {"subject_name": username, "role_name": LIBRARY_AUTHOR.external_key, "scope_name": "lib:Org9:X"}
+                for username in (
+                    "regular_6",
+                    "regular_7",
+                    "regular_10",
+                    "admin_2",
+                    "admin_3",
+                    "course_editor",
+                    "library_admin",
+                )
+            ]
+        )
+
+        descending = self._get_role_ids({"sort_by": "user_count", "order": "desc"})
+        ascending = self._get_role_ids({"sort_by": "user_count", "order": "asc"})
+
+        self.assertEqual(descending[0], LIBRARY_AUTHOR.external_key)
+        self.assertEqual(ascending[-1], LIBRARY_AUTHOR.external_key)
+
+    def test_get_roles_sort_by_scope_type(self):
+        """``sort_by=scope_type`` sorts by the scope types in which each role has grants.
+
+        Expected result:
+            - ``Library Author``, with grants in ``course-v1`` and ``lib``, sorts before the
+              ``lib``-only roles in ``asc`` and after them in ``desc``
+        """
+        ascending = self._get_role_ids_for("course-v1,lib", {"sort_by": "scope_type", "order": "asc"})
+        descending = self._get_role_ids_for("course-v1,lib", {"sort_by": "scope_type", "order": "desc"})
+
+        self.assertEqual(ascending[0], LIBRARY_AUTHOR.external_key)
+        self.assertEqual(descending[-1], LIBRARY_AUTHOR.external_key)
+
+    def test_get_roles_sort_by_updated_at_breaks_ties_by_role(self):
+        """Static roles have no ``updated_at``, so ``sort_by=updated_at`` lists them by role identifier.
+
+        Expected result:
+            - The order is by role identifier, ascending, in both orders
+        """
+        ascending = self._get_role_ids({"sort_by": "updated_at", "order": "asc"})
+        descending = self._get_role_ids({"sort_by": "updated_at", "order": "desc"})
+
+        self.assertEqual(ascending, sorted(ascending))
+        self.assertEqual(descending, ascending)
+
+    def test_get_roles_search_and_sort_combine(self):
+        """Search, filter and sort apply together.
+
+        Expected result:
+            - Only the static roles matching ``library`` are listed, sorted by display name descending
+        """
+        result = self._get_role_ids({"search": "library", "definition_kind": "static", "order": "desc"})
+
+        self.assertEqual(result, [LIBRARY_USER.external_key, LIBRARY_AUTHOR.external_key])
+
+    def test_get_roles_search_ignores_surrounding_spaces(self):
+        """Regression: ``search`` is matched after the serializer strips it.
+
+        Expected result:
+            - ``" author "`` matches ``Library Author`` as ``author`` does
+        """
+        self.assertEqual(self._get_role_ids({"search": " author "}), [LIBRARY_AUTHOR.external_key])
+
+    def test_get_roles_search_without_matches(self):
+        """A search that matches no role returns an empty page.
+
+        Expected result:
+            - Returns 200 OK with ``count`` 0 and no results; the catalogs are still returned
+        """
+        response = self.client.get(self.url, {"scope_types": "lib", "search": "no such role"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
+        self.assertNotEqual(response.data["permissions"], [])
+
+    def test_get_roles_sort_is_applied_before_pagination(self):
+        """Sorting runs over every role, so pages follow the sorted order.
+
+        Expected result:
+            - Concatenating one-role pages gives the same order as a single page
+        """
+        all_roles = self._get_role_ids({"order": "desc"})
+
+        paged = [
+            self.client.get(self.url, {"scope_types": "lib", "order": "desc", "page": page, "page_size": 1}).data[
+                "results"
+            ][0]["role"]
+            for page in range(1, len(all_roles) + 1)
+        ]
+
+        self.assertEqual(paged, all_roles)
+
+    @data(
+        {"search": "author"},
+        {"definition_kind": "static"},
+        {"definition_kind": "user_defined"},
+        {"sort_by": "display_name", "order": "asc"},
+        {"sort_by": "scope_type", "order": "desc"},
+        {"sort_by": "user_count"},
+        {"sort_by": "updated_at"},
+        # An empty value falls back to the default, as in the other endpoints of this API
+        {"sort_by": "", "order": "", "definition_kind": ""},
+    )
+    def test_get_roles_list_control_params_are_accepted(self, query_params: dict):
+        """The list control parameters accept their supported values.
+
+        Expected result:
+            - Returns 200 OK status
+        """
+        response = self.client.get(self.url, {"scope_types": "lib", **query_params})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data(
+        ({"sort_by": "role"}, "sort_by"),
+        ({"sort_by": "modified"}, "sort_by"),
+        ({"order": "ascending"}, "order"),
+        ({"definition_kind": "custom"}, "definition_kind"),
+    )
+    @unpack
+    def test_get_roles_list_control_params_are_invalid(self, query_params: dict, field: str):
+        """Unknown values of the list control parameters are rejected.
+
+        Expected result:
+            - Returns 400 BAD REQUEST status with an ``invalid_choice`` error on the field
+        """
+        response = self.client.get(self.url, {"scope_types": "lib", **query_params})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invalid_choice", [error.code for error in response.data[field]])
 
     @data(
         # Unauthenticated

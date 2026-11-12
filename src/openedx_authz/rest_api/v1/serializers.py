@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind
-from openedx_authz.rest_api.data import ScopesTypeField, SortField, SortOrder
+from openedx_authz.rest_api.data import RoleSortField, ScopesTypeField, SortField, SortOrder
 from openedx_authz.rest_api.utils import get_generic_scope, parse_scope_types
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
@@ -193,9 +193,29 @@ class ListUsersInRoleWithScopeResponseSerializer(serializers.Serializer):  # pyl
 
 
 class ListRolesQuerySerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for validating the query parameters of the role catalog."""
+    """Serializer for validating the query parameters of the role catalog.
+
+    ``search``, ``sort_by`` and ``order`` reuse the names of the team members endpoints,
+    and ``definition_kind`` filters by how a role is defined. Unknown values are a 400.
+    """
 
     scope_types = serializers.CharField()
+    search = LowercaseCharField(required=False, default=None)
+    definition_kind = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in DefinitionKind],
+        default=None,
+    )
+    sort_by = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in RoleSortField],
+        default=RoleSortField.DISPLAY_NAME.value,
+    )
+    order = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in SortOrder],
+        default=SortOrder.ASC.value,
+    )
 
     def validate_scope_types(self, value: str) -> list[str]:
         """Convert the comma-separated scope types to a list of unique, supported scope types.
@@ -242,6 +262,8 @@ class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abst
     definition_kind = serializers.ChoiceField(choices=[(e.value, e.name) for e in DefinitionKind])
     permissions = serializers.ListField(child=serializers.CharField(max_length=255))
     scope_types = serializers.ListField(child=serializers.CharField(max_length=255))
+    user_count = serializers.IntegerField()
+    updated_at = serializers.DateTimeField(allow_null=True)
 
 
 class RoleCatalogMetaSerializer(serializers.Serializer):  # pylint: disable=abstract-method

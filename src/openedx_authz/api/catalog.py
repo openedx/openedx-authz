@@ -73,6 +73,8 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
         - ``definition_kind``: The :class:`DefinitionKind` value of the role.
         - ``permissions``: Sorted identifiers of the permissions the role grants in the scope types.
         - ``scope_types``: Sorted scope types, among the requested ones, in which the role has grants.
+        - ``updated_at``: When a custom role last changed. Always ``None`` here, because static roles
+          have no meaningful edit date.
     """
     roles = AuthzRoleDefinition.objects.visible().with_grants_in_scope_types(scope_types)
     return [
@@ -84,6 +86,8 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
             "definition_kind": DefinitionKind.STATIC.value,
             "permissions": sorted({grant.permission.identifier for grant in role.grants}),
             "scope_types": sorted({grant.scope for grant in role.grants}),
+            # TODO: set correct value for ``updated_at`` when custom roles arrive.
+            "updated_at": None,
         }
         for role in roles.order_by("role_id")
     ]

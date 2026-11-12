@@ -1,5 +1,7 @@
 """Utility functions for the Open edX AuthZ REST API."""
 
+from datetime import datetime
+
 from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
@@ -8,6 +10,7 @@ from openedx_authz.api.utils import get_scope_display_name_map
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
+    RoleSortField,
     ScopesTypeField,
     SearchField,
     SerializedAssignment,
@@ -202,6 +205,80 @@ def sort_user_assignments(
         list[dict]: The sorted assignments.
     """
     return _sort_by_field(assignments, sort_by, order, UserAssignmentSortField)
+
+
+def filter_roles(roles: list[dict], search: str | None, definition_kind: str | None) -> list[dict]:
+    """Filter role catalog entries by display name and definition kind.
+
+    Runs in Python, not in the database, because static role names are translated with gettext
+    and the search has to match the name the user sees.
+
+    Args:
+        roles (list[dict]): Role catalog entries, as returned by ``get_role_catalog``.
+        search (str | None): Optional case-insensitive substring of ``display_name``.
+        definition_kind (str | None): Optional ``DefinitionKind`` value to keep.
+
+    Returns:
+        list[dict]: The matching roles, preserving the original order.
+    """
+    if not search and not definition_kind:
+        return roles
+
+    search = search.lower() if search else None
+    return [
+        role
+        for role in roles
+        if (not search or search in (role.get("display_name") or "").lower())
+        and (not definition_kind or role.get("definition_kind") == definition_kind)
+    ]
+
+
+def _role_sort_value(role: dict, sort_by: str) -> str | int | datetime | None:
+    """Return the value of a role to sort by, or None when the role has no value for the field."""
+    if sort_by == RoleSortField.DISPLAY_NAME:
+        return (role.get("display_name") or "").lower()
+    if sort_by == RoleSortField.SCOPE_TYPE:
+        return ",".join(role.get("scope_types") or [])
+    if sort_by == RoleSortField.USER_COUNT:
+        return role.get("user_count") or 0
+    return role.get("updated_at")
+
+
+def sort_roles(
+    roles: list[dict],
+    sort_by: RoleSortField = RoleSortField.DISPLAY_NAME,
+    order: SortOrder = SortOrder.ASC,
+) -> list[dict]:
+    """Sort role catalog entries by a field and order.
+
+    Unlike :func:`_sort_by_field`, the values are not all strings: ``user_count`` sorts as a
+    number and ``updated_at`` as a date. Roles without a value (``updated_at`` of static roles)
+    go last in both orders, so a descending sort still starts with the most recently updated
+    role. Ties are broken by ``role`` identifier, ascending, so pages are stable.
+
+    Args:
+        roles (list[dict]): Role catalog entries, with ``user_count`` and ``updated_at`` set.
+        sort_by (RoleSortField, optional): The field to sort by. Defaults to ``display_name``.
+        order (SortOrder, optional): The order to sort by. Defaults to ``asc``.
+
+    Raises:
+        ValueError: If the sort field is invalid.
+        ValueError: If the sort order is invalid.
+
+    Returns:
+        list[dict]: The sorted roles.
+    """
+    if sort_by not in RoleSortField.values():
+        raise ValueError(f"Invalid field: '{sort_by}'. Must be one of {RoleSortField.values()}")
+    if order not in SortOrder.values():
+        raise ValueError(f"Invalid order: '{order}'. Must be one of {SortOrder.values()}")
+
+    # Sort by identifier first: the sort below is stable, also when reversed, so this breaks ties.
+    by_role = sorted(roles, key=lambda role: role["role"])
+    with_value = [role for role in by_role if _role_sort_value(role, sort_by) is not None]
+    without_value = [role for role in by_role if _role_sort_value(role, sort_by) is None]
+    with_value.sort(key=lambda role: _role_sort_value(role, sort_by), reverse=order == SortOrder.DESC)
+    return with_value + without_value
 
 
 def inject_scope_display_names(assignments: list[SerializedAssignment]) -> None:

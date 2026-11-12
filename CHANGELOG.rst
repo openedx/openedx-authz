@@ -52,6 +52,22 @@ Added
   ``openedx_authz/engine/schema/paragon_icons.py`` and regenerated with
   ``make paragon_icons`` (ADR 0029).
 * Added the Instructor Dashboard permissions from issue #484 for course information, enrollments, learner grading, learner extensions, and cohorts. The ``enrollments``, ``learner_grading``, and ``learner_administration`` applets define them and add them to the ``course_admin`` and ``course_staff`` roles.
+* Added list controls to the role catalog, ``GET /api/authz/v1/roles/``, for the Admin Console
+  Roles and Permissions table (ADR 0036):
+
+  * ``search`` matches role display names, ignoring case.
+  * ``definition_kind`` (``static`` or ``user_defined``) keeps only roles of that kind.
+  * ``sort_by`` (``display_name``, ``scope_type``, ``user_count`` or ``updated_at``) and ``order``
+    (``asc`` or ``desc``) sort the roles. Roles without ``updated_at`` go last, and ties are
+    broken by role identifier.
+  * Unknown values of ``definition_kind``, ``sort_by`` or ``order`` return 400.
+  * ``count`` and the pages reflect the filtered and sorted roles. The ``categories`` and
+    ``permissions`` catalogs are not filtered.
+
+* Added ``user_count`` and ``updated_at`` to each role of the role catalog. ``user_count`` is the
+  number of distinct active users with the role in the scopes of the requested types that the
+  caller can view. ``updated_at`` is ``null`` for static roles.
+* Added ``get_visible_role_user_counts`` to the public API to count those users.
 
 Changed
 ========
@@ -61,6 +77,8 @@ Changed
 * **Breaking**: ``GET /api/authz/v1/scopes/`` no longer accepts ``course`` and ``library`` as
   ``scope_type`` values. Use ``course-v1`` and ``lib`` instead. Requests with the old values now
   return a 400 validation error, the same as ``/roles/``.
+* The role catalog now lists roles by display name by default, instead of by role identifier.
+  Pass ``sort_by`` and ``order`` to choose another order.
 
 Removed
 =======

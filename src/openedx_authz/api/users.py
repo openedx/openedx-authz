@@ -10,6 +10,7 @@ with the role management system, which uses namespaced subjects
 """
 
 import logging
+from collections import defaultdict
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -60,6 +61,7 @@ __all__ = [
     "get_user_role_assignments_filtered",
     "get_all_user_role_assignments_in_scope",
     "get_visible_role_assignments_for_user",
+    "get_visible_role_user_counts",
     "get_visible_user_role_assignments_filtered_by_current_user",
     "is_user_allowed",
     "is_user_allowed_in_any_scope",
@@ -396,6 +398,53 @@ def get_visible_role_assignments_for_user(
         )
 
     return get_user_assignment_map(user_role_assignments)
+
+
+def get_visible_role_user_counts(
+    scope_types: list[str],
+    allowed_for_user_external_key: str | None = None,
+) -> dict[str, int]:
+    """Count the distinct active users that hold each role in the given scope types.
+
+    Backs the ``user_count`` of the role catalog. It counts users, not assignments: a
+    user with a role in three courses adds 1 to that role. Only the assignments the viewer can see
+    count, using the same scope-based visibility as the team members endpoints, and only
+    active users count, so deactivated accounts don't inflate the Members column.
+
+    Assignments are Casbin grouping policies whose scope column holds full keys or globs, so they
+    can't be grouped by scope type in SQL. They are loaded once and counted in Python, with one
+    query for the active users.
+
+    Args:
+        scope_types: The scope types to count in (e.g., ``['course-v1', 'lib']``). Org and platform
+            globs of a scope type (e.g., ``lib:Org1:*``) count as that scope type.
+        allowed_for_user_external_key: The username of the viewer. If None, every assignment counts.
+
+    Returns:
+        dict[str, int]: The user count by role external key. Roles without active, visible users
+            are left out.
+    """
+    assignments = [
+        assignment
+        for assignment in get_role_assignments()
+        if isinstance(assignment.subject, UserData) and assignment.scope.NAMESPACE in scope_types
+    ]
+    assignments = _filter_allowed_assignments(assignments, user_external_key=allowed_for_user_external_key)
+
+    active_usernames = set(
+        User.objects.filter(
+            username__in={assignment.subject.username for assignment in assignments},
+            is_active=True,
+        ).values_list("username", flat=True)
+    )
+
+    usernames_by_role: dict[str, set[str]] = defaultdict(set)
+    for assignment in assignments:
+        if assignment.subject.username not in active_usernames:
+            continue
+        for role in assignment.roles:
+            usernames_by_role[role.external_key].add(assignment.subject.username)
+    return {role: len(usernames) for role, usernames in usernames_by_role.items()}
 
 
 def is_user_allowed(

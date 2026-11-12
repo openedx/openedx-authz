@@ -42,6 +42,15 @@ class UserAssignmentSortField(BaseEnum):
     EMAIL = "email"
 
 
+class RoleSortField(BaseEnum):
+    """Enum for the role catalog fields to sort by."""
+
+    DISPLAY_NAME = "display_name"
+    SCOPE_TYPE = "scope_type"
+    USER_COUNT = "user_count"
+    UPDATED_AT = "updated_at"
+
+
 class SortOrder(BaseEnum):
     """Enum for the order to sort by."""
 

@@ -114,6 +114,7 @@ class TestGetRoleCatalog(CatalogTestCase):
                     "definition_kind": DefinitionKind.STATIC.value,
                     "permissions": ["common.manage_team", "courses.view_course"],
                     "scope_types": ["course-v1"],
+                    "updated_at": None,
                 }
             ],
         )

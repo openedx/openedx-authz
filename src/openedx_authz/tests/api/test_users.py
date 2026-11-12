@@ -30,6 +30,7 @@ from openedx_authz.api.users import (
     get_user_role_assignments_in_scope,
     get_user_role_assignments_per_scope_type,
     get_visible_role_assignments_for_user,
+    get_visible_role_user_counts,
     get_visible_user_role_assignments_filtered_by_current_user,
     is_user_allowed,
     is_user_allowed_in_any_scope,
@@ -57,7 +58,7 @@ from openedx_authz.authz import (
     MANAGE_LIBRARY_TEAM,
     PUBLISH_LIBRARY_CONTENT,
 )
-from openedx_authz.tests.api.test_roles import RolesTestSetupMixin
+from openedx_authz.tests.api.test_roles import BaseRolesTestCase, RolesTestSetupMixin
 
 
 class UserAssignmentsSetupMixin(RolesTestSetupMixin):
@@ -943,6 +944,118 @@ class TestGetVisibleRoleAssignmentsForUser(UserAssignmentsSetupMixin):
         for a in authorized:
             self.assertEqual(getattr(a.scope, "org", None), "Org1")
             self.assertTrue(any(r.external_key == "library_admin" for r in a.roles))
+
+
+@ddt
+class TestGetVisibleRoleUserCounts(BaseRolesTestCase):
+    """Tests for get_visible_role_user_counts, which backs the role catalog ``user_count``."""
+
+    _ASSIGNMENTS = [
+        # alice can view the team of lib:Org1:math_101 only
+        {"subject_name": "alice", "role_name": LIBRARY_ADMIN.external_key, "scope_name": "lib:Org1:math_101"},
+        # bob has the same role in two libraries
+        {"subject_name": "bob", "role_name": LIBRARY_AUTHOR.external_key, "scope_name": "lib:Org1:math_101"},
+        {"subject_name": "bob", "role_name": LIBRARY_AUTHOR.external_key, "scope_name": "lib:Org1:history_201"},
+        # carol is in a library alice cannot view
+        {"subject_name": "carol", "role_name": LIBRARY_AUTHOR.external_key, "scope_name": "lib:Org2:physics_401"},
+        # dave is inactive
+        {"subject_name": "dave", "role_name": LIBRARY_USER.external_key, "scope_name": "lib:Org1:math_101"},
+        # erin is in an org glob, which counts as the ``lib`` scope type
+        {"subject_name": "erin", "role_name": LIBRARY_USER.external_key, "scope_name": "lib:Org2:*"},
+        # frank is in a course
+        {
+            "subject_name": "frank",
+            "role_name": COURSE_STAFF.external_key,
+            "scope_name": "course-v1:Org1+CS101+2024",
+        },
+    ]
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        User = get_user_model()
+        for username in ["alice", "bob", "carol", "erin", "frank", "nobody"]:
+            User.objects.create_user(username=username, email=f"{username}@example.com")
+        User.objects.create_user(username="dave", email="dave@example.com", is_active=False)
+        User.objects.create_user(username="staff_viewer", email="staff_viewer@example.com", is_staff=True)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Assign as users (``user^`` subjects); the base helper assigns generic ``sub^`` subjects.
+        for assignment in cls._ASSIGNMENTS:
+            assign_role_to_user_in_scope(assignment["subject_name"], assignment["role_name"], assignment["scope_name"])
+
+    def test_counts_distinct_active_users_per_role(self):
+        """Without a viewer, every active user counts once per role.
+
+        Expected result:
+            - bob counts once although he has the role in two libraries
+            - dave, who is inactive, is not counted
+            - erin, in an org glob, counts as a library user
+            - frank's course assignment is left out of the library counts
+        """
+        result = get_visible_role_user_counts(["lib"])
+
+        self.assertEqual(
+            result,
+            {
+                LIBRARY_ADMIN.external_key: 1,
+                LIBRARY_AUTHOR.external_key: 2,
+                LIBRARY_USER.external_key: 1,
+            },
+        )
+
+    @data(
+        (["course-v1"], {COURSE_STAFF.external_key: 1}),
+        (
+            ["course-v1", "lib"],
+            {
+                LIBRARY_ADMIN.external_key: 1,
+                LIBRARY_AUTHOR.external_key: 2,
+                LIBRARY_USER.external_key: 1,
+                COURSE_STAFF.external_key: 1,
+            },
+        ),
+        (["unknown"], {}),
+    )
+    @unpack
+    def test_counts_only_requested_scope_types(self, scope_types: list[str], expected: dict[str, int]):
+        """Only assignments in the requested scope types count.
+
+        Expected result:
+            - The counts match the assignments of the requested scope types
+        """
+        self.assertEqual(get_visible_role_user_counts(scope_types), expected)
+
+    def test_viewer_only_counts_scopes_it_can_view(self):
+        """A viewer only counts the assignments in scopes where it can view the team.
+
+        Expected result:
+            - alice counts herself and bob in lib:Org1:math_101, but not carol, erin or bob's other library
+        """
+        result = get_visible_role_user_counts(["lib"], allowed_for_user_external_key="alice")
+
+        self.assertEqual(result, {LIBRARY_ADMIN.external_key: 1, LIBRARY_AUTHOR.external_key: 1})
+
+    def test_staff_viewer_counts_everything(self):
+        """A staff viewer counts every assignment, as it can view every team.
+
+        Expected result:
+            - The counts are the same as without a viewer
+        """
+        self.assertEqual(
+            get_visible_role_user_counts(["lib"], allowed_for_user_external_key="staff_viewer"),
+            get_visible_role_user_counts(["lib"]),
+        )
+
+    def test_viewer_without_roles_counts_nothing(self):
+        """A viewer without role assignments cannot view any team.
+
+        Expected result:
+            - No role is counted
+        """
+        self.assertEqual(get_visible_role_user_counts(["lib"], allowed_for_user_external_key="nobody"), {})
 
 
 class TestExpandScopesWithAncestors(UserAssignmentsSetupMixin):

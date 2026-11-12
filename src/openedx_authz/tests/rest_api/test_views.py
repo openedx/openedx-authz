@@ -852,9 +852,7 @@ class TestRoleUserAPIView(ViewTestMixin):
         """
         other = "regular_5" if role == roles.LIBRARY_ADMIN.external_key else "regular_2"
         if role == roles.COURSE_ADMIN.external_key:
-            self._assign_roles_to_users(
-                assignments=[{"subject_name": other, "role_name": role, "scope_name": scope}]
-            )
+            self._assign_roles_to_users(assignments=[{"subject_name": other, "role_name": role, "scope_name": scope}])
         user = User.objects.get(username=username)
         self.client.force_authenticate(user=user)
         query_params = {"role": role, "scope": scope, "users": f"{identifier},{other}"}

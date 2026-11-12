@@ -127,9 +127,7 @@ class TestCourseAuthoringPermissionValidationFilter(TestCase):
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
         ):
-            result = CourseAuthoringPermissionValidationFilter(
-                filter_type="test", running_pipeline=[]
-            ).run_filter(
+            result = CourseAuthoringPermissionValidationFilter(filter_type="test", running_pipeline=[]).run_filter(
                 items=items, errors=[]
             )
 
@@ -152,9 +150,7 @@ class TestCourseAuthoringPermissionValidationFilter(TestCase):
         with patch(
             "openedx_authz.rest_api.v1.course_authoring.pipeline.enable_authz_course_authoring", return_value=False
         ):
-            result = CourseAuthoringPermissionValidationFilter(
-                filter_type="test", running_pipeline=[]
-            ).run_filter(
+            result = CourseAuthoringPermissionValidationFilter(filter_type="test", running_pipeline=[]).run_filter(
                 items=items, errors=[]
             )
 
@@ -172,11 +168,14 @@ class TestCourseAuthoringPermissionValidationFilter(TestCase):
             )
 
         self.assertEqual(result["items"], {**items, "scopes": [LIB_SCOPE]})
-        self.assertEqual(result["errors"], [
-            {"error": "previous_step"},
-            {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
-            {"user_identifier": "bob", "scope": COURSE_SCOPE, "error": "scope_not_available"},
-        ])
+        self.assertEqual(
+            result["errors"],
+            [
+                {"error": "previous_step"},
+                {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+                {"user_identifier": "bob", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+            ],
+        )
         self.assertEqual(previous_errors, [{"error": "previous_step"}])
         self.assertEqual(items["scopes"], [COURSE_SCOPE, LIB_SCOPE])
 
@@ -191,9 +190,12 @@ class TestCourseAuthoringPermissionValidationFilter(TestCase):
             )
 
         self.assertEqual(result["items"], {**items, "users": []})
-        self.assertEqual(result["errors"], [
-            {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
-        ])
+        self.assertEqual(
+            result["errors"],
+            [
+                {"user_identifier": "alice", "scope": COURSE_SCOPE, "error": "scope_not_available"},
+            ],
+        )
 
     @data(
         (PermissionValidationRequested, [{"action": "view", "allowed": True}]),

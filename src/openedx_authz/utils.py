@@ -108,9 +108,7 @@ def get_waffle_flag_states() -> dict:
             "off": [org for org, choice in org_override_rows if choice == WAFFLE_OVERRIDE_FORCE_OFF],
         },
         "course_overrides": {
-            "on": [
-                str(course_id) for course_id, choice in course_override_rows if choice == WAFFLE_OVERRIDE_FORCE_ON
-            ],
+            "on": [str(course_id) for course_id, choice in course_override_rows if choice == WAFFLE_OVERRIDE_FORCE_ON],
             "off": [
                 str(course_id) for course_id, choice in course_override_rows if choice == WAFFLE_OVERRIDE_FORCE_OFF
             ],

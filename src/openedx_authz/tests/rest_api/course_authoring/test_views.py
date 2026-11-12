@@ -28,9 +28,7 @@ class TestWaffleFlagStatesAPIView(ViewTestMixin):
             "org_overrides": {"on": ["Org1"], "off": []},
             "course_overrides": {"on": [], "off": ["course-v1:Org1+COURSE1+2024"]},
         }
-        with patch(
-            "openedx_authz.rest_api.v1.course_authoring.views.get_waffle_flag_states", return_value=flag_states
-        ):
+        with patch("openedx_authz.rest_api.v1.course_authoring.views.get_waffle_flag_states", return_value=flag_states):
             response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -143,9 +143,7 @@ class DiscoveredFileResource(DiscoveredResource):
         try:
             return Path(self.resource_path).read_bytes()
         except OSError as exc:
-            raise SchemaDiscoveryError(
-                f"Could not read schema file {self.resource_path!r}: {exc}"
-            ) from exc
+            raise SchemaDiscoveryError(f"Could not read schema file {self.resource_path!r}: {exc}") from exc
 
 
 class SchemaDiscoveryError(Exception):
@@ -250,8 +248,7 @@ class SchemaDiscovery:
             return []
         if not isinstance(file_paths, list):
             raise SchemaDiscoveryError(
-                "OPENEDX_AUTHZ_SCHEMA_FILES must be a list of filesystem paths, "
-                f"got {type(file_paths).__name__!r}."
+                "OPENEDX_AUTHZ_SCHEMA_FILES must be a list of filesystem paths, " f"got {type(file_paths).__name__!r}."
             )
         discovered: list[DiscoveredResource] = []
         for file_path in file_paths:
@@ -265,13 +262,10 @@ class SchemaDiscovery:
             path = Path(file_path)
             if not path.is_file():
                 raise SchemaDiscoveryError(
-                    f"Schema file {file_path!r} contributed through "
-                    "OPENEDX_AUTHZ_SCHEMA_FILES is not an actual file"
+                    f"Schema file {file_path!r} contributed through " "OPENEDX_AUTHZ_SCHEMA_FILES is not an actual file"
                 )
 
-            discovered.append(
-                DiscoveredFileResource.from_path(file_path)
-            )
+            discovered.append(DiscoveredFileResource.from_path(file_path))
         return discovered
 
     def _iter_directory(self, directory: str, *, origin: Origin) -> list[DiscoveredResource]:

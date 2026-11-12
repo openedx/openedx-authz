@@ -42,9 +42,14 @@ class TestInstructorDashboardPermissions(BaseRolesTestCase):
         assign_role_to_user_in_scope("dashboard_admin", roles.COURSE_ADMIN.external_key, COURSE_KEY)
         assign_role_to_user_in_scope("dashboard_staff", roles.COURSE_STAFF.external_key, COURSE_KEY)
 
-    @data(*((username, permission, expected) for (username, expected), permission in product(
-        USERS_WITH_EXPECTED_ACCESS, INSTRUCTOR_DASHBOARD_PERMISSIONS
-    )))
+    @data(
+        *(
+            (username, permission, expected)
+            for (username, expected), permission in product(
+                USERS_WITH_EXPECTED_ACCESS, INSTRUCTOR_DASHBOARD_PERMISSIONS
+            )
+        )
+    )
     @unpack
     def test_course_team_roles_are_allowed_new_permissions(self, username, permission, expected_result):
         """Course Admin and Course Staff are allowed every new permission, and a user without a role is denied."""

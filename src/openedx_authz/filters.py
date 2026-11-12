@@ -47,7 +47,8 @@ class AuthorizationDataRequested(OpenEdxPublicFilter, Generic[AuthorizationItems
 
     @classmethod
     def run_filter(
-        cls, items: AuthorizationItems,
+        cls,
+        items: AuthorizationItems,
     ) -> tuple[AuthorizationItems, list[dict[str, Any]]]:
         """
         Run the operation's configured pipeline with an initially empty error list.

@@ -266,9 +266,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="alice"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org1:math_101"),
                 ),
             ],
@@ -278,9 +276,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="bob"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org1:history_201"),
                 ),
             ],
@@ -290,9 +286,7 @@ class TestUserRoleAssignments(UserAssignmentsSetupMixin):
             [
                 RoleAssignmentData(
                     subject=UserData(external_key="eve"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
                     scope=ContentLibraryData(external_key="lib:Org2:physics_401"),
                 ),
             ],

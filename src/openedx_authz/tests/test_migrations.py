@@ -86,9 +86,7 @@ error_user_name = f"{OBJECT_PREFIX}error_user"
 error_group_name = f"{OBJECT_PREFIX}error_group"
 empty_group_name = f"{OBJECT_PREFIX}empty_group"
 
-schema_source_migration = import_module(
-    "openedx_authz.migrations.0012_move_builtin_schema_sources_to_applets"
-)
+schema_source_migration = import_module("openedx_authz.migrations.0012_move_builtin_schema_sources_to_applets")
 
 
 class TestBuiltinSchemaSourceMigration(TestCase):

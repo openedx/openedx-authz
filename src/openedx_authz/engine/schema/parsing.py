@@ -54,7 +54,7 @@ class SchemaParser:
 
     @staticmethod
     def parse_yamls(contents: bytes, resource: DiscoveredResource) -> list[object]:
-        """Parse YAML bytes as a multi-document stream, skipping empty 
+        """Parse YAML bytes as a multi-document stream, skipping empty
         documents, and preserve the resulting root value.
         """
         try:
@@ -73,12 +73,12 @@ class SchemaParser:
         distribution, version = self.resolve_distribution(resource)
         content_digest = hashlib.sha256(contents).hexdigest()
         source_record = {
-            'distribution': distribution,
-            'distribution_version': version,
-            'module': resource.module,
-            'resource_path': resource.resource_path,
-            'schema_version': schema_version,
-            'content_digest': content_digest,
+            "distribution": distribution,
+            "distribution_version": version,
+            "module": resource.module,
+            "resource_path": resource.resource_path,
+            "schema_version": schema_version,
+            "content_digest": content_digest,
         }
         if isinstance(resource, DiscoveredFileResource):
             return SourceFileRecord(**source_record)

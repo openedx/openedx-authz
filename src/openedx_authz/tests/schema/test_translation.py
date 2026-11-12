@@ -86,14 +86,18 @@ class TestFieldExtraction:
     """Each schema entry type yields the display_name/description messages it should."""
 
     def test_permission_category(self):
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 permission_categories:
   - id: course_content
     display_name: Course content
     description: Permissions for viewing and editing course content.
-""")])
+""")
+            ]
+        )
         assert messages == [
             TranslatableMessage(
                 "permission_category.description:course_content",
@@ -103,7 +107,9 @@ permission_categories:
         ]
 
     def test_permission_stable_id_combines_namespace_and_name(self):
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 permissions:
@@ -113,7 +119,9 @@ permissions:
     description: View course configuration and content.
     category: course_content
     scopes: [course-v1]
-""")])
+""")
+            ]
+        )
         contexts = {m.context for m in messages}
         assert contexts == {
             "permission.display_name:courses.view_course",
@@ -121,7 +129,9 @@ permissions:
         }
 
     def test_role(self):
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
@@ -130,7 +140,9 @@ roles:
     description: Can review a course without changing it.
     scopes: [course-v1]
     permissions: [courses.view_course]
-""")])
+""")
+            ]
+        )
         contexts = {m.context: m.message for m in messages}
         assert contexts == {
             "role.display_name:course_observer": "Course observer",
@@ -139,24 +151,32 @@ roles:
 
     def test_role_extension_only_emits_fields_it_actually_overrides(self):
         """A role_extension that doesn't touch display_name/description emits nothing for them."""
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 role_extensions:
   - role_id: course_editor
     add_permissions: [courses.export_course]
-""")])
+""")
+            ]
+        )
         assert messages == []
 
     def test_role_extension_with_overrides(self):
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 role_extensions:
   - role_id: course_editor
     display_name: Course author
     description: Creates and exports course content.
-""")])
+""")
+            ]
+        )
         contexts = {m.context: m.message for m in messages}
         assert contexts == {
             "role_extension.display_name:course_editor": "Course author",
@@ -165,14 +185,18 @@ role_extensions:
 
     def test_missing_entries_are_fine(self):
         """A file that only defines some blocks doesn't error on the missing ones."""
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
   - id: course_observer
     display_name: Course observer
     description: Can review a course without changing it.
-""")])
+""")
+            ]
+        )
         assert len(messages) == 2
 
     def test_empty_file_yields_no_messages(self):
@@ -181,13 +205,17 @@ roles:
 
     def test_missing_display_name_or_description_is_skipped_not_emitted_empty(self):
         """A missing field is skipped outright: requiring it is validation's job, not extraction's."""
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
   - id: course_admin
     display_name: Admin
-""")])
+""")
+            ]
+        )
         assert messages == [TranslatableMessage("role.display_name:course_admin", "Admin")]
 
 
@@ -196,7 +224,9 @@ class TestContextDisambiguation:
 
     def test_identical_display_name_and_description_text_stay_separate(self):
         """A display_name and description that happen to be identical text don't merge."""
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
@@ -204,14 +234,18 @@ roles:
     display_name: Admin
     description: Admin
     scopes: [course-v1]
-""")])
+""")
+            ]
+        )
         assert len(messages) == 2
         assert messages[0].message == messages[1].message == "Admin"
         assert messages[0].context != messages[1].context
 
     def test_same_display_name_text_across_different_roles_stays_separate(self):
         """Two different roles sharing display text ("Admin") get distinct contexts."""
-        messages = extract_messages([_resource("""
+        messages = extract_messages(
+            [
+                _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
@@ -221,7 +255,9 @@ roles:
   - id: library_admin
     display_name: Admin
     scopes: [lib]
-""")])
+""")
+            ]
+        )
         display_name_messages = [m for m in messages if m.context.startswith("role.display_name:")]
         assert len(display_name_messages) == 2
         assert {m.context for m in display_name_messages} == {
@@ -265,22 +301,30 @@ class TestSectionShapeValidation:
     @pytest.mark.parametrize("section", ["permission_categories", "permissions", "roles", "role_extensions"])
     def test_section_not_a_list_raises(self, section):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource(f"""
+            extract_messages(
+                [
+                    _resource(f"""
 schema_version: "1.0"
 priority: 100
 {section}:
   not: a_list
-""")])
+""")
+                ]
+            )
 
     @pytest.mark.parametrize("section", ["permission_categories", "permissions", "roles", "role_extensions"])
     def test_entry_not_a_mapping_raises(self, section):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource(f"""
+            extract_messages(
+                [
+                    _resource(f"""
 schema_version: "1.0"
 priority: 100
 {section}:
   - just_a_string
-""")])
+""")
+                ]
+            )
 
 
 class TestStableIdValidation:
@@ -288,50 +332,70 @@ class TestStableIdValidation:
 
     def test_category_without_id_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 permission_categories:
   - display_name: Course content
-""")])
+""")
+                ]
+            )
 
     def test_permission_without_namespace_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 permissions:
   - name: view_course
     display_name: View course
-""")])
+""")
+                ]
+            )
 
     def test_permission_without_name_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 permissions:
   - namespace: courses
     display_name: View course
-""")])
+""")
+                ]
+            )
 
     def test_role_without_id_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
   - display_name: Course Admin
-""")])
+""")
+                ]
+            )
 
     def test_role_extension_without_role_id_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 role_extensions:
   - display_name: Course author
-""")])
+""")
+                ]
+            )
 
 
 class TestPriorityConflictResolution:
@@ -363,13 +427,17 @@ schema_version: "1.0"
 
     def test_malformed_priority_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: not-a-number
 roles:
   - id: course_admin
     display_name: Admin
-""")])
+""")
+                ]
+            )
 
     def test_missing_priority_defaults_to_lowest(self):
         messages = extract_messages([self._role(None, "Low"), self._role(1, "High")])
@@ -381,23 +449,31 @@ class TestGettextContextSeparatorGuard:
 
     def test_separator_in_message_text_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
   - id: course_admin
     display_name: "bad\\x04char"
-""")])
+""")
+                ]
+            )
 
     def test_separator_in_stable_id_raises(self):
         with pytest.raises(SchemaTranslationExtractionError):
-            extract_messages([_resource("""
+            extract_messages(
+                [
+                    _resource("""
 schema_version: "1.0"
 priority: 100
 roles:
   - id: "bad\\x04id"
     display_name: Admin
-""")])
+""")
+                ]
+            )
 
 
 class TestRenderModule:
@@ -413,7 +489,7 @@ class TestRenderModule:
 
     def test_strings_with_quotes_and_newlines_are_escaped_safely(self):
         """repr()-based rendering must survive content a naive f-string would break on."""
-        messages = [TranslatableMessage("role.description:tricky", 'Has "quotes", a \'single\' and\na newline.')]
+        messages = [TranslatableMessage("role.description:tricky", "Has \"quotes\", a 'single' and\na newline.")]
         source = render_module(messages)
         compile(source, "<generated>", "exec")
         assert 'Has "quotes"' in source or "quotes" in source

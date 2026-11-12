@@ -161,7 +161,9 @@ def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused
             CourseScope.link_pending_scope(instance)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception(
-            "Error linking pending CourseScope to CourseOverview %s", instance.pk, exc_info=exc,
+            "Error linking pending CourseScope to CourseOverview %s",
+            instance.pk,
+            exc_info=exc,
         )
 
 
@@ -177,7 +179,9 @@ def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disab
             ContentLibraryScope.link_pending_scope(instance)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception(
-            "Error linking pending ContentLibraryScope to ContentLibrary %s", instance.pk, exc_info=exc,
+            "Error linking pending ContentLibraryScope to ContentLibrary %s",
+            instance.pk,
+            exc_info=exc,
         )
 
 

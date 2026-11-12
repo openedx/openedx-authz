@@ -1057,9 +1057,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="alice"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_ADMIN.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_ADMIN.external_key)],
                     scope=ScopeData(external_key="lib:Org1:math_101"),
                 )
             ],
@@ -1069,9 +1067,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="bob"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_AUTHOR.external_key)],
                     scope=ScopeData(external_key="lib:Org1:history_201"),
                 )
             ],
@@ -1081,9 +1077,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="carol"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_CONTRIBUTOR.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_CONTRIBUTOR.external_key)],
                     scope=ScopeData(external_key="lib:Org1:science_301"),
                 )
             ],
@@ -1093,9 +1087,7 @@ class TestRoleAssignmentAPI(RolesTestSetupMixin):
             [
                 RoleAssignmentData(
                     subject=SubjectData(external_key="dave"),
-                    roles=[
-                        RoleData(external_key=roles.LIBRARY_USER.external_key)
-                    ],
+                    roles=[RoleData(external_key=roles.LIBRARY_USER.external_key)],
                     scope=ScopeData(external_key="lib:Org1:english_101"),
                 )
             ],

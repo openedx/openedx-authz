@@ -301,9 +301,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name="authzschemasource",
-            constraint=models.UniqueConstraint(
-                fields=["distribution", "module"], name="authz_source_dist_module_uniq"
-            ),
+            constraint=models.UniqueConstraint(fields=["distribution", "module"], name="authz_source_dist_module_uniq"),
         ),
         migrations.AddConstraint(
             model_name="authzpermissiondefinition",
@@ -321,9 +319,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name="authzpermissionsource",
-            constraint=models.UniqueConstraint(
-                fields=["permission", "source"], name="authz_permission_source_uniq"
-            ),
+            constraint=models.UniqueConstraint(fields=["permission", "source"], name="authz_permission_source_uniq"),
         ),
         migrations.AddConstraint(
             model_name="authzrolesource",

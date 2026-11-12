@@ -100,9 +100,7 @@ def get_scope_display_name_map(scope_external_keys: set[str]) -> dict[str, str]:
     if library_scopes and ContentLibrary is not None:
         lib_pairs = {(s.library_key.org, s.library_key.slug) for s in library_scopes}
         try:
-            lib_filter = reduce(
-                operator.or_, (Q(org__short_name=org, slug=slug) for org, slug in lib_pairs)
-            )
+            lib_filter = reduce(operator.or_, (Q(org__short_name=org, slug=slug) for org, slug in lib_pairs))
             lib_qs = ContentLibrary.objects.filter(lib_filter).select_related("learning_package", "org")
 
             for lib in lib_qs:

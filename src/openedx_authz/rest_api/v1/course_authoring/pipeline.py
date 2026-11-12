@@ -122,11 +122,7 @@ class CourseAuthoringVisibilityFilter(PipelineStep, Generic[AuthorizationItems])
         Returns:
             set[str]: Scope keys hidden by the flag.
         """
-        return {
-            scope
-            for scope in scopes
-            if scope and not is_scope_visible(api.ScopeData(external_key=scope))
-        }
+        return {scope for scope in scopes if scope and not is_scope_visible(api.ScopeData(external_key=scope))}
 
     @staticmethod
     def _role_change_errors(user_identifiers: list[str], hidden_scopes: Iterable[str]) -> list[dict]:
@@ -186,8 +182,7 @@ class CourseAuthoringPermissionValidationFilter(CourseAuthoringVisibilityFilter[
         """
         hidden = self._hidden_scopes(item.get("scope") for item in items)
         filtered: list[ValidationItem] = [
-            {**item, "allowed": False} if item.get("scope") in hidden else item
-            for item in items
+            {**item, "allowed": False} if item.get("scope") in hidden else item for item in items
         ]
         return filtered, []
 

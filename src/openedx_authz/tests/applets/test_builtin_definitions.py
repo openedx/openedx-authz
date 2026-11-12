@@ -66,9 +66,7 @@ class TestBuiltinAppletDefinitions:
         """Compiled definitions expose their owning applet through source metadata."""
         compiled = SchemaPipeline().compile()
 
-        assert compiled.roles["library_admin"].sources[0].module == (
-            "openedx_authz.applets.content_libraries.schema"
-        )
+        assert compiled.roles["library_admin"].sources[0].module == ("openedx_authz.applets.content_libraries.schema")
         assert compiled.roles["course_admin"].sources[0].module == "openedx_authz.applets.course_team_roles.schema"
         assert compiled.permissions["courses.view_course"].sources[0].module == (
             "openedx_authz.applets.course_authoring.schema"

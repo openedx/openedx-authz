@@ -38,6 +38,7 @@ COURSE_ORG1_GLOB = OrgCourseOverviewGlobData.build_external_key("Org1")
 PLATFORM_COURSE_GLOB = PlatformCourseOverviewGlobData.build_external_key()
 PLATFORM_LIBRARY_GLOB = PlatformContentLibraryGlobData.build_external_key()
 
+
 @ddt
 class TestScopesAPIView(ViewTestMixin):
     """

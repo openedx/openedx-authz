@@ -695,12 +695,7 @@ role_extensions:
 
     def test_empty_document_between_separators_is_skipped(self):
         """An empty ``---`` block between contributions is silently dropped."""
-        contents = (
-            b"schema_version: '1.0'\npriority: 1\n"
-            b"---\n"
-            b"---\n"
-            b"schema_version: '1.0'\npriority: 2\n"
-        )
+        contents = b"schema_version: '1.0'\npriority: 1\n" b"---\n" b"---\n" b"schema_version: '1.0'\npriority: 2\n"
 
         docs = _load(contents)
 

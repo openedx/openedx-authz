@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('openedx_authz', '0009_roleassignmentaudit'),
+        ("openedx_authz", "0009_roleassignmentaudit"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='scope',
-            name='external_key',
+            model_name="scope",
+            name="external_key",
             field=models.CharField(blank=True, max_length=255, null=True, unique=True),
         ),
     ]

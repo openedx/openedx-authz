@@ -46,6 +46,6 @@ class WaffleFlagStatesAPIView(APIView):
         try:
             data = get_waffle_flag_states()
             return Response(data, status=status.HTTP_200_OK)
-        except Exception as e:      # pylint: disable=broad-exception-caught
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Error getting waffle flag states: %s", e)
             return Response({"message": "error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -94,11 +94,7 @@ class TestDirectoryExpansion:
     def test_duplicate_directories_are_deduplicated(self):
         """The same directory passed twice yields each file only once."""
         resources = SchemaDiscovery(passed_in_directories=[SCHEMA_DIR, SCHEMA_DIR]).discover()
-        content_library_paths = [
-            resource.resource_path
-            for resource in resources
-            if resource.module == SCHEMA_MODULE
-        ]
+        content_library_paths = [resource.resource_path for resource in resources if resource.module == SCHEMA_MODULE]
         assert len(content_library_paths) == len(set(content_library_paths)) == len(EXPECTED_FILES)
 
 

@@ -269,18 +269,16 @@ class TestGetWaffleFlagStates(TestCase):
         """
         with patch(
             "openedx_authz.utils.Flag",
-            MagicMock(objects=MagicMock(
-                filter=MagicMock(return_value=MagicMock(first=MagicMock(
-                    return_value=SimpleNamespace(everyone=platform_enabled)
-                )))
-            )),
-        ), patch(
-            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
-        ), patch(
+            MagicMock(
+                objects=MagicMock(
+                    filter=MagicMock(
+                        return_value=MagicMock(first=MagicMock(return_value=SimpleNamespace(everyone=platform_enabled)))
+                    )
+                )
+            ),
+        ), patch("openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)), patch(
             "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([])
-        ), patch(
-            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
-        ):
+        ), patch("openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])):
             self.assertEqual(get_waffle_flag_states()["global"], platform_enabled)
 
     @data(
@@ -299,18 +297,16 @@ class TestGetWaffleFlagStates(TestCase):
         """
         with patch(
             "openedx_authz.utils.Flag",
-            MagicMock(objects=MagicMock(
-                filter=MagicMock(return_value=MagicMock(first=MagicMock(
-                    return_value=SimpleNamespace(everyone=False)
-                )))
-            )),
-        ), patch(
-            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
-        ), patch(
+            MagicMock(
+                objects=MagicMock(
+                    filter=MagicMock(
+                        return_value=MagicMock(first=MagicMock(return_value=SimpleNamespace(everyone=False)))
+                    )
+                )
+            ),
+        ), patch("openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)), patch(
             "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model(override_rows)
-        ), patch(
-            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
-        ):
+        ), patch("openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])):
             self.assertEqual(get_waffle_flag_states()["org_overrides"], expected)
 
     @data(
@@ -332,18 +328,16 @@ class TestGetWaffleFlagStates(TestCase):
         """
         with patch(
             "openedx_authz.utils.Flag",
-            MagicMock(objects=MagicMock(
-                filter=MagicMock(return_value=MagicMock(first=MagicMock(
-                    return_value=SimpleNamespace(everyone=False)
-                )))
-            )),
-        ), patch(
-            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
-        ), patch(
+            MagicMock(
+                objects=MagicMock(
+                    filter=MagicMock(
+                        return_value=MagicMock(first=MagicMock(return_value=SimpleNamespace(everyone=False)))
+                    )
+                )
+            ),
+        ), patch("openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)), patch(
             "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([])
-        ), patch(
-            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model(override_rows)
-        ):
+        ), patch("openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model(override_rows)):
             self.assertEqual(get_waffle_flag_states()["course_overrides"], expected)
 
     def test_all_three_tiers_are_independent(self):
@@ -354,18 +348,16 @@ class TestGetWaffleFlagStates(TestCase):
         """
         with patch(
             "openedx_authz.utils.Flag",
-            MagicMock(objects=MagicMock(
-                filter=MagicMock(return_value=MagicMock(first=MagicMock(
-                    return_value=SimpleNamespace(everyone=False)
-                )))
-            )),
-        ), patch(
-            "openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)
-        ), patch(
+            MagicMock(
+                objects=MagicMock(
+                    filter=MagicMock(
+                        return_value=MagicMock(first=MagicMock(return_value=SimpleNamespace(everyone=False)))
+                    )
+                )
+            ),
+        ), patch("openedx_authz.utils.AUTHZ_COURSE_AUTHORING_FLAG", SimpleNamespace(name=FLAG_NAME)), patch(
             "openedx_authz.utils.WaffleFlagOrgOverrideModel", self._mock_override_model([("Org1", "on")])
-        ), patch(
-            "openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])
-        ):
+        ), patch("openedx_authz.utils.WaffleFlagCourseOverrideModel", self._mock_override_model([])):
             self.assertEqual(
                 get_waffle_flag_states(),
                 {

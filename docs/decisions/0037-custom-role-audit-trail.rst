@@ -9,14 +9,13 @@ Status
 Context
 *******
 
-`ADR 0035`_ and `ADR 0036`_ let Django staff and superusers create, edit, and remove custom roles,
-and move a role's members to another role. Each change takes effect right away for every user who
-holds the role.
+`ADR 0035`_ and `ADR 0036`_ let Django staff and superusers create, edit, and remove custom roles.
+Each change takes effect right away for every user who holds the role.
 
 `ADR 0012`_ records role assignment changes in ``RoleAssignmentAudit``, through the assignment events
-in openedx-events. Nothing records changes to a role definition. An assignment deleted or moved
-because a role was removed or reassigned is recorded the same way as a manual change, so the audit
-cannot tell why it happened.
+in openedx-events. Nothing records changes to a role definition. An assignment deleted because a
+role was removed is recorded the same way as a manual change, so the audit cannot tell why it
+happened.
 
 `ADR 0025`_ records which module contributed each static definition. It leaves source tracking for
 dynamically created definitions to a future decision. This ADR is that decision for custom roles.
@@ -40,8 +39,6 @@ Every custom role change writes one record to a new ``RoleDefinitionAudit`` tabl
      - ``updated``
    * - Remove
      - ``deleted``
-   * - Move members to another role
-     - ``members_reassigned``
    * - A deployment drops grants for removed permissions (`ADR 0035`_)
      - ``updated``
 
@@ -58,18 +55,16 @@ Copies are recorded as ``created``. The server does not know a role was copied (
 The ``changes`` field is JSON:
 
 * ``created`` and ``deleted``: the full role: ``display_name``, ``description``, ``scope_types``,
-  and ``permissions``. A ``deleted`` record also stores how the assignments were handled
-  (``revoke`` or ``reassign``) and the ``target_role``, if any.
+  and ``permissions``.
 * ``updated``: only the fields that changed. A name or description change stores the old and new
   values. A permission change stores ``permissions_added`` and ``permissions_removed``.
-* ``members_reassigned``: the ``target_role``.
 
 3. Link assignment changes to the role change
 =============================================
 
 ``RoleAssignmentAudit`` and the assignment event data gain a nullable ``role_change_id``. Every
-assignment that is deleted or created because a role was removed or its members were moved carries
-the ``change_id`` of that role change. Direct assignments and removals leave it empty.
+assignment that is deleted because a role was removed carries the ``change_id`` of that role
+change. Direct assignments and removals leave it empty.
 
 The API generates the ``change_id`` before any write and passes it to the role event and to each
 assignment event. The link does not depend on the order in which the handlers run.
@@ -78,7 +73,7 @@ assignment event. The link does not depend on the order in which the handlers ru
 =========
 
 openedx-events gains ``ROLE_DEFINITION_CREATED``, ``ROLE_DEFINITION_UPDATED``,
-``ROLE_DEFINITION_DELETED``, and ``ROLE_MEMBERS_REASSIGNED``. The payload carries the operation,
+and ``ROLE_DEFINITION_DELETED``. The payload carries the operation,
 ``change_id``, role, ``changes`` (as a JSON string, so the event bus can serialize it), and
 ``actor_id``.
 
@@ -104,8 +99,8 @@ Consequences
   ``RoleAssignmentAudit``.
 * openedx-events needs a release with the new events and the ``role_change_id`` field before this
   ships. Adding a field to the assignment event data is backward-compatible (`ADR 0012`_).
-* The assignments affected by removing a role or moving its members can be found by filtering
-  ``RoleAssignmentAudit`` by ``role_change_id``.
+* The assignments affected by removing a role can be found by filtering ``RoleAssignmentAudit`` by
+  ``role_change_id``.
 * The audit is best-effort, as in `ADR 0012`_. If the write fails, the role change still applies.
 * Changes to static roles are not recorded here. Deployments and `ADR 0025`_ source tracking cover
   them.

@@ -95,17 +95,12 @@ copied, and the copy keeps no link to the original.
 4. Removing a role that has assignments
 =======================================
 
-When a custom role has assignments, the request to remove it must say what happens to them, or it
-is rejected:
+When a custom role has assignments, the request to remove it must state explicitly that the
+assignments are deleted with the role, or it is rejected. A role with no assignments needs no such
+statement.
 
-* **Remove:** the assignments are deleted with the role.
-* **Reassign:** each assignment moves to another role in the same scope. The target role must
-  support the scope's resource type. A user who already holds the target role in that scope keeps
-  a single assignment.
-
-Either choice runs in the same transaction as the removal. Each change is recorded the same way
-assignment changes are recorded today: a removed assignment as a removal, and a reassigned one as a
-removal followed by a new assignment.
+The assignments are deleted in the same transaction as the removal. Each deleted assignment is
+recorded the same way assignment removals are recorded today.
 
 5. Schema deployments
 =====================

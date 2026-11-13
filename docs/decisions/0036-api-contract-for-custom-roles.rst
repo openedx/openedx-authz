@@ -38,7 +38,9 @@ bypass the scope checks. No new permission is added for these operations.
 Staff and superusers already pass every permission check, so a custom role cannot grant more access
 than its creator has.
 
-Reading the catalog keeps the rules of `ADR 0028`_. Giving a custom role to a user, or taking it
+Reading the catalog keeps the rules of `ADR 0028`_. Reading one role with
+``GET /api/authz/v1/roles/<role_id>/`` applies the same check to the role's resource type, so the
+user needs the permission that `ADR 0028`_ requires to list roles of that scope type. Giving a custom role to a user, or taking it
 away, is not limited to staff and superusers. It uses the same endpoints and checks as static
 roles: the user needs ``courses.manage_course_team`` or ``content_libraries.manage_library_team``
 in the scope.
@@ -110,9 +112,15 @@ role.
   (``["course-v1"]`` or ``["lib"]``). The resource type cannot be changed after creation.
 * A custom role grants at least one permission. Every permission must support the role's resource
   type.
-* The display name is unique among all roles, static and custom, ignoring case. For static roles,
-  the stored name is compared, not its translation. A taken name returns 409. The name cannot be
-  changed after creation.
+* A deployment can still leave a custom role with no permissions (`ADR 0035`_). The list keeps
+  showing such a role, with ``scope_types`` taken from its stored resource type instead of its
+  grants, so an administrator can add permissions to it or remove it.
+* The display name is unique among the roles that have not been removed, static and custom,
+  ignoring case. For static roles, the stored name is compared, not its translation. A taken name
+  returns 409. The name cannot be changed after creation.
+* This name check is separate from role IDs, which cannot collide because of the ``custom_``
+  prefix (`ADR 0035`_). The name of a removed role can be used again, and the new role gets a new
+  ID.
 * The description is free text and may be empty. Both fields are stored as entered and are not
   translated (`ADR 0020`_).
 * Static roles are read-only. Editing or removing one returns 400.
@@ -132,8 +140,8 @@ instead of being generated from the source's name.
 7. Permission dependencies
 ==========================
 
-The server does not add dependencies. A request whose permissions leave out a dependency of another
-permission in the set is rejected with 400, and the error lists the missing dependencies. This
+The server does not add dependencies. A request whose permissions leave out a direct or indirect
+dependency of another permission in the set is rejected with 400, and the error lists the missing dependencies. This
 covers both adding a permission without its dependencies and removing a dependency that another
 permission still needs.
 
@@ -148,6 +156,9 @@ Removing a role that has assignments must be confirmed explicitly. The request c
 
 A request without ``assignments=revoke`` for a role that has assignments returns 409 and removes
 nothing. A role with no assignments is removed without the parameter.
+
+A removed role (`ADR 0035`_) is left out of the list, and ``GET``, ``PATCH`` and ``DELETE`` on it
+return 404.
 
 9. Terminology
 ==============
@@ -212,8 +223,9 @@ Response codes
 
 * 400: invalid request, missing dependencies, or a write to a static role.
 * 401: the user is not authenticated.
-* 403: the user is neither staff nor a superuser.
-* 404: the role does not exist.
+* 403: for writes, the user is neither staff nor a superuser. For reads, the user cannot read
+  roles of the role's resource type.
+* 404: the role does not exist or was removed.
 * 409: the display name is taken, or the role has assignments and ``assignments`` was not given.
 
 Consequences

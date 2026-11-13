@@ -407,6 +407,8 @@ Addendum: 2026-11-05
 * Each role adds ``user_count`` (brought back, now that the table shows it) and ``updated_at``.
 * The query adds ``definition_kind`` (``static`` or ``user_defined``), ``search``, ``sort_by``
   and ``order``.
+* Custom roles with no permissions are still listed, with ``scope_types`` taken from the role's
+  stored resource type instead of its grants. Removed custom roles are not listed.
 * Filtering, search, sorting and pagination run in Python over the roles of the requested scope types,
   instead of in a single database query, so translated static role names are searched and
   sorted as the user sees them.

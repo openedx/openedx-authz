@@ -188,6 +188,13 @@ Rejected for three reasons:
 ``django-simple-history`` remains the right tool for Option B (point-in-time state
 reconstruction), where it is a snapshot mechanism, not an operation log.
 
+Addendum (2026-11-09)
+*********************
+
+`ADR 0037`_ records custom role changes in a separate ``RoleDefinitionAudit`` table and adds a
+nullable ``role_change_id`` to ``RoleAssignmentAudit`` and the assignment event data. It links
+assignments deleted by removing a role to that role change.
+
 References
 **********
 
@@ -199,10 +206,12 @@ References
 - `django-simple-history documentation`_
 - `django-crum documentation`_
 - `OEPM-Spike: RBAC AuthZ Auditability`_
+- `ADR 0037`_
 
 .. _ADR 0002: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0002-authorization-model-foundation.rst
 .. _ADR 0004: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0004-technology-selection.rst
 .. _ADR 0005: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0005-architecture-and-data-modeling.rst
+.. _ADR 0037: 0037-custom-role-audit-trail.rst
 .. _Auth0 FGA Logging API: https://auth0.com/blog/auth0-fga-logging-api-a-complete-audit-trail-for-authorization/
 .. _SpiceDB: https://github.com/authzed/spicedb
 .. _OpenFGA: https://openfga.dev/

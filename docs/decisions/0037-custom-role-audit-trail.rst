@@ -1,0 +1,147 @@
+0037: Audit Trail for Custom Role Changes
+#########################################
+
+Status
+******
+
+**Draft**
+
+Context
+*******
+
+`ADR 0035`_ and `ADR 0036`_ let Django staff and superusers create, edit, and remove custom roles.
+Each change takes effect right away for every user who holds the role.
+
+`ADR 0012`_ records role assignment changes in ``RoleAssignmentAudit``, through the assignment events
+in openedx-events. Nothing records changes to a role definition. An assignment deleted because a
+role was removed is recorded the same way as a manual change, so the audit cannot tell why it
+happened.
+
+`ADR 0025`_ records which module contributed each static definition. `ADR 0035`_ stores custom roles
+in the same tables with no source links, so nothing records who created a custom role or when.
+
+Decision
+********
+
+1. Record custom role changes in a dedicated table
+==================================================
+
+Every custom role change writes one record to a new ``RoleDefinitionAudit`` table: one per request,
+or one per affected role when a deployment drops grants from several roles.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Action
+     - Operation
+   * - Create, including a copy
+     - ``created``
+   * - Edit the description or permissions
+     - ``updated``
+   * - Remove
+     - ``deleted``
+   * - A deployment drops grants for removed permissions (`ADR 0035`_)
+     - ``updated``
+
+Each record stores the operation, a ``change_id`` (UUID), the namespaced role key, the change, the
+``actor_id``, and a timestamp. It follows the rules of `ADR 0012`_: values are plain strings with no
+foreign keys, so records survive the removal of the role, and the actor comes from
+``django_crum.get_current_user()``. The actor is ``None`` for system changes such as deployments.
+
+`ADR 0035`_ keeps a removed role's row and never reuses its ID, so each role key in the audit always
+names one role, and the admin can still show a removed role's display name.
+
+Copies are recorded as ``created``. The server does not know a role was copied (`ADR 0036`_).
+
+2. Store what changed
+=====================
+
+The ``changes`` field is JSON:
+
+* ``created`` and ``deleted``: the full role: ``display_name``, ``description``, ``scope_types``,
+  and ``permissions``.
+* ``updated``: only the fields that changed. A description change stores the old and new values. A permission change stores ``permissions_added`` and ``permissions_removed``.
+
+3. Link assignment changes to the role change
+=============================================
+
+``RoleAssignmentAudit`` and the assignment event data gain a nullable ``role_change_id``. Every
+assignment that is deleted because a role was removed carries the ``change_id`` of that role
+change. Direct assignments and removals leave it empty.
+
+The API generates the ``change_id`` before any write and passes it to the role event and to each
+assignment event. The link does not depend on the order in which the handlers run.
+
+4. Events
+=========
+
+openedx-events gains ``ROLE_DEFINITION_CREATED``, ``ROLE_DEFINITION_UPDATED``,
+and ``ROLE_DEFINITION_DELETED``. The payload carries the ``change_id``, role, ``changes`` (as a
+JSON string, so the event bus can serialize it), and ``actor_id``. The event type gives the
+operation, so the payload does not repeat it. The handler maps each event to its operation when it
+writes the audit record.
+
+As in `ADR 0012`_, the events are sent with ``transaction.on_commit``, a handler writes the audit
+record, and the same setting that disables the assignment audit handler disables this one.
+
+5. Provenance of custom roles
+=============================
+
+Custom roles have no source links in the `ADR 0025`_ tables (`ADR 0035`_). Their ``created`` record
+says who created them and when. No other source tracking is added for custom roles.
+
+6. Reading the history
+======================
+
+The table is registered in Django admin and can be filtered by role, operation, actor, and
+timestamp. A REST endpoint for the history is deferred until a UI needs it.
+
+Consequences
+************
+
+* One migration adds ``RoleDefinitionAudit`` and the ``role_change_id`` field on
+  ``RoleAssignmentAudit``.
+* openedx-events needs a release with the new events and the ``role_change_id`` field before this
+  ships. Adding a field to the assignment event data is backward-compatible (`ADR 0012`_).
+* The assignments affected by removing a role can be found by filtering ``RoleAssignmentAudit`` by
+  ``role_change_id``.
+* The audit is best-effort, as in `ADR 0012`_. If the write fails, the role change still applies.
+* Changes to static roles are not recorded here. Deployments and `ADR 0025`_ source tracking cover
+  them.
+* The history is visible in Django admin only. No UI or REST API is added.
+
+Rejected Alternatives
+*********************
+
+Reuse ``RoleAssignmentAudit``
+=============================
+
+Definition changes have no subject or scope, and an edit can change many permissions at once.
+Mixing both kinds of record in one table would leave columns empty and make the admin filters
+ambiguous.
+
+``django-simple-history`` on the definition tables
+==================================================
+
+A permission edit touches many grant rows, so one request would produce many snapshots with no
+single record of the change. Bulk writes also bypass model signals, the same problem `ADR 0012`_
+found for ``ExtendedCasbinRule``.
+
+Source rows in the `ADR 0025`_ tables
+=====================================
+
+Those tables record which module contributed a definition, and they hold the current state. A user
+is not a module, and an audit needs every change, not only the latest one.
+
+References
+**********
+
+* `ADR 0012`_
+* `ADR 0025`_
+* `ADR 0035`_
+* `ADR 0036`_
+
+.. _ADR 0012: 0012-auditability.rst
+.. _ADR 0025: 0025-authorization-schema-source-tracking.rst
+.. _ADR 0035: 0035-custom-role-persistence.rst
+.. _ADR 0036: 0036-api-contract-for-custom-roles.rst

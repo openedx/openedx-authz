@@ -193,7 +193,7 @@ Addendum (2026-11-09)
 
 `ADR 0037`_ records custom role changes in a separate ``RoleDefinitionAudit`` table and adds a
 nullable ``role_change_id`` to ``RoleAssignmentAudit`` and the assignment event data. It links
-assignments deleted or created by removing a role or moving its members to that role change.
+assignments deleted by removing a role to that role change.
 
 References
 **********

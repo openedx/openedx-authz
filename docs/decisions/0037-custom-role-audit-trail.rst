@@ -73,9 +73,10 @@ assignment event. The link does not depend on the order in which the handlers ru
 =========
 
 openedx-events gains ``ROLE_DEFINITION_CREATED``, ``ROLE_DEFINITION_UPDATED``,
-and ``ROLE_DEFINITION_DELETED``. The payload carries the operation,
-``change_id``, role, ``changes`` (as a JSON string, so the event bus can serialize it), and
-``actor_id``.
+and ``ROLE_DEFINITION_DELETED``. The payload carries the ``change_id``, role, ``changes`` (as a
+JSON string, so the event bus can serialize it), and ``actor_id``. The event type gives the
+operation, so the payload does not repeat it. The handler maps each event to its operation when it
+writes the audit record.
 
 As in `ADR 0012`_, the events are sent with ``transaction.on_commit``, a handler writes the audit
 record, and the same setting that disables the assignment audit handler disables this one.

@@ -17,8 +17,8 @@ in openedx-events. Nothing records changes to a role definition. An assignment d
 role was removed is recorded the same way as a manual change, so the audit cannot tell why it
 happened.
 
-`ADR 0025`_ records which module contributed each static definition. It leaves source tracking for
-dynamically created definitions to a future decision. This ADR is that decision for custom roles.
+`ADR 0025`_ records which module contributed each static definition. `ADR 0035`_ stores custom roles
+in the same tables with no source links, so nothing records who created a custom role or when.
 
 Decision
 ********
@@ -26,7 +26,8 @@ Decision
 1. Record custom role changes in a dedicated table
 ==================================================
 
-Every custom role change writes one record to a new ``RoleDefinitionAudit`` table, one per request:
+Every custom role change writes one record to a new ``RoleDefinitionAudit`` table: one per request,
+or one per affected role when a deployment drops grants from several roles.
 
 .. list-table::
    :header-rows: 1
@@ -35,7 +36,7 @@ Every custom role change writes one record to a new ``RoleDefinitionAudit`` tabl
      - Operation
    * - Create, including a copy
      - ``created``
-   * - Edit the name, description, or permissions
+   * - Edit the description or permissions
      - ``updated``
    * - Remove
      - ``deleted``
@@ -47,6 +48,9 @@ Each record stores the operation, a ``change_id`` (UUID), the namespaced role ke
 foreign keys, so records survive the removal of the role, and the actor comes from
 ``django_crum.get_current_user()``. The actor is ``None`` for system changes such as deployments.
 
+`ADR 0035`_ keeps a removed role's row and never reuses its ID, so each role key in the audit always
+names one role, and the admin can still show a removed role's display name.
+
 Copies are recorded as ``created``. The server does not know a role was copied (`ADR 0036`_).
 
 2. Store what changed
@@ -56,8 +60,7 @@ The ``changes`` field is JSON:
 
 * ``created`` and ``deleted``: the full role: ``display_name``, ``description``, ``scope_types``,
   and ``permissions``.
-* ``updated``: only the fields that changed. A name or description change stores the old and new
-  values. A permission change stores ``permissions_added`` and ``permissions_removed``.
+* ``updated``: only the fields that changed. A description change stores the old and new values. A permission change stores ``permissions_added`` and ``permissions_removed``.
 
 3. Link assignment changes to the role change
 =============================================

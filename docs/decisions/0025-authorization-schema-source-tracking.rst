@@ -218,8 +218,8 @@ Consequences
 Addendum (2026-11-09)
 *********************
 
-`ADR 0037`_ decides source tracking for custom (dynamic) roles: they get no source rows, and their
-``created`` audit record says who created them and when.
+`ADR 0037`_ records who created each custom (dynamic) role, and when, in its ``created`` audit
+record.
 
 References
 **********

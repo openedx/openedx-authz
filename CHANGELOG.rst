@@ -125,6 +125,7 @@ Fixed
   conflict regardless of priority, matching schema validation; only ``role_extensions`` are resolved
   by priority. This aligns the compiler with ADR 0031 and removes a path where a higher-priority file
   could silently replace a role's base definition.
+* Migration ``0007_coursescope`` no longer fails with MySQL error 3780 when the platform's course table has a collation other than ``utf8mb4_unicode_ci``, because on MySQL it gives ``course_overview_id`` the collation of the course column it references before creating the foreign key (`#593 <https://github.com/openedx/openedx-authz/issues/593>`_).
 
 Changed
 ========

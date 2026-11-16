@@ -339,6 +339,41 @@ class TestScopeGetOrCreateForExternalKeyBranches(TestCase):
         self.assertEqual(ContentLibraryScope.objects.filter(content_library=content_library).count(), 1)
 
 
+class TestCourseScopeReferenceByKey(TestCase):
+    """CourseScope references its course only through external_key."""
+
+    def test_course_overview_follows_the_course_key(self):
+        """A scope created before its course returns no course, and returns it once it exists.
+
+        Expected Result:
+        - course_overview is None while the course does not exist.
+        - course_overview returns the course created later with the same key.
+        """
+        course_id = "course-v1:TestOrg+Rerun+2025"
+        scope = CourseScope.get_or_create_for_external_key(CourseOverviewData(external_key=course_id))
+        self.assertIsNone(scope.course_overview)
+
+        course_overview = CourseOverview.get_from_id(course_id)
+
+        self.assertEqual(scope.course_overview, course_overview)
+
+    def test_existing_course_reuses_one_scope(self):
+        """Getting the scope of an existing course twice returns the same row.
+
+        Expected Result:
+        - Both calls return the same scope, and one scope exists for the key.
+        """
+        course_id = "course-v1:TestOrg+Existing+2024"
+        CourseOverview.get_from_id(course_id)
+        scope_data = CourseOverviewData(external_key=course_id)
+
+        first_scope = CourseScope.get_or_create_for_external_key(scope_data)
+        second_scope = CourseScope.get_or_create_for_external_key(scope_data)
+
+        self.assertEqual(first_scope.id, second_scope.id)
+        self.assertEqual(CourseScope.objects.filter(external_key=course_id).count(), 1)
+
+
 class TestPolicyCacheControlModel(TestCase):
     """Test cases for the PolicyCacheControl model."""
 

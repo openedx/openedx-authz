@@ -143,36 +143,40 @@ if WaffleFlagOrgOverrideModel is not None:
     post_save.connect(handle_org_waffle_flag_change, sender=WaffleFlagOrgOverrideModel)
 
 
-def backfill_course_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
+def delete_course_scope_on_course_deletion(sender, instance, **kwargs):  # pylint: disable=unused-argument
     """
-    Link a pending CourseScope to the CourseOverview that was just created for it.
+    Delete the course scope of a CourseOverview that was just deleted.
 
-    get_or_create_for_external_key() (openedx_authz/models/scopes.py) allows assigning a
-    role for a course key before its CourseOverview exists, leaving course_overview null.
-    This backfills that FK once the course shows up, e.g. after a course rerun finishes
-    cloning. See CourseScope.link_pending_scope() for the actual lookup/update.
+    Course scopes reference their course only by its key, so nothing in the database deletes
+    the scope with its course. Deleting the scope deletes its ExtendedCasbinRule rows through
+    their foreign key to the scope, and delete_casbin_rule_on_extended_rule_deletion() then
+    deletes the matching CasbinRule rows, so the role assignments on the course go away and a
+    course created later with the same key does not inherit them.
 
-    This runs on every CourseOverview save, so errors are logged rather than raised:
-    a problem backfilling a pending scope must not break the caller's save(). The query
-    runs in its own savepoint so a failure doesn't poison the caller's transaction.
+    Args:
+        sender: The CourseOverview model class.
+        instance: The CourseOverview that was deleted, for example the one with id
+            ``course-v1:OpenedX+DemoX+2024``.
+        **kwargs: Other arguments Django sends with ``post_delete``.
+
+    Returns:
+        None
     """
-    try:
-        with transaction.atomic():
-            CourseScope.link_pending_scope(instance)
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.exception(
-            "Error linking pending CourseScope to CourseOverview %s",
-            instance.pk,
-            exc_info=exc,
-        )
+    CourseScope.objects.filter(external_key=CourseScope.external_key_for_object(instance)).delete()
 
 
 def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disable=unused-argument
     """
     Link a pending ContentLibraryScope to the ContentLibrary that was just created for it.
 
-    See backfill_course_scope() above; same idea for content libraries, including the
-    broad exception handling and the isolating savepoint.
+    get_or_create_for_external_key() (openedx_authz/models/core.py) allows assigning a role
+    for a library key before its ContentLibrary exists, leaving content_library null. This
+    backfills that FK once the library shows up. See Scope.link_pending_scope() for the
+    actual lookup/update.
+
+    This runs on every ContentLibrary save, so errors are logged rather than raised:
+    a problem backfilling a pending scope must not break the caller's save(). The query
+    runs in its own savepoint so a failure doesn't poison the caller's transaction.
     """
     try:
         with transaction.atomic():
@@ -187,7 +191,7 @@ def backfill_content_library_scope(sender, instance, **kwargs):  # pylint: disab
 
 # Only register the handlers if the models are available (i.e., running in Open edX)
 if CourseOverview is not None:
-    post_save.connect(backfill_course_scope, sender=CourseOverview)
+    post_delete.connect(delete_course_scope_on_course_deletion, sender=CourseOverview)
 
 if ContentLibrary is not None:
     post_save.connect(backfill_content_library_scope, sender=ContentLibrary)

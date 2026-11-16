@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, patch
 from casbin_adapter.models import CasbinRule
 from ddt import data, ddt, unpack
 from django.test import TestCase, override_settings
-from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocatorV2
 from openedx_events.authz.data import RoleAssignmentData
 
@@ -27,6 +26,7 @@ from openedx_authz.handlers import (
 )
 from openedx_authz.models.authz_migration import MigrationType, ScopeType
 from openedx_authz.models.core import ExtendedCasbinRule, RoleAssignmentAudit, Scope, Subject
+from openedx_authz.models.scopes import CourseScope
 from openedx_authz.models.subjects import UserSubject
 from openedx_authz.tests.stubs.models import (
     ContentLibrary,
@@ -249,32 +249,102 @@ class TestExtendedCasbinRuleDeletionSignalHandlers(TestCase):
         self.assertTrue(Subject.objects.filter(id=subject_id).exists())
 
 
-class TestBackfillPendingScopeSignalHandlers(TestCase):
-    """Confirm the pending-scope backfill handlers stay resilient to failures.
+class TestDeleteCourseScopeOnCourseDeletion(TestCase):
+    """Deleting a CourseOverview deletes the course scope with its key and the role assignments on it."""
 
-    A failure linking a pending CourseScope/ContentLibraryScope must not break the
-    CourseOverview/ContentLibrary save() that triggered it (see openedx_authz/handlers.py
-    backfill_course_scope/backfill_content_library_scope).
-    """
+    def create_course_with_assignment(self, course_id):
+        """Create a CourseOverview, its course scope and a role assignment on that scope.
 
-    def test_course_scope_backfill_logs_exception_without_raising(self):
-        """A failure in CourseScope.link_pending_scope() should be logged, not raised.
+        Args:
+            course_id: The course key as a string, for example ``"course-v1:TestOrg+Delete+2024"``.
+
+        Returns:
+            tuple: (course_overview, course_scope, casbin_rule, extended_rule)
+        """
+        course_overview = CourseOverview.get_from_id(course_id)
+        course_scope = CourseScope.objects.create(external_key=course_id)
+        casbin_rule, extended_rule = create_casbin_rule_with_extended(
+            ptype="g",
+            v0="user^course_staff_user",
+            v1="role^course_staff",
+            v2=f"course-v1^{course_id}",
+            v3="",
+            scope=course_scope,
+        )
+        return course_overview, course_scope, casbin_rule, extended_rule
+
+    def test_deleting_course_deletes_its_scope_and_role_assignments(self):
+        """Deleting a CourseOverview removes its course scope, ExtendedCasbinRule and CasbinRule rows,
+        leaves other courses' scopes, and a course created again with the same key has no assignments.
 
         Expected Result:
-        - Logger captures the exception raised by link_pending_scope().
-        - CourseOverview.get_from_id() (the caller) still returns normally.
+        - The deleted course's scope, extended rule and Casbin rule no longer exist.
+        - The other course's scope still exists.
+        - The recreated course has no course scope.
         """
-        with (
-            patch("openedx_authz.handlers.logger") as mock_logger,
-            patch("openedx_authz.handlers.CourseScope.link_pending_scope") as mock_link,
-        ):
-            mock_link.side_effect = RuntimeError("link failed")
+        course_id = "course-v1:TestOrg+Delete+2024"
+        course_overview, course_scope, casbin_rule, extended_rule = self.create_course_with_assignment(course_id)
+        _, other_scope, _, _ = self.create_course_with_assignment("course-v1:TestOrg+Keep+2024")
 
-            course_overview = CourseOverview.get_from_id(CourseKey.from_string("course-v1:TestOrg+Resilient+2024"))
+        course_overview.delete()
 
-            mock_link.assert_called_once_with(course_overview)
-            mock_logger.exception.assert_called_once()
-            self.assertIn("Error linking pending CourseScope", mock_logger.exception.call_args[0][0])
+        self.assertFalse(CourseScope.objects.filter(id=course_scope.id).exists())
+        self.assertFalse(ExtendedCasbinRule.objects.filter(id=extended_rule.id).exists())
+        self.assertFalse(CasbinRule.objects.filter(id=casbin_rule.id).exists())
+        self.assertTrue(CourseScope.objects.filter(id=other_scope.id).exists())
+        CourseOverview.get_from_id(course_id)
+        self.assertFalse(CourseScope.objects.filter(external_key=course_id).exists())
+
+    def test_deleting_course_without_scope_deletes_nothing_else(self):
+        """Deleting a CourseOverview that no course scope references leaves every scope in place.
+
+        Expected Result:
+        - The number of scopes is unchanged.
+        """
+        self.create_course_with_assignment("course-v1:TestOrg+Other+2024")
+        course_overview = CourseOverview.get_from_id("course-v1:TestOrg+NoScope+2024")
+        scope_count = Scope.objects.count()
+
+        course_overview.delete()
+
+        self.assertEqual(Scope.objects.count(), scope_count)
+
+    def test_queryset_delete_deletes_the_scope_of_each_course(self):
+        """Deleting several CourseOverviews in one queryset delete removes each course scope.
+
+        Expected Result:
+        - No course scope remains for any of the deleted courses.
+        """
+        course_ids = ["course-v1:TestOrg+Bulk1+2024", "course-v1:TestOrg+Bulk2+2024"]
+        for course_id in course_ids:
+            self.create_course_with_assignment(course_id)
+
+        CourseOverview.objects.filter(id__in=course_ids).delete()
+
+        self.assertFalse(CourseScope.objects.filter(external_key__in=course_ids).exists())
+
+    def test_raw_delete_leaves_the_scope_and_role_assignments(self):
+        """Removing a CourseOverview row without Django signals leaves its scope and role assignments.
+
+        Expected Result:
+        - The course scope and its extended rule still exist after the raw delete.
+        """
+        course_id = "course-v1:TestOrg+Raw+2024"
+        _, course_scope, _, extended_rule = self.create_course_with_assignment(course_id)
+        queryset = CourseOverview.objects.filter(id=course_id)
+
+        queryset._raw_delete(queryset.db)  # pylint: disable=protected-access
+
+        self.assertTrue(CourseScope.objects.filter(id=course_scope.id).exists())
+        self.assertTrue(ExtendedCasbinRule.objects.filter(id=extended_rule.id).exists())
+
+
+class TestBackfillPendingScopeSignalHandlers(TestCase):
+    """Confirm the pending-scope backfill handler stays resilient to failures.
+
+    A failure linking a pending ContentLibraryScope must not break the ContentLibrary save()
+    that triggered it (see openedx_authz/handlers.py backfill_content_library_scope).
+    """
 
     def test_content_library_scope_backfill_logs_exception_without_raising(self):
         """A failure in ContentLibraryScope.link_pending_scope() should be logged, not raised.

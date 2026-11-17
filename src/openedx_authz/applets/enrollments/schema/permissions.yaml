@@ -6,7 +6,7 @@ priority: 100
 permission_categories:
   - id: course_enrollments
     display_name: Enrollments
-    description: Permissions for viewing course enrollments and for enrolling or unenrolling learners.
+    description: Permissions for viewing and managing learner enrollments in the Instructor Dashboard.
     icon: People
 
 permissions:

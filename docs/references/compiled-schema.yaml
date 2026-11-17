@@ -443,7 +443,7 @@ permissions:
     name: edit_grading_settings
     display_name: Edit grading settings
     description: Update the grading configuration for the course, including assignment types and grading scale.
-    category_id: course_grading
+    category_id: course_grading_settings
     scopes:
     - course-v1
     icon: EditOutline
@@ -487,7 +487,7 @@ permissions:
     name: export_tags
     display_name: Export tags
     description: Download the tag data associated with this course.
-    category_id: course_import_export
+    category_id: course_tags_taxonomies
     scopes:
     - course-v1
     icon: Upload
@@ -564,7 +564,7 @@ permissions:
     name: manage_advanced_settings
     display_name: Manage advanced settings
     description: Edit technical course configurations in the Advanced Settings page in Studio.
-    category_id: course_advanced_certificates
+    category_id: course_advanced_settings_certificates
     scopes:
     - course-v1
     icon: Settings
@@ -575,7 +575,7 @@ permissions:
     name: manage_certificates
     display_name: Manage certificates
     description: Create and edit course certificates, including certificate design and eligibility settings.
-    category_id: course_advanced_certificates
+    category_id: course_advanced_settings_certificates
     scopes:
     - course-v1
     icon: Settings
@@ -586,7 +586,7 @@ permissions:
     name: manage_cohorts
     display_name: Manage cohorts
     description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
-    category_id: course_cohorts
+    category_id: course_cohorts_content_groups
     scopes:
     - course-v1
     icon: Settings
@@ -596,8 +596,8 @@ permissions:
     namespace: courses
     name: manage_course_team
     display_name: Manage course team
-    description: Add, change, or remove role assignments for this course from the Roles and Permissions console.
-    category_id: course_team_group
+    description: Add, change, or remove role assignments for this course from the Roles and Permissions console or the Instructor Dashboard.
+    category_id: course_team
     scopes:
     - course-v1
     icon: Settings
@@ -619,7 +619,7 @@ permissions:
     name: manage_group_configurations
     display_name: Manage group configurations
     description: Create and manage content groups used to target course content to specific learners.
-    category_id: course_team_group
+    category_id: course_cohorts_content_groups
     scopes:
     - course-v1
     icon: Settings
@@ -689,7 +689,7 @@ permissions:
     scopes:
     - course-v1
     icon: LocalOffer
-    hidden: false
+    hidden: true
   courses.publish_course_content:
     applet: course_authoring
     namespace: courses
@@ -718,7 +718,7 @@ permissions:
     name: view_advanced_settings
     display_name: View advanced settings
     description: Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
-    category_id: course_advanced_certificates
+    category_id: course_advanced_settings_certificates
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -729,7 +729,7 @@ permissions:
     name: view_certificates
     display_name: View certificates
     description: See the course certificate settings.
-    category_id: course_advanced_certificates
+    category_id: course_advanced_settings_certificates
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -740,7 +740,7 @@ permissions:
     name: view_checklists
     display_name: View checklists
     description: See the course launch checklist in Studio.
-    category_id: course_other
+    category_id: course_access_content
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -751,7 +751,7 @@ permissions:
     name: view_cohorts
     display_name: View cohorts
     description: View course cohorts, their configuration, and their members.
-    category_id: course_cohorts
+    category_id: course_cohorts_content_groups
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -772,8 +772,8 @@ permissions:
     namespace: courses
     name: view_course_info
     display_name: View course info
-    description: View general course information and enrollment counts.
-    category_id: course_information
+    description: View general course information and enrollment counts in the Instructor Dashboard.
+    category_id: course_access_content
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -783,8 +783,8 @@ permissions:
     namespace: courses
     name: view_course_team
     display_name: View course team
-    description: See the list of users with a role assigned to this course.
-    category_id: course_team_group
+    description: See who has a role assigned to this course in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
+    category_id: course_team
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -838,8 +838,8 @@ permissions:
     namespace: courses
     name: view_grading_settings
     display_name: View grading settings
-    description: See the grading configuration for the course, including assignment types and grading scale.
-    category_id: course_grading
+    description: View the course's grading configuration, including assignment types and the grading scale, in Studio or from the Instructor Dashboard.
+    category_id: course_grading_settings
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -850,7 +850,7 @@ permissions:
     name: view_group_configurations
     display_name: View group configurations
     description: See the list of content groups and their configurations for this course.
-    category_id: course_team_group
+    category_id: course_cohorts_content_groups
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -903,25 +903,25 @@ categories:
   course_access_content:
     applet: course_authoring
     display_name: Course access & content
-    description: Permissions related to accessing the course and managing core course content, including creating, editing, and publishing materials.
+    description: Permissions for accessing the course and its launch checklist in Studio, managing course content, and viewing the course overview in the Instructor Dashboard.
     icon: BookOpen
     hidden: false
-  course_advanced_certificates:
+  course_advanced_settings_certificates:
     applet: course_authoring
-    display_name: Advanced & certificates
-    description: Permissions for managing advanced course settings and course certificates.
+    display_name: Advanced settings & certificates
+    description: Permissions for viewing and managing advanced course settings and course certificates in Studio.
     icon: CheckCircle
     hidden: false
-  course_cohorts:
+  course_cohorts_content_groups:
     applet: learner_administration
-    display_name: Cohorts
-    description: Permissions for viewing and managing course cohorts and their members.
+    display_name: Cohorts & content groups
+    description: Permissions for viewing and managing cohorts in the Instructor Dashboard and configuring content groups in Studio.
     icon: Groups
     hidden: false
   course_enrollments:
     applet: enrollments
     display_name: Enrollments
-    description: Permissions for viewing course enrollments and for enrolling or unenrolling learners.
+    description: Permissions for viewing and managing learner enrollments in the Instructor Dashboard.
     icon: People
     hidden: false
   course_files:
@@ -930,34 +930,28 @@ categories:
     description: Permissions for viewing and managing files and assets uploaded to the course.
     icon: Folder
     hidden: false
-  course_grading:
+  course_grading_settings:
     applet: course_authoring
-    display_name: Grading
-    description: Permissions related to viewing and managing grading configuration and grading policies.
+    display_name: Grading settings
+    description: Permissions for viewing and editing course grading settings.
     icon: Award
     hidden: false
   course_import_export:
     applet: course_authoring
-    display_name: Import / export
-    description: Permissions for importing and exporting course content and related data.
+    display_name: Course import & export
+    description: Permissions for importing and exporting course content.
     icon: Download
-    hidden: false
-  course_information:
-    applet: learner_administration
-    display_name: Course information
-    description: Permissions for viewing general course information.
-    icon: Info
     hidden: false
   course_learner_extensions:
     applet: learner_administration
     display_name: Learner extensions
-    description: Permissions for viewing and managing due date extensions for individual learners.
+    description: Permissions for viewing and managing individual due date extensions from the Date Extensions tab in the Instructor Dashboard.
     icon: Event
     hidden: false
   course_learner_grading:
     applet: learner_grading
     display_name: Learner grading
-    description: Permissions for viewing learner grades and using grading tools for individual learners or all learners.
+    description: Permissions for viewing learner grades and using grading tools in the Instructor Dashboard.
     icon: Grading
     hidden: false
   course_legacy:
@@ -971,12 +965,6 @@ categories:
     display_name: Library updates
     description: Permissions for reviewing and managing updates made to content libraries connected to the course.
     icon: LibraryBooks
-    hidden: false
-  course_other:
-    applet: course_authoring
-    display_name: Other
-    description: Additional permissions not included in other categories, such as viewing checklists.
-    icon: DrawShapes
     hidden: false
   course_pages_resources:
     applet: course_authoring
@@ -993,13 +981,13 @@ categories:
   course_tags_taxonomies:
     applet: course_authoring
     display_name: Tags
-    description: Permissions for managing tags used to organize course content.
+    description: Permissions for managing course tags and exporting tag data.
     icon: LocalOffer
     hidden: false
-  course_team_group:
+  course_team:
     applet: course_authoring
-    display_name: Course team & groups
-    description: Permissions for viewing and managing the course team, learner groups, and group configurations.
+    display_name: Course team
+    description: Permissions for viewing course team members and managing course role assignments.
     icon: Group
     hidden: false
   course_updates_handouts:

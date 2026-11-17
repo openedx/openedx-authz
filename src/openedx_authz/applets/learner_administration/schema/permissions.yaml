@@ -4,25 +4,21 @@ priority: 100
 # Icons are Paragon icon names (@openedx/paragon/icons).
 
 permission_categories:
-  - id: course_information
-    display_name: Course information
-    description: Permissions for viewing general course information.
-    icon: Info
   - id: course_learner_extensions
     display_name: Learner extensions
-    description: Permissions for viewing and managing due date extensions for individual learners.
+    description: Permissions for viewing and managing individual due date extensions from the Date Extensions tab in the Instructor Dashboard.
     icon: Event
-  - id: course_cohorts
-    display_name: Cohorts
-    description: Permissions for viewing and managing course cohorts and their members.
+  - id: course_cohorts_content_groups
+    display_name: Cohorts & content groups
+    description: Permissions for viewing and managing cohorts in the Instructor Dashboard and configuring content groups in Studio.
     icon: Groups
 
 permissions:
   - namespace: courses
     name: view_course_info
     display_name: View course info
-    description: View general course information and enrollment counts.
-    category_id: course_information
+    description: View general course information and enrollment counts in the Instructor Dashboard.
+    category_id: course_access_content
     scopes:
       - course-v1
     icon: RemoveRedEye
@@ -46,7 +42,7 @@ permissions:
     name: view_cohorts
     display_name: View cohorts
     description: View course cohorts, their configuration, and their members.
-    category_id: course_cohorts
+    category_id: course_cohorts_content_groups
     scopes:
       - course-v1
     icon: RemoveRedEye
@@ -54,7 +50,7 @@ permissions:
     name: manage_cohorts
     display_name: Manage cohorts
     description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
-    category_id: course_cohorts
+    category_id: course_cohorts_content_groups
     scopes:
       - course-v1
     icon: Settings

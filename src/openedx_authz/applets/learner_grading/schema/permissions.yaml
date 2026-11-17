@@ -6,7 +6,7 @@ priority: 100
 permission_categories:
   - id: course_learner_grading
     display_name: Learner grading
-    description: Permissions for viewing learner grades and using grading tools for individual learners or all learners.
+    description: Permissions for viewing learner grades and using grading tools in the Instructor Dashboard.
     icon: Grading
 
 permissions:

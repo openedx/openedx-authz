@@ -60,6 +60,7 @@ Added
 Changed
 ========
 
+* Updated the course permission categories and permissions to match the Roles and Permissions console proposal. ``View course info`` and ``View checklists`` move to ``Course access & content``, ``Export tags`` moves to ``Tags``, and the group configuration permissions move to ``Cohorts & content groups``. The ``course_information`` and ``course_other`` categories are removed. ``Course team & groups``, ``Grading``, ``Advanced & certificates``, and ``Import / export`` are renamed, the category IDs ``course_cohorts``, ``course_team_group``, ``course_grading``, and ``course_advanced_certificates`` become ``course_cohorts_content_groups``, ``course_team``, ``course_grading_settings``, and ``course_advanced_settings_certificates``, and several category and permission descriptions now name Studio and the Instructor Dashboard. ``courses.manage_taxonomies`` is now hidden. Role grants are unchanged.
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
 * Built-in Content Library and course authorization definitions now live in capability applets. The compiled authorization schema, the permission constants, and the role keys remain unchanged.
 * **Breaking**: ``GET /api/authz/v1/scopes/`` no longer accepts ``course`` and ``library`` as

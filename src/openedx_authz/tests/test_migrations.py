@@ -100,7 +100,7 @@ class TestBuiltinSchemaSourceMigration(TestCase):
             module=schema_source_migration.OLD_MODULE,
             schema_version="1.0",
         )
-        category = AuthzPermissionCategory.objects.create(category_id="course_team_group", display_name="Course team")
+        category = AuthzPermissionCategory.objects.create(category_id="course_team", display_name="Course team")
         permission = AuthzPermissionDefinition.objects.create(
             namespace="courses",
             name="view_course_team",

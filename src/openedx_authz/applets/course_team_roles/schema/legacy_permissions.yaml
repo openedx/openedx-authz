@@ -6,6 +6,7 @@ permission_categories:
     display_name: Legacy compatibility
     description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.
     icon: DrawShapes
+    hidden: true
 
 permissions:
   - namespace: courses

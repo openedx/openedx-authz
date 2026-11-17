@@ -430,8 +430,16 @@ The deprecated ``course`` and ``library`` aliases of ``GET /api/authz/v1/scopes/
 
 This addendum replaces the alias bullets in "Scope type naming" and the mention of the aliases in the consequences.
 
+Addendum: 2026-11-16
+********************
+
+Permission categories and permissions have an optional ``hidden`` flag (`ADR 0023`_). The catalog leaves out hidden permissions and permissions in hidden categories, and each role's ``permissions`` omits them too. ``categories`` contains only non-hidden categories used by the remaining permissions. Roles are still listed by their grants in the requested scope types, so a role whose permissions are all hidden is returned with an empty ``permissions`` list. The grants themselves are kept and permission checks do not change.
+
+This addendum amends the ``permissions``, ``roles`` and ``categories`` bullets of the response rules above. See `ADR 0035`_.
+
 .. _frontend-app-admin-console: https://github.com/openedx/frontend-app-admin-console
 .. _Issue #536: https://github.com/openedx/openedx-authz/issues/536
+.. _ADR 0035: 0035-hidden-permission-categories-and-permissions.rst
 .. _ADR 0020: 0020-authorization-schema-internationalization.rst
 .. _ADR 0021: 0021-authorization-definition-api.rst
 .. _ADR 0023: 0023-extend-static-roles.rst

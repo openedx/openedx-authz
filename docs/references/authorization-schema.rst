@@ -125,6 +125,9 @@ A category contains these fields:
 ``icon``
    An optional icon name exported by ``@openedx/paragon/icons``. The value is case-sensitive, such as ``Article``.
 
+``hidden``
+   An optional boolean that defaults to ``false``. A hidden category does not appear in normal discovery and selection interfaces, and neither do the permissions it contains. Hiding does not delete the category or its permissions, remove them from roles, or change permission checks. Role extensions cannot change this field.
+
 For example:
 
 .. code-block:: yaml
@@ -160,6 +163,9 @@ A permission contains these fields:
 
 ``icon``
    An optional, case-sensitive icon name exported by ``@openedx/paragon/icons``.
+
+``hidden``
+   An optional boolean that defaults to ``false``. A hidden permission does not appear in normal discovery and selection interfaces or in role details. Hiding does not delete the permission, remove it from roles, or change permission checks. Role extensions cannot change this field.
 
 The complete permission ID joins ``namespace`` and ``name`` with a period. For example:
 

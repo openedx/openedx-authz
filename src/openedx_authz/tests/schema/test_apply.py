@@ -524,6 +524,33 @@ class TestDefinitionChangeReport:
 
         assert plan.roles.updated == ["course_editor"]
 
+    def test_category_hidden_flag_change_is_reported(self):
+        """Flipping a category's ``hidden`` flag is reported as an update."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _editor(("courses.view_course",)))
+
+        after = _doc(
+            roles=[role(rid="course_editor", permissions=("courses.view_course",))],
+            categories=[category(cid="cat", hidden=True)],
+            permissions=[permission(name="view_course", cat="cat")],
+        )
+        plan = self._plan(enforcer, after)
+
+        assert plan.categories.updated == ["cat"]
+
+    def test_permission_hidden_flag_change_is_reported(self):
+        """Flipping a permission's ``hidden`` flag is reported as an update."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _editor(("courses.view_course",)))
+
+        after = _doc(
+            roles=[role(rid="course_editor", permissions=("courses.view_course",))],
+            permissions=[permission(name="view_course", cat="cat", hidden=True)],
+        )
+        plan = self._plan(enforcer, after)
+
+        assert plan.permissions.updated == ["courses.view_course"]
+
     def test_permission_metadata_change_is_reported(self):
         """Editing a permission's display name is reported as an update."""
         enforcer = FakeEnforcer()

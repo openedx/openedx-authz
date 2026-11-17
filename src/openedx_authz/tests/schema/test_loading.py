@@ -29,12 +29,21 @@ permission_categories:
     display_name: Course content
     description: Course content permissions.
     icon: Article
+    hidden: true
 
 permissions:
   - namespace: courses
     name: view_course
     display_name: View course
     description: View a course.
+    category_id: course_content
+    scopes: [course-v1]
+    hidden: true
+
+  - namespace: courses
+    name: edit_course
+    display_name: Edit course
+    description: Edit a course.
     category_id: course_content
     scopes: [course-v1]
 
@@ -77,6 +86,9 @@ class TestDocumentLoading:
         assert doc.categories[0].id == "course_content"
         assert doc.permissions[0].identifier == "courses.view_course"
         assert doc.permissions[0].scopes == ("course-v1",)
+        assert doc.categories[0].hidden is True
+        assert doc.permissions[0].hidden is True
+        assert doc.permissions[1].hidden is False
         assert doc.roles[0].hidden is True
         assert doc.roles[0].permissions == ("courses.view_course",)
         assert doc.role_extensions[0].role_id == "course_editor"
@@ -695,7 +707,7 @@ role_extensions:
 
     def test_empty_document_between_separators_is_skipped(self):
         """An empty ``---`` block between contributions is silently dropped."""
-        contents = b"schema_version: '1.0'\npriority: 1\n" b"---\n" b"---\n" b"schema_version: '1.0'\npriority: 2\n"
+        contents = b"schema_version: '1.0'\npriority: 1\n---\n---\nschema_version: '1.0'\npriority: 2\n"
 
         docs = _load(contents)
 

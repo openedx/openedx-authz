@@ -98,12 +98,14 @@ class TestCompiledSchemaSnapshot:
             "category_id": "course_content",
             "scopes": ["course"],
             "icon": None,
+            "hidden": False,
         }
         assert render_category(category) == {
             "applet": "course_authoring",
             "display_name": "Course content",
             "description": "Course content operations",
             "icon": None,
+            "hidden": False,
         }
 
     def test_snapshot_data_orders_definition_identifiers(self):

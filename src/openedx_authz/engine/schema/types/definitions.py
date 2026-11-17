@@ -15,12 +15,18 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PermissionCategory:
-    """A display/grouping category for permissions. Grants no access."""
+    """A display/grouping category for permissions. Grants no access.
+
+    A hidden category is excluded from normal discovery/selection, and so are
+    all of its permissions. It keeps its definition, role grants, and permission
+    checks.
+    """
 
     id: str
     display_name: str
     description: str
     icon: str | None = None
+    hidden: bool = False
 
 
 @dataclass(frozen=True)
@@ -29,6 +35,9 @@ class PermissionDefinition:
 
     The complete permission ID (used by role definitions, extensions, app
     checks, and API responses) is :attr:`identifier`.
+
+    A hidden permission is excluded from normal discovery/selection and from
+    role details. It keeps its role grants and permission checks.
     """
 
     namespace: str
@@ -43,6 +52,7 @@ class PermissionDefinition:
     category_id: str
     scopes: tuple[str, ...]
     icon: str | None = None
+    hidden: bool = False
 
     @property
     def identifier(self) -> str:

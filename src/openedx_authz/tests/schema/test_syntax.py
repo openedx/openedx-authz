@@ -167,6 +167,16 @@ class TestSchemaSyntaxValidator:
         """An icon name that is not PascalCase is rejected before the export check."""
         assert validation_messages(category_data(icon=icon))
 
+    @pytest.mark.parametrize("builder", [category_data, permission_data])
+    def test_hidden_flag_must_be_a_boolean(self, builder):
+        """Categories and permissions accept boolean ``hidden`` values only."""
+        valid = builder()
+        block = next(key for key in valid if key not in ("schema_version", "priority"))
+
+        for value, ok in ((True, True), (False, True), ("yes", False), (1, False)):
+            data = {**valid, block: [{**valid[block][0], "hidden": value}]}
+            assert (not validation_messages(data)) is ok
+
     def test_non_string_icon_is_error(self):
         """Icon values must be strings before semantic membership validation."""
         messages = validation_messages(category_data(icon=123))

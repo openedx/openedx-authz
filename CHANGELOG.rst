@@ -17,6 +17,10 @@ Unreleased
 Added
 =====
 
+* Added an optional ``hidden`` flag to permission categories and permissions in the authorization
+  schema. Hidden permissions, and the permissions of hidden categories, are left out of the
+  role and permission catalog, including each role's permission list, but keep their role grants
+  and permission checks.
 * Added the static authorization schema, a versioned YAML format for declaring permissions,
   permission categories, roles, and role extensions (ADR 0017). The permissions and roles
   previously defined in ``authz.policy`` are expressed as schema files under

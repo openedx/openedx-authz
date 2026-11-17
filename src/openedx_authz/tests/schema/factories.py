@@ -58,6 +58,7 @@ def category(cid: str = "cat", **kwargs) -> PermissionCategory:
         display_name=kwargs.get("display_name", "Cat"),
         description=kwargs.get("description", "desc"),
         icon=kwargs.get("icon"),
+        hidden=kwargs.get("hidden", False),
     )
 
 
@@ -70,6 +71,7 @@ def permission(namespace="courses", name="view_course", *, cat="cat", scopes=("c
         category_id=cat,
         scopes=tuple(scopes),
         icon=kwargs.get("icon"),
+        hidden=kwargs.get("hidden", False),
     )
 
 

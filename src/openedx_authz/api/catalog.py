@@ -17,8 +17,9 @@ __all__ = ["get_permission_catalog", "get_category_catalog", "get_role_catalog"]
 def get_permission_catalog(scope_types: list[str]) -> list[AuthzPermissionDefinition]:
     """Return the permissions that can be granted in any of the scope types.
 
-    A permission qualifies when any of the scope types is among its supported ``scopes``. Each
-    permission is loaded with its category.
+    A permission qualifies when any of the scope types is among its supported ``scopes`` and it is
+    visible: neither the permission nor its category is hidden. Each permission is loaded with its
+    category.
 
     Args:
         scope_types (list[str]): The scope types (e.g., ['course-v1', 'lib']).
@@ -27,7 +28,8 @@ def get_permission_catalog(scope_types: list[str]) -> list[AuthzPermissionDefini
         list[AuthzPermissionDefinition]: The matching permissions, ordered by namespace and name
     """
     return list(
-        AuthzPermissionDefinition.objects.supporting_scope_types(scope_types)
+        AuthzPermissionDefinition.objects.visible()
+        .supporting_scope_types(scope_types)
         .select_related("category")
         .order_by("namespace", "name")
     )
@@ -56,7 +58,8 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
     """Return the roles that can be assigned in any of the scope types, with their grants in them.
 
     A role is included when it has at least one permission grant in any of the scope types and is
-    not hidden. Roles and their grants are read only from the stored schema definitions, never
+    not hidden. Hidden permissions, and permissions in hidden categories, are left out of
+    ``permissions``. Roles and their grants are read only from the stored schema definitions, never
     from the Casbin policy, so a role without a stored definition is not listed. Hidden roles are
     never included, even if they are assigned to users.
 

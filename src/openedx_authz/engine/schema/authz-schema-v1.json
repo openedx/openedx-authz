@@ -195,6 +195,13 @@
           "title": "Category icon",
           "examples": ["Article"],
           "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Category hidden",
+          "description": "Whether normal discovery and selection interfaces omit this category and all of its permissions.",
+          "type": "boolean",
+          "default": false,
+          "examples": [false]
         }
       }
     },
@@ -243,6 +250,13 @@
           "title": "Permission icon",
           "examples": ["Visibility"],
           "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Permission hidden",
+          "description": "Whether normal discovery and selection interfaces, and role details, omit this permission.",
+          "type": "boolean",
+          "default": false,
+          "examples": [false]
         }
       }
     },

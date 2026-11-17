@@ -147,6 +147,10 @@ class AuthzSchemaSource(TimeStampedModel):
 class AuthzPermissionDefinitionQuerySet(models.QuerySet):
     """QuerySet for AuthzPermissionDefinition with catalog lookups."""
 
+    def visible(self) -> "AuthzPermissionDefinitionQuerySet":
+        """Return the permissions that are not hidden, nor in a hidden category."""
+        return self.filter(hidden=False).exclude(category__hidden=True)
+
     def supporting_scope_types(self, scope_types: list[str]) -> "AuthzPermissionDefinitionQuerySet":
         """Return permissions that can be granted in any of the scope types.
 
@@ -162,12 +166,16 @@ class AuthzPermissionCategory(TimeStampedModel):
     """A display/grouping category for permissions (grants no access).
 
     .. no_pii:
+
+    A hidden category is excluded from normal discovery/selection together with
+    all of its permissions; it keeps its definition and role grants.
     """
 
     category_id = models.CharField(max_length=255, unique=True)
     display_name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     icon = models.CharField(max_length=128, blank=True, null=True)
+    hidden = models.BooleanField(default=False)
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzCategorySource", related_name="categories")
 
     class Meta:
@@ -201,6 +209,7 @@ class AuthzPermissionDefinition(TimeStampedModel):
     )
     scopes = models.JSONField(default=list)
     icon = models.CharField(max_length=128, blank=True, null=True)
+    hidden = models.BooleanField(default=False)
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzPermissionSource", related_name="permissions")
 
     class Meta:
@@ -232,9 +241,14 @@ class AuthzRoleDefinitionQuerySet(models.QuerySet):
     def with_grants_in_scope_types(self, scope_types: list[str]) -> "AuthzRoleDefinitionQuerySet":
         """Return the roles with a permission grant in any of the scope types, with those grants loaded.
 
-        Each role gets its grants in the scope types, with their permission, in ``grants``.
+        Each role gets its grants in the scope types, with their permission, in ``grants``. Grants of
+        hidden permissions, or of permissions in hidden categories, are not loaded.
         """
-        grants = AuthzRolePermission.objects.filter(scope__in=scope_types).select_related("permission")
+        grants = (
+            AuthzRolePermission.objects.filter(scope__in=scope_types, permission__hidden=False)
+            .exclude(permission__category__hidden=True)
+            .select_related("permission")
+        )
         return (
             self.filter(role_permissions__scope__in=scope_types)
             .distinct()

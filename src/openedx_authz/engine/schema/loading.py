@@ -84,6 +84,7 @@ class SchemaLoader:
             display_name=item.get("display_name", ""),
             description=item.get("description", ""),
             icon=item.get("icon"),
+            hidden=bool(item.get("hidden", False)),
         )
 
     def _build_permission(self, item: dict, source: SourceRecord) -> PermissionDefinition:
@@ -97,6 +98,7 @@ class SchemaLoader:
             category_id=item.get("category_id", ""),
             scopes=self._as_tuple(item.get("scopes")),
             icon=item.get("icon"),
+            hidden=bool(item.get("hidden", False)),
         )
 
     def _build_role(self, item: dict, source: SourceRecord) -> RoleDefinition:

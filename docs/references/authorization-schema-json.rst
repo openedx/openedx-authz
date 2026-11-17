@@ -45,6 +45,9 @@ Permission category fields
 .. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.json#/$defs/permission_category/properties/icon
    :lift_description:
 
+.. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.json#/$defs/permission_category/properties/hidden
+   :lift_description:
+
 Permission fields
 *****************
 
@@ -67,6 +70,9 @@ Permission fields
    :lift_description:
 
 .. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.json#/$defs/permission/properties/icon
+   :lift_description:
+
+.. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.json#/$defs/permission/properties/hidden
    :lift_description:
 
 Role fields

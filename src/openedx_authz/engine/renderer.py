@@ -456,6 +456,7 @@ class SchemaApplier:
                     definition.display_name == obj.display_name
                     and (definition.description or "") == obj.description
                     and definition.icon == obj.icon
+                    and definition.hidden == obj.hidden
                 ),
             ),
             "permissions": self._diff_kind(
@@ -470,6 +471,7 @@ class SchemaApplier:
                     and definition.icon == obj.icon
                     and list(definition.scopes) == list(obj.scopes or [])
                     and definition.category_id == (obj.category.category_id if obj.category_id else "")
+                    and definition.hidden == obj.hidden
                 ),
             ),
             "roles": self._diff_kind(
@@ -583,6 +585,7 @@ class SchemaApplier:
                     "display_name": definition.display_name,
                     "description": definition.description or "",
                     "icon": definition.icon,
+                    "hidden": definition.hidden,
                 },
             )
             category_objs[cid] = obj
@@ -604,6 +607,7 @@ class SchemaApplier:
                     "category": category_objs.get(definition.category_id),
                     "scopes": list(definition.scopes),
                     "icon": definition.icon,
+                    "hidden": definition.hidden,
                 },
             )
             permission_objs[pid] = obj

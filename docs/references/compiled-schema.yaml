@@ -271,6 +271,7 @@ permissions:
     scopes:
     - lib
     icon: Plus
+    hidden: false
   content_libraries.delete_library:
     applet: content_libraries
     namespace: content_libraries
@@ -281,6 +282,7 @@ permissions:
     scopes:
     - lib
     icon: Delete
+    hidden: false
   content_libraries.delete_library_collection:
     applet: content_libraries
     namespace: content_libraries
@@ -291,6 +293,7 @@ permissions:
     scopes:
     - lib
     icon: Delete
+    hidden: false
   content_libraries.edit_library_collection:
     applet: content_libraries
     namespace: content_libraries
@@ -301,6 +304,7 @@ permissions:
     scopes:
     - lib
     icon: EditOutline
+    hidden: false
   content_libraries.edit_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -311,6 +315,7 @@ permissions:
     scopes:
     - lib
     icon: EditOutline
+    hidden: false
   content_libraries.manage_library_tags:
     applet: content_libraries
     namespace: content_libraries
@@ -321,6 +326,7 @@ permissions:
     scopes:
     - lib
     icon: Settings
+    hidden: false
   content_libraries.manage_library_team:
     applet: content_libraries
     namespace: content_libraries
@@ -331,6 +337,7 @@ permissions:
     scopes:
     - lib
     icon: Settings
+    hidden: false
   content_libraries.publish_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -341,6 +348,7 @@ permissions:
     scopes:
     - lib
     icon: DownloadDone
+    hidden: false
   content_libraries.reuse_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -351,6 +359,7 @@ permissions:
     scopes:
     - lib
     icon: SpinnerIcon
+    hidden: false
   content_libraries.view_library:
     applet: content_libraries
     namespace: content_libraries
@@ -361,6 +370,7 @@ permissions:
     scopes:
     - lib
     icon: RemoveRedEye
+    hidden: false
   content_libraries.view_library_team:
     applet: content_libraries
     namespace: content_libraries
@@ -371,6 +381,7 @@ permissions:
     scopes:
     - lib
     icon: RemoveRedEye
+    hidden: false
   courses.create_files:
     applet: course_authoring
     namespace: courses
@@ -381,6 +392,7 @@ permissions:
     scopes:
     - course-v1
     icon: Plus
+    hidden: false
   courses.delete_files:
     applet: course_authoring
     namespace: courses
@@ -391,6 +403,7 @@ permissions:
     scopes:
     - course-v1
     icon: Delete
+    hidden: false
   courses.edit_course_content:
     applet: course_authoring
     namespace: courses
@@ -401,6 +414,7 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+    hidden: false
   courses.edit_details:
     applet: course_authoring
     namespace: courses
@@ -411,6 +425,7 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+    hidden: false
   courses.edit_files:
     applet: course_authoring
     namespace: courses
@@ -421,6 +436,7 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+    hidden: false
   courses.edit_grading_settings:
     applet: course_authoring
     namespace: courses
@@ -431,6 +447,7 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+    hidden: false
   courses.edit_schedule:
     applet: course_authoring
     namespace: courses
@@ -441,6 +458,7 @@ permissions:
     scopes:
     - course-v1
     icon: EditOutline
+    hidden: false
   courses.enroll_learners:
     applet: enrollments
     namespace: courses
@@ -451,6 +469,7 @@ permissions:
     scopes:
     - course-v1
     icon: PersonAdd
+    hidden: false
   courses.export_course:
     applet: course_authoring
     namespace: courses
@@ -461,6 +480,7 @@ permissions:
     scopes:
     - course-v1
     icon: Upload
+    hidden: false
   courses.export_tags:
     applet: course_authoring
     namespace: courses
@@ -471,6 +491,7 @@ permissions:
     scopes:
     - course-v1
     icon: Upload
+    hidden: false
   courses.import_course:
     applet: course_authoring
     namespace: courses
@@ -481,6 +502,7 @@ permissions:
     scopes:
     - course-v1
     icon: Download
+    hidden: false
   courses.legacy_beta_tester_permissions:
     applet: course_team_roles
     namespace: courses
@@ -491,6 +513,7 @@ permissions:
     scopes:
     - course-v1
     icon: DrawShapes
+    hidden: false
   courses.legacy_data_researcher_permissions:
     applet: course_team_roles
     namespace: courses
@@ -501,6 +524,7 @@ permissions:
     scopes:
     - course-v1
     icon: DrawShapes
+    hidden: false
   courses.legacy_instructor_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -511,6 +535,7 @@ permissions:
     scopes:
     - course-v1
     icon: DrawShapes
+    hidden: false
   courses.legacy_limited_staff_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -521,6 +546,7 @@ permissions:
     scopes:
     - course-v1
     icon: DrawShapes
+    hidden: false
   courses.legacy_staff_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -531,6 +557,7 @@ permissions:
     scopes:
     - course-v1
     icon: DrawShapes
+    hidden: false
   courses.manage_advanced_settings:
     applet: course_authoring
     namespace: courses
@@ -541,6 +568,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_certificates:
     applet: course_authoring
     namespace: courses
@@ -551,6 +579,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_cohorts:
     applet: learner_administration
     namespace: courses
@@ -561,6 +590,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_course_team:
     applet: course_authoring
     namespace: courses
@@ -571,6 +601,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_course_updates:
     applet: course_authoring
     namespace: courses
@@ -581,6 +612,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_group_configurations:
     applet: course_authoring
     namespace: courses
@@ -591,6 +623,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_learner_extensions:
     applet: learner_administration
     namespace: courses
@@ -601,6 +634,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_learner_grading:
     applet: learner_grading
     namespace: courses
@@ -611,6 +645,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_library_updates:
     applet: course_authoring
     namespace: courses
@@ -621,6 +656,7 @@ permissions:
     scopes:
     - course-v1
     icon: Checklist
+    hidden: false
   courses.manage_pages_and_resources:
     applet: course_authoring
     namespace: courses
@@ -631,6 +667,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_tags:
     applet: course_authoring
     namespace: courses
@@ -641,6 +678,7 @@ permissions:
     scopes:
     - course-v1
     icon: Settings
+    hidden: false
   courses.manage_taxonomies:
     applet: course_authoring
     namespace: courses
@@ -651,6 +689,7 @@ permissions:
     scopes:
     - course-v1
     icon: LocalOffer
+    hidden: false
   courses.publish_course_content:
     applet: course_authoring
     namespace: courses
@@ -661,6 +700,7 @@ permissions:
     scopes:
     - course-v1
     icon: DownloadDone
+    hidden: false
   courses.unenroll_learners:
     applet: enrollments
     namespace: courses
@@ -671,6 +711,7 @@ permissions:
     scopes:
     - course-v1
     icon: PersonRemove
+    hidden: false
   courses.view_advanced_settings:
     applet: course_authoring
     namespace: courses
@@ -681,6 +722,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_certificates:
     applet: course_authoring
     namespace: courses
@@ -691,6 +733,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_checklists:
     applet: course_authoring
     namespace: courses
@@ -701,6 +744,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_cohorts:
     applet: learner_administration
     namespace: courses
@@ -711,6 +755,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_course:
     applet: course_authoring
     namespace: courses
@@ -721,6 +766,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_course_info:
     applet: learner_administration
     namespace: courses
@@ -731,6 +777,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_course_team:
     applet: course_authoring
     namespace: courses
@@ -741,6 +788,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_course_updates:
     applet: course_authoring
     namespace: courses
@@ -751,6 +799,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_enrollments:
     applet: enrollments
     namespace: courses
@@ -761,6 +810,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_files:
     applet: course_authoring
     namespace: courses
@@ -771,6 +821,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_gradebook:
     applet: learner_grading
     namespace: courses
@@ -781,6 +832,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_grading_settings:
     applet: course_authoring
     namespace: courses
@@ -791,6 +843,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_group_configurations:
     applet: course_authoring
     namespace: courses
@@ -801,6 +854,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_learner_extensions:
     applet: learner_administration
     namespace: courses
@@ -811,6 +865,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_library_updates:
     applet: course_authoring
     namespace: courses
@@ -821,6 +876,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_pages_and_resources:
     applet: course_authoring
     namespace: courses
@@ -831,6 +887,7 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
   courses.view_schedule_and_details:
     applet: course_authoring
     namespace: courses
@@ -841,114 +898,137 @@ permissions:
     scopes:
     - course-v1
     icon: RemoveRedEye
+    hidden: false
 categories:
   course_access_content:
     applet: course_authoring
     display_name: Course access & content
     description: Permissions related to accessing the course and managing core course content, including creating, editing, and publishing materials.
     icon: BookOpen
+    hidden: false
   course_advanced_certificates:
     applet: course_authoring
     display_name: Advanced & certificates
     description: Permissions for managing advanced course settings and course certificates.
     icon: CheckCircle
+    hidden: false
   course_cohorts:
     applet: learner_administration
     display_name: Cohorts
     description: Permissions for viewing and managing course cohorts and their members.
     icon: Groups
+    hidden: false
   course_enrollments:
     applet: enrollments
     display_name: Enrollments
     description: Permissions for viewing course enrollments and for enrolling or unenrolling learners.
     icon: People
+    hidden: false
   course_files:
     applet: course_authoring
     display_name: Files
     description: Permissions for viewing and managing files and assets uploaded to the course.
     icon: Folder
+    hidden: false
   course_grading:
     applet: course_authoring
     display_name: Grading
     description: Permissions related to viewing and managing grading configuration and grading policies.
     icon: Award
+    hidden: false
   course_import_export:
     applet: course_authoring
     display_name: Import / export
     description: Permissions for importing and exporting course content and related data.
     icon: Download
+    hidden: false
   course_information:
     applet: learner_administration
     display_name: Course information
     description: Permissions for viewing general course information.
     icon: Info
+    hidden: false
   course_learner_extensions:
     applet: learner_administration
     display_name: Learner extensions
     description: Permissions for viewing and managing due date extensions for individual learners.
     icon: Event
+    hidden: false
   course_learner_grading:
     applet: learner_grading
     display_name: Learner grading
     description: Permissions for viewing learner grades and using grading tools for individual learners or all learners.
     icon: Grading
+    hidden: false
   course_legacy:
     applet: course_team_roles
     display_name: Legacy compatibility
     description: Internal compatibility permissions that map legacy course roles to the authorization system. Not shown as individually assignable permissions.
     icon: DrawShapes
+    hidden: false
   course_library_updates:
     applet: course_authoring
     display_name: Library updates
     description: Permissions for reviewing and managing updates made to content libraries connected to the course.
     icon: LibraryBooks
+    hidden: false
   course_other:
     applet: course_authoring
     display_name: Other
     description: Additional permissions not included in other categories, such as viewing checklists.
     icon: DrawShapes
+    hidden: false
   course_pages_resources:
     applet: course_authoring
     display_name: Pages & resources
     description: Permissions for viewing and managing course pages and additional learning resources.
     icon: Article
+    hidden: false
   course_schedule_details:
     applet: course_authoring
     display_name: Schedule & details
     description: Permissions for viewing and editing the course schedule and course information.
     icon: Calendar
+    hidden: false
   course_tags_taxonomies:
     applet: course_authoring
     display_name: Tags
     description: Permissions for managing tags used to organize course content.
     icon: LocalOffer
+    hidden: false
   course_team_group:
     applet: course_authoring
     display_name: Course team & groups
     description: Permissions for viewing and managing the course team, learner groups, and group configurations.
     icon: Group
+    hidden: false
   course_updates_handouts:
     applet: course_authoring
     display_name: Course updates & handouts
     description: Permissions for viewing and managing course updates and handouts that are visible to learners.
     icon: Sync
+    hidden: false
   library:
     applet: content_libraries
     display_name: Library
     description: Permissions related to viewing, managing, and publishing the library structure and metadata.
     icon: CollectionsBookmark
+    hidden: false
   library_collection:
     applet: content_libraries
     display_name: Collection
     description: Permissions for creating and managing content collections within the library.
     icon: AutoAwesomeMosaic
+    hidden: false
   library_content:
     applet: content_libraries
     display_name: Content
     description: Permissions for editing, publishing, and reusing content within the library.
     icon: Notes
+    hidden: false
   library_team:
     applet: content_libraries
     display_name: Team
     description: Permissions for viewing and managing users who have access to the library.
     icon: Group
+    hidden: false

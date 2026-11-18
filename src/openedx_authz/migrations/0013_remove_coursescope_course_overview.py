@@ -18,7 +18,7 @@ def copy_course_keys_to_external_key(apps, schema_editor):
     Course scopes reference their course only by external_key once this migration removes
     course_overview. Scopes created before migration 0010_scope_external_key have no
     external_key, so their course key exists only in course_overview_id until it is copied.
-    Each scope is updated in its own savepoint, because external_key is unique and the
+    Each scope is updated in its own transaction, because external_key is unique and the
     database decides which keys are equal under its own collation. When any copy is rejected,
     the other scopes keep their copied key and the migration stops before the column is
     removed, so no course key is lost and running migrate again copies only the keys still
@@ -52,6 +52,9 @@ def copy_course_keys_to_external_key(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # Not atomic, so the keys copied before a conflict stay copied when the migration stops.
+    atomic = False
+
     dependencies = [
         ("openedx_authz", "0012_move_builtin_schema_sources_to_applets"),
     ]

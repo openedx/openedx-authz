@@ -225,6 +225,22 @@ class TestCourseScopeKeyMigration(TransactionTestCase):
         self.assertEqual(external_keys[copied_id], "course-v1:TestOrg+Free+2024")
         self.assertIsNone(external_keys[conflicting_id])
 
+    def test_migration_keeps_the_copied_keys_when_it_stops_on_a_conflict(self):
+        """Keys copied before a conflict stay copied when migration 0013 stops.
+
+        Expected Result:
+        - Migrating raises CourseScopeKeyConflictError.
+        - The scope without a conflict keeps its copied course key.
+        """
+        copied_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Free+2024")
+        self.create_old_course_scope(course_id="course-v1:TestOrg+Taken+2024")
+        self.old_course_scope_model.objects.create(external_key="course-v1:TestOrg+Taken+2024")
+
+        with self.assertRaises(self.key_migration.CourseScopeKeyConflictError):
+            self.migrate_to_course_scope_key_migration()
+
+        self.assertEqual(self.get_external_keys()[copied_id], "course-v1:TestOrg+Free+2024")
+
     def test_migration_stops_on_conflict_and_finishes_once_resolved(self):
         """A conflict stops migration 0013 before the column is removed, and a later run finishes.
 

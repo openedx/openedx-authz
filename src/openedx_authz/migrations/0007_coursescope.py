@@ -51,6 +51,8 @@ def align_course_overview_collation(apps, schema_editor):
     foreign key after every operation of this migration, so this step runs before it and the
     new, empty column takes the referenced collation. Nothing changes when the database is not
     MySQL, when the referenced table or column does not exist, or when the collations already match.
+    The step runs outside a transaction, because Django rejects DDL inside one on MySQL,
+    which cannot roll DDL back.
 
     Args:
         apps: The historical app registry of this migration.
@@ -128,5 +130,5 @@ class Migration(migrations.Migration):
             },
             bases=("openedx_authz.scope",),
         ),
-        migrations.RunPython(align_course_overview_collation, migrations.RunPython.noop),
+        migrations.RunPython(align_course_overview_collation, migrations.RunPython.noop, atomic=False),
     ]

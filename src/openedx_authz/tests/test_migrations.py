@@ -217,6 +217,20 @@ class TestCourseScopeCollationAlignment(TestCase):
 
         schema_editor.execute.assert_not_called()
 
+    def test_step_runs_outside_a_transaction(self):
+        """The alignment step is not wrapped in a transaction.
+
+        MySQL cannot roll DDL back, so Django raises TransactionManagementError when the ALTER
+        runs inside one, which the test settings on SQLite do not reproduce.
+
+        Expected Result:
+        - The RunPython operation of 0007 sets atomic to False.
+        """
+        alignment_operation = course_scope_migration.Migration.operations[-1]
+
+        self.assertIs(alignment_operation.code, course_scope_migration.align_course_overview_collation)
+        self.assertIs(alignment_operation.atomic, False)
+
     def test_other_database_vendor_runs_no_sql(self):
         """On databases other than MySQL the step does nothing.
 

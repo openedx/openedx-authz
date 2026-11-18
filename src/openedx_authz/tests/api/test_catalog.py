@@ -87,9 +87,9 @@ class TestHiddenPermissionsAndCategories(CatalogTestCase):
         """A hidden permission is not in the permission catalog or in role details."""
         AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
 
-        self.assertEqual([p.identifier for p in get_permission_catalog(["course-v1"])], ["common.manage_team"])
+        assert [p.identifier for p in get_permission_catalog(["course-v1"])] == ["common.manage_team"]
         (role,) = get_role_catalog(["course-v1"])
-        self.assertEqual(role["permissions"], ["common.manage_team"])
+        assert role["permissions"] == ["common.manage_team"]
 
     def test_hidden_category_hides_its_permissions(self):
         """Permissions of a hidden category are excluded even when they are not hidden themselves."""
@@ -97,10 +97,10 @@ class TestHiddenPermissionsAndCategories(CatalogTestCase):
 
         permissions = get_permission_catalog(["course-v1", "lib"])
 
-        self.assertEqual([p.identifier for p in permissions], ["content_libraries.view_library", "courses.view_course"])
-        self.assertEqual([c.category_id for c in get_category_catalog(permissions)], ["content"])
+        assert [p.identifier for p in permissions] == ["content_libraries.view_library", "courses.view_course"]
+        assert [c.category_id for c in get_category_catalog(permissions)] == ["content"]
         (role,) = get_role_catalog(["course-v1", "lib"])
-        self.assertEqual(role["permissions"], ["content_libraries.view_library", "courses.view_course"])
+        assert role["permissions"] == ["content_libraries.view_library", "courses.view_course"]
 
     def test_category_with_only_hidden_permissions_is_excluded(self):
         """A visible category whose permissions are all hidden is not returned."""
@@ -108,13 +108,13 @@ class TestHiddenPermissionsAndCategories(CatalogTestCase):
 
         categories = get_category_catalog(get_permission_catalog(["course-v1"]))
 
-        self.assertEqual([c.category_id for c in categories], ["team"])
+        assert [c.category_id for c in categories] == ["team"]
 
     def test_hiding_keeps_grants(self):
         """Hiding a permission does not remove its role grants."""
         AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
 
-        self.assertTrue(AuthzRolePermission.objects.filter(permission=self.view_course).exists())
+        assert AuthzRolePermission.objects.filter(permission=self.view_course).exists()
 
 
 class TestGetCategoryCatalog(CatalogTestCase):

@@ -289,13 +289,13 @@ class TestSourceGranularity(TestCase):
 
         _store(doc(True))
 
-        self.assertTrue(AuthzPermissionCategory.objects.get(category_id="cat").hidden)
-        self.assertTrue(AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden)
+        assert AuthzPermissionCategory.objects.get(category_id="cat").hidden
+        assert AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden
 
         _store(doc(False))
 
-        self.assertFalse(AuthzPermissionCategory.objects.get(category_id="cat").hidden)
-        self.assertFalse(AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden)
+        assert not AuthzPermissionCategory.objects.get(category_id="cat").hidden
+        assert not AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden
 
 
 class TestDefinitionDisplay(TestCase):

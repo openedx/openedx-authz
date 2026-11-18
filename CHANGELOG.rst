@@ -14,6 +14,14 @@ Change Log
 Unreleased
 **********
 
+1.23.1 - 2026-11-18
+*******************
+
+Fixed
+=====
+
+* Migration ``0007_coursescope`` no longer fails with MySQL error 3780 when the platform's course table has a collation other than ``utf8mb4_unicode_ci``, because on MySQL it gives ``course_overview_id`` the collation of the course column it references before creating the foreign key (`#593 <https://github.com/openedx/openedx-authz/issues/593>`_). Databases where an earlier run of ``0007`` failed need the steps in `Recover From Failed Course Scope Migrations <https://docs.openedx.org/projects/openedx-authz/en/latest/how-tos/recover-failed-course-scope-migrations.html>`_ first.
+
 1.23.0 - 2026-08-13
 *******************
 

@@ -1,4 +1,4 @@
-0035: Hide Permission Categories and Permissions
+0038: Hide Permission Categories and Permissions
 ################################################
 
 Status

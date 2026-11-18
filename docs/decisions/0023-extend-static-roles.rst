@@ -142,10 +142,10 @@ Permission categories and permissions also accept an optional ``hidden`` flag in
 
 Role extensions cannot change this flag. They only change roles, so ``hidden`` on categories and permissions is set only where they are defined (`ADR 0028`_).
 
-This addendum extends "Hiding a role" and does not change the role extension fields described earlier in this decision. See `ADR 0035`_.
+This addendum extends "Hiding a role" and does not change the role extension fields described earlier in this decision. See `ADR 0038`_.
 
 .. _ADR 0028: 0028-api-contract-for-role-catalog.rst
-.. _ADR 0035: 0035-hidden-permission-categories-and-permissions.rst
+.. _ADR 0038: 0038-hidden-permission-categories-and-permissions.rst
 .. _ADR 0017: 0017-static-authorization-schema.rst
 .. _ADR 0018: 0018-authorization-schema-lifecycle.rst
 .. _ADR 0019: 0019-authorization-schema-discovery.rst

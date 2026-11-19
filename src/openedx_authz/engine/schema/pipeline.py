@@ -108,12 +108,16 @@ class SchemaPipeline:
         rendered = self._renderer.render(schema)
         return self._applier.plan(rendered, schema)
 
-    def apply(self, *, force: bool = False) -> ApplyResult:
+    def apply(self, *, force: bool = False, drop_custom_role_permissions: bool = False) -> ApplyResult:
         """Run the full lifecycle and persist the result transactionally.
 
         Args:
             force: Allow removal of roles that still have assignments (ADR 0018).
+            drop_custom_role_permissions: Allow removing the grants that custom roles hold of a
+                permission the schema no longer declares (ADR 0035).
         """
         schema = self.compile()
         rendered = self._renderer.render(schema)
-        return self._applier.apply(rendered, schema, force=force)
+        return self._applier.apply(
+            rendered, schema, force=force, drop_custom_role_permissions=drop_custom_role_permissions
+        )

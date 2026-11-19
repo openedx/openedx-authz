@@ -47,7 +47,7 @@ class TestApplyMode:
             pipeline_cls.return_value.apply.return_value = ApplyResult(added=3, removed=1, unchanged=False)
             output = _run()
 
-        pipeline_cls.return_value.apply.assert_called_once_with(force=False)
+        pipeline_cls.return_value.apply.assert_called_once_with(force=False, drop_custom_role_permissions=False)
         assert "3 Casbin policy row(s) added, 1 removed" in output
 
     def test_apply_prints_detailed_change_report(self):
@@ -139,7 +139,26 @@ class TestApplyMode:
             pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
             _run("--force")
 
-        pipeline_cls.return_value.apply.assert_called_once_with(force=True)
+        pipeline_cls.return_value.apply.assert_called_once_with(force=True, drop_custom_role_permissions=False)
+
+    def test_drop_custom_role_permissions_flag_is_forwarded(self):
+        """``--drop-custom-role-permissions`` is passed through to ``pipeline.apply``."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
+            _run("--drop-custom-role-permissions")
+
+        pipeline_cls.return_value.apply.assert_called_once_with(force=False, drop_custom_role_permissions=True)
+
+    def test_report_lists_custom_role_grants_of_removed_permissions(self):
+        """The change report names each affected custom role grant and the opt-in option."""
+        plan = ChangePlan(affected_custom_grants=[("custom_designer", "courses.view_course", "course-v1")])
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Custom role grants of removed permissions (1)" in output
+        assert "! custom_designer -> courses.view_course @ course-v1" in output
+        assert "--drop-custom-role-permissions" in output
 
 
 class TestDryRunMode:

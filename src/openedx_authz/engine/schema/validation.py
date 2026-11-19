@@ -3,6 +3,7 @@
 Rules come from ADR 0017 §4 and the field reference:
 
 Per-document checks:
+    * Static role IDs do not start with the prefix reserved for custom roles (ADR 0035).
     * Roles with no base permissions are accepted with a warning because
       ``role_extensions`` may contribute their complete permission set.
     * ``icon`` values, where present, are valid ``@openedx/paragon/icons`` names
@@ -29,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Container
 
-from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.constants import CUSTOM_ROLE_ID_PREFIX, SchemaOriginKind
 from openedx_authz.engine.schema.issues import IssueLevel, ValidationIssue
 from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
 from openedx_authz.engine.schema.types import (
@@ -106,6 +107,7 @@ class SchemaValidator:
 
         for role in document.roles:
             issues.extend(self._check_icon(role.icon, f"role {role.id}", sid))
+            issues.extend(self._check_role_id_prefix(role.id, sid))
             issues.extend(self._check_permissions(role.id, role.permissions, sid))
 
         for extension in document.role_extensions:
@@ -205,6 +207,23 @@ class SchemaValidator:
         if index[key] == value:
             return [ValidationIssue(IssueLevel.WARNING, f"Duplicate identical {kind} {key!r}.", sid)]
         return [ValidationIssue(IssueLevel.ERROR, f"Conflicting {kind} definition for {key!r}.", sid)]
+
+    @staticmethod
+    def _check_role_id_prefix(role_id: str, sid: str) -> list[ValidationIssue]:
+        """Reject a static role ID that starts with the prefix reserved for custom roles (ADR 0035).
+
+        The prefix is what keeps static and custom role IDs from colliding, so the check runs
+        before any database change and names the source that declares the role.
+        """
+        if not role_id.startswith(CUSTOM_ROLE_ID_PREFIX):
+            return []
+        return [
+            ValidationIssue(
+                IssueLevel.ERROR,
+                f"Role {role_id!r} uses the {CUSTOM_ROLE_ID_PREFIX!r} prefix, which is reserved for custom roles.",
+                sid,
+            )
+        ]
 
     @staticmethod
     def _check_permissions(role_id: str, permissions: tuple[str, ...], sid: str) -> list[ValidationIssue]:

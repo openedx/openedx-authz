@@ -21,10 +21,13 @@ import pytest
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from openedx_authz.engine.policy import PolicyStore
-from openedx_authz.engine.renderer import PolicyRenderer, SchemaApplier
+from openedx_authz.api.catalog import get_role_catalog
+from openedx_authz.constants import DefinitionKind
+from openedx_authz.engine.policy import PolicyRow, PolicyStore
+from openedx_authz.engine.renderer import ApplyResult, PolicyRenderer, SchemaApplier
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
+from openedx_authz.engine.schema.types import SchemaDocument
 from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
@@ -148,7 +151,12 @@ def cache_invalidation_fixture(monkeypatch):
     return invalidate
 
 
-def _apply(enforcer, *documents, force=False):
+def _apply(
+    enforcer: FakeEnforcer,
+    *documents: SchemaDocument,
+    force: bool = False,
+    drop_custom_role_permissions: bool = False,
+) -> ApplyResult:
     """Compile, render and apply one coherent schema.
 
     Rendering and persistence must come from the *same* compiled schema:
@@ -158,7 +166,9 @@ def _apply(enforcer, *documents, force=False):
     """
     schema = _compile(*documents)
     rendered = PolicyRenderer().render(schema)
-    return SchemaApplier(policy_store=PolicyStore(enforcer)).apply(rendered, schema, force=force)
+    return SchemaApplier(policy_store=PolicyStore(enforcer)).apply(
+        rendered, schema, force=force, drop_custom_role_permissions=drop_custom_role_permissions
+    )
 
 
 @pytest.mark.django_db
@@ -335,6 +345,160 @@ class TestForceGate:
         assert result.removed == 1
         assert enforcer.get_policy() == []
         assert enforcer.get_grouping_policy() == []
+
+
+def _add_custom_role(
+    enforcer: FakeEnforcer,
+    role_id: str = "custom_designer",
+    permissions: tuple[str, ...] = ("courses.view_course",),
+    scope: str = "course-v1",
+) -> AuthzRoleDefinition:
+    """Store a custom role the way the custom role service does: definition, grants and ``p`` rows.
+
+    The permissions must already exist, so call this after the first schema apply.
+    """
+    role_obj = AuthzRoleDefinition.objects.create(
+        role_id=role_id,
+        display_name=role_id,
+        scopes=[scope],
+        definition_kind=DefinitionKind.USER_DEFINED.value,
+    )
+    found = list(AuthzPermissionDefinition.objects.with_identifiers(permissions))
+    assert len(found) == len(permissions), "every permission of the custom role must already be stored"
+    for definition in found:
+        AuthzRolePermission.objects.create(role=role_obj, permission=definition, scope=scope)
+        enforcer.add_policy(*PolicyRow.from_grant(role_id, definition.identifier, scope).as_policy())
+    return role_obj
+
+
+def _without_permission(permission_name: str) -> SchemaDocument:
+    """A schema whose ``course_editor`` role grants ``view_course`` and that no longer declares the named permission."""
+    return _doc(
+        roles=[role(rid="course_editor", scopes=("course-v1",), permissions=("courses.view_course",))],
+        permissions=[perm for perm in PERMS if perm.name != permission_name],
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("cache_invalidation")
+class TestCustomRoles:
+    """The loader never creates, updates or removes custom roles (ADR 0035 §5)."""
+
+    CUSTOM_ROW = ["role^custom_designer", "act^courses.view_course", "course-v1^*", "allow"]
+
+    @staticmethod
+    def _seeded_enforcer(*, custom_permissions: tuple[str, ...] = ("courses.view_course",)) -> FakeEnforcer:
+        """An enforcer that holds the static ``course_editor`` role and one custom role."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _editor(("courses.view_course",)))
+        _add_custom_role(enforcer, permissions=custom_permissions)
+        return enforcer
+
+    def test_reapplying_the_schema_leaves_the_custom_role_untouched(self):
+        """A deployment that changes nothing keeps the custom role, its grants and its ``p`` row."""
+        enforcer = self._seeded_enforcer()
+
+        result = _apply(enforcer, _editor(("courses.view_course",)))
+
+        assert result.unchanged is True
+        assert result.removed == 0
+        assert self.CUSTOM_ROW in enforcer.get_policy()
+        assert AuthzRoleDefinition.objects.user_defined().get().role_id == "custom_designer"
+        assert AuthzRolePermission.objects.user_defined().count() == 1
+
+    def test_removing_static_roles_keeps_the_custom_role(self):
+        """Pruning a static role from the schema does not prune the custom role."""
+        enforcer = self._seeded_enforcer()
+
+        _apply(enforcer, _doc(roles=[]))
+
+        assert not AuthzRoleDefinition.objects.static().exists()
+        assert AuthzRoleDefinition.objects.user_defined().filter(role_id="custom_designer").exists()
+        assert enforcer.get_policy() == [self.CUSTOM_ROW]
+
+    def test_plan_does_not_report_the_custom_role_as_removed(self):
+        """The change report only covers static definitions and rows."""
+        enforcer = self._seeded_enforcer()
+        schema = _compile(_editor(("courses.view_course",)))
+
+        plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
+
+        assert not plan.roles.removed
+        assert not plan.grants.removed
+        assert not plan.removed_rows
+        assert not plan.affected_custom_grants
+
+    def test_removing_an_unrelated_permission_does_not_affect_the_custom_role(self):
+        """Only the permissions a custom role grants matter when a permission leaves the schema."""
+        enforcer = self._seeded_enforcer()
+
+        result = _apply(enforcer, _without_permission("export_course"))
+
+        assert result.removed == 0
+        assert self.CUSTOM_ROW in enforcer.get_policy()
+
+    def test_removed_permission_is_reported_in_the_plan(self):
+        """A dry run lists the custom role grants whose permission the schema drops."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.view_course", "courses.manage_tags"))
+        schema = _compile(_without_permission("manage_tags"))
+
+        plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
+
+        assert plan.affected_custom_grants == [("custom_designer", "courses.manage_tags", "course-v1")]
+        assert plan.unchanged is False
+
+    def test_removed_permission_stops_the_apply_before_any_write(self, cache_invalidation):
+        """Without the opt-in, nothing is written and the error names the affected grant."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.view_course", "courses.manage_tags"))
+        policy_before = enforcer.get_policy()
+        cache_invalidation.reset_mock()
+
+        with pytest.raises(SchemaApplyError, match="custom_designer grants courses.manage_tags @ course-v1"):
+            _apply(enforcer, _without_permission("manage_tags"))
+
+        assert enforcer.get_policy() == policy_before
+        assert AuthzPermissionDefinition.objects.filter(name="manage_tags").exists()
+        assert AuthzRolePermission.objects.user_defined().count() == 2
+        cache_invalidation.assert_not_called()
+
+    def test_opt_in_drops_only_the_grants_of_the_removed_permission(self, cache_invalidation):
+        """With the opt-in, the grant and its ``p`` row go, and the other grant stays."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.view_course", "courses.manage_tags"))
+        cache_invalidation.reset_mock()
+
+        result = _apply(enforcer, _without_permission("manage_tags"), drop_custom_role_permissions=True)
+
+        assert result.removed == 1
+        assert enforcer.get_policy() == [
+            ["role^course_editor", "act^courses.view_course", "course-v1^*", "allow"],
+            self.CUSTOM_ROW,
+        ]
+        assert list(AuthzRolePermission.objects.user_defined().values_list("permission__name", flat=True)) == [
+            "view_course"
+        ]
+        cache_invalidation.assert_called_once_with()
+
+    def test_role_left_without_permissions_keeps_its_assignments(self):
+        """A custom role that loses every grant stays, and so do the assignments to it."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.manage_tags",))
+        enforcer.add_grouping_policy("user^alice", "role^custom_designer", "course-v1^course-v1:OpenedX+DemoX+Demo")
+
+        _apply(enforcer, _without_permission("manage_tags"), drop_custom_role_permissions=True)
+
+        role_obj = AuthzRoleDefinition.objects.get(role_id="custom_designer")
+        assert not role_obj.role_permissions.exists()
+        assert enforcer.get_grouping_policy() == [
+            ["user^alice", "role^custom_designer", "course-v1^course-v1:OpenedX+DemoX+Demo"]
+        ]
+
+    def test_role_left_without_permissions_stays_in_the_catalog(self):
+        """Administrators can still find the emptied role to add permissions to it or remove it."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.manage_tags",))
+
+        _apply(enforcer, _without_permission("manage_tags"), drop_custom_role_permissions=True)
+
+        roles = {item["role"]: item for item in get_role_catalog(["course-v1"])}
+        assert roles["custom_designer"]["permissions"] == []
 
 
 @pytest.mark.django_db

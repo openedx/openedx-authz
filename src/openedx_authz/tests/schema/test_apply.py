@@ -813,7 +813,7 @@ class TestApplySerialization:
         enforcer = FakeEnforcer()
 
         with mock.patch(
-            "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+            "openedx_authz.engine.policy.PolicyCacheControl.lock",
             wraps=PolicyCacheControl.lock,
         ) as lock:
             _apply(enforcer, _editor(("courses.view_course",)))
@@ -843,7 +843,7 @@ class TestApplySerialization:
 
         with (
             mock.patch(
-                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                "openedx_authz.engine.policy.PolicyCacheControl.lock",
                 side_effect=record_lock,
             ),
             mock.patch.object(enforcer, "get_policy", side_effect=record_read),
@@ -869,7 +869,7 @@ class TestApplySerialization:
             return real_lock()
 
         with mock.patch(
-            "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+            "openedx_authz.engine.policy.PolicyCacheControl.lock",
             side_effect=record_lock,
         ):
             _apply(enforcer, _editor(("courses.view_course",)))
@@ -908,11 +908,11 @@ class TestApplySerialization:
 
         with (
             mock.patch(
-                "openedx_authz.engine.renderer.PolicyCacheControl.ensure_exists",
+                "openedx_authz.engine.policy.PolicyCacheControl.ensure_exists",
                 side_effect=record_ensure,
             ),
             mock.patch(
-                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                "openedx_authz.engine.policy.PolicyCacheControl.lock",
                 side_effect=record_lock,
             ),
         ):
@@ -956,7 +956,7 @@ class TestApplySerialization:
 
         with (
             mock.patch(
-                "openedx_authz.engine.renderer.PolicyCacheControl.lock",
+                "openedx_authz.engine.policy.PolicyCacheControl.lock",
                 side_effect=record_lock,
             ),
             mock.patch.object(enforcer, "load_policy", side_effect=record_reload),

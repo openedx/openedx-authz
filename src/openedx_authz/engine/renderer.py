@@ -43,7 +43,6 @@ so enforcer initialization still happens after Django settings are configured.
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from crum import get_current_user
@@ -53,12 +52,11 @@ from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventD
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.policy import PolicyRow, PolicyStore
+from openedx_authz.engine.policy import PolicyRow, PolicyStore, serialized_policy_update
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
 from openedx_authz.models import schema as schema_models
 from openedx_authz.models.core import RoleAssignmentAudit
-from openedx_authz.models.engine import PolicyCacheControl
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +263,7 @@ class SchemaApplier:
         keeping the uncommitted in-memory rows (ADR 0018 §5).
 
         Concurrency (ADR 0018 §8): the whole read-modify-write cycle runs inside
-        :meth:`_serialized_section`, which takes an exclusive row lock as the
+        :func:`~openedx_authz.engine.policy.serialized_policy_update`, which takes an exclusive row lock as the
         transaction's first statement, reloads the enforcer, and — on a change —
         bumps the policy cache version *inside* the same transaction. Two
         concurrent ``load_authz_schema`` runs would otherwise each diff against
@@ -284,7 +282,7 @@ class SchemaApplier:
         policy_store = self._policy_store
 
         try:
-            with self._serialized_section():
+            with serialized_policy_update(policy_store):
                 plan = self.plan(rendered, schema)
 
                 # Invariant: this gate must stay *before* any add_policy_row/
@@ -363,52 +361,6 @@ class SchemaApplier:
             unchanged=plan.unchanged,
             plan=plan,
         )
-
-    @contextmanager
-    def _serialized_section(self):
-        """Open the serialized critical section for an apply (ADR 0018 §8).
-
-        Owns the concurrency contract so :meth:`apply` reads as plain
-        read-diff-write. On entry it, in order:
-
-        1. ``ensure_exists`` the lock row **before** the transaction opens — a
-           creating ``SELECT``/INSERT inside the transaction would be its first
-           read and, under InnoDB Repeatable Read, pin the consistent-read
-           snapshot before the lock is taken, leaving every post-lock read stale.
-        2. opens ``transaction.atomic()``;
-        3. takes the exclusive row lock as the transaction's first read, so a
-           second runner blocks until the first commits and this runner's reads
-           see the committed state;
-        4. reloads the enforcer, because the lock only makes the *database*
-           current — the version-gated in-memory model would otherwise still hold
-           a prior run's rows, so the ``plan`` read of ``get_policy`` could be
-           stale even with the lock held.
-
-        The caller does its read-diff-write inside the ``with`` block. The lock
-        (a row lock) releases automatically when the transaction commits, rolls
-        back, or the connection dies, so no stale lock can outlive a crashed
-        apply. Keeping the lock, reload, and the cache-version bump the caller
-        performs all within this one transaction is what makes the critical
-        section cohesive and leaves no committed-but-unversioned reader window.
-
-        Two accepted limitations, deferred (ADR 0018 §8):
-
-        * ``PolicyCacheControl`` (the lock) and the ``transaction.atomic()``
-          default to the ``default`` database, while the Casbin ``p`` rows live
-          in ``CASBIN_DB_ALIAS``. Serialization is only meaningful while those
-          coincide, which matches the engine's existing single-database policy
-          storage assumption. If ``CASBIN_DB_ALIAS`` is ever pointed at a
-          separate database, the lock must move there too.
-        * The lock wait is unbounded and silent: a second apply blocks with no
-          ``nowait``/timeout and no log line, so a blocked apply looks like a slow
-          one. Acceptable because apply runs at deploy time, not on the request
-          path.
-        """
-        PolicyCacheControl.ensure_exists()
-        with transaction.atomic():
-            PolicyCacheControl.lock()
-            self._policy_store.reload()
-            yield
 
     @staticmethod
     def _remove_assignments(

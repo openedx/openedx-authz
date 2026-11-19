@@ -17,8 +17,8 @@ class PolicyCacheControl(models.Model):
     lock on it so concurrent schema applies run one at a time. The lock lives
     here only as a thin primitive over this row; the *orchestration* of the
     critical section (ordering, enforcer reload, bumping the version inside the
-    writer's transaction) belongs to the applier that owns the write, not to this
-    model (see ``SchemaApplier._serialized_section``).
+    writer's transaction) belongs to the code that owns the write, not to this
+    model (see ``serialized_policy_update``).
 
     .. no_pii:
     """
@@ -62,7 +62,7 @@ class PolicyCacheControl(models.Model):
         lock to actually serialize a read-modify-write cycle it must be taken
         inside a ``transaction.atomic()`` block, as that transaction's first read
         (so the Repeatable Read snapshot forms after the lock is granted), and
-        held across the reads and writes. ``SchemaApplier._serialized_section``
+        held across the reads and writes. ``serialized_policy_update``
         is the orchestrator that satisfies those requirements; this method only
         provides the lock itself.
 

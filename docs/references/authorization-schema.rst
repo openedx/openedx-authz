@@ -190,7 +190,7 @@ Roles
 A role contains these fields:
 
 ``id``
-   The stable role identifier. It uses lowercase snake case, such as ``course_admin``, ``course_editor``, or ``library_author``. Role IDs do not include a product namespace because authorization uses the role within its supported scopes.
+   The stable role identifier. It uses lowercase snake case, such as ``course_admin``, ``course_editor``, or ``library_author``. Role IDs do not include a product namespace because authorization uses the role within its supported scopes. The ``custom_`` prefix is reserved for roles that administrators create, so a schema role ID cannot start with it and validation reports the file that declares it.
 
 ``display_name``
    The source-language name shown to users.
@@ -292,6 +292,7 @@ The following values are invalid:
    act^courses.view_course   # internal Casbin namespace
    course content            # space
    role^course_editor        # internal Casbin namespace
+   custom_course_editor      # role ID prefix reserved for custom roles
 
 Scope namespaces follow the spelling registered by their ``ScopeData`` type and may contain a hyphen. Do not apply the snake-case identifier rule to values such as ``course-v1`` or ``ccx-v1``.
 

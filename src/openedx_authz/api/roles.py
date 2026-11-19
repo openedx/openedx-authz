@@ -26,10 +26,14 @@ from openedx_authz.api.data import (
     ScopeData,
     SubjectData,
 )
+from openedx_authz.api.exceptions import CustomRoleNotFoundError
 from openedx_authz.api.permissions import get_permission_from_policy
+from openedx_authz.constants import CUSTOM_ROLE_ID_PREFIX
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.policy import policy_write_lock
 from openedx_authz.models import ExtendedCasbinRule
 from openedx_authz.models.core import RoleAssignmentAudit
+from openedx_authz.models.schema import AuthzRoleDefinition
 
 __all__ = [
     "assign_role_to_subject_in_scope",
@@ -210,6 +214,10 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
     creating an ExtendedCasbinRule for auditing purposes. It also sends a ROLE_ASSIGNMENT_CREATED event
     after the transaction commits.
 
+    A custom role must exist and not be removed (ADR 0035). It is checked and assigned under the
+    policy write lock, which removing a custom role also holds, so an assignment cannot slip in
+    while the role is being removed.
+
     Args:
         subject: The ID of the subject.
         role: The role to assign.
@@ -217,7 +225,25 @@ def assign_role_to_subject_in_scope(subject: SubjectData, role: RoleData, scope:
 
     Returns:
         bool: True if the role was assigned successfully, False otherwise.
+
+    Raises:
+        CustomRoleNotFoundError: If the role is a custom role that does not exist or was removed.
     """
+    if not role.external_key.startswith(CUSTOM_ROLE_ID_PREFIX):
+        return _add_role_assignment(subject, role, scope)
+    with policy_write_lock():
+        _ensure_active_custom_role(role)
+        return _add_role_assignment(subject, role, scope)
+
+
+def _ensure_active_custom_role(role: RoleData) -> None:
+    """Reject a custom role that has no definition or has been removed."""
+    if not AuthzRoleDefinition.objects.user_defined().active().filter(role_id=role.external_key).exists():
+        raise CustomRoleNotFoundError(f"There is no custom role {role.external_key!r}.")
+
+
+def _add_role_assignment(subject: SubjectData, role: RoleData, scope: ScopeData) -> bool:
+    """Add the grouping policy and its ExtendedCasbinRule, and send ROLE_ASSIGNMENT_CREATED on commit."""
     enforcer = AuthzEnforcer.get_enforcer()
     adapter = AuthzEnforcer.get_adapter()
 

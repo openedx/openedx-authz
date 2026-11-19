@@ -211,23 +211,35 @@ class TestPlan:
 
 
 class TestApply:
-    """Cover SchemaPipeline.apply delegation and force forwarding."""
+    """Cover SchemaPipeline.apply delegation and option forwarding."""
 
-    def test_delegates_to_applier_apply_without_force(self):
-        """Apply renders the schema and delegates to ``applier.apply`` with ``force=False``."""
+    def test_delegates_to_applier_apply_without_options(self):
+        """Apply renders the schema and delegates to ``applier.apply`` with every option off."""
         pipeline, m = _pipeline()
 
         result = pipeline.apply()
 
         m["renderer"].render.assert_called_once_with("compiled-schema")
-        m["applier"].apply.assert_called_once_with("rendered-policy", "compiled-schema", force=False)
+        m["applier"].apply.assert_called_once_with(
+            "rendered-policy", "compiled-schema", force=False, drop_custom_role_permissions=False
+        )
         assert result is m["applier"].apply.return_value
 
     def test_forwards_force_flag(self):
         """The ``force`` flag is forwarded to ``applier.apply``."""
         pipeline, m = _pipeline()
         pipeline.apply(force=True)
-        m["applier"].apply.assert_called_once_with("rendered-policy", "compiled-schema", force=True)
+        m["applier"].apply.assert_called_once_with(
+            "rendered-policy", "compiled-schema", force=True, drop_custom_role_permissions=False
+        )
+
+    def test_forwards_drop_custom_role_permissions_flag(self):
+        """The ``drop_custom_role_permissions`` flag is forwarded to ``applier.apply``."""
+        pipeline, m = _pipeline()
+        pipeline.apply(drop_custom_role_permissions=True)
+        m["applier"].apply.assert_called_once_with(
+            "rendered-policy", "compiled-schema", force=False, drop_custom_role_permissions=True
+        )
 
 
 class TestDefaultComponents:

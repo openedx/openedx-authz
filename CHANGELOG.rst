@@ -21,6 +21,14 @@ Added
   ``0014_add_custom_role_fields``: a ``definition_kind`` (``static`` or ``user_defined``) and a
   ``removed_at`` time. Existing roles stay ``static``. The role catalog now returns the stored
   definition kind of each role and leaves out removed custom roles.
+* The ``load_authz_schema`` command and the schema applier now leave custom roles alone: they do
+  not create, update, prune or report them (ADR 0035). Schema validation rejects a static role ID
+  that starts with the reserved ``custom_`` prefix and names the file that declares it.
+* Added ``--drop-custom-role-permissions`` to ``load_authz_schema``. When a release removes a
+  permission that a custom role grants, the deployment stops before any write and lists each
+  affected grant. Run the command with this option to drop those grants and their policy rows in
+  the same deployment; a custom role left with no permissions keeps its assignments. Releases that
+  remove a permission must say so in their operator release notes and name this option.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

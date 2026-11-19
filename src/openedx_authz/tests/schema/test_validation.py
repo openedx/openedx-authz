@@ -8,6 +8,7 @@ import pytest
 
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
+from openedx_authz.engine.schema.types import SchemaDocument
 from openedx_authz.engine.schema.validation import SchemaValidator
 
 from .factories import category, extension, make_document, make_source, permission, role
@@ -87,6 +88,40 @@ class TestDocumentValidation:
         )
         messages = [i.message for i in _errors(SchemaValidator().validate([doc]))]
         assert any("Conflicting permission" in m for m in messages)
+
+
+class TestReservedRoleIdPrefix:
+    """Static role IDs cannot use the prefix reserved for custom roles (ADR 0035)."""
+
+    @staticmethod
+    def _document(role_id: str, name: str = "doc") -> SchemaDocument:
+        """Build a valid document that declares one role with the given ID."""
+        return make_document(
+            name,
+            categories=[category("cat")],
+            permissions=[permission(cat="cat")],
+            roles=[role(rid=role_id, permissions=("courses.view_course",))],
+        )
+
+    def test_static_role_with_reserved_prefix_is_error(self):
+        """A static role whose ID starts with ``custom_`` fails validation."""
+        errors = _errors(SchemaValidator().validate([self._document("custom_designer")]))
+
+        assert [error.message for error in errors] == [
+            "Role 'custom_designer' uses the 'custom_' prefix, which is reserved for custom roles."
+        ]
+
+    def test_error_names_the_contributing_source(self):
+        """The error carries the source of the document that declares the role."""
+        document = self._document("custom_designer", name="plugin")
+
+        (error,) = _errors(SchemaValidator().validate([document]))
+
+        assert error.source_id == document.source.source_id
+
+    def test_prefix_is_only_reserved_at_the_start_of_the_id(self):
+        """A role that merely contains ``custom`` is valid."""
+        assert not _errors(SchemaValidator().validate([self._document("course_custom_editor")]))
 
 
 class TestDuplicateSeverity:

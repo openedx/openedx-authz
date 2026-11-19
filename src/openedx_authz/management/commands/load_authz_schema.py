@@ -9,6 +9,7 @@ Usage::
     python manage.py load_authz_schema                 # full apply
     python manage.py load_authz_schema --dry-run       # report only, no writes
     python manage.py load_authz_schema --force         # allow role removals
+    python manage.py load_authz_schema --drop-custom-role-permissions  # drop custom role grants
     python manage.py load_authz_schema \\
         --dir openedx_authz/applets/content_libraries/schema  # explicit directory
 
@@ -45,6 +46,15 @@ class Command(BaseCommand):
             help="Allow removing static roles that still have user assignments (ADR 0018).",
         )
         parser.add_argument(
+            "--drop-custom-role-permissions",
+            action="store_true",
+            dest="drop_custom_role_permissions",
+            help=(
+                "Allow removing the grants that custom roles hold of permissions the schema no longer "
+                "declares. Without it, the deployment stops before any write (ADR 0035)."
+            ),
+        )
+        parser.add_argument(
             "--dir",
             action="append",
             default=None,
@@ -78,7 +88,10 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS("\nDry run: no changes were applied."))
                 return
 
-            result = pipeline.apply(force=options.get("force", False))
+            result = pipeline.apply(
+                force=options.get("force", False),
+                drop_custom_role_permissions=options.get("drop_custom_role_permissions", False),
+            )
         except (SchemaError, SchemaDiscoveryError) as exc:
             raise CommandError(str(exc)) from exc
 
@@ -185,6 +198,7 @@ class Command(BaseCommand):
                 self._write_marked_line("-", self._format_policy_row(row), self.style.ERROR)
 
         self._report_definitions(plan)
+        self._report_custom_grants(plan)
 
         if plan.blocking_assignments:
             self.stdout.write(
@@ -195,6 +209,25 @@ class Command(BaseCommand):
             )
             for role, subject in plan.blocking_assignments:
                 self.stdout.write(f"  ! {role} assigned to {subject}")
+
+    def _report_custom_grants(self, plan) -> None:
+        """Print the custom role grants of permissions the schema no longer declares (ADR 0035).
+
+        The deployment drops them only when ``--drop-custom-role-permissions`` is passed, and
+        stops before any write otherwise, so the operator needs to see exactly which grants are
+        affected before choosing.
+        """
+        if not plan.affected_custom_grants:
+            return
+
+        self._write_section_header(f"Custom role grants of removed permissions ({len(plan.affected_custom_grants)})")
+        for role, permission, scope in plan.affected_custom_grants:
+            self._write_marked_line("!", f"{role} -> {permission} @ {scope}", self.style.WARNING)
+        self.stdout.write(
+            self.style.WARNING(
+                "Apply drops these grants only with --drop-custom-role-permissions, and stops otherwise."
+            )
+        )
 
     def _report_definitions(self, plan) -> None:
         """Print the definition-metadata changes as one compact, interleaved diff.

@@ -7,7 +7,7 @@ Migration ``0013_remove_coursescope_course_overview`` copies the course key of e
 
    CourseScopeKeyConflictError: Cannot copy the course key of these course scopes into external_key, because another scope already holds an equal key: 12: course-v1:OpenedX+DemoX+2024. Resolve them as the openedx-authz how-to "Resolve Course Scopes That 0013_remove_coursescope_course_overview Cannot Update" describes, then run migrate again.
 
-Each ``<scope id>: <course key>`` pair names a course scope whose key is still only in ``course_overview_id``. Since the database treats both keys as equal, both scopes refer to the same course, so the role assignments of the older scope move to the scope that holds the key, and the older scope is removed. Follow these steps for every pair in the error.
+Each ``<scope id>: <course key>`` pair names a course scope whose key is still only in ``course_overview_id``. Since the database treats both keys as equal, only one scope can hold the key, so the role assignments of the older scope move to the scope that holds it, and the older scope is removed. Follow these steps for every pair in the error.
 
 #. Back up the database.
 

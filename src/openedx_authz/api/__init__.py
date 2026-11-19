@@ -6,7 +6,9 @@ provide a simpler interface for other services in the Open edX ecosystem.
 """
 
 from openedx_authz.api.catalog import *
+from openedx_authz.api.custom_roles import *
 from openedx_authz.api.data import *
+from openedx_authz.api.exceptions import *
 from openedx_authz.api.permissions import *
 from openedx_authz.api.roles import *
 from openedx_authz.api.users import *

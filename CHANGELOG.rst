@@ -30,6 +30,19 @@ Added
   the same deployment; a custom role left with no permissions keeps its assignments, and the
   report lists it. Releases that remove a permission must say so in their operator release notes
   and name this option.
+* Added ``create_custom_role``, ``update_custom_role`` and ``remove_custom_role`` to the public
+  API (ADR 0035). Each change updates the role definition, its grants and its policy rows in one
+  transaction, under the same lock as schema deployments, and reaches every holder of the role
+  right away. A custom role ID is ``custom_`` followed by the display name and never changes.
+  Removing a role keeps its definition marked as removed, so the ID is not reused, and deletes its
+  grants, policy rows and assignments; a role that still has assignments needs
+  ``delete_assignments=True``. A display name is stored without surrounding whitespace and must not
+  be used by another role that has not been removed, ignoring case, and custom roles cannot grant
+  hidden permissions or permissions in hidden categories. The errors these operations raise are in
+  ``openedx_authz.api.exceptions``.
+* ``assign_role_to_subject_in_scope`` now raises ``CustomRoleNotFoundError`` for a custom role that
+  does not exist or was removed. It assigns custom roles under the same lock as removing them, so
+  an assignment cannot outlive a concurrent removal. Static role assignments are unchanged.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

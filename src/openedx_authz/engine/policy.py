@@ -49,7 +49,7 @@ from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models.engine import PolicyCacheControl
 
-__all__ = ["PolicyRow", "GroupingRow", "PolicyStore", "serialized_policy_update"]
+__all__ = ["PolicyRow", "GroupingRow", "PolicyStore", "policy_write_lock", "serialized_policy_update"]
 
 
 @dataclass(frozen=True)
@@ -219,11 +219,11 @@ class PolicyStore:
 
 
 @contextmanager
-def serialized_policy_update(policy_store: PolicyStore) -> Iterator[None]:
-    """Open the critical section every writer of the stored policy must run in (ADR 0018 §8, ADR 0035 §3).
+def policy_write_lock() -> Iterator[None]:
+    """Open a transaction that holds the policy write lock (ADR 0018 §8, ADR 0035 §3).
 
-    Schema applies and custom role changes both use it, so they exclude each other. It owns the
-    concurrency contract so callers read as plain read-diff-write. On entry it, in order:
+    Schema applies, custom role changes and assignments of custom roles all take it, so they
+    exclude each other. On entry it, in order:
 
     1. ``ensure_exists`` the lock row **before** the transaction opens — a
        creating ``SELECT``/INSERT inside the transaction would be its first
@@ -232,18 +232,11 @@ def serialized_policy_update(policy_store: PolicyStore) -> Iterator[None]:
     2. opens ``transaction.atomic()``;
     3. takes the exclusive row lock as the transaction's first read, so a
        second runner blocks until the first commits and this runner's reads
-       see the committed state;
-    4. reloads the enforcer, because the lock only makes the *database*
-       current — the version-gated in-memory model would otherwise still hold
-       a prior run's rows, so the ``plan`` read of ``get_policy`` could be
-       stale even with the lock held.
+       see the committed state.
 
-    The caller does its read-diff-write inside the ``with`` block. The lock
-    (a row lock) releases automatically when the transaction commits, rolls
-    back, or the connection dies, so no stale lock can outlive a crashed
-    apply. Keeping the lock, reload, and the cache-version bump the caller
-    performs all within this one transaction is what makes the critical
-    section cohesive and leaves no committed-but-unversioned reader window.
+    The lock (a row lock) releases automatically when the transaction commits,
+    rolls back, or the connection dies, so no stale lock can outlive a crashed
+    writer.
 
     Two accepted limitations, deferred (ADR 0018 §8):
 
@@ -256,10 +249,26 @@ def serialized_policy_update(policy_store: PolicyStore) -> Iterator[None]:
     * The lock wait is unbounded and silent: a second writer blocks with no
       ``nowait``/timeout and no log line, so a blocked writer looks like a slow
       one. Acceptable because schema applies run at deploy time and custom role
-      changes are short, infrequent administrator actions.
+      changes and assignments are short administrator actions.
     """
     PolicyCacheControl.ensure_exists()
     with transaction.atomic():
         PolicyCacheControl.lock()
+        yield
+
+
+@contextmanager
+def serialized_policy_update(policy_store: PolicyStore) -> Iterator[None]:
+    """Open the critical section for a writer that reads the in-memory policy before writing.
+
+    It takes :func:`policy_write_lock` and then reloads the enforcer, because the lock only makes
+    the *database* current — the version-gated in-memory model would otherwise still hold a prior
+    run's rows, so a ``get_policy`` read could be stale even with the lock held.
+
+    The caller does its read-diff-write inside the ``with`` block. Keeping the lock, reload, and
+    the cache-version bump the caller performs all within this one transaction is what makes the
+    critical section cohesive and leaves no committed-but-unversioned reader window.
+    """
+    with policy_write_lock():
         policy_store.reload()
         yield

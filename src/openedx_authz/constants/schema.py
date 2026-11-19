@@ -15,6 +15,22 @@ from enum import Enum
 AUTHZ_JSON_SCHEMA_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMA"
 DEFAULT_AUTHZ_JSON_SCHEMA = "openedx_authz.engine.schema/authz-schema-v1.json"
 
+CUSTOM_ROLE_ID_PREFIX = "custom_"
+CUSTOM_ROLE_ID_MAX_LENGTH = 64
+
+
+class DefinitionKind(str, Enum):
+    """How a role is defined (ADR 0028, ADR 0035).
+
+    ``STATIC`` roles come from the authorization schema and are managed by the schema loader.
+    ``USER_DEFINED`` roles are custom roles created by administrators; the loader never touches
+    them. Subclassing ``str`` keeps the members interchangeable with the raw values stored in the
+    database.
+    """
+
+    STATIC = "static"
+    USER_DEFINED = "user_defined"
+
 
 class SchemaOriginKind(str, Enum):
     """Whether a schema contribution is a base definition or an extension.

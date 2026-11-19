@@ -7,8 +7,10 @@ compiled schema is exercised separately.
 """
 
 import pytest
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 
-from openedx_authz.constants import SchemaOriginKind
+from openedx_authz.constants import DefinitionKind, SchemaOriginKind
 from openedx_authz.models.schema import (
     AuthzCategorySource,
     AuthzPermissionCategory,
@@ -20,6 +22,7 @@ from openedx_authz.models.schema import (
     AuthzRoleSource,
     AuthzSchemaSource,
     OriginKind,
+    RoleDefinitionKind,
     origin_for_role_permission,
     origins_for_category,
     origins_for_permission,
@@ -56,6 +59,48 @@ class TestOriginKind:
         assert OriginKind.EXTENSION.label == "Extension"
 
 
+class TestRoleDefinitionKindChoices:
+    """RoleDefinitionKind mirrors the Django-free DefinitionKind constant."""
+
+    def test_values_match_the_shared_constant(self):
+        """The Django enum values mirror the Django-free ``DefinitionKind``."""
+        assert RoleDefinitionKind.STATIC.value == DefinitionKind.STATIC.value
+        assert RoleDefinitionKind.USER_DEFINED.value == DefinitionKind.USER_DEFINED.value
+
+    def test_labels_are_human_readable(self):
+        """Each definition kind exposes a human-readable label."""
+        assert RoleDefinitionKind.STATIC.label == "Static"
+        assert RoleDefinitionKind.USER_DEFINED.label == "User defined"
+
+
+class TestPermissionWithIdentifiers:
+    """``with_identifiers`` finds permissions by their complete ``namespace.name`` ID."""
+
+    def test_returns_only_the_requested_permissions(self):
+        """Each complete ID matches its own namespace and name, not a mix of both."""
+        view_course = _permission("courses", "view_course")
+        view_library = _permission("content_libraries", "view_library")
+        _permission("courses", "view_library")
+
+        found = AuthzPermissionDefinition.objects.with_identifiers(
+            ["courses.view_course", "content_libraries.view_library"]
+        )
+
+        assert set(found) == {view_course, view_library}
+
+    def test_unknown_identifiers_match_nothing(self):
+        """An ID with no stored permission is ignored."""
+        _permission("courses", "view_course")
+
+        assert not AuthzPermissionDefinition.objects.with_identifiers(["courses.missing"]).exists()
+
+    def test_no_identifiers_match_nothing(self):
+        """An empty list returns an empty queryset instead of every permission."""
+        _permission("courses", "view_course")
+
+        assert not AuthzPermissionDefinition.objects.with_identifiers([]).exists()
+
+
 class TestStringRepresentations:
     """Every model's ``__str__`` and derived-id property."""
 
@@ -87,6 +132,87 @@ class TestStringRepresentations:
         permission = _permission()
         grant = AuthzRolePermission.objects.create(role=role, permission=permission, scope="course-v1")
         assert str(grant) == "course_editor -> courses.view_course @ course-v1"
+
+
+class TestRoleDefinitionKind:
+    """Database constraints and querysets that keep static and custom roles apart (ADR 0035)."""
+
+    @staticmethod
+    def _create_role(role_id: str, **kwargs: object) -> AuthzRoleDefinition:
+        """Create a role definition inside its own savepoint so a rejected row leaves the test usable."""
+        with transaction.atomic():
+            return AuthzRoleDefinition.objects.create(role_id=role_id, display_name=role_id, **kwargs)
+
+    def test_new_roles_are_static_and_not_removed(self):
+        """A role created without a kind is a static role that has not been removed."""
+        role = self._create_role("course_editor")
+
+        assert role.definition_kind == DefinitionKind.STATIC.value
+        assert role.removed_at is None
+
+    def test_custom_role_can_be_removed(self):
+        """A custom role can carry a removal time."""
+        role = self._create_role(
+            "custom_designer",
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+            removed_at=timezone.now(),
+        )
+
+        assert role.removed_at is not None
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"role_id": "custom_designer", "definition_kind": DefinitionKind.USER_DEFINED.value, "hidden": True},
+            {"role_id": "course_editor", "removed_at": timezone.now()},
+            {"role_id": "course_editor", "definition_kind": DefinitionKind.USER_DEFINED.value},
+            {"role_id": "custom_designer", "definition_kind": DefinitionKind.STATIC.value},
+        ],
+        ids=["hidden-custom-role", "removed-static-role", "custom-role-without-prefix", "static-role-with-prefix"],
+    )
+    def test_invalid_combinations_are_rejected(self, kwargs):
+        """The database rejects a row that breaks one of the custom role invariants."""
+        with pytest.raises(IntegrityError):
+            self._create_role(**kwargs)
+
+    def test_hidden_static_role_is_allowed(self):
+        """Hiding stays available to static roles (ADR 0023)."""
+        role = self._create_role("legacy_role", hidden=True)
+
+        assert role.hidden is True
+
+    def test_querysets_split_roles_by_kind(self):
+        """``static``, ``user_defined`` and ``active`` partition the roles as expected."""
+        static = self._create_role("course_editor")
+        active = self._create_role("custom_active", definition_kind=DefinitionKind.USER_DEFINED.value)
+        removed = self._create_role(
+            "custom_removed", definition_kind=DefinitionKind.USER_DEFINED.value, removed_at=timezone.now()
+        )
+
+        assert list(AuthzRoleDefinition.objects.static()) == [static]
+        assert set(AuthzRoleDefinition.objects.user_defined()) == {active, removed}
+        assert set(AuthzRoleDefinition.objects.active()) == {static, active}
+
+    def test_visible_excludes_hidden_and_removed_roles(self):
+        """``visible`` leaves out hidden roles and removed custom roles."""
+        shown = self._create_role("course_editor")
+        self._create_role("legacy_role", hidden=True)
+        self._create_role(
+            "custom_removed", definition_kind=DefinitionKind.USER_DEFINED.value, removed_at=timezone.now()
+        )
+
+        assert list(AuthzRoleDefinition.objects.visible()) == [shown]
+
+    def test_grants_split_by_the_kind_of_their_role(self):
+        """The grant querysets follow the kind of the role that owns each grant."""
+        permission = _permission()
+        static = self._create_role("course_editor")
+        custom = self._create_role("custom_designer", definition_kind=DefinitionKind.USER_DEFINED.value)
+        static_grant = AuthzRolePermission.objects.create(role=static, permission=permission, scope="course-v1")
+        custom_grant = AuthzRolePermission.objects.create(role=custom, permission=permission, scope="course-v1")
+
+        assert list(AuthzRolePermission.objects.static()) == [static_grant]
+        assert list(AuthzRolePermission.objects.user_defined()) == [custom_grant]
 
 
 class TestOriginHelpers:

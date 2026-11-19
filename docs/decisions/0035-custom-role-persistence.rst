@@ -50,8 +50,9 @@ longer needed is removed instead (section 4).
 ==============================
 
 Custom roles are global to the instance. Their IDs use the reserved prefix ``custom_`` followed by
-the display name converted to the role ID format (``[a-z][a-z0-9_]*``). The ID is set at creation and
-never changes, so renaming a role does not affect its assignments or policy rows.
+the display name converted to the role ID format (``[a-z][a-z0-9_]*``). The ID and the display name
+are set at creation and never change. Editing a custom role changes only its description and
+permissions, matching `ADR 0036`_.
 
 The name is converted with the Python standard library, so no transliteration dependency is needed:
 
@@ -193,6 +194,7 @@ References
 * `ADR 0023`_
 * `ADR 0025`_
 * `ADR 0028`_
+* `ADR 0036`_
 * `Issue #467`_
 
 .. _ADR 0012: 0012-auditability.rst
@@ -202,4 +204,5 @@ References
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0025: 0025-authorization-schema-source-tracking.rst
 .. _ADR 0028: 0028-api-contract-for-role-catalog.rst
+.. _ADR 0036: 0036-api-contract-for-custom-roles.rst
 .. _Issue #467: https://github.com/openedx/openedx-authz/issues/467

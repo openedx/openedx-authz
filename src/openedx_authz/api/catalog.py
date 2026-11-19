@@ -4,7 +4,6 @@ The catalog is read from the authz schema models, the same data the Casbin polic
 rendered from, using a constant number of queries (see ADR 0028).
 """
 
-from openedx_authz.api.data import DefinitionKind
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
@@ -61,7 +60,8 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
     not hidden. Hidden permissions, and permissions in hidden categories, are left out of
     ``permissions``. Roles and their grants are read only from the stored schema definitions, never
     from the Casbin policy, so a role without a stored definition is not listed. Hidden roles are
-    never included, even if they are assigned to users.
+    never included, even if they are assigned to users. A custom role left with no permissions is
+    still listed by its stored resource type, with empty ``permissions``.
 
     Args:
         scope_types (list[str]): The scope types (e.g., ['course-v1', 'lib']).
@@ -86,7 +86,7 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
             "display_name": role.display_name,
             "description": role.description,
             "icon": role.icon,
-            "definition_kind": DefinitionKind.STATIC.value,
+            "definition_kind": role.definition_kind,
             "permissions": sorted({grant.permission.identifier for grant in role.grants}),
             "scope_types": sorted(set(role.scopes) & set(scope_types)),
         }

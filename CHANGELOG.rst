@@ -17,6 +17,10 @@ Unreleased
 Added
 =====
 
+* Added the storage for custom roles in the role definition table (ADR 0035), in migration
+  ``0014_add_custom_role_fields``: a ``definition_kind`` (``static`` or ``user_defined``) and a
+  ``removed_at`` time. Existing roles stay ``static``. The role catalog now returns the stored
+  definition kind of each role and leaves out removed custom roles.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

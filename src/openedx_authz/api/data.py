@@ -20,6 +20,7 @@ from openedx_authz.authz import (
     MANAGE_LIBRARY_TEAM,
     VIEW_LIBRARY_TEAM,
 )
+from openedx_authz.constants.schema import DefinitionKind
 from openedx_authz.data import (
     AUTHZ_POLICY_ATTRIBUTES_SEPARATOR,
     ActionData,
@@ -41,6 +42,7 @@ __all__ = [
     "AuthzBaseClass",
     "ContentLibraryData",
     "CourseOverviewData",
+    "DefinitionKind",
     "GroupingPolicyIndex",
     "OrgCourseOverviewGlobData",
     "OrgGlobData",
@@ -62,13 +64,6 @@ __all__ = [
 EXTERNAL_KEY_SEPARATOR = ":"
 GLOBAL_SCOPE_WILDCARD = "*"
 NAMESPACED_KEY_PATTERN = rf"^.+{re.escape(AUTHZ_POLICY_ATTRIBUTES_SEPARATOR)}.+$"
-
-
-class DefinitionKind(str, Enum):
-    """How a role is defined: ``STATIC`` roles come from the authz schema; ``USER_DEFINED`` is reserved (ADR 0028)."""
-
-    STATIC = "static"
-    USER_DEFINED = "user_defined"
 
 
 class ScopeMeta(type):

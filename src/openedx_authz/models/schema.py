@@ -19,14 +19,19 @@ to avoid name collisions with models from other installed apps.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from functools import reduce
+from operator import or_
+
 from django.db import models
 from django.db.models import Prefetch
 
-from openedx_authz.constants import SchemaOriginKind
-from openedx_authz.models.base import TimeStampedModel
+from openedx_authz.constants import DefinitionKind, SchemaOriginKind
+from openedx_authz.models.base import SoftDeletableModel, TimeStampedModel
 
 __all__ = [
     "OriginKind",
+    "RoleDefinitionKind",
     "AuthzSchemaSource",
     "AuthzPermissionCategory",
     "AuthzPermissionDefinition",
@@ -54,6 +59,18 @@ class OriginKind(models.TextChoices):
 
     BASE = SchemaOriginKind.BASE.value, "Base"
     EXTENSION = SchemaOriginKind.EXTENSION.value, "Extension"
+
+
+class RoleDefinitionKind(models.TextChoices):
+    """Whether a role comes from the schema or was created by an administrator (ADR 0035).
+
+    Values are sourced from :class:`openedx_authz.constants.DefinitionKind` so the persistence
+    layer and the role catalog share a single source of truth; the second tuple element is the
+    human-readable label.
+    """
+
+    STATIC = DefinitionKind.STATIC.value, "Static"
+    USER_DEFINED = DefinitionKind.USER_DEFINED.value, "User defined"
 
 
 class AuthzSchemaSourceQuerySet(models.QuerySet):
@@ -151,6 +168,17 @@ class AuthzPermissionDefinitionQuerySet(models.QuerySet):
         """Return the permissions that are not hidden, nor in a hidden category."""
         return self.filter(hidden=False).exclude(category__hidden=True)
 
+    def with_identifiers(self, identifiers: Iterable[str]) -> "AuthzPermissionDefinitionQuerySet":
+        """Return the permissions whose complete IDs (``namespace.name``) are in ``identifiers``.
+
+        The complete ID is not a column, so each one is split into its namespace and name. Repeated
+        IDs are dropped first, so each one adds a single condition to the query.
+        """
+        keys = [identifier.partition(".") for identifier in dict.fromkeys(identifiers)]
+        if not keys:
+            return self.none()
+        return self.filter(reduce(or_, (models.Q(namespace=namespace, name=name) for namespace, _, name in keys)))
+
     def supporting_scope_types(self, scope_types: list[str]) -> "AuthzPermissionDefinitionQuerySet":
         """Return permissions that can be granted in any of the scope types.
 
@@ -234,37 +262,69 @@ class AuthzRoleDefinitionQuerySet(models.QuerySet):
     Every method returns a queryset, so they can be combined and refined further.
     """
 
+    def active(self) -> "AuthzRoleDefinitionQuerySet":
+        """Return the roles that have not been removed."""
+        return self.filter(removed_at__isnull=True)
+
     def visible(self) -> "AuthzRoleDefinitionQuerySet":
-        """Return the roles that are not hidden."""
-        return self.filter(hidden=False)
+        """Return the roles that are neither removed nor hidden."""
+        return self.active().filter(hidden=False)
+
+    def static(self) -> "AuthzRoleDefinitionQuerySet":
+        """Return the roles declared by the authorization schema."""
+        return self.filter(definition_kind=RoleDefinitionKind.STATIC)
+
+    def user_defined(self) -> "AuthzRoleDefinitionQuerySet":
+        """Return the custom roles created by administrators, including removed ones."""
+        return self.filter(definition_kind=RoleDefinitionKind.USER_DEFINED)
+
+    def user_defined_in_scope_types(self, scope_types: list[str]) -> "AuthzRoleDefinitionQuerySet":
+        """Return the custom roles whose stored resource type is one of the scope types.
+
+        ``scopes`` is a JSON list, which not every database can query for membership, so the
+        matching is done in Python over ``scopes`` alone and then narrowed by primary key. Unlike the
+        other methods here, this runs that query when called, not when the result is evaluated.
+        """
+        wanted = set(scope_types)
+        matching = [pk for pk, scopes in self.user_defined().values_list("pk", "scopes") if wanted.intersection(scopes)]
+        return self.filter(pk__in=matching)
 
     def with_grants_in_scope_types(self, scope_types: list[str]) -> "AuthzRoleDefinitionQuerySet":
-        """Return the roles with a permission grant in any of the scope types, with those grants loaded.
+        """Return the roles with a permission grant in any of the scope types.
 
-        Each role gets its grants in the scope types, with their permission, in ``grants``. Grants of
-        hidden permissions, or of permissions in hidden categories, are not loaded. A role whose grants
-        are all hidden is still returned, with empty ``grants``.
+        Hidden permissions count as grants here, so a role whose grants are all hidden is still returned.
+        """
+        granting_roles = AuthzRolePermission.objects.filter(scope__in=scope_types).values("role_id")
+        return self.filter(pk__in=granting_roles)
+
+    def prefetch_grants_in_scope_types(self, scope_types: list[str]) -> "AuthzRoleDefinitionQuerySet":
+        """Load each role's grants in the scope types, with their permission, in ``grants``.
+
+        Grants of hidden permissions, or of permissions in hidden categories, are not loaded, so a role
+        whose grants are all hidden gets empty ``grants``.
         """
         grants = (
             AuthzRolePermission.objects.filter(scope__in=scope_types, permission__hidden=False)
             .exclude(permission__category__hidden=True)
             .select_related("permission")
         )
-        return (
-            self.filter(role_permissions__scope__in=scope_types)
-            .distinct()
-            .prefetch_related(Prefetch("role_permissions", queryset=grants, to_attr="grants"))
-        )
+        return self.prefetch_related(Prefetch("role_permissions", queryset=grants, to_attr="grants"))
 
 
-class AuthzRoleDefinition(TimeStampedModel):
-    """A compiled role definition.
+class AuthzRoleDefinition(TimeStampedModel, SoftDeletableModel):
+    """A role definition, either compiled from the schema or created by an administrator.
 
     .. no_pii:
 
     ``hidden`` mirrors ADR 0023: a hidden role is excluded from normal role
     discovery/selection but keeps its assignments, permission checks, and
     reserved id.
+
+    ``definition_kind`` (ADR 0035) tells static roles, which the schema loader manages, from
+    custom roles, which it never touches. Removing a custom role sets ``removed_at`` and keeps the
+    row, so its id stays reserved and audit records can still name it. The rules that tie the two
+    kinds to their ids, ``hidden`` and ``removed_at`` are enforced where each kind is written, not
+    by the database (see ADR 0035).
     """
 
     objects = AuthzRoleDefinitionQuerySet.as_manager()
@@ -275,6 +335,11 @@ class AuthzRoleDefinition(TimeStampedModel):
     scopes = models.JSONField(default=list)
     icon = models.CharField(max_length=128, blank=True, null=True)
     hidden = models.BooleanField(default=False)
+    definition_kind = models.CharField(
+        max_length=16,
+        choices=RoleDefinitionKind.choices,
+        default=RoleDefinitionKind.STATIC,
+    )
     sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzRoleSource", related_name="roles")
 
     class Meta:
@@ -285,16 +350,30 @@ class AuthzRoleDefinition(TimeStampedModel):
         return self.role_id
 
 
+class AuthzRolePermissionQuerySet(models.QuerySet):
+    """QuerySet for AuthzRolePermission, narrowed by the kind of role that owns the grant."""
+
+    def static(self) -> "AuthzRolePermissionQuerySet":
+        """Return the grants of static roles, the ones the schema loader manages."""
+        return self.filter(role__definition_kind=RoleDefinitionKind.STATIC)
+
+    def user_defined(self) -> "AuthzRolePermissionQuerySet":
+        """Return the grants of custom roles."""
+        return self.filter(role__definition_kind=RoleDefinitionKind.USER_DEFINED)
+
+
 class AuthzRolePermission(TimeStampedModel):
     """A single role-permission-scope association (one per rendered Casbin ``p`` row).
 
     .. no_pii:
 
-    This records the association declared by the schema; Casbin still manages
-    the actual permission check. It is the atomic unit of attribution: a base
+    This records the association declared by the schema or chosen for a custom role; Casbin
+    still manages the actual permission check. It is the atomic unit of attribution: a base
     association and an extension association on the same role are distinct rows
-    with distinct sources.
+    with distinct sources. A custom role's grants have no sources.
     """
+
+    objects = AuthzRolePermissionQuerySet.as_manager()
 
     role = models.ForeignKey(AuthzRoleDefinition, on_delete=models.CASCADE, related_name="role_permissions")
     permission = models.ForeignKey(AuthzPermissionDefinition, on_delete=models.CASCADE, related_name="role_permissions")

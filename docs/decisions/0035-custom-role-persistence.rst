@@ -50,8 +50,9 @@ longer needed is removed instead (section 4).
 ==============================
 
 Custom roles are global to the instance. Their IDs use the reserved prefix ``custom_`` followed by
-the display name converted to the role ID format (``[a-z][a-z0-9_]*``). The ID is set at creation and
-never changes, so renaming a role does not affect its assignments or policy rows.
+the display name converted to the role ID format (``[a-z][a-z0-9_]*``). The ID and the display name
+are set at creation and never change. Editing a custom role changes only its description and
+permissions, matching `ADR 0036`_.
 
 The name is converted with the Python standard library, so no transliteration dependency is needed:
 
@@ -145,6 +146,32 @@ those grants and their ``p`` rows in the same deployment. A release that removes
 say so in its operator release notes and name this option. A custom role left with no permissions
 remains, so its assignments are kept.
 
+6. Where the rules are enforced
+===============================
+
+Each kind of role has one writer: the schema loader writes static roles and the custom role API
+writes custom roles. Each rule is enforced by the layer that owns the write it applies to:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Rule
+     - Enforced by
+   * - Role IDs are unique.
+     - The database, with a unique constraint on the role ID.
+   * - Static role IDs do not start with ``custom_``.
+     - Schema validation, before any database change.
+   * - Custom role IDs start with ``custom_``, and the ID and display name never change.
+     - The custom role API, which builds the ID and only edits the description and permissions.
+   * - Custom roles are never hidden.
+     - The custom role API, which never sets ``hidden``. The schema loader does not write custom
+       roles (section 5).
+   * - Only custom roles are removed.
+     - The custom role API, which is the only code that sets the removal time.
+
+A new rule goes in the layer that writes the data it constrains. The database only enforces
+integrity that every writer needs, such as uniqueness.
+
 Consequences
 ************
 
@@ -183,6 +210,14 @@ Infer custom roles from missing source links
 A role with no source links could also be a leftover or the result of an incomplete write. An
 explicit definition kind avoids the guesswork and is the value the catalog already returns.
 
+Database check constraints for the custom role rules
+====================================================
+
+Check constraints would reject a row that breaks a rule even if it came from outside the two
+writers. Each kind of role has a single writer that already enforces its rules, and every change to
+a constraint needs a migration that works with the rows already stored. Keeping the rules in the
+writers keeps them in one place per kind of role.
+
 References
 **********
 
@@ -193,6 +228,7 @@ References
 * `ADR 0023`_
 * `ADR 0025`_
 * `ADR 0028`_
+* `ADR 0036`_
 * `Issue #467`_
 
 .. _ADR 0012: 0012-auditability.rst
@@ -202,4 +238,5 @@ References
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0025: 0025-authorization-schema-source-tracking.rst
 .. _ADR 0028: 0028-api-contract-for-role-catalog.rst
+.. _ADR 0036: 0036-api-contract-for-custom-roles.rst
 .. _Issue #467: https://github.com/openedx/openedx-authz/issues/467

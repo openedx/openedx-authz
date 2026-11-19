@@ -10,6 +10,7 @@ from __future__ import annotations
 from django.db import models
 
 __all__ = [
+    "SoftDeletableModel",
     "TimeStampedModel",
 ]
 
@@ -32,6 +33,29 @@ class TimeStampedModel(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class SoftDeletableModel(models.Model):
+    """Abstract base adding a ``removed_at`` timestamp, so a row can be removed without deleting it.
+
+    .. no_pii:
+
+    A removed row keeps its id and its relations, so unique identifiers stay reserved and audit
+    records can still name it. ``removed_at`` is empty while the row is in use.
+
+    Unlike :class:`model_utils.models.SoftDeletableModel`, this stores when the row was removed
+    instead of an ``is_removed`` flag, and leaves the default manager alone: each model's queryset
+    decides how removed rows are filtered.
+    """
+
+    removed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the row was removed. Empty while it is in use.",
+    )
 
     class Meta:
         abstract = True

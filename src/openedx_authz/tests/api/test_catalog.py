@@ -1,6 +1,7 @@
 """Test cases for the role and permission catalog API functions."""
 
 from django.test import TestCase
+from django.utils import timezone
 
 from openedx_authz.api.catalog import get_category_catalog, get_permission_catalog, get_role_catalog
 from openedx_authz.api.data import DefinitionKind
@@ -187,3 +188,83 @@ class TestGetRoleCatalog(CatalogTestCase):
     def test_unknown_scope_type_returns_nothing(self):
         """No role has grants in an unknown scope type."""
         self.assertEqual(get_role_catalog(["unknown"]), [])
+
+    def test_custom_role_is_listed_with_its_kind(self):
+        """A custom role appears next to the static ones and reports its definition kind."""
+        custom = AuthzRoleDefinition.objects.create(
+            role_id="custom_designer",
+            display_name="Designer",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+        )
+        AuthzRolePermission.objects.create(role=custom, permission=self.view_course, scope="course-v1")
+
+        roles = {role["role"]: role for role in get_role_catalog(["course-v1"])}
+
+        self.assertEqual(roles["custom_designer"]["definition_kind"], DefinitionKind.USER_DEFINED.value)
+        self.assertEqual(roles["custom_designer"]["permissions"], ["courses.view_course"])
+        self.assertEqual(roles["editor"]["definition_kind"], DefinitionKind.STATIC.value)
+
+    def test_removed_custom_role_is_not_listed(self):
+        """A removed custom role leaves the catalog even if a grant row were left behind."""
+        removed = AuthzRoleDefinition.objects.create(
+            role_id="custom_designer",
+            display_name="Designer",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+            removed_at=timezone.now(),
+        )
+        AuthzRolePermission.objects.create(role=removed, permission=self.view_course, scope="course-v1")
+
+        role_ids = [role["role"] for role in get_role_catalog(["course-v1"])]
+
+        self.assertNotIn("custom_designer", role_ids)
+
+    def test_custom_role_without_grants_is_listed_by_its_resource_type(self):
+        """A custom role that lost every grant stays listed for its stored resource type only."""
+        AuthzRoleDefinition.objects.create(
+            role_id="custom_designer",
+            display_name="Designer",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+        )
+
+        roles = {role["role"]: role for role in get_role_catalog(["course-v1"])}
+
+        self.assertEqual(roles["custom_designer"]["permissions"], [])
+        self.assertEqual(roles["custom_designer"]["scope_types"], ["course-v1"])
+        self.assertNotIn("custom_designer", [role["role"] for role in get_role_catalog(["lib"])])
+
+    def test_static_role_without_grants_is_not_listed(self):
+        """Only custom roles are listed without grants; a static role still needs one."""
+        AuthzRoleDefinition.objects.create(role_id="course_reviewer", display_name="Reviewer", scopes=["course-v1"])
+
+        role_ids = [role["role"] for role in get_role_catalog(["course-v1"])]
+
+        self.assertNotIn("course_reviewer", role_ids)
+
+    def test_uses_a_constant_number_of_queries(self):
+        """Listing roles takes three queries however many roles and grants there are (ADR 0028).
+
+        One query matches the custom roles by resource type, one reads the roles and one loads
+        their grants with their permissions.
+        """
+        for index in range(3):
+            custom = AuthzRoleDefinition.objects.create(
+                role_id=f"custom_designer_{index}",
+                display_name=f"Designer {index}",
+                scopes=["course-v1"],
+                definition_kind=DefinitionKind.USER_DEFINED.value,
+            )
+            AuthzRolePermission.objects.create(role=custom, permission=self.view_course, scope="course-v1")
+        AuthzRoleDefinition.objects.create(
+            role_id="custom_empty",
+            display_name="Empty",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+        )
+
+        with self.assertNumQueries(3):
+            roles = get_role_catalog(["course-v1", "lib"])
+
+        self.assertEqual(len(roles), 5)

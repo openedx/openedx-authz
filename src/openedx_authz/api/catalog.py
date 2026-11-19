@@ -74,8 +74,10 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
         - ``description``: Role description; empty when unknown.
         - ``icon``: Paragon icon name, or ``None``.
         - ``definition_kind``: The :class:`DefinitionKind` value of the role.
-        - ``permissions``: Sorted identifiers of the permissions the role grants in the scope types.
-        - ``scope_types``: Sorted scope types, among the requested ones, in which the role has grants.
+        - ``permissions``: Sorted identifiers of the permissions the role grants in the scope types,
+          without hidden ones.
+        - ``scope_types``: Sorted scope types, among the requested ones, in the role's ``scopes``. Grants
+          are rendered from them, so this does not depend on which permissions are hidden.
     """
     roles = AuthzRoleDefinition.objects.visible().with_grants_in_scope_types(scope_types)
     return [
@@ -86,7 +88,7 @@ def get_role_catalog(scope_types: list[str]) -> list[dict]:
             "icon": role.icon,
             "definition_kind": DefinitionKind.STATIC.value,
             "permissions": sorted({grant.permission.identifier for grant in role.grants}),
-            "scope_types": sorted({grant.scope for grant in role.grants}),
+            "scope_types": sorted(set(role.scopes) & set(scope_types)),
         }
         for role in roles.order_by("role_id")
     ]

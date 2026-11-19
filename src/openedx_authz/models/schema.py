@@ -242,7 +242,8 @@ class AuthzRoleDefinitionQuerySet(models.QuerySet):
         """Return the roles with a permission grant in any of the scope types, with those grants loaded.
 
         Each role gets its grants in the scope types, with their permission, in ``grants``. Grants of
-        hidden permissions, or of permissions in hidden categories, are not loaded.
+        hidden permissions, or of permissions in hidden categories, are not loaded. A role whose grants
+        are all hidden is still returned, with empty ``grants``.
         """
         grants = (
             AuthzRolePermission.objects.filter(scope__in=scope_types, permission__hidden=False)

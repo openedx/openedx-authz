@@ -118,9 +118,9 @@ class Scope(BaseRegistryModel):
 
     objects = ScopeManager()
 
-    # Name of the subclass's FK field pointing at its backing object (e.g. "content_library",
-    # "course_overview"), used by get_or_create_for_external_key()/link_pending_scope() below
-    # to work generically across scope types.
+    # Name of the subclass's FK field pointing at its backing object (e.g. "content_library"),
+    # used by get_or_create_for_external_key()/link_pending_scope() below to work generically
+    # across scope types that keep such a FK.
     LINKED_OBJECT_FIELD: ClassVar[str] = None
 
     # Canonical string form of the scope's key (e.g. a course-v1 course id), set on creation

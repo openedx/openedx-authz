@@ -61,6 +61,7 @@ Changed
 * **Breaking**: ``GET /api/authz/v1/scopes/`` no longer accepts ``course`` and ``library`` as
   ``scope_type`` values. Use ``course-v1`` and ``lib`` instead. Requests with the old values now
   return a 400 validation error, the same as ``/roles/``.
+* **Breaking**: ``CourseScope`` references its course only through the course key in ``external_key`` (ADR 0035). Migration ``0013_remove_coursescope_course_overview`` copies the course key of older course scopes into ``external_key`` and removes the ``course_overview`` foreign key, so ORM filters on ``course_overview``, creating a scope with a ``course_overview`` argument and ``CourseOverview.authz_scopes`` no longer work. ``CourseScope.course_overview`` remains as a read-only property, and deleting a course still deletes its course scope and role assignments.
 
 Removed
 =======

@@ -92,25 +92,35 @@ class CourseScope(Scope):
     """
 
     NAMESPACE = "course-v1"
-    LINKED_OBJECT_FIELD = "course_overview"
 
-    # Link to the actual course, if applicable. In other cases, this could be null.
-    # Piggybacking on the existing CourseOverview model to keep the ExtendedCasbinRule up to date
-    # by deleting the Scope, and thus the ExtendedCasbinRule, when the CourseOverview is deleted.
-    #
-    # When course_overviews IS available, the on_delete=CASCADE will still work at the
-    # application level through Django's signal handlers.
-    # Use a string reference to the external app's model so Django won't try
-    # to import it at model import time. The migration already records the
-    # dependency on `course_overviews` when the app is present.
-    course_overview = models.ForeignKey(
-        settings.OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="authz_scopes",
-        swappable=True,
-    )
+    @classmethod
+    def get_or_create_for_external_key(cls, scope) -> "CourseScope":
+        """Get or create the course scope for a course key.
+
+        Course scopes reference their course only by ``external_key``, so the scope is the same
+        whether the course exists yet or not, for example during a course rerun.
+
+        Args:
+            scope: ScopeData object with an external_key attribute, for example
+                ``CourseOverviewData(external_key="course-v1:OpenedX+DemoX+2024")``.
+
+        Returns:
+            CourseScope: The (possibly newly created) course scope for that key.
+        """
+        course_scope, _ = cls.objects.get_or_create(external_key=scope.external_key)
+        return course_scope
+
+    @property
+    def course_overview(self):
+        """Return the course this scope references through its course key.
+
+        Returns:
+            CourseOverview | None: The CourseOverview whose id is ``external_key``, or ``None``
+                when that course does not exist or the CourseOverview model is not installed.
+        """
+        if CourseOverview is None:
+            return None
+        return CourseOverview.objects.filter(id=self.external_key).first()
 
     @classmethod
     def external_key_for_object(cls, linked_object) -> str:

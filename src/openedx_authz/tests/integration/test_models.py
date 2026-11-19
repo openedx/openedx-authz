@@ -1454,21 +1454,3 @@ class TestScopeForPendingObjects(TestCase):
 
         scope.refresh_from_db()
         self.assertEqual(scope.content_library, content_library)
-
-    def test_scope_created_before_external_key_field_is_reused_not_duplicated(self):
-        """A Scope row created before this fix (FK set, no external_key) isn't duplicated on reassignment.
-
-        Simulates a pre-existing row the way get_or_create_for_external_key used to create it:
-        keyed only by the FK, with no external_key.
-        """
-        course_key = CourseLocator("LegacyOrg", "LegacyCourse", "2024_T1")
-        course_overview = CourseOverviewFactory(id=course_key)
-        legacy_scope = CourseScope.objects.create(course_overview=course_overview)
-        self.assertIsNone(legacy_scope.external_key)
-
-        scope_data = CourseOverviewData(external_key=str(course_key))
-        scope = Scope.objects.get_or_create_for_external_key(scope_data)
-
-        self.assertEqual(scope.id, legacy_scope.id)
-        self.assertEqual(scope.external_key, str(course_key))
-        self.assertEqual(CourseScope.objects.filter(course_overview=course_overview).count(), 1)

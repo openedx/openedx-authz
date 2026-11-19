@@ -8,7 +8,9 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
-from django.test import TestCase
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 from opaque_keys.edx.django.models import CourseKeyField
 
 from openedx_authz.api.data import (
@@ -87,6 +89,176 @@ error_group_name = f"{OBJECT_PREFIX}error_group"
 empty_group_name = f"{OBJECT_PREFIX}empty_group"
 
 schema_source_migration = import_module("openedx_authz.migrations.0012_move_builtin_schema_sources_to_applets")
+COURSE_SCOPE_KEY_MIGRATION_MODULE = "openedx_authz.migrations.0013_remove_coursescope_course_overview"
+
+APP_LABEL = "openedx_authz"
+BEFORE_COURSE_SCOPE_KEY_MIGRATION = [(APP_LABEL, "0012_move_builtin_schema_sources_to_applets")]
+COURSE_SCOPE_KEY_MIGRATION = [(APP_LABEL, "0013_remove_coursescope_course_overview")]
+COURSE_SCOPE_TABLE = "openedx_authz_coursescope"
+COURSE_OVERVIEW_ID_COLUMN = "course_overview_id"
+
+
+def get_column_names(table_name):
+    """Return the column names of a database table.
+
+    Args:
+        table_name: The table to describe, for example ``"openedx_authz_coursescope"``.
+
+    Returns:
+        set[str]: The names of the table's columns.
+    """
+    with connection.cursor() as cursor:
+        return {column.name for column in connection.introspection.get_table_description(cursor, table_name)}
+
+
+class TestCourseScopeTable(TestCase):
+    """The course scope table has no column for the CourseOverview foreign key."""
+
+    def test_course_scope_table_has_no_course_overview_column(self):
+        """Migrating an empty database ends with no course_overview_id column.
+
+        Expected Result:
+        - The column is not in openedx_authz_coursescope.
+        """
+        self.assertNotIn(COURSE_OVERVIEW_ID_COLUMN, get_column_names(COURSE_SCOPE_TABLE))
+
+
+class TestCourseScopeKeyMigration(TransactionTestCase):
+    """Migration 0013 copies course keys into external_key and removes course_overview_id."""
+
+    def setUp(self):
+        """Migrate the database back to 0012, where course scopes still have course_overview_id.
+
+        The migration loader reloads migration modules, so the module is imported after it runs
+        to get the CourseScopeKeyConflictError class the migration raises.
+        """
+        executor = MigrationExecutor(connection)
+        executor.migrate(BEFORE_COURSE_SCOPE_KEY_MIGRATION)
+        self.key_migration = import_module(COURSE_SCOPE_KEY_MIGRATION_MODULE)
+        self.old_apps = executor.loader.project_state(BEFORE_COURSE_SCOPE_KEY_MIGRATION).apps
+        self.old_course_scope_model = self.old_apps.get_model(APP_LABEL, "CourseScope")
+
+    def tearDown(self):
+        """Remove the scopes each test created and migrate forward to the latest migrations again."""
+        self.old_apps.get_model(APP_LABEL, "Scope").objects.all().delete()
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+    def migrate_to_course_scope_key_migration(self):
+        """Apply migration 0013_remove_coursescope_course_overview."""
+        executor = MigrationExecutor(connection)
+        executor.migrate(COURSE_SCOPE_KEY_MIGRATION)
+
+    def create_old_course_scope(self, course_id=None, external_key=None):
+        """Create a course scope with the model of migration 0012.
+
+        Args:
+            course_id: The course key stored in course_overview_id, for example
+                ``"course-v1:TestOrg+Legacy+2024"``, or None.
+            external_key: The scope's external_key, or None.
+
+        Returns:
+            int: The id of the new course scope.
+        """
+        if course_id:
+            CourseOverview.get_from_id(course_id)
+        return self.old_course_scope_model.objects.create(
+            course_overview_id=course_id,
+            external_key=external_key,
+        ).pk
+
+    def get_external_keys(self):
+        """Return the external_key of every scope by id.
+
+        Returns:
+            dict[int, str | None]: The external_key of each scope.
+        """
+        return dict(self.old_apps.get_model(APP_LABEL, "Scope").objects.values_list("pk", "external_key"))
+
+    def test_backfill_copies_missing_keys_and_removes_the_column(self):
+        """Scopes with a course and no key get the course key, other scopes keep theirs, and the column goes.
+
+        Expected Result:
+        - A scope with course_overview_id and no external_key gets the course key.
+        - Scopes that have a key, or have neither a course nor a key, are unchanged.
+        - openedx_authz_coursescope has no course_overview_id column afterwards.
+        """
+        legacy_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Legacy+2024")
+        keyed_id = self.create_old_course_scope(
+            course_id="course-v1:TestOrg+Rerun+2025",
+            external_key="course-v1:TestOrg+Rerun+2025",
+        )
+        pending_id = self.create_old_course_scope(external_key="course-v1:TestOrg+Future+2026")
+        empty_id = self.create_old_course_scope()
+
+        self.migrate_to_course_scope_key_migration()
+
+        self.assertEqual(
+            self.get_external_keys(),
+            {
+                legacy_id: "course-v1:TestOrg+Legacy+2024",
+                keyed_id: "course-v1:TestOrg+Rerun+2025",
+                pending_id: "course-v1:TestOrg+Future+2026",
+                empty_id: None,
+            },
+        )
+        self.assertNotIn(COURSE_OVERVIEW_ID_COLUMN, get_column_names(COURSE_SCOPE_TABLE))
+
+    def test_backfill_reports_conflicts_and_copies_the_other_keys(self):
+        """A course key that another scope already holds is reported, while the other keys are copied.
+
+        Expected Result:
+        - The backfill raises CourseScopeKeyConflictError naming the conflicting scope and key.
+        - The scope without a conflict gets its course key.
+        - The conflicting scope keeps no external_key.
+        """
+        conflicting_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Taken+2024")
+        self.create_old_course_scope(external_key="course-v1:TestOrg+Taken+2024")
+        copied_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Free+2024")
+
+        with self.assertRaises(self.key_migration.CourseScopeKeyConflictError) as raised:
+            with connection.schema_editor(atomic=False) as schema_editor:
+                self.key_migration.copy_course_keys_to_external_key(self.old_apps, schema_editor)
+
+        self.assertIn(f"{conflicting_id}: course-v1:TestOrg+Taken+2024", str(raised.exception))
+        external_keys = self.get_external_keys()
+        self.assertEqual(external_keys[copied_id], "course-v1:TestOrg+Free+2024")
+        self.assertIsNone(external_keys[conflicting_id])
+
+    def test_migration_keeps_the_copied_keys_when_it_stops_on_a_conflict(self):
+        """Keys copied before a conflict stay copied when migration 0013 stops.
+
+        Expected Result:
+        - Migrating raises CourseScopeKeyConflictError.
+        - The scope without a conflict keeps its copied course key.
+        """
+        copied_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Free+2024")
+        self.create_old_course_scope(course_id="course-v1:TestOrg+Taken+2024")
+        self.old_course_scope_model.objects.create(external_key="course-v1:TestOrg+Taken+2024")
+
+        with self.assertRaises(self.key_migration.CourseScopeKeyConflictError):
+            self.migrate_to_course_scope_key_migration()
+
+        self.assertEqual(self.get_external_keys()[copied_id], "course-v1:TestOrg+Free+2024")
+
+    def test_migration_stops_on_conflict_and_finishes_once_resolved(self):
+        """A conflict stops migration 0013 before the column is removed, and a later run finishes.
+
+        Expected Result:
+        - Migrating raises CourseScopeKeyConflictError and course_overview_id still exists.
+        - After the conflicting scope is removed, migrating copies the key and removes the column.
+        """
+        legacy_id = self.create_old_course_scope(course_id="course-v1:TestOrg+Taken+2024")
+        holder = self.old_course_scope_model.objects.create(external_key="course-v1:TestOrg+Taken+2024")
+
+        with self.assertRaises(self.key_migration.CourseScopeKeyConflictError):
+            self.migrate_to_course_scope_key_migration()
+
+        self.assertIn(COURSE_OVERVIEW_ID_COLUMN, get_column_names(COURSE_SCOPE_TABLE))
+        holder.delete()
+        self.migrate_to_course_scope_key_migration()
+        self.assertEqual(self.get_external_keys()[legacy_id], "course-v1:TestOrg+Taken+2024")
+        self.assertNotIn(COURSE_OVERVIEW_ID_COLUMN, get_column_names(COURSE_SCOPE_TABLE))
 
 
 class TestBuiltinSchemaSourceMigration(TestCase):
@@ -586,7 +758,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Capture the state of permissions before rollback to verify that rollback restores the original state
         original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -630,7 +802,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_no_errors), 12)  # 3 users for each of the 4 roles = 12 total entries
 
         state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -740,7 +912,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Capture the state of permissions before rollback to verify that rollback restores the original state
         original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -780,7 +952,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_no_errors), 12)
 
         state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -821,7 +993,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Capture the state of permissions before rollback to verify that rollback restores the original state
         original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -875,7 +1047,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_errors), 9)
 
         state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -955,7 +1127,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
 
         # Capture the state of permissions before rollback to verify that rollback restores the original state
         original_state_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")
@@ -995,7 +1167,7 @@ class TestLegacyCourseAuthoringPermissionsMigration(TestCase):
         self.assertEqual(len(permissions_with_no_errors), 12)
 
         state_after_migration_user_subjects = list(
-            UserSubject.objects.filter(casbin_rules__scope__coursescope__course_overview__isnull=False)
+            UserSubject.objects.filter(casbin_rules__scope__coursescope__isnull=False)
             .distinct()
             .order_by("id")
             .values("id", "user_id")

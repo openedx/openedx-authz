@@ -1,0 +1,117 @@
+name: Sync Paragon Icon Allow-List
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-paragon-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Get current pinned Paragon version
+        id: current
+        run: |
+          version=$(grep -oP -m 1 'PARAGON_VERSION\s*=\s*"\K[^"]+' scripts/generate_paragon_icons.py)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream Paragon version from frontend-app-admin-console
+        id: upstream
+        run: |
+          version=$(curl -fsSL \
+            https://raw.githubusercontent.com/openedx/frontend-app-admin-console/master/package-lock.json \
+            | jq -r '.packages["node_modules/@openedx/paragon"].version')
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected Paragon version: '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Upstream @openedx/paragon: $version"
+
+      - name: Compare versions
+        id: compare
+        env:
+          CURRENT: ${{ steps.current.outputs.version }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+        run: |
+          if [ "$CURRENT" = "$UPSTREAM" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ Paragon version unchanged ($CURRENT). Nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "🔄 Paragon version changed: $CURRENT → $UPSTREAM"
+          fi
+
+      - name: Update generator script pinned version
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          NEW_VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          sed -i "s/^PARAGON_VERSION = \"[0-9][0-9.]*\"/PARAGON_VERSION = \"$NEW_VERSION\"/" \
+            scripts/generate_paragon_icons.py
+
+      - name: Regenerate Paragon icon allow-list
+        if: steps.compare.outputs.changed == 'true'
+        run: make paragon_icons
+
+      - name: Create Pull Request
+        if: steps.compare.outputs.changed == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: bot/sync-paragon-icons
+          delete-branch: true
+          commit-message: |
+            chore: update Paragon icon allow-list to v${{ steps.upstream.outputs.version }}
+
+            frontend-app-admin-console updated @openedx/paragon from
+            ${{ steps.current.outputs.version }} to ${{ steps.upstream.outputs.version }}.
+
+            Regenerated via `make paragon_icons` (ADR 0029).
+          title: "chore: sync Paragon icon allow-list to v${{ steps.upstream.outputs.version }}"
+          body: |
+            ## Summary
+
+            `frontend-app-admin-console` updated its `@openedx/paragon` dependency
+            from `${{ steps.current.outputs.version }}` to `${{ steps.upstream.outputs.version }}`.
+
+            This PR updates the vendored Paragon icon allow-list to match (see [ADR 0029]).
+
+            ## Changes
+
+            - Updated `PARAGON_VERSION` in `scripts/generate_paragon_icons.py`
+            - Regenerated `src/openedx_authz/engine/schema/paragon_icons.py`
+
+            ## Verification
+
+            After merge you can verify locally:
+
+            ```
+            make paragon_icons_check
+            ```
+
+            [ADR 0029]: docs/decisions/0029-paragon-icon-list-maintenance.rst
+
+            ---
+            *Automated by the [Sync Paragon Icon Allow-List](${{ github.server_url }}/${{ github.repository }}/actions/workflows/sync-paragon-icons.yml) workflow.*
+          labels: |
+            dependencies
+            automated
+
+      - name: Trigger CI on the bot branch
+        if: steps.cpr.outputs.pull-request-operation == 'created' || steps.cpr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref bot/sync-paragon-icons

@@ -31,6 +31,7 @@ from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentR
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import filter_users, sort_users
+from openedx_authz.rest_api.v1.admin_console.filters import RoleOrderingFilter, RoleSearchFilter
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission, ScopeTypePermission
 from openedx_authz.rest_api.v1.serializers import (
@@ -420,17 +421,24 @@ class RoleListView(APIView):
 
     - scope_types (Required): Comma-separated list of scope types to query, with at least one value.
       Each one is ``course-v1`` or ``lib``.
+    - search (Optional): Case-insensitive search on the role display name
+    - definition_kind (Optional): Only list roles of this kind: ``static`` or ``user_defined``
+    - sort_by (Optional): Field to sort by. Options: display_name, scope_type, user_count, updated_at.
+      Defaults to display_name. Roles without ``updated_at`` go last; ties are broken by role.
+    - order (Optional): Sort order, 'asc' or 'desc'. Defaults to asc
     - page (Optional): Page number for pagination of the roles
     - page_size (Optional): Number of roles per page
 
     **Response Format**
 
-    - count, next, previous: Pagination of the roles
+    - count, next, previous: Pagination of the roles, after search and filtering
     - scope_types: The requested scope types (``course-v1``, ``lib``)
     - categories: Categories used by the permissions (id, display_name, description, icon)
     - permissions: Permissions of the scope types (id, display_name, description, icon, category_id, scope_types)
     - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
-      (ids of entries of ``permissions``), scope_types (requested scope types in which the role has grants)
+      (ids of entries of ``permissions``), scope_types (requested scope types in which the role has grants),
+      user_count (distinct active users with the role in the scopes of those types the caller can view)
+      and updated_at (when a custom role last changed; null for static roles)
 
     **Authentication and Permissions**
 
@@ -442,15 +450,33 @@ class RoleListView(APIView):
     **Example Request**
 
     GET /api/authz/v1/roles/?scope_types=course-v1&page=1&page_size=10
+
+    GET /api/authz/v1/roles/?scope_types=course-v1,lib&search=admin&sort_by=user_count&order=desc
     """
 
     pagination_class = AuthZAPIViewPagination
+    filter_backends = [RoleSearchFilter, RoleOrderingFilter]
     permission_classes = [ScopeTypePermission]
+    # Set by ``get`` from ``ListRolesQuerySerializer`` and read by the filter backends.
+    validated_query_params: dict | None = None
 
     @apidocs.schema(
         parameters=[
             apidocs.query_parameter(
                 "scope_types", str, description="Comma-separated scope types to query: `course-v1` and/or `lib`"
+            ),
+            apidocs.query_parameter("search", str, description="Search roles by display name"),
+            apidocs.query_parameter(
+                "definition_kind", str, description="Only list roles of this kind: `static` or `user_defined`"
+            ),
+            apidocs.query_parameter(
+                "sort_by",
+                str,
+                description="The field to sort by. Options: display_name, scope_type, user_count, updated_at. "
+                "Defaults to display_name",
+            ),
+            apidocs.query_parameter(
+                "order", str, description="The order to sort by. Options: asc, desc. Defaults to asc"
             ),
             apidocs.query_parameter("page", int, description="Page number for pagination"),
             apidocs.query_parameter("page_size", int, description="Number of roles per page"),
@@ -466,10 +492,17 @@ class RoleListView(APIView):
         """Retrieve the roles, permissions and categories available for one or more scope types."""
         query_serializer = ListRolesQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
-        scope_types = query_serializer.validated_data["scope_types"]
+        # The filter backends read the validated values, so the serializer is the only parser.
+        self.validated_query_params = query_serializer.validated_data
+        scope_types = self.validated_query_params["scope_types"]
 
         permission_catalog = api.get_permission_catalog(scope_types)
         role_catalog = api.get_role_catalog(scope_types)
+        user_counts = api.get_visible_role_user_counts(scope_types, request.user.username)
+        for role in role_catalog:
+            role["user_count"] = user_counts.get(role["role"], 0)
+        for backend in self.filter_backends:
+            role_catalog = backend().filter_queryset(request, role_catalog, self)
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(role_catalog, request)

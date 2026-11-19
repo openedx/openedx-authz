@@ -1241,6 +1241,21 @@ class TestTeamMembersAPIView(ViewTestMixin):
         super().setUp()
         self.url = reverse("openedx_authz:user-list")
 
+    def test_empty_sort_params_use_the_defaults(self):
+        """Regression: an empty ``sort_by`` or ``order`` falls back to the default instead of a 500.
+
+        Expected result:
+            - Returns 200 OK with the same order as when the parameters are omitted
+        """
+        default = self.client.get(self.url)
+        empty = self.client.get(self.url, {"sort_by": "", "order": ""})
+
+        self.assertEqual(empty.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["username"] for item in empty.data["results"]],
+            [item["username"] for item in default.data["results"]],
+        )
+
     # -------------------------------------------------------------------- #
     # Visibility: calling user only sees assignments it has view access to #
     # -------------------------------------------------------------------- #
@@ -1735,6 +1750,21 @@ class TestTeamMemberAssignmentsAPIView(ViewTestMixin):
     def _url(self, username: str) -> str:
         return reverse("openedx_authz:user-assignment-list", kwargs={"username": username})
 
+    def test_empty_sort_params_use_the_defaults(self):
+        """Regression: an empty ``sort_by`` or ``order`` falls back to the default instead of a 500.
+
+        Expected result:
+            - Returns 200 OK with the same order as when the parameters are omitted
+        """
+        default = self.client.get(self._url("regular_6"))
+        empty = self.client.get(self._url("regular_6"), {"sort_by": "", "order": ""})
+
+        self.assertEqual(empty.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["role"] for item in empty.data["results"]],
+            [item["role"] for item in default.data["results"]],
+        )
+
     # -------------------------------------------------------------------- #
     # Visibility: calling user only sees assignments it has view access to #
     # -------------------------------------------------------------------- #
@@ -2132,6 +2162,21 @@ class TestAssignmentsAPIView(ViewTestMixin):
         """Set up test fixtures."""
         super().setUp()
         self.url = reverse("openedx_authz:assignment-list")
+
+    def test_empty_sort_params_use_the_defaults(self):
+        """Regression: an empty ``sort_by`` or ``order`` falls back to the default instead of a 500.
+
+        Expected result:
+            - Returns 200 OK with the same order as when the parameters are omitted
+        """
+        default = self.client.get(self.url)
+        empty = self.client.get(self.url, {"sort_by": "", "order": ""})
+
+        self.assertEqual(empty.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["username"] for item in empty.data["results"]],
+            [item["username"] for item in default.data["results"]],
+        )
 
     # -------------------------------------------------------------------- #
     # Visibility: calling user only sees assignments it has view access to #

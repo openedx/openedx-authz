@@ -40,6 +40,13 @@ Added
   be used by another role that has not been removed, ignoring case, and custom roles cannot grant
   hidden permissions or permissions in hidden categories. The errors these operations raise are in
   ``openedx_authz.api.exceptions``.
+* Added ``POST /api/authz/v1/roles/`` to create a custom role for one resource type (ADR 0036).
+  Only staff and superusers can call it. A display name used by another role returns 409, and any
+  other invalid request returns 400. It returns the new role in the format of the role list.
+  Permission dependencies are not checked yet; that check needs dependencies stored in the schema.
+* Added ``get_role_catalog_entry`` to the public API, which returns one role in the format of the
+  role catalog and raises the new ``RoleNotFoundError`` for a role that is not in the catalog. The
+  role catalog now returns ``updated_at`` for custom roles.
 * ``assign_role_to_subject_in_scope`` now raises ``CustomRoleNotFoundError`` for a custom role that
   does not exist or was removed. It assigns custom roles under the same lock as removing them, so
   an assignment cannot outlive a concurrent removal. Static role assignments are unchanged.

@@ -33,9 +33,15 @@ from openedx_authz.rest_api.decorators import authz_permissions, view_auth_class
 from openedx_authz.rest_api.utils import filter_users, sort_users
 from openedx_authz.rest_api.v1.admin_console.filters import RoleOrderingFilter, RoleSearchFilter
 from openedx_authz.rest_api.v1.paginators import AuthZAPIViewPagination
-from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission, ScopeTypePermission
+from openedx_authz.rest_api.v1.permissions import (
+    AnyScopePermission,
+    DynamicScopePermission,
+    PrivilegedWritePermission,
+    ScopeTypePermission,
+)
 from openedx_authz.rest_api.v1.serializers import (
     AddUsersToRoleWithScopeSerializer,
+    CreateCustomRoleSerializer,
     ListRolesQuerySerializer,
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
@@ -416,6 +422,7 @@ class RoleListView(APIView):
     **Endpoints**
 
     - GET: Retrieve the catalog for one or more scope types
+    - POST: Create a custom role (ADR 0036)
 
     **Query Parameters**
 
@@ -440,9 +447,20 @@ class RoleListView(APIView):
       user_count (distinct active users with the role in the scopes of those types the caller can view)
       and updated_at (when a custom role last changed; null for static roles)
 
+    **Request Body (POST)**
+
+    - display_name (Required): Unique among the roles that have not been removed, ignoring case
+    - description (Optional): Free text, which may be empty
+    - scope_types (Required): The role's resource type, as a one-item list: ``["course-v1"]`` or ``["lib"]``
+    - permissions (Required): Ids of at least one permission that supports the resource type
+
+    POST returns 201 with the new role, in the format of an item of ``results``. A taken display
+    name returns 409; any other invalid request returns 400.
+
     **Authentication and Permissions**
 
     - Requires authenticated user.
+    - POST requires a staff user or a superuser.
     - ``course-v1`` requires ``courses.view_course_team`` in any scope.
     - ``lib`` requires ``content_libraries.view_library_team`` in any scope.
     - The user must hold the permission of each requested scope type.
@@ -452,11 +470,14 @@ class RoleListView(APIView):
     GET /api/authz/v1/roles/?scope_types=course-v1&page=1&page_size=10
 
     GET /api/authz/v1/roles/?scope_types=course-v1,lib&search=admin&sort_by=user_count&order=desc
+
+    POST /api/authz/v1/roles/ {"display_name": "Course Designer", "scope_types": ["course-v1"],
+    "permissions": ["courses.view_course"]}
     """
 
     pagination_class = AuthZAPIViewPagination
     filter_backends = [RoleSearchFilter, RoleOrderingFilter]
-    permission_classes = [ScopeTypePermission]
+    permission_classes = [ScopeTypePermission, PrivilegedWritePermission]
     # Set by ``get`` from ``ListRolesQuerySerializer`` and read by the filter backends.
     validated_query_params: dict | None = None
 
@@ -517,6 +538,35 @@ class RoleListView(APIView):
             ).data
         )
         return response
+
+    @apidocs.schema(
+        body=CreateCustomRoleSerializer,
+        responses={
+            status.HTTP_201_CREATED: RoleCatalogRoleSerializer,
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user is neither staff nor a superuser",
+            status.HTTP_409_CONFLICT: "Another role already uses the display name",
+        },
+    )
+    def post(self, request: HttpRequest) -> Response:
+        """Create a custom role that grants existing permissions in one resource type (ADR 0036)."""
+        serializer = CreateCustomRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            role = api.create_custom_role(
+                display_name=serializer.validated_data["display_name"],
+                description=serializer.validated_data["description"],
+                scope_type=serializer.validated_data["scope_types"][0],
+                permissions=serializer.validated_data["permissions"],
+            )
+        except api.InvalidCustomRoleError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except api.CustomRoleNameTakenError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_409_CONFLICT)
+        # A new role has no assignments yet.
+        role_entry = {**api.get_role_catalog_entry(role.role_id), "user_count": 0}
+        return Response(RoleCatalogRoleSerializer(role_entry).data, status=status.HTTP_201_CREATED)
 
 
 @view_auth_classes()

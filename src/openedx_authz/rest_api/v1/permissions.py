@@ -3,7 +3,7 @@
 from abc import abstractmethod
 from typing import ClassVar
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from openedx_authz import api
 from openedx_authz.authz import COURSES_VIEW_COURSE_TEAM, VIEW_LIBRARY_TEAM
@@ -411,6 +411,22 @@ class ScopeTypePermission(UserScopesPermission):
             self.has_permission_in_any_scope(request.user, self.SCOPE_TYPE_PERMISSIONS[scope_type])
             for scope_type in scope_types
         )
+
+
+class PrivilegedWritePermission(UserScopesPermission):
+    """Permission handler that limits writes to superusers and staff.
+
+    Reads are left to the other permission classes of the view. Used where a write has no scope to
+    check against, such as defining a custom role (ADR 0036).
+    """
+
+    def has_scoped_permission(self, request, view) -> bool:
+        """Allow non-privileged users to read only.
+
+        Returns:
+            bool: True if the request method is safe.
+        """
+        return request.method in SAFE_METHODS
 
 
 class CoursePermission(MethodPermissionMixin, BaseScopePermission):

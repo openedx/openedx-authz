@@ -44,6 +44,11 @@ Added
   Only staff and superusers can call it. A display name used by another role returns 409, and any
   other invalid request returns 400. It returns the new role in the format of the role list.
   Permission dependencies are not checked yet; that check needs dependencies stored in the schema.
+* Added ``PATCH /api/authz/v1/roles/<role_id>/`` to change the description or the permissions of a
+  custom role (ADR 0036). ``permissions`` replaces the full list. Only staff and superusers can
+  call it. Sending ``display_name`` or ``scope_types``, or editing a static role, returns 400, and
+  a role that does not exist or was removed returns 404. It returns the role in the format of the
+  role list. Permission dependencies are not checked yet, as for create.
 * Added ``get_role_catalog_entry`` to the public API, which returns one role in the format of the
   role catalog and raises the new ``RoleNotFoundError`` for a role that is not in the catalog. The
   role catalog now returns ``updated_at`` for custom roles.

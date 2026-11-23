@@ -250,6 +250,31 @@ class CreateCustomRoleSerializer(serializers.Serializer):  # pylint: disable=abs
     permissions = serializers.ListField(child=serializers.CharField())
 
 
+class UpdateCustomRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for the request body that edits a custom role (ADR 0036).
+
+    Only the fields that were sent end up in ``validated_data``. The name and the resource type
+    cannot change after creation, so a request that sends either one is rejected. Whether anything
+    was sent, and the permissions themselves, are validated by ``api.update_custom_role``.
+    """
+
+    FIXED_FIELDS = ("display_name", "scope_types")
+
+    description = serializers.CharField(required=False, allow_blank=True)
+    permissions = serializers.ListField(child=serializers.CharField(), required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        """Reject the fields that cannot change after the role is created.
+
+        Raises:
+            serializers.ValidationError: If the request sends ``display_name`` or ``scope_types``.
+        """
+        sent = [field for field in self.FIXED_FIELDS if field in self.initial_data]
+        if sent:
+            raise serializers.ValidationError({field: "This field cannot be changed." for field in sent})
+        return attrs
+
+
 class RoleCatalogCategorySerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """A permission category of the role catalog."""
 

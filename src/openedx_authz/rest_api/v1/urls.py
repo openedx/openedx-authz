@@ -14,6 +14,7 @@ authz_urlpatterns = [
     ),
     path("roles/", views.RoleListView.as_view(), name="role-list"),
     path("roles/users/", views.RoleUserAPIView.as_view(), name="role-user-list"),
+    path("roles/<str:role_id>/", views.RoleDetailView.as_view(), name="role-detail"),
     path("users/validate/", views.UserValidationAPIView.as_view(), name="user-validation"),
 ]
 

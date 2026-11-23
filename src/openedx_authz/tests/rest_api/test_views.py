@@ -45,7 +45,6 @@ from openedx_authz.authz import (
     VIEW_LIBRARY,
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
@@ -55,7 +54,7 @@ from openedx_authz.models.schema import (
 from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
 from openedx_authz.rest_api.v1.permissions import AnyScopePermission, DynamicScopePermission
 from openedx_authz.rest_api.v1.views import UserValidationAPIView
-from openedx_authz.tests.rest_api.mixins import ViewTestMixin
+from openedx_authz.tests.rest_api.mixins import CustomRoleViewTestMixin, ViewTestMixin
 from openedx_authz.tests.role_permissions import LIBRARY_ADMIN_PERMISSIONS
 from openedx_authz.tests.test_utils import make_action_key, make_role_key, make_wildcard_key
 
@@ -1843,16 +1842,8 @@ class TestRoleListView(ViewTestMixin):
 
 
 @ddt
-class TestRoleListViewCreate(ViewTestMixin):
+class TestRoleListViewCreate(CustomRoleViewTestMixin):
     """Test suite for creating custom roles through RoleListView (ADR 0036)."""
-
-    @classmethod
-    def setUpTestData(cls):
-        """Store the built-in definitions, so the requests use real permissions, and create staff users."""
-        super().setUpTestData()
-        SchemaPipeline().apply()
-        User.objects.create(username="staff_only", email="staff_only@example.com", is_staff=True)
-        User.objects.create(username="superuser_only", email="superuser_only@example.com", is_superuser=True)
 
     def setUp(self):
         """Point the client at the role list."""
@@ -2096,6 +2087,245 @@ class TestRoleListViewCreate(ViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["role"], "custom_library_designer_2")
+
+
+@ddt
+class TestRoleDetailViewUpdate(CustomRoleViewTestMixin):
+    """Test suite for editing custom roles through RoleDetailView (ADR 0036)."""
+
+    def setUp(self):
+        """Create the custom role to edit and point the client at it."""
+        super().setUp()
+        self.role = api.create_custom_role("Library Designer", "Designs libraries", "lib", [VIEW_LIBRARY.identifier])
+        self.url = reverse("openedx_authz:role-detail", args=[self.role.role_id])
+
+    def patch_role(self, body: dict, url: str | None = None) -> Response:
+        """Send an edit request with ``body`` to the role, or to ``url`` if given."""
+        return self.client.patch(url or self.url, body, format="json")
+
+    def assert_role_unchanged(self):
+        """Fail if a rejected request changed the description or the permissions of the role."""
+        stored = AuthzRoleDefinition.objects.get(pk=self.role.pk)
+        self.assertEqual(stored.description, "Designs libraries")
+        self.assertEqual(api.get_role_catalog_entry(self.role.role_id)["permissions"], [VIEW_LIBRARY.identifier])
+
+    def test_edit_returns_the_role(self):
+        """Test changing the description.
+
+        Expected result:
+            - Returns 200 OK with the role in the format of a role list item
+            - The new description is stored and the permissions stay the same
+        """
+        response = self.patch_role({"description": "Edits libraries"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        stored = AuthzRoleDefinition.objects.get(pk=self.role.pk)
+        self.assertEqual(
+            response.data,
+            {
+                "role": "custom_library_designer",
+                "display_name": "Library Designer",
+                "description": "Edits libraries",
+                "icon": None,
+                "definition_kind": DefinitionKind.USER_DEFINED.value,
+                "permissions": [VIEW_LIBRARY.identifier],
+                "scope_types": ["lib"],
+                "user_count": 0,
+                "updated_at": DateTimeField().to_representation(stored.updated_at),
+            },
+        )
+
+    def test_description_can_be_emptied(self):
+        """Test clearing the description.
+
+        Expected result:
+            - Returns 200 OK and the stored description is empty
+        """
+        response = self.patch_role({"description": ""})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(AuthzRoleDefinition.objects.get(pk=self.role.pk).description, "")
+
+    def test_permissions_are_replaced_for_holders(self):
+        """Test replacing the permissions of a role that is assigned.
+
+        Expected result:
+            - Returns 200 OK listing only the new permissions
+            - The holder gains the added permission and loses the dropped one
+        """
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.patch_role({"permissions": [EDIT_LIBRARY_CONTENT.identifier]})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["permissions"], [EDIT_LIBRARY_CONTENT.identifier])
+        self.assertTrue(api.is_user_allowed("regular_10", EDIT_LIBRARY_CONTENT.identifier, LIB_SCOPE_ORG1))
+        self.assertFalse(api.is_user_allowed("regular_10", VIEW_LIBRARY.identifier, LIB_SCOPE_ORG1))
+
+    def test_description_and_permissions_change_together(self):
+        """Test sending both fields in one request.
+
+        Expected result:
+            - Returns 200 OK with the new description and only the new permissions
+            - Both changes are stored
+        """
+        response = self.patch_role({"description": "Edits libraries", "permissions": [EDIT_LIBRARY_CONTENT.identifier]})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            (response.data["description"], response.data["permissions"]),
+            ("Edits libraries", [EDIT_LIBRARY_CONTENT.identifier]),
+        )
+        self.assertEqual(AuthzRoleDefinition.objects.get(pk=self.role.pk).description, "Edits libraries")
+        self.assertEqual(
+            api.get_role_catalog_entry(self.role.role_id)["permissions"], [EDIT_LIBRARY_CONTENT.identifier]
+        )
+
+    def test_user_count_counts_holders(self):
+        """Test that the returned role counts its users, not its assignments.
+
+        Expected result:
+            - Two users, one of them in two libraries, give a user_count of 2
+        """
+        assign_role_to_user_in_scope("regular_9", self.role.role_id, LIB_SCOPE_ORG1)
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, "lib:Org2:LIB2")
+
+        response = self.patch_role({"description": "Edits libraries"})
+
+        self.assertEqual(response.data["user_count"], 2)
+
+    @data(
+        {"display_name": "Library Editor"},
+        {"display_name": "Library Designer"},
+        {"scope_types": ["lib"]},
+        {"scope_types": ["course-v1"]},
+    )
+    def test_fixed_fields_are_rejected(self, body):
+        """Test requests that try to change the name or the resource type, even to the current value.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the field, and the role is unchanged
+        """
+        response = self.patch_role({"description": "Edits libraries", **body})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(next(iter(body)), response.data)
+        self.assert_role_unchanged()
+
+    @data({"permissions": None}, {"permissions": VIEW_LIBRARY.identifier}, {"description": None})
+    def test_malformed_request_is_rejected(self, body):
+        """Test requests whose fields have the wrong shape.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the field, and the role is unchanged
+        """
+        response = self.patch_role(body)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(next(iter(body)), response.data)
+        self.assert_role_unchanged()
+
+    @data(
+        ({}, "description or permissions"),
+        ({"permissions": []}, "at least one permission"),
+        ({"permissions": ["content_libraries.does_not_exist"]}, "content_libraries.does_not_exist"),
+        (
+            {"permissions": [COURSES_LEGACY_BETA_TESTER_PERMISSIONS.identifier]},
+            COURSES_LEGACY_BETA_TESTER_PERMISSIONS.identifier,
+        ),
+        ({"permissions": [COURSES_VIEW_COURSE.identifier]}, COURSES_VIEW_COURSE.identifier),
+    )
+    @unpack
+    def test_invalid_edit_is_rejected(self, body, expected_in_message):
+        """Test requests that change nothing or would leave the role with invalid permissions.
+
+        Expected result:
+            - Returns 400 BAD REQUEST explaining the problem, and the role is unchanged
+        """
+        response = self.patch_role(body)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(expected_in_message, response.data["message"])
+        self.assert_role_unchanged()
+
+    def test_static_role_is_read_only(self):
+        """Test editing a static role.
+
+        Expected result:
+            - Returns 400 BAD REQUEST and the static role keeps its description
+        """
+        static_role = AuthzRoleDefinition.objects.get(role_id=LIBRARY_AUTHOR.external_key)
+
+        response = self.patch_role(
+            {"description": "Edited"}, url=reverse("openedx_authz:role-detail", args=[static_role.role_id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(AuthzRoleDefinition.objects.get(pk=static_role.pk).description, static_role.description)
+
+    def test_unknown_role_is_not_found(self):
+        """Test editing a role ID that does not exist.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        response = self.patch_role(
+            {"description": "Edited"}, url=reverse("openedx_authz:role-detail", args=["custom_missing"])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_removed_role_is_not_found(self):
+        """Test editing a role after it was removed.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        api.remove_custom_role(self.role.role_id)
+
+        response = self.patch_role({"description": "Edited"})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data("staff_only", "superuser_only")
+    def test_staff_and_superusers_can_edit(self, username):
+        """Test that each privileged kind of user can edit a role.
+
+        Expected result:
+            - Returns 200 OK for a staff user and for a superuser
+        """
+        self.client.force_authenticate(user=User.objects.get(username=username))
+
+        response = self.patch_role({"description": "Edits libraries"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_team_admin_cannot_edit(self):
+        """Test that a user who manages library teams cannot edit roles.
+
+        Expected result:
+            - A library admin gets 403 FORBIDDEN and the role is unchanged
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        response = self.patch_role({"description": "Edits libraries"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_role_unchanged()
+
+    def test_unauthenticated_user_cannot_edit(self):
+        """Test that an anonymous request is rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED and the role is unchanged
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.patch_role({"description": "Edits libraries"})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assert_role_unchanged()
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):

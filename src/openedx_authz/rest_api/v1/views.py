@@ -50,6 +50,7 @@ from openedx_authz.rest_api.v1.serializers import (
     RoleCatalogMetaSerializer,
     RoleCatalogResponseSerializer,
     RoleCatalogRoleSerializer,
+    UpdateCustomRoleSerializer,
     UserRoleAssignmentSerializer,
     UserValidationAPIViewResponseSerializer,
     UserValidationAPIViewSerializer,
@@ -63,6 +64,21 @@ User = get_user_model()
 # Admin roles a user may not remove from itself, so a scope is not left without an
 # admin by accident. Another user who can manage the team can still revoke them.
 SELF_PROTECTED_ROLES = (LIBRARY_ADMIN.external_key, COURSE_ADMIN.external_key)
+
+
+def get_role_entry(role_id: str, username: str) -> dict:
+    """Return one role in the format of a role list item, as the write endpoints respond with it.
+
+    Args:
+        role_id (str): The role identifier.
+        username (str): The caller, whose visible assignments make up ``user_count``.
+
+    Returns:
+        dict: The catalog entry of the role with its ``user_count``.
+    """
+    role_entry = api.get_role_catalog_entry(role_id)
+    user_counts = api.get_visible_role_user_counts(role_entry["scope_types"], username)
+    return {**role_entry, "user_count": user_counts.get(role_id, 0)}
 
 
 @view_auth_classes()
@@ -564,9 +580,69 @@ class RoleListView(APIView):
             return Response(data={"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except api.CustomRoleNameTakenError as exc:
             return Response(data={"message": str(exc)}, status=status.HTTP_409_CONFLICT)
-        # A new role has no assignments yet.
-        role_entry = {**api.get_role_catalog_entry(role.role_id), "user_count": 0}
+        role_entry = get_role_entry(role.role_id, request.user.username)
         return Response(RoleCatalogRoleSerializer(role_entry).data, status=status.HTTP_201_CREATED)
+
+
+@view_auth_classes()
+class RoleDetailView(APIView):
+    """API view for editing one custom role (ADR 0036).
+
+    **Endpoints**
+
+    - PATCH: Change the description or the permissions of a custom role
+
+    **Path Parameters**
+
+    - role_id (Required): The ``role`` field of the role, e.g. ``custom_library_designer``
+
+    **Request Body (PATCH)**
+
+    - description (Optional): Free text, which may be empty
+    - permissions (Optional): Ids of at least one permission that supports the role's resource type.
+      Replaces the full list.
+
+    At least one of the fields is required. ``display_name`` and ``scope_types`` cannot change, and
+    a request that sends either one returns 400.
+
+    **Response Format**
+
+    The role, in the format of an item of the ``results`` of ``GET /api/authz/v1/roles/``.
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - PATCH requires a staff user or a superuser.
+
+    **Example Request**
+
+    PATCH /api/authz/v1/roles/custom_library_designer/ {"permissions": ["content_libraries.view_library"]}
+    """
+
+    permission_classes = [PrivilegedWritePermission]
+
+    @apidocs.schema(
+        body=UpdateCustomRoleSerializer,
+        responses={
+            status.HTTP_200_OK: RoleCatalogRoleSerializer,
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid, or the role is a static role",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user is neither staff nor a superuser",
+            status.HTTP_404_NOT_FOUND: "There is no such role, or it was removed",
+        },
+    )
+    def patch(self, request: HttpRequest, role_id: str) -> Response:
+        """Change the description or the permissions of a custom role."""
+        serializer = UpdateCustomRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            api.update_custom_role(role_id, **serializer.validated_data)
+        except api.CustomRoleNotFoundError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except (api.InvalidCustomRoleError, api.StaticRoleError) as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        role_entry = get_role_entry(role_id, request.user.username)
+        return Response(RoleCatalogRoleSerializer(role_entry).data, status=status.HTTP_200_OK)
 
 
 @view_auth_classes()

@@ -113,7 +113,16 @@ class ChangePlan:
     grants: DefinitionDiff = field(default_factory=DefinitionDiff)
     # (role_id, permission_id, scope) grants of custom roles whose permission the schema no longer
     # declares (ADR 0035 §5); apply stops unless the operator opts in to dropping them.
-    affected_custom_grants: list[tuple[str, str, str]] = field(default_factory=list)
+    unlinked_custom_grants: list[tuple[str, str, str]] = field(default_factory=list)
+    # IDs of the custom roles that dropping the unlinked grants leaves with no permissions.
+    emptied_custom_roles: list[str] = field(default_factory=list)
+
+    @property
+    def unlinked_custom_rows(self) -> list[PolicyRow]:
+        """The ``p`` rows of the unlinked custom role grants, removed together with the grants."""
+        return [
+            PolicyRow.from_grant(role, permission, scope) for role, permission, scope in self.unlinked_custom_grants
+        ]
 
     @property
     def definition_diffs(self) -> list[tuple[str, DefinitionDiff]]:
@@ -206,18 +215,22 @@ class SchemaApplier:
         blocking = self._find_blocking_assignments(policy_store, removed_subjects)
 
         definitions = self._diff_definitions(schema) if schema is not None else {}
-        affected_custom_grants = (
-            self._describe_grants(self._custom_grants_of_removed_permissions(schema)) if schema is not None else []
-        )
+        unlinked_custom_grants: list[tuple[str, str, str]] = []
+        emptied_custom_roles: list[str] = []
+        if schema is not None:
+            unlinked = self._unlinked_custom_grants(schema)
+            unlinked_custom_grants = self._sorted_grant_triples(unlinked)
+            emptied_custom_roles = self._emptied_custom_roles(unlinked)
 
         plan = ChangePlan(
             added_rows=added,
             removed_rows=removed,
             blocking_assignments=blocking,
-            affected_custom_grants=affected_custom_grants,
+            unlinked_custom_grants=unlinked_custom_grants,
+            emptied_custom_roles=emptied_custom_roles,
             **definitions,
         )
-        plan.unchanged = not added and not removed and plan.definitions_unchanged and not affected_custom_grants
+        plan.unchanged = not added and not removed and plan.definitions_unchanged and not unlinked_custom_grants
         return plan
 
     def apply(
@@ -287,23 +300,23 @@ class SchemaApplier:
                     )
                     raise SchemaApplyError(
                         "Refusing to proceed: static roles with existing assignments would be removed: "
-                        f"{details}. Re-run with force to remove them together with their assignments."
+                        f"{details}. Re-run with --force to remove them together with their assignments."
                     )
-                if plan.affected_custom_grants and not drop_custom_role_permissions:
-                    raise SchemaApplyError(self._custom_grants_message(plan.affected_custom_grants))
+                if plan.unlinked_custom_grants and not drop_custom_role_permissions:
+                    raise SchemaApplyError(self._unlinked_custom_grants_message(plan.unlinked_custom_grants))
 
                 for row in plan.added_rows:
                     policy_store.add_policy_row(row)
                 for row in plan.removed_rows:
                     policy_store.remove_policy_row(row)
-                if plan.affected_custom_grants:
-                    self._drop_custom_grants(policy_store, schema)
+                if plan.unlinked_custom_grants:
+                    self._drop_unlinked_custom_grants(policy_store, schema)
                 removed_assignments: list[tuple[str, str, str]] = []
                 if force and plan.blocking_assignments:
                     removed_assignments = self._remove_assignments(policy_store, plan.blocking_assignments)
                 self._store_sources(schema)
 
-                changed = bool(plan.added_rows or plan.removed_rows or plan.affected_custom_grants)
+                changed = bool(plan.added_rows or plan.removed_rows or plan.unlinked_custom_grants)
                 if changed:
                     # Bump the cache version *inside* the transaction so it commits
                     # atomically with the p-row writes. If it ran after the block
@@ -334,7 +347,7 @@ class SchemaApplier:
             logger.exception("Authz schema apply failed; policy cache invalidated to force a reload.")
             raise
 
-        removed_count = len(plan.removed_rows) + len(plan.affected_custom_grants)
+        removed_count = len(plan.removed_rows) + len(plan.unlinked_custom_rows)
         if plan.added_rows or removed_count:
             logger.info(
                 "Authz schema apply: added %d p row(s), removed %d p row(s).",
@@ -460,7 +473,7 @@ class SchemaApplier:
         return sorted(set(blocking))
 
     @staticmethod
-    def _custom_grants_of_removed_permissions(schema: CompiledSchema) -> QuerySet:
+    def _unlinked_custom_grants(schema: CompiledSchema) -> QuerySet:
         """Return the custom role grants whose permission the compiled schema no longer declares.
 
         Permissions are only declared by the schema, so a custom role can hold a grant of one that
@@ -476,26 +489,38 @@ class SchemaApplier:
         )
 
     @staticmethod
-    def _describe_grants(grants: QuerySet) -> list[tuple[str, str, str]]:
-        """Return sorted ``(role_id, permission_id, scope)`` triples for the change report."""
+    def _sorted_grant_triples(grants: QuerySet) -> list[tuple[str, str, str]]:
+        """Return the grants as sorted ``(role_id, permission_id, scope)`` triples."""
         return sorted((grant.role.role_id, grant.permission.identifier, grant.scope) for grant in grants)
 
     @staticmethod
-    def _custom_grants_message(grants: list[tuple[str, str, str]]) -> str:
+    def _emptied_custom_roles(unlinked_grants: QuerySet) -> list[str]:
+        """Return the sorted IDs of the custom roles whose every grant is in ``unlinked_grants``."""
+        other_grants = schema_models.AuthzRolePermission.objects.exclude(pk__in=unlinked_grants.values("pk"))
+        return sorted(
+            schema_models.AuthzRoleDefinition.objects.user_defined()
+            .filter(role_permissions__in=unlinked_grants.values("pk"))
+            .exclude(role_permissions__in=other_grants)
+            .values_list("role_id", flat=True)
+            .distinct()
+        )
+
+    @staticmethod
+    def _unlinked_custom_grants_message(grants: list[tuple[str, str, str]]) -> str:
         """Explain why an apply stopped because custom roles still grant removed permissions."""
         details = ", ".join(f"{role} grants {permission} @ {scope}" for role, permission, scope in grants)
         return (
             "Refusing to proceed: custom roles grant permissions the schema no longer declares: "
-            f"{details}. Re-run with drop_custom_role_permissions to remove these grants."
+            f"{details}. Re-run with --drop-custom-role-permissions to remove these grants."
         )
 
-    def _drop_custom_grants(self, policy_store: PolicyStore, schema: CompiledSchema) -> None:
-        """Remove the custom role grants of removed permissions and their ``p`` rows (ADR 0035 §5).
+    def _drop_unlinked_custom_grants(self, policy_store: PolicyStore, schema: CompiledSchema) -> None:
+        """Remove the unlinked custom role grants and their ``p`` rows (ADR 0035 §5).
 
         Must run before the definitions are pruned, because deleting a permission definition
         cascades to every grant of it.
         """
-        grants = list(self._custom_grants_of_removed_permissions(schema))
+        grants = list(self._unlinked_custom_grants(schema))
         for grant in grants:
             policy_store.remove_policy_row(
                 PolicyRow.from_grant(grant.role.role_id, grant.permission.identifier, grant.scope)

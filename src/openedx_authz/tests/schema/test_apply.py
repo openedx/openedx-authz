@@ -426,7 +426,7 @@ class TestCustomRoles:
         assert not plan.roles.removed
         assert not plan.grants.removed
         assert not plan.removed_rows
-        assert not plan.affected_custom_grants
+        assert not plan.unlinked_custom_grants
 
     def test_removing_an_unrelated_permission_does_not_affect_the_custom_role(self):
         """Only the permissions a custom role grants matter when a permission leaves the schema."""
@@ -444,8 +444,22 @@ class TestCustomRoles:
 
         plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
 
-        assert plan.affected_custom_grants == [("custom_designer", "courses.manage_tags", "course-v1")]
+        assert plan.unlinked_custom_grants == [("custom_designer", "courses.manage_tags", "course-v1")]
         assert plan.unchanged is False
+
+    def test_plan_reports_only_the_custom_roles_left_with_no_permissions(self):
+        """A custom role that keeps a declared grant is not reported as emptied."""
+        enforcer = self._seeded_enforcer(custom_permissions=("courses.view_course", "courses.manage_tags"))
+        _add_custom_role(enforcer, role_id="custom_tagger", permissions=("courses.manage_tags",))
+        schema = _compile(_without_permission("manage_tags"))
+
+        plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
+
+        assert plan.unlinked_custom_grants == [
+            ("custom_designer", "courses.manage_tags", "course-v1"),
+            ("custom_tagger", "courses.manage_tags", "course-v1"),
+        ]
+        assert plan.emptied_custom_roles == ["custom_tagger"]
 
     def test_removed_permission_stops_the_apply_before_any_write(self, cache_invalidation):
         """Without the opt-in, nothing is written and the error names the affected grant."""
@@ -483,9 +497,10 @@ class TestCustomRoles:
         enforcer = self._seeded_enforcer(custom_permissions=("courses.manage_tags",))
         enforcer.add_grouping_policy("user^alice", "role^custom_designer", "course-v1^course-v1:OpenedX+DemoX+Demo")
 
-        _apply(enforcer, _without_permission("manage_tags"), drop_custom_role_permissions=True)
+        result = _apply(enforcer, _without_permission("manage_tags"), drop_custom_role_permissions=True)
 
         role_obj = AuthzRoleDefinition.objects.get(role_id="custom_designer")
+        assert result.plan.emptied_custom_roles == ["custom_designer"]
         assert not role_obj.role_permissions.exists()
         assert enforcer.get_grouping_policy() == [
             ["user^alice", "role^custom_designer", "course-v1^course-v1:OpenedX+DemoX+Demo"]

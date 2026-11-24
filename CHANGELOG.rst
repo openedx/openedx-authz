@@ -27,8 +27,9 @@ Added
 * Added ``--drop-custom-role-permissions`` to ``load_authz_schema``. When a release removes a
   permission that a custom role grants, the deployment stops before any write and lists each
   affected grant. Run the command with this option to drop those grants and their policy rows in
-  the same deployment; a custom role left with no permissions keeps its assignments. Releases that
-  remove a permission must say so in their operator release notes and name this option.
+  the same deployment; a custom role left with no permissions keeps its assignments, and the
+  report lists it. Releases that remove a permission must say so in their operator release notes
+  and name this option.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

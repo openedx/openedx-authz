@@ -150,15 +150,60 @@ class TestApplyMode:
         pipeline_cls.return_value.apply.assert_called_once_with(force=False, drop_custom_role_permissions=True)
 
     def test_report_lists_custom_role_grants_of_removed_permissions(self):
-        """The change report names each affected custom role grant and the opt-in option."""
-        plan = ChangePlan(affected_custom_grants=[("custom_designer", "courses.view_course", "course-v1")])
+        """A dry run names each unlinked custom role grant and the option that drops it."""
+        plan = ChangePlan(unlinked_custom_grants=[("custom_designer", "courses.view_course", "course-v1")])
         with mock.patch(PIPELINE_PATH) as pipeline_cls:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
         assert "Custom role grants of removed permissions (1)" in output
         assert "! custom_designer -> courses.view_course @ course-v1" in output
-        assert "--drop-custom-role-permissions" in output
+        assert "Apply stops here unless --drop-custom-role-permissions is passed" in output
+        assert "Casbin policies (" not in output
+
+    def test_applied_report_lists_dropped_grants_and_their_policies(self):
+        """After the drop, the report lists the removed ``p`` rows the summary counts, without the opt-in hint."""
+        plan = ChangePlan(
+            unlinked_custom_grants=[("custom_designer", "courses.view_course", "course-v1")],
+            emptied_custom_roles=["custom_designer"],
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(removed=1, plan=plan)
+            output = _run("--drop-custom-role-permissions")
+
+        assert "Changes applied:" in output
+        assert "Casbin policies (1)" in output
+        assert "- p, role^custom_designer, act^courses.view_course, course-v1^*, allow" in output
+        assert "Dropped custom role grants of removed permissions (1)" in output
+        assert "- custom_designer -> courses.view_course @ course-v1" in output
+        assert "Custom roles left with no permissions (1)" in output
+        assert "! custom_designer has no permissions; its assignments stay" in output
+        assert "Apply stops here" not in output
+        assert "\nAuthz schema applied: 0 Casbin policy row(s) added, 1 removed." in output
+
+    def test_dry_run_reports_custom_roles_that_would_be_left_with_no_permissions(self):
+        """A dry run warns about each custom role the drop would empty."""
+        plan = ChangePlan(
+            unlinked_custom_grants=[("custom_designer", "courses.view_course", "course-v1")],
+            emptied_custom_roles=["custom_designer"],
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Custom roles left with no permissions (1)" in output
+        assert "! custom_designer would have no permissions; its assignments stay" in output
+
+    def test_applied_report_lists_force_removed_assignments(self):
+        """After a forced apply, the report says the assignments were removed rather than that they require force."""
+        plan = ChangePlan(blocking_assignments=[("role^course_editor", "user^alice")])
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(plan=plan)
+            output = _run("--force")
+
+        assert "1 assignment(s) of removed roles were removed:" in output
+        assert "role^course_editor assigned to user^alice" in output
+        assert "requires --force" not in output
 
 
 class TestDryRunMode:

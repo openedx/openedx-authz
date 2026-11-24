@@ -103,7 +103,7 @@ class Command(BaseCommand):
         # see exactly which Casbin policy rows and definition records changed,
         # then close with the applied summary.
         if result.plan is not None:
-            self._report_plan(result.plan)
+            self._report_plan(result.plan, applied=True)
         self.stdout.write(self.style.SUCCESS(f"\n{self._apply_summary(result)}"))
 
     def _apply_summary(self, result) -> str:
@@ -171,7 +171,7 @@ class Command(BaseCommand):
         """
         return ", ".join([row.PTYPE, *row.as_policy()])
 
-    def _report_plan(self, plan) -> None:
+    def _report_plan(self, plan, *, applied: bool = False) -> None:
         """Print the change report (ADR 0018 §6).
 
         Covers the definition tables (roles, permissions, categories, and
@@ -182,52 +182,87 @@ class Command(BaseCommand):
         see. Each layer is one compact, interleaved diff (additions and removals
         together) rather than split by direction, so a reviewer can scan one
         block per layer instead of hunting across separate add/remove sections.
+
+        ``applied`` is True when the report describes a finished apply rather than
+        a dry run. An apply only gets past the ``--force`` and
+        ``--drop-custom-role-permissions`` gates with those options, so its report
+        lists what they removed instead of what they would require.
         """
         if plan.unchanged:
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; nothing would be written."))
             return
 
-        self.stdout.write("\nChanges to apply:")
+        self.stdout.write("\nChanges applied:" if applied else "\nChanges to apply:")
 
-        total_rows = len(plan.added_rows) + len(plan.removed_rows)
+        removed_rows = plan.removed_rows + plan.unlinked_custom_rows if applied else plan.removed_rows
+        total_rows = len(plan.added_rows) + len(removed_rows)
         if total_rows:
             self._write_section_header(f"Casbin policies ({total_rows})")
             for row in plan.added_rows:
                 self._write_marked_line("+", self._format_policy_row(row), self.style.SUCCESS)
-            for row in plan.removed_rows:
+            for row in removed_rows:
                 self._write_marked_line("-", self._format_policy_row(row), self.style.ERROR)
 
         self._report_definitions(plan)
-        self._report_custom_grants(plan)
+        self._report_unlinked_custom_grants(plan, applied=applied)
+        self._report_emptied_custom_roles(plan, applied=applied)
+        self._report_blocking_assignments(plan, applied=applied)
 
-        if plan.blocking_assignments:
+    def _report_blocking_assignments(self, plan, *, applied: bool) -> None:
+        """Print the assignments of removed static roles, which only ``--force`` removes."""
+        if not plan.blocking_assignments:
+            return
+
+        count = len(plan.blocking_assignments)
+        if applied:
+            self.stdout.write(self.style.WARNING(f"{count} assignment(s) of removed roles were removed:"))
+        else:
             self.stdout.write(
                 self.style.WARNING(
-                    f"{len(plan.blocking_assignments)} role(s) with existing assignments would be "
-                    "removed; apply requires --force:"
+                    f"{count} role(s) with existing assignments would be removed; apply requires --force:"
                 )
             )
-            for role, subject in plan.blocking_assignments:
-                self.stdout.write(f"  ! {role} assigned to {subject}")
+        for role, subject in plan.blocking_assignments:
+            self.stdout.write(f"  ! {role} assigned to {subject}")
 
-    def _report_custom_grants(self, plan) -> None:
+    def _report_unlinked_custom_grants(self, plan, *, applied: bool) -> None:
         """Print the custom role grants of permissions the schema no longer declares (ADR 0035).
 
         The deployment drops them only when ``--drop-custom-role-permissions`` is passed, and
-        stops before any write otherwise, so the operator needs to see exactly which grants are
-        affected before choosing.
+        stops before any write otherwise, so a dry run shows exactly which grants are affected
+        before the operator chooses.
         """
-        if not plan.affected_custom_grants:
+        if not plan.unlinked_custom_grants:
             return
 
-        self._write_section_header(f"Custom role grants of removed permissions ({len(plan.affected_custom_grants)})")
-        for role, permission, scope in plan.affected_custom_grants:
-            self._write_marked_line("!", f"{role} -> {permission} @ {scope}", self.style.WARNING)
-        self.stdout.write(
-            self.style.WARNING(
-                "Apply drops these grants only with --drop-custom-role-permissions, and stops otherwise."
+        count = len(plan.unlinked_custom_grants)
+        if applied:
+            self._write_section_header(f"Dropped custom role grants of removed permissions ({count})")
+        else:
+            self._write_section_header(f"Custom role grants of removed permissions ({count})")
+        for role, permission, scope in plan.unlinked_custom_grants:
+            self._write_marked_line("-" if applied else "!", f"{role} -> {permission} @ {scope}", self.style.WARNING)
+        if not applied:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Apply stops here unless --drop-custom-role-permissions is passed, which drops these "
+                    "grants and their Casbin policies."
+                )
             )
-        )
+
+    def _report_emptied_custom_roles(self, plan, *, applied: bool) -> None:
+        """Print the custom roles that dropping the unlinked grants leaves with no permissions.
+
+        Such a role stays, with its assignments, so administrators need to know to add
+        permissions to it or remove it.
+        """
+        if not plan.emptied_custom_roles:
+            return
+
+        verb = "has" if applied else "would have"
+        self._write_section_header(f"Custom roles left with no permissions ({len(plan.emptied_custom_roles)})")
+        for role in plan.emptied_custom_roles:
+            self._write_marked_line("!", f"{role} {verb} no permissions; its assignments stay", self.style.WARNING)
 
     def _report_definitions(self, plan) -> None:
         """Print the definition-metadata changes as one compact, interleaved diff.

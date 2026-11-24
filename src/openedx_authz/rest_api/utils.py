@@ -6,7 +6,7 @@ from openedx_authz.api.data import (
     GLOBAL_SCOPE_WILDCARD,
     ScopeData,
 )
-from openedx_authz.api.utils import get_scope_display_name_map
+from openedx_authz.api.utils import get_org_display_name_map, get_scope_display_name_map
 from openedx_authz.rest_api.data import (
     AssignmentSortField,
     BaseEnum,
@@ -300,3 +300,22 @@ def inject_scope_display_names(assignments: list[SerializedAssignment]) -> None:
     display_name_map = get_scope_display_name_map(scope_keys)
     for assignment in assignments:
         assignment["scope_display_name"] = display_name_map.get(assignment.get("scope", ""), "")
+
+
+def inject_org_display_names(assignments: list[SerializedAssignment]) -> None:
+    """Set ``org_display_name`` in-place on serialized assignments using one bulk lookup.
+
+    Callers must pass only the assignments of the current page, after filtering,
+    sorting and pagination, so the lookup cost does not grow with the total
+    number of assignments. Unresolvable orgs (the global wildcard or orgs with
+    no matching organization) get an empty string.
+
+    Args:
+        assignments: Serialized assignments for the current page. Each one
+            must have an ``org`` key. They are modified in-place, and
+            ``org_display_name`` is set on every entry.
+    """
+    org_short_names = {a["org"] for a in assignments if a.get("org")}
+    display_name_map = get_org_display_name_map(org_short_names)
+    for assignment in assignments:
+        assignment["org_display_name"] = display_name_map.get(assignment.get("org", ""), "")

@@ -181,9 +181,19 @@ class TeamMemberAssignmentInlineSerializer(TeamMemberAssignmentSerializer):  # p
 class TeamMemberUserAssignmentSerializer(TeamMemberAssignmentSerializer):  # pylint: disable=abstract-method
     """Serializer for team member assignments with user information."""
 
+    scope_display_name = serializers.SerializerMethodField()
+    org_display_name = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
     username = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
+
+    def get_scope_display_name(self, _obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Return an empty placeholder; the view injects the real value post-pagination."""
+        return ""
+
+    def get_org_display_name(self, _obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
+        """Return an empty placeholder; the view injects the real value post-pagination."""
+        return ""
 
     def get_full_name(self, obj: api.UserAssignmentData | api.SuperAdminAssignmentData) -> str:
         """Get the full name from the UserProfile."""

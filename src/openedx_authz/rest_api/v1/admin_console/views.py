@@ -45,7 +45,7 @@ from openedx_authz.authz import (
 from openedx_authz.models.scopes import get_content_library_model, get_course_overview_model
 from openedx_authz.rest_api.data import ScopesQuerySetFields, ScopesTypeField
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
-from openedx_authz.rest_api.utils import inject_scope_display_names
+from openedx_authz.rest_api.utils import inject_org_display_names, inject_scope_display_names
 from openedx_authz.rest_api.v1.admin_console.filters import (
     TeamMemberAssignmentsOrderingFilter,
     TeamMemberOrderingFilter,
@@ -824,7 +824,9 @@ class AssignmentsAPIView(APIView):
     - is_superadmin: whether this entry denotes a superadmin
     - role: The role
     - org: The org over which this role is applied
+    - org_display_name: The display name of the org, or an empty string if it cannot be resolved
     - scope: The scope over which this role is applied
+    - scope_display_name: The display name of the scope, or an empty string if it cannot be resolved
     - permission_count: The number of permissions that apply to this role
     - full_name: The full name of the user in this assignment
     - username: The username of the user in this assignment
@@ -852,6 +854,8 @@ class AssignmentsAPIView(APIView):
                     "org": "OpenedX",
                     "scope": "course-v1:OpenedX+DemoX+DemoCourse",
                     "permission_count": 27,
+                    "scope_display_name": "Demonstration Course",
+                    "org_display_name": "Open edX",
                     "full_name": "",
                     "username": "contributor",
                     "email": "contributor@example.com"
@@ -922,7 +926,9 @@ class AssignmentsAPIView(APIView):
         for backend in self.filter_backends:
             assignments = backend().filter_queryset(request, assignments, self)
 
-        # Paginate
+        # Paginate, then resolve display names in bulk for the current page only.
         paginator = self.pagination_class()
         paginated_response_data = paginator.paginate_queryset(assignments, request)
+        inject_scope_display_names(paginated_response_data)
+        inject_org_display_names(paginated_response_data)
         return paginator.get_paginated_response(paginated_response_data)

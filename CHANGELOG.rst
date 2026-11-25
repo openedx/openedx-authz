@@ -30,6 +30,14 @@ Added
   the same deployment; a custom role left with no permissions keeps its assignments, and the
   report lists it. Releases that remove a permission must say so in their operator release notes
   and name this option.
+* Added authorization schema version ``1.1``, with its own ``authz-schema-v1.1.json``. It adds an
+  optional ``depends_on`` list to permissions (ADR 0034). Files of versions ``1.0`` and ``1.1`` can
+  be loaded together. Validation rejects unknown dependencies, dependency cycles, dependencies that
+  do not support the dependent permission's scopes, visible permissions that depend on hidden
+  ones, and roles that grant a permission without all of its dependencies.
+* Replaced the ``OPENEDX_AUTHZ_JSON_SCHEMA`` setting with ``OPENEDX_AUTHZ_JSON_SCHEMAS``, which maps
+  ``schema_version`` values to JSON Schema resources. It overrides only the versions it lists, and
+  the built-in schemas cover the rest. Setting the old name raises ``ImproperlyConfigured``.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

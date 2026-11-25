@@ -182,6 +182,14 @@ class TestBaseDefinitionConflicts:
         with pytest.raises(SchemaCompileError, match="Priority does not resolve base definitions"):
             SchemaCompiler().compile([lo, hi])
 
+    def test_permission_with_different_dependencies_raises_regardless_of_priority(self):
+        """Priority cannot pick which file's dependencies win; only the defining file declares them."""
+        lo = make_document("lo", priority=100, permissions=[permission(depends_on=("courses.view_course_team",))])
+        hi = make_document("hi", priority=200, permissions=[permission(depends_on=())])
+
+        with pytest.raises(SchemaCompileError, match="Conflicting permission definition for 'courses.view_course'"):
+            SchemaCompiler().compile([lo, hi])
+
     def test_identical_base_definitions_merge_regardless_of_priority(self):
         """Identical declarations are not a conflict; their sources merge."""
         first = make_document("first", priority=100, roles=[role(rid="dup", permissions=())])

@@ -99,7 +99,11 @@ class TestCompiledSchemaSnapshot:
             "scopes": ["course"],
             "icon": None,
             "hidden": False,
+            "depends_on": [],
         }
+        assert render_permission(
+            replace(permission, definition=replace(permission.definition, depends_on=("courses.view_course",)))
+        )["depends_on"] == ["courses.view_course"]
         assert render_category(category) == {
             "applet": "course_authoring",
             "display_name": "Course content",

@@ -19,7 +19,12 @@ Use this reference when creating or reviewing an authz schema file. The examples
 Machine-readable schema
 ***********************
 
-The :download:`downloadable authz JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` describes the fields, types, required values, and identifier formats for schema version ``1.0``. You can also :doc:`browse the generated schema <authorization-schema-json>` or `view the schema source <https://github.com/openedx/openedx-authz/blob/main/src/openedx_authz/engine/schema/authz-schema-v1.json>`_. Editors and validation tools can use it to check YAML files because JSON Schema applies to the data represented by both JSON and YAML.
+Each schema version has a downloadable authz JSON Schema that describes its fields, types, required values, and identifier formats:
+
+* :download:`authz-schema-v1.json <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` for schema version ``1.0`` (`view source <https://github.com/openedx/openedx-authz/blob/main/src/openedx_authz/engine/schema/authz-schema-v1.json>`__).
+* :download:`authz-schema-v1.1.json <../../src/openedx_authz/engine/schema/authz-schema-v1.1.json>` for schema version ``1.1`` (`view source <https://github.com/openedx/openedx-authz/blob/main/src/openedx_authz/engine/schema/authz-schema-v1.1.json>`__). It accepts everything ``1.0`` accepts and adds the optional ``depends_on`` field to permissions.
+
+You can also :doc:`browse the generated schema <authorization-schema-json>`. Editors and validation tools can use these files to check YAML files because JSON Schema applies to the data represented by both JSON and YAML.
 
 The JSON Schema checks the structure of one file. The compiler also checks references across the combined schema, registered scope namespaces, available Paragon icons, and conflicts between contributions.
 
@@ -80,6 +85,8 @@ Top-level fields
 ==================
 
 The version of the YAML format used by the file. Write it as a quoted ``major.minor`` value, such as ``"1.0"``. A deployment stops before changing the database when it encounters a version it cannot read.
+
+The supported versions are ``"1.0"`` and ``"1.1"``. Each file is validated against the JSON Schema of the version it declares, so a deployment can load files of both versions together, and a file can move to ``1.1`` without the other files moving with it. A file needs ``"1.1"`` only to declare ``depends_on``, and a ``1.1`` file without it means the same as it would in ``1.0``. A ``1.0`` file that declares it fails validation with an unknown-field error.
 
 ``priority``
 ============
@@ -167,6 +174,9 @@ A permission contains these fields:
 ``hidden``
    An optional boolean that defaults to ``false``. A hidden permission does not appear in normal discovery and selection interfaces or in role details. Hiding does not delete the permission, remove it from roles, or change permission checks. Role extensions cannot change this field.
 
+``depends_on``
+   An optional list of the complete IDs of the permissions this permission directly requires. Only the file that defines a permission declares its dependencies, and role extensions cannot add or remove them. Requires schema version ``1.1``. See :doc:`ADR 0034 <../decisions/0034-permission-dependencies-in-authorization-schema>`.
+
 The complete permission ID joins ``namespace`` and ``name`` with a period. For example:
 
 .. code-block:: yaml
@@ -183,6 +193,37 @@ The complete permission ID joins ``namespace`` and ``name`` with a period. For e
 The complete ID is ``content_libraries.manage_library_tags``. Role definitions, role extensions, application checks, and API responses use this value.
 
 The Casbin form ``act^content_libraries.manage_library_tags`` is an internal value and is not valid in a schema file.
+
+Permission dependencies
+=======================
+
+A permission declares the permissions it directly requires in ``depends_on``. For example, editing library content requires viewing the library:
+
+.. code-block:: yaml
+
+   schema_version: "1.1"
+   priority: 100
+
+   permissions:
+     - namespace: content_libraries
+       name: edit_library_content
+       display_name: Edit library content
+       description: Create, edit, and delete content in a content library.
+       category_id: library_content
+       scopes:
+         - lib
+       depends_on:
+         - content_libraries.view_library
+
+Validation rejects a schema when:
+
+* a dependency is not a permission defined in the combined schema;
+* a permission depends on itself, or permissions depend on each other in a cycle;
+* a dependency does not support every scope of the permission that depends on it;
+* a visible permission depends on a hidden permission, or on a permission in a hidden category; or
+* a role, after role extensions are applied, grants a permission without all of its direct and indirect dependencies.
+
+The last rule applies to roles and role extensions in every file, whatever ``schema_version`` the file declares. If a ``1.1`` file adds ``depends_on`` to a permission, every role that grants that permission must also list its dependencies.
 
 Roles
 *****
@@ -202,7 +243,7 @@ A role contains these fields:
    The scope namespaces where the role can be assigned. Every permission listed by the role must support those scopes.
 
 ``permissions``
-   A list of complete permission IDs. The compiler does not infer one permission from another, so the role lists every permission it needs.
+   A list of complete permission IDs. The role lists every permission it needs, including every direct and indirect dependency of those permissions (see `Permission dependencies`_).
 
 ``icon``
    An optional, case-sensitive icon name exported by ``@openedx/paragon/icons``.
@@ -266,7 +307,7 @@ For example, a deployment can allow course editors to export courses, remove the
      - role_id: course_auditor
        hidden: true
 
-An extension fails validation when its target role or a referenced permission does not exist. Adding a permission already assigned to the role or removing one the role does not have produces a warning and leaves the result unchanged.
+An extension fails validation when its target role or a referenced permission does not exist. It also fails when the resulting role grants a permission without its dependencies: an extension that adds a permission must also add the dependencies the role lacks, and ``remove_permissions`` cannot remove a dependency that another permission on the role still needs. Adding a permission already assigned to the role or removing one the role does not have produces a warning and leaves the result unchanged.
 
 Identifier rules
 ****************

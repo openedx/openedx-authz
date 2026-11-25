@@ -321,6 +321,42 @@ class TestFieldCoercion:
         assert docs[0].roles[0].scopes == ("course-v1",)
         assert docs[0].roles[0].permissions == ("courses.view_course",)
 
+    def test_depends_on_is_loaded_sorted(self):
+        """``depends_on`` is loaded as a sorted tuple, whatever order the file lists it in (ADR 0034)."""
+        docs = _load(
+            b"schema_version: '1.1'\n"
+            b"priority: 1\n"
+            b"permissions:\n"
+            b"  - namespace: courses\n"
+            b"    name: export_course\n"
+            b"    depends_on: [courses.view_course_team, courses.view_course]\n"
+        )
+
+        assert docs[0].permissions[0].depends_on == ("courses.view_course", "courses.view_course_team")
+
+    def test_permission_without_depends_on_has_no_dependencies(self):
+        """A permission that omits ``depends_on``, including every 1.0 permission, has none."""
+        docs = _load(
+            b"schema_version: '1.0'\npriority: 1\npermissions:\n  - namespace: courses\n    name: view_course\n"
+        )
+
+        assert docs[0].permissions[0].depends_on == ()
+
+    def test_dependency_order_does_not_make_definitions_differ(self):
+        """The same dependencies in a different order load as equal definitions, so they do not conflict."""
+        template = (
+            b"schema_version: '1.1'\n"
+            b"priority: 1\n"
+            b"permissions:\n"
+            b"  - namespace: courses\n"
+            b"    name: export_course\n"
+            b"    depends_on: [%s]\n"
+        )
+        first = _load(template % b"courses.view_course, courses.view_course_team")
+        second = _load(template % b"courses.view_course_team, courses.view_course")
+
+        assert first[0].permissions[0] == second[0].permissions[0]
+
     def test_null_blocks_are_treated_as_empty(self):
         """A YAML block whose value is null coerces to an empty list."""
         docs = _load(b"schema_version: '1.0'\npriority: 1\nroles:\npermissions:\n")

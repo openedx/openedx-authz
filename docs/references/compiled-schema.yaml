@@ -272,6 +272,7 @@ permissions:
     - lib
     icon: Plus
     hidden: false
+    depends_on: []
   content_libraries.delete_library:
     applet: content_libraries
     namespace: content_libraries
@@ -283,6 +284,7 @@ permissions:
     - lib
     icon: Delete
     hidden: false
+    depends_on: []
   content_libraries.delete_library_collection:
     applet: content_libraries
     namespace: content_libraries
@@ -294,6 +296,7 @@ permissions:
     - lib
     icon: Delete
     hidden: false
+    depends_on: []
   content_libraries.edit_library_collection:
     applet: content_libraries
     namespace: content_libraries
@@ -305,6 +308,7 @@ permissions:
     - lib
     icon: EditOutline
     hidden: false
+    depends_on: []
   content_libraries.edit_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -316,6 +320,7 @@ permissions:
     - lib
     icon: EditOutline
     hidden: false
+    depends_on: []
   content_libraries.manage_library_tags:
     applet: content_libraries
     namespace: content_libraries
@@ -327,6 +332,7 @@ permissions:
     - lib
     icon: Settings
     hidden: false
+    depends_on: []
   content_libraries.manage_library_team:
     applet: content_libraries
     namespace: content_libraries
@@ -338,6 +344,7 @@ permissions:
     - lib
     icon: Settings
     hidden: false
+    depends_on: []
   content_libraries.publish_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -349,6 +356,7 @@ permissions:
     - lib
     icon: DownloadDone
     hidden: false
+    depends_on: []
   content_libraries.reuse_library_content:
     applet: content_libraries
     namespace: content_libraries
@@ -360,6 +368,7 @@ permissions:
     - lib
     icon: SpinnerIcon
     hidden: false
+    depends_on: []
   content_libraries.view_library:
     applet: content_libraries
     namespace: content_libraries
@@ -371,6 +380,7 @@ permissions:
     - lib
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   content_libraries.view_library_team:
     applet: content_libraries
     namespace: content_libraries
@@ -382,6 +392,7 @@ permissions:
     - lib
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.create_files:
     applet: course_authoring
     namespace: courses
@@ -393,6 +404,7 @@ permissions:
     - course-v1
     icon: Plus
     hidden: false
+    depends_on: []
   courses.delete_files:
     applet: course_authoring
     namespace: courses
@@ -404,6 +416,7 @@ permissions:
     - course-v1
     icon: Delete
     hidden: false
+    depends_on: []
   courses.edit_course_content:
     applet: course_authoring
     namespace: courses
@@ -415,6 +428,7 @@ permissions:
     - course-v1
     icon: EditOutline
     hidden: false
+    depends_on: []
   courses.edit_details:
     applet: course_authoring
     namespace: courses
@@ -426,6 +440,7 @@ permissions:
     - course-v1
     icon: EditOutline
     hidden: false
+    depends_on: []
   courses.edit_files:
     applet: course_authoring
     namespace: courses
@@ -437,6 +452,7 @@ permissions:
     - course-v1
     icon: EditOutline
     hidden: false
+    depends_on: []
   courses.edit_grading_settings:
     applet: course_authoring
     namespace: courses
@@ -448,6 +464,7 @@ permissions:
     - course-v1
     icon: EditOutline
     hidden: false
+    depends_on: []
   courses.edit_schedule:
     applet: course_authoring
     namespace: courses
@@ -459,6 +476,7 @@ permissions:
     - course-v1
     icon: EditOutline
     hidden: false
+    depends_on: []
   courses.enroll_learners:
     applet: enrollments
     namespace: courses
@@ -470,6 +488,7 @@ permissions:
     - course-v1
     icon: PersonAdd
     hidden: false
+    depends_on: []
   courses.export_course:
     applet: course_authoring
     namespace: courses
@@ -481,6 +500,7 @@ permissions:
     - course-v1
     icon: Upload
     hidden: false
+    depends_on: []
   courses.export_tags:
     applet: course_authoring
     namespace: courses
@@ -492,6 +512,7 @@ permissions:
     - course-v1
     icon: Upload
     hidden: false
+    depends_on: []
   courses.import_course:
     applet: course_authoring
     namespace: courses
@@ -503,6 +524,7 @@ permissions:
     - course-v1
     icon: Download
     hidden: false
+    depends_on: []
   courses.legacy_beta_tester_permissions:
     applet: course_team_roles
     namespace: courses
@@ -514,6 +536,7 @@ permissions:
     - course-v1
     icon: DrawShapes
     hidden: false
+    depends_on: []
   courses.legacy_data_researcher_permissions:
     applet: course_team_roles
     namespace: courses
@@ -525,6 +548,7 @@ permissions:
     - course-v1
     icon: DrawShapes
     hidden: false
+    depends_on: []
   courses.legacy_instructor_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -536,6 +560,7 @@ permissions:
     - course-v1
     icon: DrawShapes
     hidden: false
+    depends_on: []
   courses.legacy_limited_staff_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -547,6 +572,7 @@ permissions:
     - course-v1
     icon: DrawShapes
     hidden: false
+    depends_on: []
   courses.legacy_staff_role_permissions:
     applet: course_team_roles
     namespace: courses
@@ -558,6 +584,7 @@ permissions:
     - course-v1
     icon: DrawShapes
     hidden: false
+    depends_on: []
   courses.manage_advanced_settings:
     applet: course_authoring
     namespace: courses
@@ -569,6 +596,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_certificates:
     applet: course_authoring
     namespace: courses
@@ -580,6 +608,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_cohorts:
     applet: learner_administration
     namespace: courses
@@ -591,6 +620,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_course_team:
     applet: course_authoring
     namespace: courses
@@ -602,6 +632,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_course_updates:
     applet: course_authoring
     namespace: courses
@@ -613,6 +644,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_group_configurations:
     applet: course_authoring
     namespace: courses
@@ -624,6 +656,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_learner_extensions:
     applet: learner_administration
     namespace: courses
@@ -635,6 +668,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_learner_grading:
     applet: learner_grading
     namespace: courses
@@ -646,6 +680,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_library_updates:
     applet: course_authoring
     namespace: courses
@@ -657,6 +692,7 @@ permissions:
     - course-v1
     icon: Checklist
     hidden: false
+    depends_on: []
   courses.manage_pages_and_resources:
     applet: course_authoring
     namespace: courses
@@ -668,6 +704,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_tags:
     applet: course_authoring
     namespace: courses
@@ -679,6 +716,7 @@ permissions:
     - course-v1
     icon: Settings
     hidden: false
+    depends_on: []
   courses.manage_taxonomies:
     applet: course_authoring
     namespace: courses
@@ -690,6 +728,7 @@ permissions:
     - course-v1
     icon: LocalOffer
     hidden: true
+    depends_on: []
   courses.publish_course_content:
     applet: course_authoring
     namespace: courses
@@ -701,6 +740,7 @@ permissions:
     - course-v1
     icon: DownloadDone
     hidden: false
+    depends_on: []
   courses.unenroll_learners:
     applet: enrollments
     namespace: courses
@@ -712,6 +752,7 @@ permissions:
     - course-v1
     icon: PersonRemove
     hidden: false
+    depends_on: []
   courses.view_advanced_settings:
     applet: course_authoring
     namespace: courses
@@ -723,6 +764,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_certificates:
     applet: course_authoring
     namespace: courses
@@ -734,6 +776,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_checklists:
     applet: course_authoring
     namespace: courses
@@ -745,6 +788,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_cohorts:
     applet: learner_administration
     namespace: courses
@@ -756,6 +800,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_course:
     applet: course_authoring
     namespace: courses
@@ -767,6 +812,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_course_info:
     applet: learner_administration
     namespace: courses
@@ -778,6 +824,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_course_team:
     applet: course_authoring
     namespace: courses
@@ -789,6 +836,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_course_updates:
     applet: course_authoring
     namespace: courses
@@ -800,6 +848,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_enrollments:
     applet: enrollments
     namespace: courses
@@ -811,6 +860,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_files:
     applet: course_authoring
     namespace: courses
@@ -822,6 +872,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_gradebook:
     applet: learner_grading
     namespace: courses
@@ -833,6 +884,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_grading_settings:
     applet: course_authoring
     namespace: courses
@@ -844,6 +896,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_group_configurations:
     applet: course_authoring
     namespace: courses
@@ -855,6 +908,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_learner_extensions:
     applet: learner_administration
     namespace: courses
@@ -866,6 +920,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_library_updates:
     applet: course_authoring
     namespace: courses
@@ -877,6 +932,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_pages_and_resources:
     applet: course_authoring
     namespace: courses
@@ -888,6 +944,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
   courses.view_schedule_and_details:
     applet: course_authoring
     namespace: courses
@@ -899,6 +956,7 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
+    depends_on: []
 categories:
   course_access_content:
     applet: course_authoring

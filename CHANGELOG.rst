@@ -49,6 +49,15 @@ Added
   call it. Sending ``display_name`` or ``scope_types``, or editing a static role, returns 400, and
   a role that does not exist or was removed returns 404. It returns the role in the format of the
   role list. Permission dependencies are not checked yet, as for create.
+* Added ``GET /api/authz/v1/roles/<role_id>/`` to read one role, static or custom, in the format
+  of the role list (ADR 0036). The caller needs the permission to list the roles of one of the
+  role's resource types (``courses.view_course_team`` or ``content_libraries.view_library_team``);
+  staff and superusers always pass. A role that does not exist or was removed returns 404.
+* Added ``DELETE /api/authz/v1/roles/<role_id>/`` to remove a custom role (ADR 0036). Only staff
+  and superusers can call it. A role that has assignments is removed only with
+  ``assignments=revoke``, which deletes them too; without it the response is 409 and nothing is
+  removed. Any other ``assignments`` value, or removing a static role, returns 400, and a role that
+  does not exist or was removed returns 404. It returns 204.
 * Added ``get_role_catalog_entry`` to the public API, which returns one role in the format of the
   role catalog and raises the new ``RoleNotFoundError`` for a role that is not in the catalog. The
   role catalog now returns ``updated_at`` for custom roles.

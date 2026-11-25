@@ -5,7 +5,13 @@ from rest_framework import serializers
 
 from openedx_authz import api
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind
-from openedx_authz.rest_api.data import RoleSortField, ScopesTypeField, SortField, SortOrder
+from openedx_authz.rest_api.data import (
+    RoleRemovalAssignmentsAction,
+    RoleSortField,
+    ScopesTypeField,
+    SortField,
+    SortOrder,
+)
 from openedx_authz.rest_api.utils import get_generic_scope, parse_scope_types
 from openedx_authz.rest_api.v1.fields import CommaSeparatedListField, LowercaseCharField
 
@@ -273,6 +279,21 @@ class UpdateCustomRoleSerializer(serializers.Serializer):  # pylint: disable=abs
         if sent:
             raise serializers.ValidationError({field: "This field cannot be changed." for field in sent})
         return attrs
+
+
+class RemoveCustomRoleQuerySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for the query parameters of the request that removes a custom role (ADR 0036).
+
+    ``assignments=revoke`` confirms that the assignments of the role are deleted with it. Whether
+    the role has assignments, and so whether the confirmation is required, is decided by
+    ``api.remove_custom_role``.
+    """
+
+    assignments = serializers.ChoiceField(
+        required=False,
+        choices=[(e.value, e.name) for e in RoleRemovalAssignmentsAction],
+        default=None,
+    )
 
 
 class RoleCatalogCategorySerializer(serializers.Serializer):  # pylint: disable=abstract-method

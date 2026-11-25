@@ -26,6 +26,7 @@ from openedx_authz.api.data import (
     OrgCourseOverviewGlobData,
     PlatformContentLibraryGlobData,
     PlatformCourseOverviewGlobData,
+    RoleData,
 )
 from openedx_authz.api.users import assign_role_to_user_in_scope
 from openedx_authz.authz import (
@@ -2326,6 +2327,376 @@ class TestRoleDetailViewUpdate(CustomRoleViewTestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assert_role_unchanged()
+
+
+@ddt
+class TestRoleDetailViewRead(CustomRoleViewTestMixin):
+    """Test suite for reading one role through RoleDetailView (ADR 0036)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Make ``regular_9`` a course staff member, who can read course roles but not library roles."""
+        super().setUpTestData()
+        cls._assign_roles_to_users(
+            assignments=[
+                {"subject_name": "regular_9", "role_name": COURSE_STAFF.external_key, "scope_name": COURSE_SCOPE_ORG1}
+            ]
+        )
+
+    def setUp(self):
+        """Create a custom role of each resource type."""
+        super().setUp()
+        self.library_role = api.create_custom_role(
+            "Library Designer", "Designs libraries", "lib", [VIEW_LIBRARY.identifier]
+        )
+        self.course_role = api.create_custom_role("Course Designer", "", "course-v1", [COURSES_VIEW_COURSE.identifier])
+
+    def get_role(self, role_id: str) -> Response:
+        """Send a read request for ``role_id``."""
+        return self.client.get(reverse("openedx_authz:role-detail", args=[role_id]))
+
+    def test_custom_role_is_returned(self):
+        """Test reading a custom role that is assigned.
+
+        Expected result:
+            - Returns 200 OK with the role in the format of a role list item, with its user count
+        """
+        assign_role_to_user_in_scope("regular_10", self.library_role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.get_role(self.library_role.role_id)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        stored = AuthzRoleDefinition.objects.get(pk=self.library_role.pk)
+        self.assertEqual(
+            response.data,
+            {
+                "role": "custom_library_designer",
+                "display_name": "Library Designer",
+                "description": "Designs libraries",
+                "icon": None,
+                "definition_kind": DefinitionKind.USER_DEFINED.value,
+                "permissions": [VIEW_LIBRARY.identifier],
+                "scope_types": ["lib"],
+                "user_count": 1,
+                "updated_at": DateTimeField().to_representation(stored.updated_at),
+            },
+        )
+
+    def test_static_role_is_returned(self):
+        """Test reading a static role.
+
+        Expected result:
+            - Returns 200 OK with the static role and no ``updated_at``
+        """
+        response = self.get_role(LIBRARY_AUTHOR.external_key)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            (response.data["role"], response.data["definition_kind"], response.data["updated_at"]),
+            (LIBRARY_AUTHOR.external_key, DefinitionKind.STATIC.value, None),
+        )
+
+    def test_user_count_counts_only_visible_holders(self):
+        """Test that the user count leaves out the holders in scopes the caller cannot view.
+
+        Expected result:
+            - An admin of one library counts only the holder in that library
+            - A superuser counts the holders in every library
+        """
+        assign_role_to_user_in_scope("regular_9", self.library_role.role_id, LIB_SCOPE_ORG1)
+        assign_role_to_user_in_scope("regular_10", self.library_role.role_id, "lib:Org3:LIB3")
+
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+        library_admin_count = self.get_role(self.library_role.role_id).data["user_count"]
+        self.client.force_authenticate(user=self.admin_user)
+        superuser_count = self.get_role(self.library_role.role_id).data["user_count"]
+
+        self.assertEqual((library_admin_count, superuser_count), (1, 2))
+
+    @data(
+        ("regular_5", "custom_library_designer", status.HTTP_200_OK),
+        ("regular_8", "custom_library_designer", status.HTTP_200_OK),
+        ("regular_5", "custom_course_designer", status.HTTP_403_FORBIDDEN),
+        ("regular_9", "custom_course_designer", status.HTTP_200_OK),
+        ("regular_9", "custom_library_designer", status.HTTP_403_FORBIDDEN),
+        ("regular_9", LIBRARY_AUTHOR.external_key, status.HTTP_403_FORBIDDEN),
+        ("regular_10", "custom_course_designer", status.HTTP_403_FORBIDDEN),
+        ("staff_only", "custom_library_designer", status.HTTP_200_OK),
+        ("superuser_only", "custom_course_designer", status.HTTP_200_OK),
+        (None, "custom_library_designer", status.HTTP_401_UNAUTHORIZED),
+    )
+    @unpack
+    def test_read_permission_follows_the_resource_type(self, username, role_id, status_code):
+        """Test that reading a role needs the permission to list roles of its resource type.
+
+        Expected result:
+            - Users who can view a library team can read library roles, but not course roles
+            - Users who can view a course team can read course roles, but not library roles
+            - Users with neither permission get 403 FORBIDDEN
+            - Staff and superusers can read any role, and anonymous requests get 401 UNAUTHORIZED
+        """
+        self.client.force_authenticate(user=User.objects.filter(username=username).first())
+
+        response = self.get_role(role_id)
+
+        self.assertEqual(response.status_code, status_code)
+
+    def test_role_is_loaded_once_for_a_regular_user(self):
+        """Test that the permission check reuses the role the view loads.
+
+        Expected result:
+            - A library admin's read loads the catalog entry of the role once
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        with patch.object(api, "get_role_catalog_entry", wraps=api.get_role_catalog_entry) as get_role_catalog_entry:
+            response = self.get_role(self.library_role.role_id)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        get_role_catalog_entry.assert_called_once_with(self.library_role.role_id)
+
+    def test_role_of_two_resource_types_needs_either_permission(self):
+        """Test reading a static role that supports both resource types.
+
+        Expected result:
+            - A course staff member, who cannot view library teams, can read the role
+        """
+        AuthzRoleDefinition.objects.filter(role_id=COURSE_STAFF.external_key).update(scopes=["course-v1", "lib"])
+        self.client.force_authenticate(user=User.objects.get(username="regular_9"))
+
+        response = self.get_role(COURSE_STAFF.external_key)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_role_of_an_unmapped_scope_type_is_denied(self):
+        """Test reading a role whose resource type has no read permission mapped.
+
+        Expected result:
+            - A library admin gets 403 FORBIDDEN instead of a server error
+            - A superuser can still read the role
+        """
+        AuthzRoleDefinition.objects.filter(pk=self.library_role.pk).update(scopes=["unmapped"])
+
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+        library_admin_status = self.get_role(self.library_role.role_id).status_code
+        self.client.force_authenticate(user=self.admin_user)
+        superuser_status = self.get_role(self.library_role.role_id).status_code
+
+        self.assertEqual((library_admin_status, superuser_status), (status.HTTP_403_FORBIDDEN, status.HTTP_200_OK))
+
+    @data("admin_1", "regular_9")
+    def test_unknown_role_is_not_found(self, username):
+        """Test reading a role ID that does not exist, as a privileged and as a regular user.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        self.client.force_authenticate(user=User.objects.get(username=username))
+
+        response = self.get_role("custom_missing")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_removed_role_is_not_found(self):
+        """Test reading a role after it was removed.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        api.remove_custom_role(self.library_role.role_id)
+
+        response = self.get_role(self.library_role.role_id)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
+class TestRoleDetailViewRemove(CustomRoleViewTestMixin):
+    """Test suite for removing custom roles through RoleDetailView (ADR 0036)."""
+
+    def setUp(self):
+        """Create the custom role to remove and point the client at it."""
+        super().setUp()
+        self.role = api.create_custom_role("Library Designer", "Designs libraries", "lib", [VIEW_LIBRARY.identifier])
+        self.url = reverse("openedx_authz:role-detail", args=[self.role.role_id])
+
+    def delete_role(self, query_params: dict | None = None, role_id: str | None = None) -> Response:
+        """Send a removal request for the role, or for ``role_id`` if given, with ``query_params``."""
+        url = reverse("openedx_authz:role-detail", args=[role_id]) if role_id else self.url
+        if query_params:
+            url = f"{url}?{urlencode(query_params)}"
+        return self.client.delete(url)
+
+    def get_listed_custom_role_ids(self) -> list[str]:
+        """Return the IDs of the custom roles that the library role list returns."""
+        response = self.client.get(
+            reverse("openedx_authz:role-list"),
+            {"scope_types": "lib", "definition_kind": DefinitionKind.USER_DEFINED.value},
+        )
+        return [role["role"] for role in response.data["results"]]
+
+    def assert_role_kept(self):
+        """Fail if a rejected request removed the role."""
+        self.assertEqual(api.get_role_catalog_entry(self.role.role_id)["role"], self.role.role_id)
+
+    def test_role_without_assignments_is_removed(self):
+        """Test removing a role that has no assignments, without the ``assignments`` parameter.
+
+        Expected result:
+            - Returns 204 NO CONTENT with no body
+            - The role can no longer be read and is left out of the role list
+        """
+        response = self.delete_role()
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertIsNone(response.data)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertNotIn(self.role.role_id, self.get_listed_custom_role_ids())
+
+    def test_role_with_assignments_needs_confirmation(self):
+        """Test removing a role that has assignments without ``assignments=revoke``.
+
+        Expected result:
+            - Returns 409 CONFLICT explaining that the assignments must be deleted
+            - The role is kept and its holder keeps the access it grants
+        """
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.delete_role()
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("assignment", response.data["message"])
+        self.assert_role_kept()
+        self.assertTrue(api.is_user_allowed("regular_10", VIEW_LIBRARY.identifier, LIB_SCOPE_ORG1))
+
+    def test_revoke_removes_the_role_and_its_assignments(self):
+        """Test removing a role that has assignments with ``assignments=revoke``.
+
+        Expected result:
+            - Returns 204 NO CONTENT
+            - The role has no assignments left and the holder loses the access it granted
+            - The role is left out of the role list
+        """
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.delete_role({"assignments": "revoke"})
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(api.get_role_assignments(role=RoleData(external_key=self.role.role_id)), [])
+        self.assertFalse(api.is_user_allowed("regular_10", VIEW_LIBRARY.identifier, LIB_SCOPE_ORG1))
+        self.assertNotIn(self.role.role_id, self.get_listed_custom_role_ids())
+
+    def test_revoke_removes_a_role_without_assignments(self):
+        """Test that ``assignments=revoke`` is accepted for a role that has no assignments.
+
+        Expected result:
+            - Returns 204 NO CONTENT and the role is left out of the role list
+        """
+        response = self.delete_role({"assignments": "revoke"})
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertNotIn(self.role.role_id, self.get_listed_custom_role_ids())
+
+    @data("keep", "REVOKE")
+    def test_invalid_assignments_value_is_rejected(self, value):
+        """Test removal requests with an ``assignments`` value other than ``revoke``.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the parameter, and the role and its assignment are kept
+        """
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.delete_role({"assignments": value})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("assignments", response.data)
+        self.assert_role_kept()
+        self.assertTrue(api.is_user_allowed("regular_10", VIEW_LIBRARY.identifier, LIB_SCOPE_ORG1))
+
+    def test_empty_assignments_value_does_not_confirm(self):
+        """Test that an empty ``assignments`` value is treated as not sent, like other query parameters.
+
+        Expected result:
+            - A role with assignments returns 409 CONFLICT and is kept
+        """
+        assign_role_to_user_in_scope("regular_10", self.role.role_id, LIB_SCOPE_ORG1)
+
+        response = self.delete_role({"assignments": ""})
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assert_role_kept()
+
+    def test_static_role_is_read_only(self):
+        """Test removing a static role.
+
+        Expected result:
+            - Returns 400 BAD REQUEST and the static role is still listed
+        """
+        response = self.delete_role(role_id=LIBRARY_AUTHOR.external_key)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(api.get_role_catalog_entry(LIBRARY_AUTHOR.external_key)["role"], LIBRARY_AUTHOR.external_key)
+
+    def test_unknown_role_is_not_found(self):
+        """Test removing a role ID that does not exist.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        response = self.delete_role(role_id="custom_missing")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_removed_role_is_not_found(self):
+        """Test removing a role a second time.
+
+        Expected result:
+            - Returns 404 NOT FOUND
+        """
+        self.delete_role()
+
+        response = self.delete_role()
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data("staff_only", "superuser_only")
+    def test_staff_and_superusers_can_remove(self, username):
+        """Test that each privileged kind of user can remove a role.
+
+        Expected result:
+            - Returns 204 NO CONTENT for a staff user and for a superuser
+        """
+        self.client.force_authenticate(user=User.objects.get(username=username))
+
+        response = self.delete_role()
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_team_admin_cannot_remove(self):
+        """Test that a user who manages library teams cannot remove roles.
+
+        Expected result:
+            - A library admin gets 403 FORBIDDEN and the role is kept
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        response = self.delete_role({"assignments": "revoke"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_role_kept()
+
+    def test_unauthenticated_user_cannot_remove(self):
+        """Test that an anonymous request is rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED and the role is kept
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.delete_role()
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assert_role_kept()
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):

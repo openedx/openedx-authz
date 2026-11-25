@@ -58,6 +58,12 @@ class SortOrder(BaseEnum):
     DESC = "desc"
 
 
+class RoleRemovalAssignmentsAction(BaseEnum):
+    """Enum for what removing a custom role does with its assignments (ADR 0036)."""
+
+    REVOKE = "revoke"
+
+
 class SearchField(BaseEnum):
     """Enum for the fields allowed for text search filtering."""
 

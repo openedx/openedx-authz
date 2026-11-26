@@ -2144,7 +2144,8 @@ class TestAssignmentsAPIView(ViewTestMixin):
                         regular_7 (library_contributor), regular_8 (library_user)
 
     URL: /api/authz/v1/assignments/
-    Response fields per item: is_superadmin, role, org, scope, permission_count, full_name, username, email
+    Response fields per item: is_superadmin, role, org, org_display_name, scope, scope_display_name,
+        permission_count, full_name, username, email
 
     This endpoint returns one row per (user, assignment) pair — i.e. assignments are
     "unpacked" so each row carries user info alongside the assignment fields.
@@ -2475,8 +2476,8 @@ class TestAssignmentsAPIView(ViewTestMixin):
 
         Expected result:
             - Returns 200 OK.
-            - Each item has is_superadmin, role, org, scope, permission_count,
-              full_name, username, and email.
+            - Each item has is_superadmin, role, org, org_display_name, scope,
+              scope_display_name, permission_count, full_name, username, and email.
         """
         response = self.client.get(self.url)
 
@@ -2485,7 +2486,9 @@ class TestAssignmentsAPIView(ViewTestMixin):
             "is_superadmin",
             "role",
             "org",
+            "org_display_name",
             "scope",
+            "scope_display_name",
             "permission_count",
             "full_name",
             "username",
@@ -2674,6 +2677,95 @@ class TestAssignmentsAPIView(ViewTestMixin):
         finally:
             inactive_user.is_active = True
             inactive_user.save()
+
+    def _create_named_org1(self) -> Organization:
+        """Give Org1 a display name that differs from its short name.
+
+        This keeps the display-name tests from passing by echoing the ``org`` value back.
+
+        Returns:
+            The Org1 organization.
+        """
+        org, _ = Organization.objects.update_or_create(short_name="Org1", defaults={"name": "Organization One"})
+        return org
+
+    def _get_items_for_scope(self, scope: str) -> list[dict]:
+        """Return the response items for the given scope, requesting it explicitly.
+
+        Args:
+            scope: The scope external key to filter by.
+
+        Returns:
+            The serialized assignments for that scope.
+        """
+        response = self.client.get(self.url, {"scopes": scope, "page_size": 100})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["results"]
+        self.assertGreater(len(items), 0, f"Expected at least one assignment in {scope}")
+        return items
+
+    def test_display_names_resolved_for_libraries(self):
+        """Library assignments get the learning package title and the organization name."""
+        lib_scope = "lib:Org1:LIB1"
+        learning_package = LearningPackage.objects.create(title="Intro to CS Library")
+        ContentLibrary.objects.update_or_create(
+            slug="LIB1",
+            org=self._create_named_org1(),
+            defaults={"locator": lib_scope, "title": "Library model title", "learning_package": learning_package},
+        )
+
+        for item in self._get_items_for_scope(lib_scope):
+            self.assertEqual(item["scope_display_name"], "Intro to CS Library")
+            self.assertEqual(item["org_display_name"], "Organization One")
+
+    def test_display_names_resolved_for_courses(self):
+        """Course assignments get the course overview display name and the organization name."""
+        self._create_named_org1()
+        CourseOverview.objects.update_or_create(
+            id=COURSE_SCOPE_ORG1, defaults={"org": "Org1", "display_name": "Introduction to Computer Science"}
+        )
+        assign_role_to_user_in_scope("regular_1", COURSE_STAFF.external_key, COURSE_SCOPE_ORG1)
+
+        for item in self._get_items_for_scope(COURSE_SCOPE_ORG1):
+            self.assertEqual(item["scope_display_name"], "Introduction to Computer Science")
+            self.assertEqual(item["org_display_name"], "Organization One")
+
+    def test_display_names_resolved_for_inactive_org(self):
+        """Assignments on an inactive organization still show its name."""
+        org = self._create_named_org1()
+        org.active = False
+        org.save()
+
+        for item in self._get_items_for_scope("lib:Org1:LIB1"):
+            self.assertEqual(item["org_display_name"], "Organization One")
+
+    def test_display_names_empty_for_missing_resources(self):
+        """A scope with no backing library or organization gets empty display names."""
+        orphan_scope = "lib:GoneOrg:GONE_LIB"
+        assign_role_to_user_in_scope("regular_1", LIBRARY_USER.external_key, orphan_scope)
+
+        for item in self._get_items_for_scope(orphan_scope):
+            self.assertEqual(item["scope_display_name"], "")
+            self.assertEqual(item["org_display_name"], "")
+
+    def test_display_names_org_glob_resolves_org_name_only(self):
+        """An org-level glob has no scope display name but still resolves its organization."""
+        self._create_named_org1()
+        assign_role_to_user_in_scope("regular_1", COURSE_ADMIN.external_key, COURSE_ORG1_GLOB)
+
+        for item in self._get_items_for_scope(COURSE_ORG1_GLOB):
+            self.assertEqual(item["org"], "Org1")
+            self.assertEqual(item["scope_display_name"], "")
+            self.assertEqual(item["org_display_name"], "Organization One")
+
+    def test_display_names_empty_for_platform_glob(self):
+        """A platform-level glob matches no single scope or organization, so both names are empty."""
+        assign_role_to_user_in_scope("regular_1", LIBRARY_ADMIN.external_key, PLATFORM_LIBRARY_GLOB)
+
+        for item in self._get_items_for_scope(PLATFORM_LIBRARY_GLOB):
+            self.assertEqual(item["org"], "*")
+            self.assertEqual(item["scope_display_name"], "")
+            self.assertEqual(item["org_display_name"], "")
 
 
 @ddt

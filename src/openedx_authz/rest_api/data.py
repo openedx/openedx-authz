@@ -101,10 +101,11 @@ class ScopesTypeField(BaseEnum):
 
 
 class SerializedAssignment(TypedDict, total=False):
-    """Shape of an inline assignment as produced by ``TeamMemberAssignmentInlineSerializer``."""
+    """Shape of a serialized assignment as produced by the team member assignment serializers."""
 
     role: str
     org: str
+    org_display_name: str
     scope: str
     scope_display_name: str
     permission_count: int

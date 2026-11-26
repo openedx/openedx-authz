@@ -6,8 +6,10 @@ from functools import reduce
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from organizations.models import Organization
 
 from openedx_authz.api.data import (
+    GLOBAL_SCOPE_WILDCARD,
     ContentLibraryData,
     CourseOverviewData,
     RoleAssignmentData,
@@ -119,3 +121,25 @@ def get_scope_display_name_map(scope_external_keys: set[str]) -> dict[str, str]:
             log.exception("Failed to fetch CourseOverview display names")
 
     return display_name_map
+
+
+def get_org_display_name_map(org_short_names: set[str]) -> dict[str, str]:
+    """Build a mapping of organization short names to their display names.
+
+    Uses a single query so callers can resolve the orgs of many assignments at
+    once. Inactive organizations are included because existing assignments on
+    them still need a readable name.
+
+    Args:
+        org_short_names: The organization short names to resolve. The global
+            wildcard is ignored because it does not match a single organization.
+
+    Returns:
+        A dict mapping each found short name to its display name. Short names
+        without a matching organization are omitted.
+    """
+    short_names = org_short_names - {GLOBAL_SCOPE_WILDCARD}
+    if not short_names:
+        return {}
+    orgs = Organization.objects.filter(short_name__in=short_names).values_list("short_name", "name")
+    return dict(orgs)

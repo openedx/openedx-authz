@@ -43,6 +43,9 @@ Added
 * ``assign_role_to_subject_in_scope`` now raises ``CustomRoleNotFoundError`` for a custom role that
   does not exist or was removed. It assigns custom roles under the same lock as removing them, so
   an assignment cannot outlive a concurrent removal. Static role assignments are unchanged.
+* Added ``scope_display_name`` and ``org_display_name`` to each result of the
+  ``/api/authz/v1/assignments/`` endpoint. Unresolvable scopes and orgs, such as glob scopes or
+  deleted resources, return an empty string.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

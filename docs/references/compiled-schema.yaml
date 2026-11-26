@@ -53,8 +53,10 @@ roles:
       - courses.manage_learner_extensions
       - courses.view_cohorts
       - courses.view_course_info
+      - courses.view_learner_course_status
       - courses.view_learner_extensions
       learner_grading:
+      - courses.manage_bulk_learner_grading
       - courses.manage_learner_grading
       - courses.view_gradebook
   course_auditor:
@@ -189,6 +191,7 @@ roles:
       - courses.manage_learner_extensions
       - courses.view_cohorts
       - courses.view_course_info
+      - courses.view_learner_course_status
       - courses.view_learner_extensions
       learner_grading:
       - courses.manage_learner_grading
@@ -504,7 +507,7 @@ permissions:
     namespace: courses
     name: export_course
     display_name: Export course
-    description: Download the course content as a file for backup or reuse in another platform.
+    description: Download course content as a file for backup or reuse on another platform.
     category_id: course_import_export
     scopes:
     - course-v1
@@ -607,6 +610,19 @@ permissions:
     icon: Settings
     hidden: false
     depends_on: []
+  courses.manage_bulk_learner_grading:
+    applet: learner_grading
+    namespace: courses
+    name: manage_bulk_learner_grading
+    display_name: Manage bulk learner grading
+    description: Use grading tools for all learners in the course. Reset attempts, rescore submissions, and clear saved problem state in bulk.
+    category_id: course_learner_grading
+    scopes:
+    - course-v1
+    icon: Settings
+    hidden: false
+    depends_on:
+    - courses.manage_learner_grading
   courses.manage_certificates:
     applet: course_authoring
     namespace: courses
@@ -624,7 +640,7 @@ permissions:
     namespace: courses
     name: manage_cohorts
     display_name: Manage cohorts
-    description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
+    description: Enable cohorts, create and configure them, and assign or move learners between cohorts manually or by uploading a CSV file.
     category_id: course_cohorts_content_groups
     scopes:
     - course-v1
@@ -660,7 +676,7 @@ permissions:
     namespace: courses
     name: manage_group_configurations
     display_name: Manage group configurations
-    description: Create and manage content groups used to target course content to specific learners.
+    description: Create and configure content groups in Studio to make course content available to specific learners.
     category_id: course_cohorts_content_groups
     scopes:
     - course-v1
@@ -672,31 +688,33 @@ permissions:
     namespace: courses
     name: manage_learner_extensions
     display_name: Manage learner extensions
-    description: Grant or modify individual learner extensions and reset due dates to the course default.
+    description: Grant or change extensions for individual learners, or restore the original course due dates.
     category_id: course_learner_extensions
     scopes:
     - course-v1
     icon: Settings
     hidden: false
-    depends_on: []
+    depends_on:
+    - courses.view_learner_course_status
   courses.manage_learner_grading:
     applet: learner_grading
     namespace: courses
     name: manage_learner_grading
     display_name: Manage learner grading
-    description: Use grading tools for an individual learner or all learners. Includes viewing learner progress, resetting attempts, rescoring submissions, overriding scores, deleting learner problem state, and checking task status where available.
+    description: Use grading tools for individual learners. Reset attempts, rescore submissions, override scores, and clear saved problem state.
     category_id: course_learner_grading
     scopes:
     - course-v1
     icon: Settings
     hidden: false
-    depends_on: []
+    depends_on:
+    - courses.view_learner_course_status
   courses.manage_library_updates:
     applet: course_authoring
     namespace: courses
     name: manage_library_updates
     display_name: Manage library updates
-    description: Accept or reject pending updates from content libraries linked to this course.
+    description: Accept or reject pending updates from linked content libraries.
     category_id: course_library_updates
     scopes:
     - course-v1
@@ -708,7 +726,7 @@ permissions:
     namespace: courses
     name: manage_pages_and_resources
     display_name: Manage pages & resources
-    description: Enable or disable course features such as Discussions, the Wiki, Notes, Calculator, and Live. Create and edit Textbooks and Custom pages, and manage their configurations.
+    description: Turn course features such as Discussions, Wiki, Notes, Calculator, and Live on or off. Create, edit, and configure textbooks and custom pages.
     category_id: course_pages_resources
     scopes:
     - course-v1
@@ -756,7 +774,7 @@ permissions:
     namespace: courses
     name: unenroll_learners
     display_name: Unenroll learners
-    description: Remove learners' enrollments from the course.
+    description: Unenroll learners from the course.
     category_id: course_enrollments
     scopes:
     - course-v1
@@ -768,7 +786,7 @@ permissions:
     namespace: courses
     name: view_advanced_settings
     display_name: View advanced settings
-    description: Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
+    description: View advanced settings in Studio, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
     category_id: course_advanced_settings_certificates
     scopes:
     - course-v1
@@ -816,7 +834,7 @@ permissions:
     namespace: courses
     name: view_course
     display_name: View course
-    description: See the course in the Studio home and access the course outline in read-only mode. Includes the "View Live" option to preview the course as a learner in the LMS.
+    description: Find the course on the Studio home page and open its outline in read-only mode. Use “View Live” to preview the course as a learner in the LMS.
     category_id: course_access_content
     scopes:
     - course-v1
@@ -828,7 +846,7 @@ permissions:
     namespace: courses
     name: view_course_info
     display_name: View course info
-    description: View general course information and enrollment counts in the Instructor Dashboard.
+    description: View general course information, enrollment counts, and the status of background tasks in the Instructor Dashboard.
     category_id: course_access_content
     scopes:
     - course-v1
@@ -840,7 +858,7 @@ permissions:
     namespace: courses
     name: view_course_team
     display_name: View course team
-    description: See who has a role assigned to this course in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
+    description: View course team members and their assigned roles in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
     category_id: course_team
     scopes:
     - course-v1
@@ -876,7 +894,7 @@ permissions:
     namespace: courses
     name: view_files
     display_name: View files
-    description: See the list of files and assets uploaded to the course.
+    description: View the list of uploaded course files and assets.
     category_id: course_files
     scopes:
     - course-v1
@@ -894,7 +912,8 @@ permissions:
     - course-v1
     icon: RemoveRedEye
     hidden: false
-    depends_on: []
+    depends_on:
+    - courses.view_course_info
   courses.view_grading_settings:
     applet: course_authoring
     namespace: courses
@@ -912,8 +931,20 @@ permissions:
     namespace: courses
     name: view_group_configurations
     display_name: View group configurations
-    description: See the list of content groups and their configurations for this course.
+    description: View the course’s content groups and their settings in Studio.
     category_id: course_cohorts_content_groups
+    scopes:
+    - course-v1
+    icon: RemoveRedEye
+    hidden: false
+    depends_on: []
+  courses.view_learner_course_status:
+    applet: learner_administration
+    namespace: courses
+    name: view_learner_course_status
+    display_name: View learner course status
+    description: Access learner profile information, enrollment status, and course progress.
+    category_id: course_access_content
     scopes:
     - course-v1
     icon: RemoveRedEye
@@ -924,7 +955,7 @@ permissions:
     namespace: courses
     name: view_learner_extensions
     display_name: View learner extensions
-    description: View and search granted learner extensions and their extended due dates.
+    description: Find granted extensions and see the updated due dates.
     category_id: course_learner_extensions
     scopes:
     - course-v1
@@ -936,7 +967,7 @@ permissions:
     namespace: courses
     name: view_library_updates
     display_name: View library updates
-    description: View pending updates from content libraries linked to this course.
+    description: Review pending updates from linked content libraries.
     category_id: course_library_updates
     scopes:
     - course-v1
@@ -948,7 +979,7 @@ permissions:
     namespace: courses
     name: view_pages_and_resources
     display_name: View pages & resources
-    description: See the Pages & Resources section in Studio.
+    description: View course pages, learning resources, and feature settings in Studio.
     category_id: course_pages_resources
     scopes:
     - course-v1
@@ -960,7 +991,7 @@ permissions:
     namespace: courses
     name: view_schedule_and_details
     display_name: View schedule & details
-    description: See the course schedule (start and end dates, enrollment dates, and pacing settings) and course details (summary, pacing, and prerequisites).
+    description: View course start and end dates, enrollment dates, pacing, the course summary, and prerequisites.
     category_id: course_schedule_details
     scopes:
     - course-v1
@@ -971,7 +1002,7 @@ categories:
   course_access_content:
     applet: course_authoring
     display_name: Course access & content
-    description: Permissions for accessing the course and its launch checklist in Studio, managing course content, and viewing the course overview in the Instructor Dashboard.
+    description: Permissions for accessing the course, viewing course and learner information, and managing course content.
     icon: BookOpen
     hidden: false
   course_advanced_settings_certificates:
@@ -983,7 +1014,7 @@ categories:
   course_cohorts_content_groups:
     applet: learner_administration
     display_name: Cohorts & content groups
-    description: Permissions for viewing and managing cohorts in the Instructor Dashboard and configuring content groups in Studio.
+    description: Permissions for organizing learners into cohorts in the Instructor Dashboard and configuring content groups in Studio.
     icon: Groups
     hidden: false
   course_enrollments:
@@ -1013,7 +1044,7 @@ categories:
   course_learner_extensions:
     applet: learner_administration
     display_name: Learner extensions
-    description: Permissions for viewing and managing individual due date extensions from the Date Extensions tab in the Instructor Dashboard.
+    description: Permissions for viewing and managing individual learner extensions in the Instructor Dashboard.
     icon: Event
     hidden: false
   course_learner_grading:
@@ -1031,7 +1062,7 @@ categories:
   course_library_updates:
     applet: course_authoring
     display_name: Library updates
-    description: Permissions for reviewing and managing updates made to content libraries connected to the course.
+    description: Permissions for reviewing and applying content updates from linked libraries.
     icon: LibraryBooks
     hidden: false
   course_pages_resources:
@@ -1043,7 +1074,7 @@ categories:
   course_schedule_details:
     applet: course_authoring
     display_name: Schedule & details
-    description: Permissions for viewing and editing the course schedule and course information.
+    description: Permissions for viewing and editing the course schedule and details in Studio.
     icon: Calendar
     hidden: false
   course_tags_taxonomies:
@@ -1061,7 +1092,7 @@ categories:
   course_updates_handouts:
     applet: course_authoring
     display_name: Course updates & handouts
-    description: Permissions for viewing and managing course updates and handouts that are visible to learners.
+    description: Permissions for viewing and managing course announcements and handouts.
     icon: Sync
     hidden: false
   library:

@@ -1,4 +1,4 @@
-schema_version: "1.0"
+schema_version: "1.1"
 priority: 100
 
 # Icons are Paragon icon names (@openedx/paragon/icons).
@@ -18,11 +18,25 @@ permissions:
     scopes:
       - course-v1
     icon: RemoveRedEye
+    depends_on:
+      - courses.view_course_info
   - namespace: courses
     name: manage_learner_grading
     display_name: Manage learner grading
-    description: Use grading tools for an individual learner or all learners. Includes viewing learner progress, resetting attempts, rescoring submissions, overriding scores, deleting learner problem state, and checking task status where available.
+    description: Use grading tools for individual learners. Reset attempts, rescore submissions, override scores, and clear saved problem state.
     category_id: course_learner_grading
     scopes:
       - course-v1
     icon: Settings
+    depends_on:
+      - courses.view_learner_course_status
+  - namespace: courses
+    name: manage_bulk_learner_grading
+    display_name: Manage bulk learner grading
+    description: Use grading tools for all learners in the course. Reset attempts, rescore submissions, and clear saved problem state in bulk.
+    category_id: course_learner_grading
+    scopes:
+      - course-v1
+    icon: Settings
+    depends_on:
+      - courses.manage_learner_grading

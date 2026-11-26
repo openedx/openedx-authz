@@ -117,10 +117,29 @@ Added
   number of distinct active users with the role in the scopes of the requested types that the
   caller can view. ``updated_at`` is ``null`` for static roles.
 * Added ``get_visible_role_user_counts`` to the public API to count those users.
+* Added the ``courses.manage_bulk_learner_grading`` permission for using grading tools on all
+  learners, granted to Course Admin only.
+* Added the ``courses.view_learner_course_status`` permission for viewing a learner's course
+  status in the Instructor Dashboard, granted to Course Admin and Course Staff.
 
 Changed
 ========
 
+* The Instructor Dashboard permissions now declare dependencies (ADR 0034).
+  ``courses.manage_learner_grading`` and ``courses.manage_learner_extensions`` depend on
+  ``courses.view_learner_course_status``, ``courses.manage_bulk_learner_grading`` depends on
+  ``courses.manage_learner_grading``, and ``courses.view_gradebook`` depends on
+  ``courses.view_course_info``. A schema file outside this package that grants one of these
+  permissions to a role must also grant its dependencies, and one that redefines one of these
+  permissions must declare the same ``depends_on`` in a ``1.1`` file.
+* **Breaking**: ``courses.manage_learner_grading`` now covers grading tools for individual learners
+  only. Use ``courses.manage_bulk_learner_grading`` for all learners. Course Staff, and custom roles
+  that grant ``courses.manage_learner_grading``, do not get the new permission.
+* ``courses.view_course_info`` now also covers background task status.
+* Updated course permission and category descriptions to match the Roles and Permissions Matrix. The
+  grading permissions are displayed as ``Manage learner grading`` and ``Manage bulk learner
+  grading``. Apart from the changes listed in this release, role grants and permission checks are
+  unchanged.
 * Updated the course permission categories and permissions to match the Roles and Permissions console proposal. ``View course info`` and ``View checklists`` move to ``Course access & content``, ``Export tags`` moves to ``Tags``, and the group configuration permissions move to ``Cohorts & content groups``. The ``course_information`` and ``course_other`` categories are removed. ``Course team & groups``, ``Grading``, ``Advanced & certificates``, and ``Import / export`` are renamed, the category IDs ``course_cohorts``, ``course_team_group``, ``course_grading``, and ``course_advanced_certificates`` become ``course_cohorts_content_groups``, ``course_team``, ``course_grading_settings``, and ``course_advanced_settings_certificates``, and several category and permission descriptions now name Studio and the Instructor Dashboard. ``courses.manage_taxonomies`` is now hidden. Role grants are unchanged.
 * Static roles may declare an empty permission list when ``role_extensions`` contribute their permissions. Permission lists used by extension edits remain non-empty.
 * Built-in Content Library and course authorization definitions now live in capability applets. The compiled authorization schema, the permission constants, and the role keys remain unchanged.

@@ -33,98 +33,138 @@ Permissions
 
 The following permissions are associated with the course roles:
 
-Course Access & Content
+Course access & content
+=======================
+
+Permissions for accessing the course, viewing course and learner information, and managing course content.
+
+- **View course** (``courses.view_course``): Find the course on the Studio home page and open its outline in read-only mode. Use “View Live” to preview the course as a learner in the LMS.
+- **Edit course content** (``courses.edit_course_content``): Edit the course outline, units, and components.
+- **Publish course content** (``courses.publish_course_content``): Make course content visible to learners.
+- **View course info** (``courses.view_course_info``): View general course information, enrollment counts, and the status of background tasks in the Instructor Dashboard.
+- **View checklists** (``courses.view_checklists``): See the course launch checklist in Studio.
+- **View learner course status** (``courses.view_learner_course_status``): Access learner profile information, enrollment status, and course progress.
+
+Course team
+===========
+
+Permissions for viewing course team members and managing course role assignments.
+
+- **View course team** (``courses.view_course_team``): View course team members and their assigned roles in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
+- **Manage course team** (``courses.manage_course_team``): Add, change, or remove role assignments for this course from the Roles and Permissions console or the Instructor Dashboard.
+
+Schedule & details
+==================
+
+Permissions for viewing and editing the course schedule and details in Studio.
+
+- **View schedule & details** (``courses.view_schedule_and_details``): View course start and end dates, enrollment dates, pacing, the course summary, and prerequisites.
+- **Edit schedule** (``courses.edit_schedule``): Update course start and end dates, enrollment dates, and pacing settings.
+- **Edit course details** (``courses.edit_details``): Update course information including the course summary, pacing, and prerequisites.
+
+Advanced settings & certificates
+================================
+
+Permissions for viewing and managing advanced course settings and course certificates in Studio.
+
+- **View advanced settings** (``courses.view_advanced_settings``): View advanced settings in Studio, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
+- **Manage advanced settings** (``courses.manage_advanced_settings``): Edit technical course configurations in the Advanced Settings page in Studio.
+- **View certificates** (``courses.view_certificates``): See the course certificate settings.
+- **Manage certificates** (``courses.manage_certificates``): Create and edit course certificates, including certificate design and eligibility settings.
+
+Pages & resources
+=================
+
+Permissions for viewing and managing course pages and additional learning resources.
+
+- **View pages & resources** (``courses.view_pages_and_resources``): View course pages, learning resources, and feature settings in Studio.
+- **Manage pages & resources** (``courses.manage_pages_and_resources``): Turn course features such as Discussions, Wiki, Notes, Calculator, and Live on or off. Create, edit, and configure textbooks and custom pages.
+
+Course updates & handouts
 =========================
-- **View course** (``courses.view_course``): Allows users to view the course and access the course outline in read-only mode.
-- **Edit course content** (``courses.edit_course_content``): Allows users to edit course content, outline, units, and components.
-- **Publish course content** (``courses.publish_course_content``): Allows users to publish course content.
 
-Library Updates
-========================
-- **View library updates** (``courses.view_library_updates``): Allows users to view library updates in read-only mode.
-- **Manage library updates** (``courses.manage_library_updates``): Allows users to accept or reject library updates in Studio.
+Permissions for viewing and managing course announcements and handouts.
 
-Course Updates & Handouts
-===========================
-- **View course updates** (``courses.view_course_updates``): Allows users to view course updates and handouts.
-- **Manage course updates** (``courses.manage_course_updates``): Allows users to manage course updates and handouts, including creating, editing, and deleting.
-
-Pages & Resources
-====================
-- **View pages & resources** (``courses.view_pages_and_resources``): Allows users to view pages and resources.
-- **Manage pages & resources** (``courses.manage_pages_and_resources``): Allows users to edit pages and resources, including toggles and content managed from that section.
+- **View course updates** (``courses.view_course_updates``): See course announcements and handouts visible to learners.
+- **Manage course updates** (``courses.manage_course_updates``): Create, edit, and delete course announcements and handouts.
 
 Files
-=======
-- **View files** (``courses.view_files``): Allows users to view the Files page.
-- **Create files** (``courses.create_files``): Allows users to upload files.
-- **Edit files** (``courses.edit_files``): Allows users to perform non-destructive file actions, such as lock or unlock.
-- **Delete files** (``courses.delete_files``): Allows users to delete files.
+=====
 
-Schedule & Details
-===================
-- **View schedule and details** (``courses.view_schedule_and_details``): Allows users to view the course schedule and details.
-- **Edit schedule** (``courses.edit_schedule``): Allows users to edit the course schedule.
-- **Edit course details** (``courses.edit_details``): Allows users to edit course details, including summary, pacing, and prerequisites.
+Permissions for viewing and managing files and assets uploaded to the course.
 
-Grading
-=========
-- **View grading settings** (``courses.view_grading_settings``): Allows users to view grading settings.
-- **Edit grading settings** (``courses.edit_grading_settings``): Allows users to edit grading settings.
+- **View files** (``courses.view_files``): View the list of uploaded course files and assets.
+- **Create files** (``courses.create_files``): Upload new files and assets to the course.
+- **Edit files** (``courses.edit_files``): Perform non-destructive actions on files, such as locking or unlocking them.
+- **Delete files** (``courses.delete_files``): Permanently remove files and assets from the course.
 
-Course Team & Groups
-====================
-- **View course team** (``courses.view_course_team``): Allows users to view the course team roster.
-- **Manage course team** (``courses.manage_course_team``): Allows users to edit course team membership and roles.
-- **View group configurations** (``courses.view_group_configurations``): Allows users to view content groups.
-- **Manage group configuration** (``courses.manage_group_configurations``): Allows users to manage content groups.
+Library updates
+===============
 
-Tags & Taxonomies
-=================
-- **Manage tags** (``courses.manage_tags``): Allows users to create, edit, and delete tags.
-- **Manage taxonomies** (``courses.manage_taxonomies``): Allows users to create, edit, and delete taxonomies.
+Permissions for reviewing and applying content updates from linked libraries.
 
-Advanced & Certificates
-=======================
-- **View advanced settings** (``courses.view_advanced_settings``): Allows users to view advanced settings.
-- **Manage advanced settings** (``courses.manage_advanced_settings``): Allows users to edit advanced settings.
-- **View certificates** (``courses.view_certificates``): Allows users to view certificates.
-- **Manage certificates** (``courses.manage_certificates``): Allows users to edit certificates.
+- **View library updates** (``courses.view_library_updates``): Review pending updates from linked content libraries.
+- **Manage library updates** (``courses.manage_library_updates``): Accept or reject pending updates from linked content libraries.
 
-Import / Export
-================
-- **Import course** (``courses.import_course``): Allows users to import course content.
-- **Export course** (``courses.export_course``): Allows users to export course content.
-- **Export tags** (``courses.export_tags``): Allows users to export tags.
+Tags
+====
 
-Course Information
-==================
-- **View course info** (``courses.view_course_info``): Allows users to view general course information and enrollment counts.
+Permissions for managing course tags and exporting tag data.
+
+- **Manage tags** (``courses.manage_tags``): Create, edit, and delete tags on this course.
+- **Export tags** (``courses.export_tags``): Download the tag data associated with this course.
+
+Course import & export
+======================
+
+Permissions for importing and exporting course content.
+
+- **Import course** (``courses.import_course``): Import course content from a file. This is a high-privilege action that can overwrite most course content and settings.
+- **Export course** (``courses.export_course``): Download course content as a file for backup or reuse on another platform.
 
 Enrollments
 ===========
-- **View enrollments** (``courses.view_enrollments``): Allows users to view and search course enrollments and check a learner's enrollment status.
-- **Enroll learners** (``courses.enroll_learners``): Allows users to enroll learners in the course, individually or in bulk.
-- **Unenroll learners** (``courses.unenroll_learners``): Allows users to remove learners' enrollments from the course.
 
-Learner Grading
+Permissions for viewing and managing learner enrollments in the Instructor Dashboard.
+
+- **View enrollments** (``courses.view_enrollments``): View and search course enrollments and check a learner's enrollment status.
+- **Enroll learners** (``courses.enroll_learners``): Enroll learners in the course, individually or in bulk.
+- **Unenroll learners** (``courses.unenroll_learners``): Unenroll learners from the course.
+
+Cohorts & content groups
+========================
+
+Permissions for organizing learners into cohorts in the Instructor Dashboard and configuring content groups in Studio.
+
+- **View cohorts** (``courses.view_cohorts``): View course cohorts, their configuration, and their members.
+- **Manage cohorts** (``courses.manage_cohorts``): Enable cohorts, create and configure them, and assign or move learners between cohorts manually or by uploading a CSV file.
+- **View group configurations** (``courses.view_group_configurations``): View the course’s content groups and their settings in Studio.
+- **Manage group configurations** (``courses.manage_group_configurations``): Create and configure content groups in Studio to make course content available to specific learners.
+
+Grading settings
+================
+
+Permissions for viewing and editing course grading settings.
+
+- **View grading settings** (``courses.view_grading_settings``): View the course's grading configuration, including assignment types and the grading scale, in Studio or from the Instructor Dashboard.
+- **Edit grading settings** (``courses.edit_grading_settings``): Update the grading configuration for the course, including assignment types and grading scale.
+
+Learner grading
 ===============
-- **View gradebook** (``courses.view_gradebook``): Allows users to view grades for learners enrolled in the course.
-- **Manage learner grading** (``courses.manage_learner_grading``): Allows users to use grading tools for an individual learner or all learners, including viewing learner progress, resetting attempts, rescoring submissions, overriding scores, and deleting learner problem state.
 
-Learner Extensions
+Permissions for viewing learner grades and using grading tools in the Instructor Dashboard.
+
+- **View gradebook** (``courses.view_gradebook``): View grades for learners enrolled in the course.
+- **Manage learner grading** (``courses.manage_learner_grading``): Use grading tools for individual learners. Reset attempts, rescore submissions, override scores, and clear saved problem state.
+- **Manage bulk learner grading** (``courses.manage_bulk_learner_grading``): Use grading tools for all learners in the course. Reset attempts, rescore submissions, and clear saved problem state in bulk.
+
+Learner extensions
 ==================
-- **View learner extensions** (``courses.view_learner_extensions``): Allows users to view and search learner extensions and their extended due dates.
-- **Manage learner extensions** (``courses.manage_learner_extensions``): Allows users to grant or modify individual learner extensions and reset due dates to the course default.
 
-Cohorts
-=======
-- **View cohorts** (``courses.view_cohorts``): Allows users to view course cohorts, their configuration, and their members.
-- **Manage cohorts** (``courses.manage_cohorts``): Allows users to enable, create, and configure cohorts, and to assign or move learners between cohorts.
+Permissions for viewing and managing individual learner extensions in the Instructor Dashboard.
 
-Other
-=====
-- **View checklists** (``courses.view_checklists``): Allows users to view checklists.
+- **View learner extensions** (``courses.view_learner_extensions``): Find granted extensions and see the updated due dates.
+- **Manage learner extensions** (``courses.manage_learner_extensions``): Grant or change extensions for individual learners, or restore the original course due dates.
 
 .. _Course RP Summary Table:
 
@@ -139,83 +179,82 @@ Roles and Permissions Summary Table
    ============================================= ============== ============== ===================== ==============
    Permissions                                   Course Admin   Course Staff   Course Editor         Course Auditor
    ============================================= ============== ============== ===================== ==============
-   **Tags & Taxonomies**
+   **Course access & content**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.manage_tags                           ✅             ✅             ✅                    ❌
-   courses.manage_taxonomies                     ✅             ❌             ❌                    ❌
-   **Updates & Handouts**
+   courses.view_course                           ✅             ✅             ✅                    ✅
+   courses.edit_course_content                   ✅             ✅             ✅                    ❌
+   courses.publish_course_content                ✅             ✅             ❌                    ❌
+   courses.view_course_info                      ✅             ✅             ❌                    ❌
+   courses.view_checklists                       ✅             ✅             ✅                    ✅
+   courses.view_learner_course_status            ✅             ✅             ❌                    ❌
+   **Course team**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_course_updates                   ✅             ✅             ✅                    ✅
-   courses.manage_course_updates                 ✅             ✅             ✅                    ❌
-   **Advanced & Certificates**
+   courses.view_course_team                      ✅             ✅             ✅                    ✅
+   courses.manage_course_team                    ✅             ❌             ❌                    ❌
+   **Schedule & details**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_schedule_and_details             ✅             ✅             ✅                    ✅
+   courses.edit_schedule                         ✅             ✅             ❌                    ❌
+   courses.edit_details                          ✅             ✅             ✅                    ❌
+   **Advanced settings & certificates**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_advanced_settings                ✅             ✅             ✅                    ✅
    courses.manage_advanced_settings              ✅             ✅             ❌                    ❌
    courses.view_certificates                     ✅             ✅             ✅                    ✅
    courses.manage_certificates                   ✅             ✅             ❌                    ❌
-   **Access & Content**
+   **Pages & resources**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_course                           ✅             ✅             ✅                    ✅
-   courses.publish_course_content                ✅             ✅             ❌                    ❌
-   courses.edit_course_content                   ✅             ✅             ✅                    ❌
+   courses.view_pages_and_resources              ✅             ✅             ✅                    ✅
+   courses.manage_pages_and_resources            ✅             ✅             ✅                    ❌
+   **Course updates & handouts**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_course_updates                   ✅             ✅             ✅                    ✅
+   courses.manage_course_updates                 ✅             ✅             ✅                    ❌
    **Files**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_files                            ✅             ✅             ✅                    ✅
    courses.create_files                          ✅             ✅             ✅                    ❌
    courses.edit_files                            ✅             ✅             ✅                    ❌
    courses.delete_files                          ✅             ✅             ❌                    ❌
-   **Schedule & Details**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_schedule_and_details             ✅             ✅             ✅                    ✅
-   courses.edit_schedule                         ✅             ✅             ❌                    ❌
-   courses.edit_details                          ✅             ✅             ✅                    ❌
-   **Library Updates**
+   **Library updates**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_library_updates                  ✅             ✅             ✅                    ✅
    courses.manage_library_updates                ✅             ✅             ✅                    ❌
-   **Grading**
+   **Tags**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_grading_settings                 ✅             ✅             ✅                    ✅
-   courses.edit_grading_settings                 ✅             ✅             ✅                    ❌
-   **Pages & Resources**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_pages_and_resources              ✅             ✅             ✅                    ✅
-   courses.manage_pages_and_resources            ✅             ✅             ✅                    ❌
-   **Import / Export**
+   courses.manage_tags                           ✅             ✅             ✅                    ❌
+   courses.export_tags                           ✅             ✅             ❌                    ❌
+   **Course import & export**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.import_course                         ✅             ✅             ❌                    ❌
    courses.export_course                         ✅             ✅             ❌                    ❌
-   courses.export_tags                           ✅             ✅             ❌                    ❌
-   **Team & Groups**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_course_team                      ✅             ✅             ✅                    ✅
-   courses.view_group_configurations             ✅             ✅             ✅                    ✅
-   courses.manage_group_configurations           ✅             ✅             ✅                    ❌
-   courses.manage_course_team                    ✅             ❌             ❌                    ❌
-   **Course Information**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_course_info                      ✅             ✅             ❌                    ❌
    **Enrollments**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_enrollments                      ✅             ✅             ❌                    ❌
    courses.enroll_learners                       ✅             ✅             ❌                    ❌
    courses.unenroll_learners                     ✅             ✅             ❌                    ❌
-   **Learner Grading**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_gradebook                        ✅             ✅             ❌                    ❌
-   courses.manage_learner_grading                ✅             ✅             ❌                    ❌
-   **Learner Extensions**
-   --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_learner_extensions               ✅             ✅             ❌                    ❌
-   courses.manage_learner_extensions             ✅             ✅             ❌                    ❌
-   **Cohorts**
+   **Cohorts & content groups**
    --------------------------------------------- -------------- -------------- --------------------- --------------
    courses.view_cohorts                          ✅             ✅             ❌                    ❌
    courses.manage_cohorts                        ✅             ✅             ❌                    ❌
-   **Other**
+   courses.view_group_configurations             ✅             ✅             ✅                    ✅
+   courses.manage_group_configurations           ✅             ✅             ✅                    ❌
+   **Grading settings**
    --------------------------------------------- -------------- -------------- --------------------- --------------
-   courses.view_checklists                       ✅             ✅             ✅                    ✅
+   courses.view_grading_settings                 ✅             ✅             ✅                    ✅
+   courses.edit_grading_settings                 ✅             ✅             ✅                    ❌
+   **Learner grading**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_gradebook                        ✅             ✅             ❌                    ❌
+   courses.manage_learner_grading                ✅             ✅             ❌                    ❌
+   courses.manage_bulk_learner_grading           ✅             ❌             ❌                    ❌
+   **Learner extensions**
+   --------------------------------------------- -------------- -------------- --------------------- --------------
+   courses.view_learner_extensions               ✅             ✅             ❌                    ❌
+   courses.manage_learner_extensions             ✅             ✅             ❌                    ❌
    ============================================= ============== ============== ===================== ==============
+
+This matrix shows which permissions each course role grants across Studio, the Instructor Dashboard, and the Roles and Permissions console. Some roles may also grant permissions managed elsewhere.
 
 .. END COURSE RP TABLE
 

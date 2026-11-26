@@ -32,6 +32,7 @@ from openedx_authz.models.engine import PolicyCacheControl
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
+    AuthzPermissionDependency,
     AuthzRoleDefinition,
     AuthzRolePermission,
 )
@@ -63,9 +64,33 @@ class FakeEnforcer:
     is the shape the real enforcer returns.
     """
 
-    def __init__(self, policies=None, grouping=None):
+    def __init__(self, policies=None, grouping=None, action_grouping=None):
         self._policies = [list(row) for row in (policies or [])]
         self._grouping = [list(row) for row in (grouping or [])]
+        self._action_grouping = [list(row) for row in (action_grouping or [])]
+
+    def get_named_grouping_policy(self, ptype):
+        """Return a copy of the stored ``g2`` rows."""
+        assert ptype == "g2"
+        return [list(row) for row in self._action_grouping]
+
+    def add_named_grouping_policy(self, ptype, *args):
+        """Add a ``g2`` row, ignoring exact duplicates. Returns True if added."""
+        assert ptype == "g2"
+        row = list(args)
+        if row not in self._action_grouping:
+            self._action_grouping.append(row)
+            return True
+        return False
+
+    def remove_named_grouping_policy(self, ptype, *args):
+        """Remove a ``g2`` row if present. Returns True if removed."""
+        assert ptype == "g2"
+        row = list(args)
+        if row in self._action_grouping:
+            self._action_grouping.remove(row)
+            return True
+        return False
 
     def load_policy(self):
         """No-op reload hook: the fake is already its own in-memory source of truth."""
@@ -169,6 +194,148 @@ def _apply(
     return SchemaApplier(policy_store=PolicyStore(enforcer)).apply(
         rendered, schema, force=force, drop_custom_role_permissions=drop_custom_role_permissions
     )
+
+
+DEPENDENT_PERMS = [
+    permission(name="view_course", cat="cat"),
+    permission(name="manage_tags", cat="cat", depends_on=("courses.view_course",)),
+    permission(name="export_course", cat="cat", depends_on=("courses.view_course",)),
+]
+TAGS_ROW = ["act^courses.manage_tags", "act^courses.view_course"]
+EXPORT_ROW = ["act^courses.export_course", "act^courses.view_course"]
+
+
+def _dependent_doc(permissions=None):
+    """A schema whose ``manage_tags`` and ``export_course`` permissions depend on ``view_course``."""
+    return _doc(
+        permissions=permissions if permissions is not None else DEPENDENT_PERMS,
+        roles=[
+            role(
+                rid="course_editor",
+                scopes=("course-v1",),
+                permissions=("courses.view_course", "courses.manage_tags", "courses.export_course"),
+            )
+        ],
+    )
+
+
+def _stored_dependencies() -> set[tuple[str, str]]:
+    """The stored ``(permission, depends_on)`` pairs."""
+    return {
+        (dependency.permission.identifier, dependency.depends_on.identifier)
+        for dependency in AuthzPermissionDependency.objects.select_related("permission", "depends_on")
+    }
+
+
+class TestRenderDependencies:
+    """Each direct dependency renders as one ``g2`` row (ADR 0034 §4)."""
+
+    def test_renders_one_sorted_g2_row_per_direct_dependency(self):
+        """Two dependencies render as two ``g2`` rows, in sorted order."""
+        rendered = _render(_dependent_doc())
+
+        assert [row.as_policy() for row in rendered.action_rows] == [EXPORT_ROW, TAGS_ROW]
+
+    def test_permissions_without_dependencies_render_no_g2_rows(self):
+        """A schema with no ``depends_on`` renders no ``g2`` rows."""
+        assert not _render(_editor(("courses.view_course",))).action_rows
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("cache_invalidation")
+class TestApplyDependencies:
+    """``g2`` rows are added, adopted and removed like ``p`` rows (ADR 0034 §4, §5)."""
+
+    def test_first_apply_adds_g2_rows_and_stores_dependencies(self):
+        """A first apply writes one ``g2`` row and one stored dependency per direct dependency."""
+        enforcer = FakeEnforcer()
+
+        result = _apply(enforcer, _dependent_doc())
+
+        assert result.added_action_rows == 2
+        assert enforcer.get_named_grouping_policy("g2") == [EXPORT_ROW, TAGS_ROW]
+        assert _stored_dependencies() == {
+            ("courses.manage_tags", "courses.view_course"),
+            ("courses.export_course", "courses.view_course"),
+        }
+
+    def test_reapply_is_idempotent(self):
+        """Re-applying the same schema adds and removes no ``g2`` row."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _dependent_doc())
+
+        result = _apply(enforcer, _dependent_doc())
+
+        assert result.added_action_rows == 0
+        assert result.removed_action_rows == 0
+        assert result.unchanged is True
+
+    def test_existing_g2_rows_are_adopted_without_writes(self):
+        """Rows loaded from ``authz.policy`` before dependencies were stored are adopted, not rewritten."""
+        enforcer = FakeEnforcer(action_grouping=[TAGS_ROW, EXPORT_ROW])
+
+        result = _apply(enforcer, _dependent_doc())
+
+        assert result.added_action_rows == 0
+        assert len(_stored_dependencies()) == 2
+
+    def test_unmanaged_g2_row_survives_an_empty_schema(self):
+        """A ``g2`` row that no schema declares is not removed, even with nothing to render."""
+        unmanaged = ["act^other.edit", "act^other.view"]
+        enforcer = FakeEnforcer(action_grouping=[unmanaged])
+
+        result = _apply(enforcer)
+
+        assert result.removed_action_rows == 0
+        assert enforcer.get_named_grouping_policy("g2") == [unmanaged]
+
+    def test_removed_dependency_removes_its_g2_row_and_stored_dependency(self):
+        """Dropping one dependency removes only its ``g2`` row and its stored dependency."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _dependent_doc())
+        without_export_dependency = [*DEPENDENT_PERMS[:2], permission(name="export_course", cat="cat")]
+
+        result = _apply(enforcer, _dependent_doc(without_export_dependency))
+
+        assert result.removed_action_rows == 1
+        assert enforcer.get_named_grouping_policy("g2") == [TAGS_ROW]
+        assert _stored_dependencies() == {("courses.manage_tags", "courses.view_course")}
+
+    def test_removed_permission_removes_its_g2_row(self):
+        """Removing a permission removes the ``g2`` row of its dependency."""
+        enforcer = FakeEnforcer()
+        _apply(enforcer, _dependent_doc())
+        schema = _doc(
+            permissions=DEPENDENT_PERMS[:2],
+            roles=[
+                role(
+                    rid="course_editor",
+                    scopes=("course-v1",),
+                    permissions=("courses.view_course", "courses.manage_tags"),
+                )
+            ],
+        )
+
+        result = _apply(enforcer, schema)
+
+        assert result.removed_action_rows == 1
+        assert enforcer.get_named_grouping_policy("g2") == [TAGS_ROW]
+        assert _stored_dependencies() == {("courses.manage_tags", "courses.view_course")}
+
+    def test_plan_reports_g2_rows_and_dependencies_without_writing(self):
+        """The plan lists the ``g2`` rows and dependencies to add, and writes nothing."""
+        enforcer = FakeEnforcer()
+        schema = _compile(_dependent_doc())
+
+        plan = SchemaApplier(policy_store=PolicyStore(enforcer)).plan(PolicyRenderer().render(schema), schema)
+
+        assert [row.as_policy() for row in plan.added_action_rows] == [EXPORT_ROW, TAGS_ROW]
+        assert plan.dependencies.added == [
+            "courses.export_course -> courses.view_course",
+            "courses.manage_tags -> courses.view_course",
+        ]
+        assert not enforcer.get_named_grouping_policy("g2")
+        assert not AuthzPermissionDependency.objects.exists()
 
 
 @pytest.mark.django_db

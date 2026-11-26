@@ -49,7 +49,14 @@ from openedx_authz.data import AUTHZ_POLICY_ATTRIBUTES_SEPARATOR as SEP
 from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models.engine import PolicyCacheControl
 
-__all__ = ["PolicyRow", "GroupingRow", "PolicyStore", "policy_write_lock", "serialized_policy_update"]
+__all__ = [
+    "PolicyRow",
+    "GroupingRow",
+    "ActionGroupingRow",
+    "PolicyStore",
+    "policy_write_lock",
+    "serialized_policy_update",
+]
 
 
 @dataclass(frozen=True)
@@ -142,6 +149,38 @@ class GroupingRow:
         return cls(subject, role, scope)
 
 
+@dataclass(frozen=True)
+class ActionGroupingRow:
+    """A single Casbin ``g2`` row: an action that implies another (ADR 0034 §4).
+
+    Fields follow the ``g2`` shape: ``[action, implied_action]``, both in the internal ``act^``
+    form. A permission dependency renders as one row whose ``action`` is the dependent
+    permission and whose ``implied_action`` is the permission it depends on.
+    """
+
+    PTYPE: ClassVar[str] = "g2"
+
+    action: str
+    implied_action: str
+
+    def as_policy(self) -> list[str]:
+        """Return the enforcer arg form: ``[action, implied_action]``."""
+        return [self.action, self.implied_action]
+
+    @classmethod
+    def from_policy(cls, values: list[str]) -> "ActionGroupingRow":
+        """Build from a stored ``g2`` row (``[action, implied_action]``)."""
+        return cls(values[0], values[1])
+
+    @classmethod
+    def from_dependency(cls, permission_id: str, depends_on_id: str) -> "ActionGroupingRow":
+        """Build the ``g2`` row for one direct dependency, applying the same ``act^`` form as ``p`` rows."""
+        return cls(
+            action=f"{ACTION_NAMESPACE}{SEP}{permission_id}",
+            implied_action=f"{ACTION_NAMESPACE}{SEP}{depends_on_id}",
+        )
+
+
 class PolicyStore:
     """Casbin-facing facade exposing only the operations the schema pipeline needs.
 
@@ -204,6 +243,19 @@ class PolicyStore:
         than a reconstructed one.
         """
         return self._resolved_enforcer.remove_grouping_policy(*row.as_policy())
+
+    def get_action_grouping_rows(self) -> list[ActionGroupingRow]:
+        """Return every stored ``g2`` row as an :class:`ActionGroupingRow`."""
+        rows = self._resolved_enforcer.get_named_grouping_policy(ActionGroupingRow.PTYPE)
+        return [ActionGroupingRow.from_policy(row) for row in rows]
+
+    def add_action_grouping_row(self, row: ActionGroupingRow) -> bool:
+        """Add one ``g2`` row. Returns the enforcer's add result (True if added)."""
+        return self._resolved_enforcer.add_named_grouping_policy(ActionGroupingRow.PTYPE, *row.as_policy())
+
+    def remove_action_grouping_row(self, row: ActionGroupingRow) -> bool:
+        """Remove one ``g2`` row. Returns the enforcer's remove result (True if removed)."""
+        return self._resolved_enforcer.remove_named_grouping_policy(ActionGroupingRow.PTYPE, *row.as_policy())
 
     def reload(self) -> None:
         """Reload the enforcer's in-memory model from the database (ADR 0018 §8).

@@ -4,9 +4,13 @@ The catalog is read from the authz schema models, the same data the Casbin polic
 rendered from, using a constant number of queries (see ADR 0028).
 """
 
+from collections import defaultdict
+
+from openedx_authz.engine.schema.dependencies import all_dependencies
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
+    AuthzPermissionDependency,
     AuthzRoleDefinition,
 )
 
@@ -14,11 +18,16 @@ __all__ = ["get_permission_catalog", "get_category_catalog", "get_role_catalog"]
 
 
 def get_permission_catalog(scope_types: list[str]) -> list[AuthzPermissionDefinition]:
-    """Return the permissions that can be granted in any of the scope types.
+    """Return the permissions that can be granted in any of the scope types, with their dependencies.
 
     A permission qualifies when any of the scope types is among its supported ``scopes`` and it is
     visible: neither the permission nor its category is hidden. Each permission is loaded with its
-    category.
+    category and gets two attributes listing complete permission IDs, both sorted (ADR 0034, ADR 0036):
+
+    - ``depends_on``: its direct dependencies.
+    - ``all_depends_on``: its direct and indirect dependencies.
+
+    Dependencies are resolved over every stored dependency, regardless of scope type or visibility.
 
     Args:
         scope_types (list[str]): The scope types (e.g., ['course-v1', 'lib']).
@@ -26,12 +35,27 @@ def get_permission_catalog(scope_types: list[str]) -> list[AuthzPermissionDefini
     Returns:
         list[AuthzPermissionDefinition]: The matching permissions, ordered by namespace and name
     """
-    return list(
+    permissions = list(
         AuthzPermissionDefinition.objects.visible()
         .supporting_scope_types(scope_types)
         .select_related("category")
         .order_by("namespace", "name")
     )
+    dependency_map = _get_dependency_map()
+    for permission in permissions:
+        permission.depends_on = sorted(dependency_map.get(permission.identifier, ()))
+        permission.all_depends_on = sorted(all_dependencies((permission.identifier,), dependency_map))
+    return permissions
+
+
+def _get_dependency_map() -> dict[str, list[str]]:
+    """Return each stored permission ID mapped to the IDs of its direct dependencies, in one query."""
+    dependency_map = defaultdict(list)
+    for namespace, name, depends_on_namespace, depends_on_name in AuthzPermissionDependency.objects.values_list(
+        "permission__namespace", "permission__name", "depends_on__namespace", "depends_on__name"
+    ):
+        dependency_map[f"{namespace}.{name}"].append(f"{depends_on_namespace}.{depends_on_name}")
+    return dict(dependency_map)
 
 
 def get_category_catalog(permissions: list[AuthzPermissionDefinition]) -> list[AuthzPermissionCategory]:

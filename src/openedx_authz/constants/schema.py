@@ -11,9 +11,24 @@ either layer depending on the other.
 from __future__ import annotations
 
 from enum import Enum
+from types import MappingProxyType
 
-AUTHZ_JSON_SCHEMA_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMA"
-DEFAULT_AUTHZ_JSON_SCHEMA = "openedx_authz.engine.schema/authz-schema-v1.json"
+AUTHZ_JSON_SCHEMAS_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMAS"
+# The single-resource setting used before schema version 1.1. It is rejected with a rename error.
+REMOVED_AUTHZ_JSON_SCHEMA_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMA"
+
+AUTHZ_JSON_SCHEMA_V1_0 = "openedx_authz.engine.schema/authz-schema-v1.json"
+AUTHZ_JSON_SCHEMA_V1_1 = "openedx_authz.engine.schema/authz-schema-v1.1.json"
+
+# The built-in JSON Schema for each supported ``schema_version`` (ADR 0034 §2). Each file is
+# validated against the JSON Schema of the version it declares, so files of different versions
+# can be loaded together. ``OPENEDX_AUTHZ_JSON_SCHEMAS`` overrides individual entries.
+DEFAULT_AUTHZ_JSON_SCHEMAS = MappingProxyType(
+    {
+        "1.0": AUTHZ_JSON_SCHEMA_V1_0,
+        "1.1": AUTHZ_JSON_SCHEMA_V1_1,
+    }
+)
 
 CUSTOM_ROLE_ID_PREFIX = "custom_"
 CUSTOM_ROLE_ID_MAX_LENGTH = 64

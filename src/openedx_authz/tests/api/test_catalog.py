@@ -8,6 +8,7 @@ from openedx_authz.api.data import DefinitionKind
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
+    AuthzPermissionDependency,
     AuthzRoleDefinition,
     AuthzRolePermission,
 )
@@ -79,6 +80,71 @@ class TestGetPermissionCatalog(CatalogTestCase):
             categories = [p.category for p in result]
 
         self.assertEqual(sorted(c.category_id for c in categories if c), ["content", "team"])
+
+
+class TestPermissionCatalogDependencies(CatalogTestCase):
+    """Each permission of the catalog lists its direct and indirect dependencies (ADR 0034, ADR 0036)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.edit_course = AuthzPermissionDefinition.objects.create(
+            namespace="courses", name="edit_course", display_name="Edit", scopes=["course-v1"]
+        )
+        cls.publish_course = AuthzPermissionDefinition.objects.create(
+            namespace="courses", name="publish_course", display_name="Publish", scopes=["course-v1"]
+        )
+        for permission, depends_on in (
+            (cls.publish_course, cls.manage_team),
+            (cls.publish_course, cls.edit_course),
+            (cls.edit_course, cls.view_course),
+        ):
+            AuthzPermissionDependency.objects.create(permission=permission, depends_on=depends_on)
+
+    def _by_identifier(self, scope_types):
+        return {p.identifier: p for p in get_permission_catalog(scope_types)}
+
+    def test_lists_direct_and_all_dependencies_sorted(self):
+        """``depends_on`` has the direct dependencies and ``all_depends_on`` adds the indirect ones."""
+        permissions = self._by_identifier(["course-v1"])
+
+        publish = permissions["courses.publish_course"]
+        assert publish.depends_on == ["common.manage_team", "courses.edit_course"]
+        assert publish.all_depends_on == ["common.manage_team", "courses.edit_course", "courses.view_course"]
+        assert permissions["courses.edit_course"].depends_on == ["courses.view_course"]
+        assert permissions["courses.edit_course"].all_depends_on == ["courses.view_course"]
+
+    def test_permission_without_dependencies_has_empty_lists(self):
+        """A permission that depends on nothing gets empty lists."""
+        view_course = self._by_identifier(["course-v1"])["courses.view_course"]
+
+        assert view_course.depends_on == []
+        assert view_course.all_depends_on == []
+
+    def test_follows_dependencies_outside_the_catalog(self):
+        """Indirect dependencies are followed through permissions that are not in the returned catalog."""
+        AuthzPermissionDependency.objects.create(permission=self.view_library, depends_on=self.publish_course)
+
+        view_library = self._by_identifier(["lib"])["content_libraries.view_library"]
+
+        assert view_library.depends_on == ["courses.publish_course"]
+        assert view_library.all_depends_on == [
+            "common.manage_team",
+            "courses.edit_course",
+            "courses.publish_course",
+            "courses.view_course",
+        ]
+
+    def test_uses_a_constant_number_of_queries(self):
+        """Dependencies are loaded with one query however many there are (ADR 0028)."""
+        with self.assertNumQueries(3):
+            get_permission_catalog(["course-v1"])
+
+        AuthzPermissionDependency.objects.create(permission=self.view_library, depends_on=self.manage_team)
+        AuthzPermissionDependency.objects.create(permission=self.manage_team, depends_on=self.view_course)
+
+        with self.assertNumQueries(3):
+            get_permission_catalog(["course-v1", "lib"])
 
 
 class TestHiddenPermissionsAndCategories(CatalogTestCase):

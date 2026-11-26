@@ -53,6 +53,10 @@ class PermissionDefinition:
     scopes: tuple[str, ...]
     icon: str | None = None
     hidden: bool = False
+    # Complete IDs of the permissions this permission directly requires (ADR 0034). The loader
+    # sorts them, so two files that list the same dependencies in a different order declare an
+    # identical definition rather than a conflicting one.
+    depends_on: tuple[str, ...] = ()
 
     @property
     def identifier(self) -> str:

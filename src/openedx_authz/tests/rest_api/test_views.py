@@ -44,6 +44,7 @@ from openedx_authz.engine.enforcer import AuthzEnforcer
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
+    AuthzPermissionDependency,
     AuthzRoleDefinition,
     AuthzRolePermission,
 )
@@ -1290,6 +1291,7 @@ class TestRoleListView(ViewTestMixin):
             (author, view_course, "course-v1"),
         ]:
             AuthzRolePermission.objects.create(role=role, permission=permission, scope=scope)
+        AuthzPermissionDependency.objects.create(permission=edit_library, depends_on=view_library)
 
     def test_get_roles_catalog(self):
         """Test the catalog returned for a scope type.
@@ -1326,8 +1328,12 @@ class TestRoleListView(ViewTestMixin):
                 "icon": "RemoveRedEye",
                 "category_id": "library_content",
                 "scope_types": ["lib"],
+                "depends_on": [],
+                "all_depends_on": [],
             },
         )
+        self.assertEqual(response.data["permissions"][0]["depends_on"], ["content_libraries.view_library"])
+        self.assertEqual(response.data["permissions"][0]["all_depends_on"], ["content_libraries.view_library"])
         by_role = {r["role"]: r for r in response.data["results"]}
         self.assertEqual(response.data["count"], len(by_role))
         self.assertNotIn(LIBRARY_ADMIN.external_key, by_role)

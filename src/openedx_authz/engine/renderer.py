@@ -3,11 +3,12 @@
 This is the only Casbin/Django-aware part of the schema pipeline. It implements
 the ``render`` and ``apply`` lifecycle steps:
 
-* ``render`` builds the Casbin ``p`` rows for a :class:`CompiledSchema` in
-  memory, without touching the database.
+* ``render`` builds the Casbin ``p`` rows and the ``g2`` permission-dependency
+  rows (ADR 0034 §4) for a :class:`CompiledSchema` in memory, without touching
+  the database.
 * ``apply`` persists the rows in a single transaction, while preserving data
   owned by other services (ADR 0018 §3): dynamic roles, user assignments, and
-  legacy ``g2`` action-inheritance rows.
+  ``g2`` rows that no schema declares.
 
 Key semantics:
     * Idempotent (ADR 0018 §2): re-applying identical definitions changes
@@ -31,9 +32,10 @@ records that the compiled schema no longer contains, all in one transaction.
 
 The definition/source model (ADR 0018 §3, ADR 0025) is the ownership record
 that makes precise pruning safe, and it is consulted rather than assumed:
-removal candidates are intersected with the stored role-permission grants (see
-:meth:`SchemaApplier._managed_rows`), so unmanaged ``p`` rows, dynamic roles,
-user assignments, and legacy ``g2`` action inheritance are all preserved.
+removal candidates are intersected with the stored role-permission grants and
+permission dependencies (see :meth:`SchemaApplier._managed_rows` and
+:meth:`SchemaApplier._managed_action_rows`), so unmanaged ``p`` and ``g2`` rows,
+dynamic roles, and user assignments are all preserved.
 
 ``render`` is pure in behavior — it touches no database and holds no Casbin
 state. ``plan``/``apply`` resolve the enforcer only when called (not at import),
@@ -52,7 +54,7 @@ from openedx_events.authz.data import RoleAssignmentData as RoleAssignmentEventD
 from openedx_events.authz.signals import ROLE_ASSIGNMENT_DELETED
 
 from openedx_authz.engine.enforcer import AuthzEnforcer
-from openedx_authz.engine.policy import PolicyRow, PolicyStore, serialized_policy_update
+from openedx_authz.engine.policy import ActionGroupingRow, PolicyRow, PolicyStore, serialized_policy_update
 from openedx_authz.engine.schema.exceptions import SchemaApplyError
 from openedx_authz.engine.schema.types import CompiledSchema, RoleDefinition
 from openedx_authz.models import schema as schema_models
@@ -63,9 +65,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RenderedPolicy:
-    """The full set of ``p`` rows for a compiled schema (no DB access)."""
+    """The full set of ``p`` and ``g2`` rows for a compiled schema (no DB access)."""
 
     rows: list[PolicyRow] = field(default_factory=list)
+    # One ``g2`` row per direct permission dependency (ADR 0034 §4).
+    action_rows: list[ActionGroupingRow] = field(default_factory=list)
 
 
 @dataclass
@@ -100,6 +104,8 @@ class ChangePlan:
 
     added_rows: list[PolicyRow] = field(default_factory=list)
     removed_rows: list[PolicyRow] = field(default_factory=list)
+    added_action_rows: list[ActionGroupingRow] = field(default_factory=list)
+    removed_action_rows: list[ActionGroupingRow] = field(default_factory=list)
     unchanged: bool = False
     # (role_subject, assignment_subject) pairs: roles being removed that still
     # have user assignments; block removal unless force is set.
@@ -109,6 +115,7 @@ class ChangePlan:
     permissions: DefinitionDiff = field(default_factory=DefinitionDiff)
     roles: DefinitionDiff = field(default_factory=DefinitionDiff)
     grants: DefinitionDiff = field(default_factory=DefinitionDiff)
+    dependencies: DefinitionDiff = field(default_factory=DefinitionDiff)
     # (role_id, permission_id, scope) grants of custom roles whose permission the schema no longer
     # declares (ADR 0035 §5); apply stops unless the operator opts in to dropping them.
     unlinked_custom_grants: list[tuple[str, str, str]] = field(default_factory=list)
@@ -130,6 +137,7 @@ class ChangePlan:
             ("permission", self.permissions),
             ("role", self.roles),
             ("role-permission", self.grants),
+            ("permission dependency", self.dependencies),
         ]
 
     @property
@@ -144,6 +152,8 @@ class ApplyResult:
 
     added: int = 0
     removed: int = 0
+    added_action_rows: int = 0
+    removed_action_rows: int = 0
     unchanged: bool = False
     # The change plan that was applied, so callers can report the same detailed
     # policy-row and definition breakdown they would print for a dry run.
@@ -151,13 +161,12 @@ class ApplyResult:
 
 
 class PolicyRenderer:
-    """Turns a :class:`CompiledSchema` into Casbin ``p`` rows in memory."""
+    """Turns a :class:`CompiledSchema` into Casbin ``p`` and ``g2`` rows in memory."""
 
     def render(self, schema: CompiledSchema) -> RenderedPolicy:
-        """Produce one ``p`` row per (role, permission, supported scope).
+        """Produce one ``p`` row per (role, permission, supported scope) and one ``g2`` row per direct dependency.
 
-        Emits definition (``p``) rows only — never ``g`` (assignments) or ``g2``
-        (action inheritance). Applies the internal Casbin namespacing here.
+        Never emits ``g`` (assignment) rows. Applies the internal Casbin namespacing here.
         Performs no database access. Output order is deterministic.
         """
         rows: list[PolicyRow] = []
@@ -166,7 +175,20 @@ class PolicyRenderer:
             for scope in sorted(role.scopes):
                 for permission in sorted(role.permissions):
                     rows.append(PolicyRow.from_grant(role.id, permission, scope))
-        return RenderedPolicy(rows=rows)
+        action_rows = [
+            ActionGroupingRow.from_dependency(permission_id, depends_on_id)
+            for permission_id, depends_on_id in self.dependency_pairs(schema)
+        ]
+        return RenderedPolicy(rows=rows, action_rows=action_rows)
+
+    @staticmethod
+    def dependency_pairs(schema: CompiledSchema) -> list[tuple[str, str]]:
+        """Return every ``(permission_id, depends_on_id)`` direct dependency, sorted."""
+        return sorted(
+            (permission_id, depends_on_id)
+            for permission_id, compiled in schema.permissions.items()
+            for depends_on_id in compiled.definition.depends_on
+        )
 
 
 class SchemaApplier:
@@ -207,6 +229,15 @@ class SchemaApplier:
         # ownership boundary of ADR 0018 §3 real rather than aspirational.
         removed = sorted((stored_set & managed_set) - rendered_set, key=self._row_sort_key)
 
+        # ``g2`` rows follow the same ownership rule (ADR 0034 §5): a stored row that matches a
+        # rendered one is adopted, and only rows backed by a stored dependency are removed.
+        rendered_action_set = set(rendered.action_rows)
+        stored_action_set = set(policy_store.get_action_grouping_rows())
+        added_action_rows = sorted(rendered_action_set - stored_action_set, key=self._action_row_sort_key)
+        removed_action_rows = sorted(
+            (stored_action_set & self._managed_action_rows()) - rendered_action_set, key=self._action_row_sort_key
+        )
+
         rendered_subjects = {row.subject for row in rendered_set}
         removed_subjects = {row.subject for row in removed} - rendered_subjects
 
@@ -223,12 +254,21 @@ class SchemaApplier:
         plan = ChangePlan(
             added_rows=added,
             removed_rows=removed,
+            added_action_rows=added_action_rows,
+            removed_action_rows=removed_action_rows,
             blocking_assignments=blocking,
             unlinked_custom_grants=unlinked_custom_grants,
             emptied_custom_roles=emptied_custom_roles,
             **definitions,
         )
-        plan.unchanged = not added and not removed and plan.definitions_unchanged and not unlinked_custom_grants
+        plan.unchanged = (
+            not added
+            and not removed
+            and not added_action_rows
+            and not removed_action_rows
+            and plan.definitions_unchanged
+            and not unlinked_custom_grants
+        )
         return plan
 
     def apply(
@@ -244,7 +284,8 @@ class SchemaApplier:
         Adds rendered rows not already present, removes stale schema-owned rows
         no longer rendered, prunes definition/source records the compiled schema
         no longer contains, and invalidates the policy cache so the enforcer
-        reloads. Preserves dynamic roles, user assignments, and ``g2`` rows.
+        reloads. Adds and removes the ``g2`` rows of permission dependencies the same way.
+        Preserves dynamic roles, user assignments, and ``g2`` rows that no schema declares.
         Custom roles and their grants are never created, updated or removed, except for
         the grants of a permission the schema no longer declares (ADR 0035 §5).
 
@@ -307,6 +348,10 @@ class SchemaApplier:
                     policy_store.add_policy_row(row)
                 for row in plan.removed_rows:
                     policy_store.remove_policy_row(row)
+                for action_row in plan.added_action_rows:
+                    policy_store.add_action_grouping_row(action_row)
+                for action_row in plan.removed_action_rows:
+                    policy_store.remove_action_grouping_row(action_row)
                 if plan.unlinked_custom_grants:
                     self._drop_unlinked_custom_grants(policy_store, schema)
                 removed_assignments: list[tuple[str, str, str]] = []
@@ -314,7 +359,13 @@ class SchemaApplier:
                     removed_assignments = self._remove_assignments(policy_store, plan.blocking_assignments)
                 self._store_sources(schema)
 
-                changed = bool(plan.added_rows or plan.removed_rows or plan.unlinked_custom_grants)
+                changed = bool(
+                    plan.added_rows
+                    or plan.removed_rows
+                    or plan.added_action_rows
+                    or plan.removed_action_rows
+                    or plan.unlinked_custom_grants
+                )
                 if changed:
                     # Bump the cache version *inside* the transaction so it commits
                     # atomically with the p-row writes. If it ran after the block
@@ -346,11 +397,13 @@ class SchemaApplier:
             raise
 
         removed_count = len(plan.removed_rows) + len(plan.unlinked_custom_rows)
-        if plan.added_rows or removed_count:
+        if plan.added_rows or removed_count or plan.added_action_rows or plan.removed_action_rows:
             logger.info(
-                "Authz schema apply: added %d p row(s), removed %d p row(s).",
+                "Authz schema apply: added %d p row(s), removed %d p row(s), added %d g2 row(s), removed %d g2 row(s).",
                 len(plan.added_rows),
                 removed_count,
+                len(plan.added_action_rows),
+                len(plan.removed_action_rows),
             )
         else:
             logger.info("Authz schema apply: policy rows unchanged; definitions synced.")
@@ -358,6 +411,8 @@ class SchemaApplier:
         return ApplyResult(
             added=len(plan.added_rows),
             removed=removed_count,
+            added_action_rows=len(plan.added_action_rows),
+            removed_action_rows=len(plan.removed_action_rows),
             unchanged=plan.unchanged,
             plan=plan,
         )
@@ -483,6 +538,10 @@ class SchemaApplier:
     def _row_sort_key(row: PolicyRow) -> tuple[str, str, str, str]:
         return (row.subject, row.action, row.scope, row.effect)
 
+    @staticmethod
+    def _action_row_sort_key(row: ActionGroupingRow) -> tuple[str, str]:
+        return (row.action, row.implied_action)
+
     def _diff_definitions(self, schema: CompiledSchema) -> dict[str, DefinitionDiff]:
         """Diff the compiled definitions against the stored ones (ADR 0018 §6).
 
@@ -537,7 +596,24 @@ class SchemaApplier:
                 },
                 lambda _compiled, _stored: True,
             ),
+            "dependencies": self._diff_kind(
+                {
+                    self._dependency_key(permission_id, depends_on_id): None
+                    for permission_id, depends_on_id in PolicyRenderer.dependency_pairs(schema)
+                },
+                {
+                    self._dependency_key(dependency.permission.identifier, dependency.depends_on.identifier): None
+                    for dependency in schema_models.AuthzPermissionDependency.objects.select_related(
+                        "permission", "depends_on"
+                    )
+                },
+                lambda _compiled, _stored: True,
+            ),
         }
+
+    @staticmethod
+    def _dependency_key(permission_id: str, depends_on_id: str) -> str:
+        return f"{permission_id} -> {depends_on_id}"
 
     @staticmethod
     def _compiled_grants(schema: CompiledSchema):
@@ -584,6 +660,20 @@ class SchemaApplier:
                 grant.scope,
             )
             for grant in schema_models.AuthzRolePermission.objects.static().select_related("role", "permission")
+        }
+
+    @staticmethod
+    def _managed_action_rows() -> set[ActionGroupingRow]:
+        """Return the ``g2`` rows the loader previously recorded as schema-owned (ADR 0034 §5).
+
+        Each stored permission dependency corresponds to one rendered ``g2`` row. A ``g2`` row
+        outside this set, such as one loaded from ``authz.policy`` before any dependency was
+        stored, is not removed. Empty on the first deployment that stores dependencies, so
+        existing rows are adopted before anything can be pruned.
+        """
+        return {
+            ActionGroupingRow.from_dependency(dependency.permission.identifier, dependency.depends_on.identifier)
+            for dependency in schema_models.AuthzPermissionDependency.objects.select_related("permission", "depends_on")
         }
 
     def _store_sources(self, schema: CompiledSchema) -> None:
@@ -660,6 +750,18 @@ class SchemaApplier:
                     permission=obj, source=source_obj(record), defaults={"origin_kind": schema_models.OriginKind.BASE}
                 )
 
+        # Permission dependencies (one per rendered ``g2`` row). Track the ones the schema still
+        # declares so stale dependencies can be pruned below.
+        live_dependency_ids: set[int] = set()
+        for permission_id, depends_on_id in PolicyRenderer.dependency_pairs(schema):
+            permission_obj, depends_on_obj = permission_objs.get(permission_id), permission_objs.get(depends_on_id)
+            if permission_obj is None or depends_on_obj is None:
+                continue  # validated away in practice; skip defensively
+            dependency, _ = schema_models.AuthzPermissionDependency.objects.get_or_create(
+                permission=permission_obj, depends_on=depends_on_obj
+            )
+            live_dependency_ids.add(dependency.pk)
+
         # Roles.
         role_objs: dict[str, object] = {}
         for rid, compiled in schema.roles.items():
@@ -703,7 +805,7 @@ class SchemaApplier:
                             defaults={"origin_kind": rel.origin_kind, "priority": rel.priority},
                         )
 
-        self._prune_definitions(schema, live_grant_ids)
+        self._prune_definitions(schema, live_grant_ids, live_dependency_ids)
 
         logger.info(
             "Authz schema apply: persisted %d role(s), %d permission(s), %d category(ies).",
@@ -713,20 +815,21 @@ class SchemaApplier:
         )
 
     @staticmethod
-    def _prune_definitions(schema: CompiledSchema, live_grant_ids: set[int]) -> None:
+    def _prune_definitions(schema: CompiledSchema, live_grant_ids: set[int], live_dependency_ids: set[int]) -> None:
         """Delete definition/source rows the compiled schema no longer contains.
 
-        Removes stale role-permission grants, roles, permissions, and categories
-        so the definition tables match the compiled schema (ADR 0018 §2). Source
+        Removes stale role-permission grants, permission dependencies, roles, permissions, and
+        categories so the definition tables match the compiled schema (ADR 0018 §2). Source
         link rows and per-source records cascade via their foreign keys; the
         shared :class:`AuthzSchemaSource` rows are left in place because they may
         still back other definitions and carry no access on their own.
 
-        Ordering matters: grants first (they reference roles and permissions),
+        Ordering matters: grants and dependencies first (they reference roles and permissions),
         then roles and permissions, then categories.
         """
         # Stale role-permission grants: any grant not re-created this run.
         schema_models.AuthzRolePermission.objects.static().exclude(pk__in=live_grant_ids).delete()
+        schema_models.AuthzPermissionDependency.objects.exclude(pk__in=live_dependency_ids).delete()
 
         live_role_ids = {compiled.definition.id for compiled in schema.roles.values()}
         schema_models.AuthzRoleDefinition.objects.static().exclude(role_id__in=live_role_ids).delete()

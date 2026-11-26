@@ -250,6 +250,8 @@ class RoleCatalogPermissionSerializer(serializers.Serializer):  # pylint: disabl
     icon = serializers.CharField(allow_null=True)
     category_id = serializers.CharField(source="category.category_id", allow_null=True)
     scope_types = serializers.ListField(child=serializers.CharField(), source="scopes")
+    depends_on = serializers.ListField(child=serializers.CharField())
+    all_depends_on = serializers.ListField(child=serializers.CharField())
 
 
 class RoleCatalogRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method

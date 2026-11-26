@@ -16,11 +16,19 @@ Whole-set checks (after all documents load):
     * A role's ``scopes`` are supported by each of its permissions.
     * ``role_extensions`` target an existing role (ADR 0023).
     * Conflicting duplicate base definitions fail; identical duplicates warn.
+    * Every ``depends_on`` entry references an existing permission whose scopes
+      include every scope of the dependent permission, and dependencies form
+      no cycle, including a permission that depends on itself (ADR 0034 §3).
 
 Post-compile checks (after extensions and priority are resolved):
     * A role's ``scopes`` are supported by every permission it *ends up* with,
       including permissions contributed by ``role_extensions``.
     * The resolved permissions and categories still exist.
+    * A role that ends up with a permission also ends up with all of its direct
+      and indirect dependencies, whatever ``schema_version`` its files declare
+      (ADR 0034 §3).
+    * A visible permission does not depend on a hidden permission or on a
+      permission in a hidden category.
 
 Validation collects issues rather than raising on the first problem, so the
 deployment report can list every error and warning at once. No Casbin imports.
@@ -31,10 +39,12 @@ from __future__ import annotations
 from collections.abc import Container
 
 from openedx_authz.constants import CUSTOM_ROLE_ID_PREFIX, SchemaOriginKind
+from openedx_authz.engine.schema.dependencies import find_cycles, missing_dependencies
 from openedx_authz.engine.schema.issues import IssueLevel, ValidationIssue
 from openedx_authz.engine.schema.paragon_icons import PARAGON_ICON_NAMES
 from openedx_authz.engine.schema.types import (
     CompiledSchema,
+    PermissionDefinition,
     SchemaDocument,
 )
 
@@ -92,6 +102,9 @@ class SchemaValidator:
                 )
             )
 
+        issues.extend(self._check_role_dependencies(schema))
+        issues.extend(self._check_visible_dependencies(schema))
+
         return issues
 
     def validate_document(self, document: SchemaDocument) -> list[ValidationIssue]:
@@ -124,6 +137,7 @@ class SchemaValidator:
         role_ids: set[str] = set()
 
         issues.extend(self._collect_and_check_duplicates(documents, category_ids, permission_index, role_ids))
+        issues.extend(self._check_permission_dependencies(documents))
 
         # Reference integrity: permission categories exist.
         for document in documents:
@@ -193,6 +207,108 @@ class SchemaValidator:
             for role in document.roles:
                 issues.extend(self._register(roles, role.id, role, "role", sid))
                 role_ids.add(role.id)
+        return issues
+
+    @staticmethod
+    def _check_permission_dependencies(documents: list[SchemaDocument]) -> list[ValidationIssue]:
+        """Check every ``depends_on`` entry and reject dependency cycles (ADR 0034 §3).
+
+        A conflicting duplicate permission is already an error, so the first definition of each
+        permission is the one checked.
+        """
+        definitions: dict[str, tuple[PermissionDefinition, str]] = {}
+        for document in documents:
+            for permission in document.permissions:
+                definitions.setdefault(permission.identifier, (permission, document.source.source_id))
+
+        issues: list[ValidationIssue] = []
+        for perm_id, (permission, sid) in sorted(definitions.items()):
+            for dependency_id in permission.depends_on:
+                if dependency_id == perm_id:
+                    continue  # Reported below as a cycle of one.
+                dependency = definitions.get(dependency_id)
+                if dependency is None:
+                    issues.append(
+                        ValidationIssue(
+                            IssueLevel.ERROR,
+                            f"Permission {perm_id} depends on unknown permission {dependency_id!r}.",
+                            sid,
+                        )
+                    )
+                    continue
+                uncovered = set(permission.scopes) - set(dependency[0].scopes)
+                if uncovered:
+                    issues.append(
+                        ValidationIssue(
+                            IssueLevel.ERROR,
+                            f"Permission {perm_id} supports scope(s) {sorted(uncovered)} "
+                            f"that its dependency {dependency_id!r} does not support.",
+                            sid,
+                        )
+                    )
+
+        dependency_map = {perm_id: permission.depends_on for perm_id, (permission, _sid) in definitions.items()}
+        for cycle in find_cycles(dependency_map):
+            if len(cycle) == 1:
+                message = f"Permission {cycle[0]} depends on itself."
+            else:
+                message = f"Permissions form a dependency cycle: {' -> '.join((*cycle, cycle[0]))}."
+            issues.append(ValidationIssue(IssueLevel.ERROR, message, definitions[cycle[0]][1]))
+        return issues
+
+    def _check_role_dependencies(self, schema: CompiledSchema) -> list[ValidationIssue]:
+        """A role must grant every direct and indirect dependency of its permissions (ADR 0034 §3).
+
+        The check runs on the compiled roles, so it sees permissions added and removed by role
+        extensions, and it applies to every file whatever ``schema_version`` it declares.
+        """
+        dependency_map = {perm_id: compiled.definition.depends_on for perm_id, compiled in schema.permissions.items()}
+        issues: list[ValidationIssue] = []
+        for role_id, compiled_role in sorted(schema.roles.items()):
+            missing = missing_dependencies(compiled_role.definition.permissions, dependency_map)
+            for perm_id, absent in missing.items():
+                issues.append(
+                    ValidationIssue(
+                        IssueLevel.ERROR,
+                        f"Role {role_id} grants permission {perm_id!r} without its dependencies {list(absent)}. "
+                        f"Add them to the role, or keep role_extensions from removing them.",
+                        self._role_permission_source_id(schema, role_id, perm_id),
+                    )
+                )
+        return issues
+
+    @staticmethod
+    def _check_visible_dependencies(schema: CompiledSchema) -> list[ValidationIssue]:
+        """Reject visible permissions that depend on hidden ones, directly or indirectly.
+
+        A permission is hidden when it, or its category, is hidden (ADR 0038). Only direct
+        dependencies are checked, which also covers indirect ones: any chain from a visible
+        permission to a hidden one has a visible permission that directly depends on a hidden one.
+        Unknown dependencies and categories are skipped, since other checks report them.
+        """
+
+        def is_hidden(perm_id: str) -> bool | None:
+            compiled = schema.permissions.get(perm_id)
+            if compiled is None:
+                return None
+            category = schema.categories.get(compiled.definition.category_id)
+            return compiled.definition.hidden or bool(category and category.definition.hidden)
+
+        issues: list[ValidationIssue] = []
+        for perm_id, compiled in sorted(schema.permissions.items()):
+            if is_hidden(perm_id):
+                continue
+            hidden_dependencies = sorted(dep for dep in compiled.definition.depends_on if is_hidden(dep))
+            if hidden_dependencies:
+                sources = compiled.sources
+                issues.append(
+                    ValidationIssue(
+                        IssueLevel.ERROR,
+                        f"Visible permission {perm_id} depends on hidden permission(s) {hidden_dependencies}. "
+                        f"Hide the permission too, or make its dependencies visible.",
+                        sources[0].source_id if sources else None,
+                    )
+                )
         return issues
 
     @staticmethod

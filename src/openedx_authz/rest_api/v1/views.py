@@ -434,7 +434,9 @@ class RoleListView(APIView):
     - count, next, previous: Pagination of the roles, after search and filtering
     - scope_types: The requested scope types (``course-v1``, ``lib``)
     - categories: Categories used by the permissions (id, display_name, description, icon)
-    - permissions: Permissions of the scope types (id, display_name, description, icon, category_id, scope_types)
+    - permissions: Permissions of the scope types (id, display_name, description, icon, category_id, scope_types,
+      depends_on and all_depends_on). ``depends_on`` lists the ids of its direct dependencies and ``all_depends_on``
+      the ids of its direct and indirect dependencies, both sorted
     - results: Roles, each with role, display_name, description, icon, definition_kind, permissions
       (ids of entries of ``permissions``), scope_types (requested scope types in which the role has grants),
       user_count (distinct active users with the role in the scopes of those types the caller can view)

@@ -1,0 +1,428 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openedx/openedx-authz/main/src/openedx_authz/engine/schema/authz-schema-v1.1.json",
+  "title": "Open edX Authorization schema",
+  "description": "A version 1.1 Open edX authorization schema contribution. Applications and deployment configuration use this format to define static permission categories, permissions, roles, and changes to existing roles. Version 1.1 accepts everything version 1.0 accepts and adds the optional depends_on field to permissions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "priority"],
+  "properties": {
+    "schema_version": {
+      "title": "schema_version",
+      "description": "The authorization schema format version. Quote this value in YAML so it remains a string.",
+      "type": "string",
+      "const": "1.1",
+      "examples": ["1.1"]
+    },
+    "priority": {
+      "title": "priority",
+      "description": "The precedence used only when role_extensions contributions change the same role. A higher number takes precedence when extensions conflict. Priority does not resolve conflicting base definitions (permission categories, permissions, or roles); conflicting base definitions are rejected regardless of priority.",
+      "type": "integer",
+      "examples": [100]
+    },
+    "permission_categories": {
+      "title": "permission_categories",
+      "description": "Permission categories contributed by this file. Categories group permissions for display and discovery but do not grant access.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_category"
+      },
+      "minItems": 1,
+      "examples": [
+        [
+          {
+            "id": "course_content",
+            "display_name": "Course content",
+            "description": "Permissions for viewing and editing course content.",
+            "icon": "Article"
+          }
+        ]
+      ]
+    },
+    "permissions": {
+      "title": "permissions",
+      "description": "Static permissions contributed by this file.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      },
+      "minItems": 1,
+      "examples": [
+        [
+          {
+            "namespace": "courses",
+            "name": "view_course",
+            "display_name": "View course",
+            "description": "View course configuration and content.",
+            "category_id": "course_content",
+            "scopes": ["course-v1"],
+            "icon": "Visibility"
+          }
+        ]
+      ]
+    },
+    "roles": {
+      "title": "roles",
+      "description": "Static roles contributed by this file.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/role"
+      },
+      "minItems": 1,
+      "examples": [
+        [
+          {
+            "id": "course_observer",
+            "display_name": "Course observer",
+            "description": "Reviews a course without changing it.",
+            "scopes": ["course-v1"],
+            "permissions": ["courses.view_course"]
+          }
+        ]
+      ]
+    },
+    "role_extensions": {
+      "title": "role_extensions",
+      "description": "Changes to static roles defined in this file or another contribution.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/role_extension"
+      },
+      "minItems": 1,
+      "examples": [
+        [
+          {
+            "role_id": "course_editor",
+            "add_permissions": ["courses.export_course"]
+          }
+        ]
+      ]
+    }
+  },
+  "anyOf": [
+    {"required": ["permission_categories"]},
+    {"required": ["permissions"]},
+    {"required": ["roles"]},
+    {"required": ["role_extensions"]}
+  ],
+  "$defs": {
+    "identifier": {
+      "description": "A stable lowercase snake-case identifier that begins with a letter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "examples": ["course_content"]
+    },
+    "permission_id": {
+      "description": "A complete permission identifier formed from its namespace and name, separated by a period.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+      "examples": ["courses.view_course"]
+    },
+    "scope_namespace": {
+      "description": "A scope namespace registered by a ScopeData type.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "examples": ["course-v1"]
+    },
+    "display_name": {
+      "description": "The source-language name shown to users.",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["View course"]
+    },
+    "description": {
+      "description": "A source-language description shown to users.",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["View course configuration and content."]
+    },
+    "icon": {
+      "description": "A case-sensitive icon name exported by @openedx/paragon/icons.",
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
+      "examples": ["Visibility"]
+    },
+    "permission_list": {
+      "description": "A non-empty list of unique, complete permission identifiers.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_id"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "role_permission_list": {
+      "description": "A list of unique, complete permission identifiers. The list may be empty when role extensions contribute every permission.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission_id"
+      },
+      "uniqueItems": true
+    },
+    "scope_list": {
+      "description": "A non-empty list of unique scope namespaces.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scope_namespace"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "permission_category": {
+      "title": "Permission category",
+      "description": "A category used to group permissions for display and discovery.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "description"],
+      "properties": {
+        "id": {
+          "title": "Category id",
+          "description": "The global category identifier.",
+          "examples": ["course_content"],
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "title": "Category display_name",
+          "examples": ["Course content"],
+          "$ref": "#/$defs/display_name"
+        },
+        "description": {
+          "title": "Category description",
+          "examples": ["Permissions for viewing and editing course content."],
+          "$ref": "#/$defs/description"
+        },
+        "icon": {
+          "title": "Category icon",
+          "examples": ["Article"],
+          "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Category hidden",
+          "description": "Whether normal discovery and selection interfaces omit this category and all of its permissions.",
+          "type": "boolean",
+          "default": false,
+          "examples": [false]
+        }
+      }
+    },
+    "permission": {
+      "title": "Permission",
+      "description": "A static permission. Its complete identifier is namespace.name.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "name", "display_name", "description", "category_id", "scopes"],
+      "properties": {
+        "namespace": {
+          "title": "Permission namespace",
+          "description": "The stable product domain that owns the permission.",
+          "examples": ["courses"],
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "title": "Permission name",
+          "description": "The operation within the product domain, normally beginning with a verb.",
+          "examples": ["view_course"],
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "title": "Permission display_name",
+          "examples": ["View course"],
+          "$ref": "#/$defs/display_name"
+        },
+        "description": {
+          "title": "Permission description",
+          "examples": ["View course configuration and content."],
+          "$ref": "#/$defs/description"
+        },
+        "category_id": {
+          "title": "Permission category_id",
+          "description": "The ID of a permission category in the combined schema.",
+          "examples": ["course_content"],
+          "$ref": "#/$defs/identifier"
+        },
+        "scopes": {
+          "title": "Permission scopes",
+          "description": "The scope namespaces where this permission can apply.",
+          "examples": [["course-v1"]],
+          "$ref": "#/$defs/scope_list"
+        },
+        "icon": {
+          "title": "Permission icon",
+          "examples": ["Visibility"],
+          "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Permission hidden",
+          "description": "Whether normal discovery and selection interfaces, and role details, omit this permission.",
+          "type": "boolean",
+          "default": false,
+          "examples": [false]
+        },
+        "depends_on": {
+          "title": "Permission depends_on",
+          "description": "Complete IDs of the permissions this permission directly requires. Only the file that defines the permission declares its dependencies; role extensions cannot change them. Omit the field when the permission has none.",
+          "examples": [["courses.view_course"]],
+          "$ref": "#/$defs/permission_list"
+        }
+      }
+    },
+    "role": {
+      "title": "Role",
+      "description": "A static role definition. Permissions may be assigned by this definition or contributed by role extensions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "description", "scopes", "permissions"],
+      "properties": {
+        "id": {
+          "title": "Role id",
+          "description": "The stable role identifier.",
+          "examples": ["course_observer"],
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "title": "Role display_name",
+          "examples": ["Course observer"],
+          "$ref": "#/$defs/display_name"
+        },
+        "description": {
+          "title": "Role description",
+          "examples": ["Reviews a course without changing it."],
+          "$ref": "#/$defs/description"
+        },
+        "scopes": {
+          "title": "Role scopes",
+          "description": "The scope namespaces where this role can be assigned.",
+          "examples": [["course-v1"]],
+          "$ref": "#/$defs/scope_list"
+        },
+        "permissions": {
+          "title": "Role permissions",
+          "description": "Permissions assigned by this base definition. Role extensions may contribute the complete permission set.",
+          "examples": [["courses.view_course"]],
+          "$ref": "#/$defs/role_permission_list"
+        },
+        "icon": {
+          "title": "Role icon",
+          "examples": ["Visibility"],
+          "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Role hidden",
+          "description": "Whether normal role discovery and selection interfaces omit this role.",
+          "type": "boolean",
+          "default": false,
+          "examples": [false]
+        }
+      }
+    },
+    "role_extension": {
+      "title": "Role extension",
+      "description": "A partial change to an existing static role. Include at least one field in addition to role_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role_id"],
+      "properties": {
+        "role_id": {
+          "title": "Extension role_id",
+          "description": "The ID of the static role to change.",
+          "examples": ["course_editor"],
+          "$ref": "#/$defs/identifier"
+        },
+        "add_permissions": {
+          "title": "Extension add_permissions",
+          "description": "Complete permission IDs to add to the role.",
+          "examples": [["courses.export_course"]],
+          "$ref": "#/$defs/permission_list"
+        },
+        "remove_permissions": {
+          "title": "Extension remove_permissions",
+          "description": "Complete permission IDs to remove from the role.",
+          "examples": [["courses.manage_tags"]],
+          "$ref": "#/$defs/permission_list"
+        },
+        "display_name": {
+          "title": "Extension display_name",
+          "description": "A replacement source-language display name.",
+          "examples": ["Course author"],
+          "$ref": "#/$defs/display_name"
+        },
+        "description": {
+          "title": "Extension description",
+          "description": "A replacement source-language description.",
+          "examples": ["Creates and exports course content."],
+          "$ref": "#/$defs/description"
+        },
+        "icon": {
+          "title": "Extension icon",
+          "description": "A replacement Paragon icon name.",
+          "examples": ["Edit"],
+          "$ref": "#/$defs/icon"
+        },
+        "hidden": {
+          "title": "Extension hidden",
+          "description": "Whether normal role discovery and selection interfaces omit this role.",
+          "type": "boolean",
+          "examples": [true]
+        }
+      },
+      "anyOf": [
+        {"required": ["add_permissions"]},
+        {"required": ["remove_permissions"]},
+        {"required": ["display_name"]},
+        {"required": ["description"]},
+        {"required": ["icon"]},
+        {"required": ["hidden"]}
+      ]
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.1",
+      "priority": 100,
+      "permission_categories": [
+        {
+          "id": "course_content",
+          "display_name": "Course content",
+          "description": "Permissions for viewing and editing course content.",
+          "icon": "Article"
+        }
+      ],
+      "permissions": [
+        {
+          "namespace": "courses",
+          "name": "view_course",
+          "display_name": "View course",
+          "description": "View course configuration and content.",
+          "category_id": "course_content",
+          "scopes": ["course-v1"],
+          "icon": "Visibility"
+        },
+        {
+          "namespace": "courses",
+          "name": "export_course",
+          "display_name": "Export course",
+          "description": "Export course configuration and content.",
+          "category_id": "course_content",
+          "scopes": ["course-v1"],
+          "icon": "Download",
+          "depends_on": ["courses.view_course"]
+        }
+      ],
+      "roles": [
+        {
+          "id": "course_observer",
+          "display_name": "Course observer",
+          "description": "Reviews a course without changing it.",
+          "scopes": ["course-v1"],
+          "permissions": ["courses.view_course"]
+        }
+      ],
+      "role_extensions": [
+        {
+          "role_id": "course_editor",
+          "add_permissions": ["courses.export_course"]
+        }
+      ]
+    }
+  ]
+}

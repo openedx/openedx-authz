@@ -43,6 +43,28 @@ Added
 * ``assign_role_to_subject_in_scope`` now raises ``CustomRoleNotFoundError`` for a custom role that
   does not exist or was removed. It assigns custom roles under the same lock as removing them, so
   an assignment cannot outlive a concurrent removal. Static role assignments are unchanged.
+* Added authorization schema version ``1.1``, with its own ``authz-schema-v1.1.json``. It adds an
+  optional ``depends_on`` list to permissions (ADR 0034). Files of versions ``1.0`` and ``1.1`` can
+  be loaded together. Validation rejects unknown dependencies, dependency cycles, dependencies that
+  do not support the dependent permission's scopes, visible permissions that depend on hidden
+  ones, and roles that grant a permission without all of its dependencies.
+* Replaced the ``OPENEDX_AUTHZ_JSON_SCHEMA`` setting with ``OPENEDX_AUTHZ_JSON_SCHEMAS``, which maps
+  ``schema_version`` values to JSON Schema resources. It overrides only the versions it lists, and
+  the built-in schemas cover the rest. Setting the old name raises ``ImproperlyConfigured``.
+* Permission dependencies are stored in a new definition table, in migration
+  ``0015_authzpermissiondependency``, and rendered as one Casbin ``g2`` row each (ADR 0034).
+  ``load_authz_schema`` adds and removes these rows with the ``p`` rows, keeps existing rows that
+  match, leaves ``g2`` rows that no schema declares in place, and lists the ``g2`` changes in its
+  report.
+* The content library permissions now use schema version ``1.1`` and declare the dependencies that
+  ``authz.policy`` held before the static schema, so new installations get the library ``g2`` rows
+  again. Installations that loaded ``authz.policy`` keep their rows unchanged. A schema file outside
+  this package that redefines a content library permission must remove that definition, or declare
+  the same ``depends_on`` in a ``1.1`` file; otherwise ``load_authz_schema`` reports a conflicting
+  permission definition.
+* Each permission in the role catalog (``GET /api/authz/v1/roles/``) now lists its direct
+  dependencies in ``depends_on`` and its direct and indirect dependencies in ``all_depends_on``,
+  both sorted by ID (ADR 0034, ADR 0036). The catalog still uses a constant number of queries.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants

@@ -46,6 +46,7 @@ def render_permission(compiled_permission: CompiledDefinition) -> dict[str, obje
     """Render one compiled permission with its owning applet."""
     definition = asdict(compiled_permission.definition)
     definition["scopes"] = list(definition["scopes"])
+    definition["depends_on"] = list(definition["depends_on"])
     return {"applet": source_applet_name(compiled_permission.sources[0]), **definition}
 
 

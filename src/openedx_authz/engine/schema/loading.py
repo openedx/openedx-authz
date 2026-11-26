@@ -99,6 +99,8 @@ class SchemaLoader:
             scopes=self._as_tuple(item.get("scopes")),
             icon=item.get("icon"),
             hidden=bool(item.get("hidden", False)),
+            # Sorted so the order in the file does not make two definitions differ (ADR 0034 §5).
+            depends_on=tuple(sorted(self._as_tuple(item.get("depends_on")))),
         )
 
     def _build_role(self, item: dict, source: SourceRecord) -> RoleDefinition:

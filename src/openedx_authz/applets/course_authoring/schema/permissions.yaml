@@ -9,15 +9,15 @@ priority: 100
 permission_categories:
   - id: course_access_content
     display_name: Course access & content
-    description: Permissions for accessing the course and its launch checklist in Studio, managing course content, and viewing the course overview in the Instructor Dashboard.
+    description: Permissions for accessing the course, viewing course and learner information, and managing course content.
     icon: BookOpen
   - id: course_library_updates
     display_name: Library updates
-    description: Permissions for reviewing and managing updates made to content libraries connected to the course.
+    description: Permissions for reviewing and applying content updates from linked libraries.
     icon: LibraryBooks
   - id: course_updates_handouts
     display_name: Course updates & handouts
-    description: Permissions for viewing and managing course updates and handouts that are visible to learners.
+    description: Permissions for viewing and managing course announcements and handouts.
     icon: Sync
   - id: course_pages_resources
     display_name: Pages & resources
@@ -29,7 +29,7 @@ permission_categories:
     icon: Folder
   - id: course_schedule_details
     display_name: Schedule & details
-    description: Permissions for viewing and editing the course schedule and course information.
+    description: Permissions for viewing and editing the course schedule and details in Studio.
     icon: Calendar
   - id: course_grading_settings
     display_name: Grading settings
@@ -56,7 +56,7 @@ permissions:
   - namespace: courses
     name: view_course
     display_name: View course
-    description: See the course in the Studio home and access the course outline in read-only mode. Includes the "View Live" option to preview the course as a learner in the LMS.
+    description: Find the course on the Studio home page and open its outline in read-only mode. Use “View Live” to preview the course as a learner in the LMS.
     category_id: course_access_content
     scopes:
       - course-v1
@@ -80,7 +80,7 @@ permissions:
   - namespace: courses
     name: view_library_updates
     display_name: View library updates
-    description: View pending updates from content libraries linked to this course.
+    description: Review pending updates from linked content libraries.
     category_id: course_library_updates
     scopes:
       - course-v1
@@ -88,7 +88,7 @@ permissions:
   - namespace: courses
     name: manage_library_updates
     display_name: Manage library updates
-    description: Accept or reject pending updates from content libraries linked to this course.
+    description: Accept or reject pending updates from linked content libraries.
     category_id: course_library_updates
     scopes:
       - course-v1
@@ -112,7 +112,7 @@ permissions:
   - namespace: courses
     name: view_pages_and_resources
     display_name: View pages & resources
-    description: See the Pages & Resources section in Studio.
+    description: View course pages, learning resources, and feature settings in Studio.
     category_id: course_pages_resources
     scopes:
       - course-v1
@@ -120,7 +120,7 @@ permissions:
   - namespace: courses
     name: manage_pages_and_resources
     display_name: Manage pages & resources
-    description: Enable or disable course features such as Discussions, the Wiki, Notes, Calculator, and Live. Create and edit Textbooks and Custom pages, and manage their configurations.
+    description: Turn course features such as Discussions, Wiki, Notes, Calculator, and Live on or off. Create, edit, and configure textbooks and custom pages.
     category_id: course_pages_resources
     scopes:
       - course-v1
@@ -128,7 +128,7 @@ permissions:
   - namespace: courses
     name: view_files
     display_name: View files
-    description: See the list of files and assets uploaded to the course.
+    description: View the list of uploaded course files and assets.
     category_id: course_files
     scopes:
       - course-v1
@@ -160,7 +160,7 @@ permissions:
   - namespace: courses
     name: view_schedule_and_details
     display_name: View schedule & details
-    description: See the course schedule (start and end dates, enrollment dates, and pacing settings) and course details (summary, pacing, and prerequisites).
+    description: View course start and end dates, enrollment dates, pacing, the course summary, and prerequisites.
     category_id: course_schedule_details
     scopes:
       - course-v1
@@ -200,7 +200,7 @@ permissions:
   - namespace: courses
     name: view_course_team
     display_name: View course team
-    description: See who has a role assigned to this course in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
+    description: View course team members and their assigned roles in the Roles and Permissions console or on the Course Team tab in the Instructor Dashboard.
     category_id: course_team
     scopes:
       - course-v1
@@ -216,7 +216,7 @@ permissions:
   - namespace: courses
     name: view_group_configurations
     display_name: View group configurations
-    description: See the list of content groups and their configurations for this course.
+    description: View the course’s content groups and their settings in Studio.
     category_id: course_cohorts_content_groups
     scopes:
       - course-v1
@@ -224,7 +224,7 @@ permissions:
   - namespace: courses
     name: manage_group_configurations
     display_name: Manage group configurations
-    description: Create and manage content groups used to target course content to specific learners.
+    description: Create and configure content groups in Studio to make course content available to specific learners.
     category_id: course_cohorts_content_groups
     scopes:
       - course-v1
@@ -240,7 +240,7 @@ permissions:
   - namespace: courses
     name: view_advanced_settings
     display_name: View advanced settings
-    description: Access the Advanced Settings page in Studio. This covers a wide range of technical course configurations, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
+    description: View advanced settings in Studio, including proctoring, timed exams, LTI tools, enrollment limits, and custom display options.
     category_id: course_advanced_settings_certificates
     scopes:
       - course-v1
@@ -280,7 +280,7 @@ permissions:
   - namespace: courses
     name: export_course
     display_name: Export course
-    description: Download the course content as a file for backup or reuse in another platform.
+    description: Download course content as a file for backup or reuse on another platform.
     category_id: course_import_export
     scopes:
       - course-v1

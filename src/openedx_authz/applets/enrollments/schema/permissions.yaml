@@ -29,7 +29,7 @@ permissions:
   - namespace: courses
     name: unenroll_learners
     display_name: Unenroll learners
-    description: Remove learners' enrollments from the course.
+    description: Unenroll learners from the course.
     category_id: course_enrollments
     scopes:
       - course-v1

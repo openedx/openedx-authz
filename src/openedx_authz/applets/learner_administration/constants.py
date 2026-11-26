@@ -4,6 +4,7 @@ from openedx_authz.data import ActionData, PermissionData
 
 __all__ = [
     "COURSES_VIEW_COURSE_INFO",
+    "COURSES_VIEW_LEARNER_COURSE_STATUS",
     "COURSES_VIEW_LEARNER_EXTENSIONS",
     "COURSES_MANAGE_LEARNER_EXTENSIONS",
     "COURSES_VIEW_COHORTS",
@@ -14,6 +15,11 @@ COURSES_NAMESPACE = "courses"
 
 COURSES_VIEW_COURSE_INFO = PermissionData(
     action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_course_info"),
+    effect="allow",
+)
+
+COURSES_VIEW_LEARNER_COURSE_STATUS = PermissionData(
+    action=ActionData(external_key=f"{COURSES_NAMESPACE}.view_learner_course_status"),
     effect="allow",
 )
 

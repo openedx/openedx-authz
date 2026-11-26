@@ -6,6 +6,7 @@ role_extensions:
     add_permissions:
       - courses.view_gradebook
       - courses.manage_learner_grading
+      - courses.manage_bulk_learner_grading
 
   - role_id: course_staff
     add_permissions:

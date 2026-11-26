@@ -78,8 +78,15 @@ class TestImports(TestCase):
             ),
             "openedx_authz.applets.course_team_roles.constants": ("COURSES_LEGACY_INSTRUCTOR_ROLE_PERMISSIONS",),
             "openedx_authz.applets.enrollments.constants": ("COURSES_VIEW_ENROLLMENTS",),
-            "openedx_authz.applets.learner_grading.constants": ("COURSES_VIEW_GRADEBOOK",),
-            "openedx_authz.applets.learner_administration.constants": ("COURSES_VIEW_COURSE_INFO",),
+            "openedx_authz.applets.learner_grading.constants": (
+                "COURSES_VIEW_GRADEBOOK",
+                "COURSES_MANAGE_LEARNER_GRADING",
+                "COURSES_MANAGE_BULK_LEARNER_GRADING",
+            ),
+            "openedx_authz.applets.learner_administration.constants": (
+                "COURSES_VIEW_COURSE_INFO",
+                "COURSES_VIEW_LEARNER_COURSE_STATUS",
+            ),
         }
 
         for module_name, names in applet_constants.items():

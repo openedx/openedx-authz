@@ -28,6 +28,16 @@ LEGACY_LIBRARY_G2_ROWS = {
     ("content_libraries.edit_library_collection", "content_libraries.view_library"),
 }
 
+# The dependencies between the Instructor Dashboard permissions.
+INSTRUCTOR_DASHBOARD_G2_ROWS = {
+    ("courses.manage_learner_grading", "courses.view_learner_course_status"),
+    ("courses.manage_learner_extensions", "courses.view_learner_course_status"),
+    ("courses.manage_bulk_learner_grading", "courses.manage_learner_grading"),
+    ("courses.view_gradebook", "courses.view_course_info"),
+}
+
+BUILT_IN_G2_ROWS = LEGACY_LIBRARY_G2_ROWS | INSTRUCTOR_DASHBOARD_G2_ROWS
+
 # One concrete scope per scope type, for assigning roles in the enforcement check.
 SCOPES = {
     "lib": make_scope_key("lib", "lib:DependencyOrg:dependency_library"),
@@ -50,14 +60,14 @@ def seed_legacy_g2_rows() -> None:
 
 
 class TestBuiltInDependencyRows(AuthzEnforcerTestMixin, TestCase):
-    """Applying the built-in schema stores the library dependencies as ``g2`` rows."""
+    """Applying the built-in schema stores its dependencies as ``g2`` rows."""
 
-    def test_fresh_install_gets_the_legacy_library_g2_rows(self):
-        """A database that never loaded ``authz.policy`` gets the same rows it used to declare."""
+    def test_fresh_install_gets_the_built_in_g2_rows(self):
+        """A new database gets the library rows ``authz.policy`` declared and the Instructor Dashboard rows."""
         SchemaPipeline().apply()
 
-        assert stored_g2_rows() == LEGACY_LIBRARY_G2_ROWS
-        assert AuthzPermissionDependency.objects.count() == len(LEGACY_LIBRARY_G2_ROWS)
+        assert stored_g2_rows() == BUILT_IN_G2_ROWS
+        assert AuthzPermissionDependency.objects.count() == len(BUILT_IN_G2_ROWS)
 
     def test_rows_from_authz_policy_are_adopted_without_writes(self):
         """An existing installation keeps its ``g2`` rows, and the loader records that it owns them."""
@@ -65,10 +75,10 @@ class TestBuiltInDependencyRows(AuthzEnforcerTestMixin, TestCase):
 
         result = SchemaPipeline().apply()
 
-        assert result.added_action_rows == 0
+        assert result.added_action_rows == len(INSTRUCTOR_DASHBOARD_G2_ROWS)
         assert result.removed_action_rows == 0
-        assert CasbinRule.objects.filter(ptype="g2").count() == len(LEGACY_LIBRARY_G2_ROWS)
-        assert AuthzPermissionDependency.objects.count() == len(LEGACY_LIBRARY_G2_ROWS)
+        assert CasbinRule.objects.filter(ptype="g2").count() == len(BUILT_IN_G2_ROWS)
+        assert AuthzPermissionDependency.objects.count() == len(BUILT_IN_G2_ROWS)
 
     def test_reapplying_changes_nothing(self):
         """A second apply of the same schema writes no ``g2`` rows and reports no change."""
@@ -77,7 +87,7 @@ class TestBuiltInDependencyRows(AuthzEnforcerTestMixin, TestCase):
         result = SchemaPipeline().apply()
 
         assert result.unchanged is True
-        assert stored_g2_rows() == LEGACY_LIBRARY_G2_ROWS
+        assert stored_g2_rows() == BUILT_IN_G2_ROWS
 
     def test_unmanaged_g2_row_is_kept(self):
         """A ``g2`` row that no schema declares is left in place."""
@@ -130,3 +140,31 @@ class TestEnforcementMatchesRolePermissions(AuthzEnforcerTestMixin, TestCase):
         assert enforcer.enforce(user, make_action_key("content_libraries.edit_library_content"), scope)
         assert enforcer.enforce(user, make_action_key("content_libraries.view_library"), scope)
         assert not enforcer.enforce(user, make_action_key("content_libraries.view_library_team"), scope)
+
+    def test_bulk_grading_includes_its_direct_and_indirect_dependencies(self):
+        """A role with only the bulk grading permission can also grade one learner and view their status."""
+        enforcer = AuthzEnforcer.get_enforcer()
+        user, role = make_user_key("bulk_grader"), make_role_key("bulk_grader_role")
+        scope = SCOPES["course-v1"]
+        enforcer.add_policy(role, make_action_key("courses.manage_bulk_learner_grading"), "course-v1^*", "allow")
+        enforcer.add_grouping_policy(user, role, scope)
+
+        assert enforcer.enforce(user, make_action_key("courses.manage_learner_grading"), scope)
+        assert enforcer.enforce(user, make_action_key("courses.view_learner_course_status"), scope)
+        assert not enforcer.enforce(user, make_action_key("courses.view_course_info"), scope)
+
+    def test_only_course_admin_can_grade_all_learners(self):
+        """Course Staff can grade one learner at a time, and only Course Admin can grade all of them."""
+        enforcer = AuthzEnforcer.get_enforcer()
+        scope = SCOPES["course-v1"]
+        for role_id, can_grade_all_learners in (("course_admin", True), ("course_staff", False)):
+            with self.subTest(role_id=role_id):
+                user = make_user_key(f"grader_{role_id}")
+                enforcer.add_grouping_policy(user, make_role_key(role_id), scope)
+
+                assert enforcer.enforce(user, make_action_key("courses.view_learner_course_status"), scope)
+                assert enforcer.enforce(user, make_action_key("courses.manage_learner_grading"), scope)
+                assert (
+                    enforcer.enforce(user, make_action_key("courses.manage_bulk_learner_grading"), scope)
+                    is can_grade_all_learners
+                )

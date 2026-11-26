@@ -1,4 +1,4 @@
-schema_version: "1.0"
+schema_version: "1.1"
 priority: 100
 
 # Icons are Paragon icon names (@openedx/paragon/icons).
@@ -6,18 +6,26 @@ priority: 100
 permission_categories:
   - id: course_learner_extensions
     display_name: Learner extensions
-    description: Permissions for viewing and managing individual due date extensions from the Date Extensions tab in the Instructor Dashboard.
+    description: Permissions for viewing and managing individual learner extensions in the Instructor Dashboard.
     icon: Event
   - id: course_cohorts_content_groups
     display_name: Cohorts & content groups
-    description: Permissions for viewing and managing cohorts in the Instructor Dashboard and configuring content groups in Studio.
+    description: Permissions for organizing learners into cohorts in the Instructor Dashboard and configuring content groups in Studio.
     icon: Groups
 
 permissions:
   - namespace: courses
     name: view_course_info
     display_name: View course info
-    description: View general course information and enrollment counts in the Instructor Dashboard.
+    description: View general course information, enrollment counts, and the status of background tasks in the Instructor Dashboard.
+    category_id: course_access_content
+    scopes:
+      - course-v1
+    icon: RemoveRedEye
+  - namespace: courses
+    name: view_learner_course_status
+    display_name: View learner course status
+    description: Access learner profile information, enrollment status, and course progress.
     category_id: course_access_content
     scopes:
       - course-v1
@@ -25,7 +33,7 @@ permissions:
   - namespace: courses
     name: view_learner_extensions
     display_name: View learner extensions
-    description: View and search granted learner extensions and their extended due dates.
+    description: Find granted extensions and see the updated due dates.
     category_id: course_learner_extensions
     scopes:
       - course-v1
@@ -33,11 +41,13 @@ permissions:
   - namespace: courses
     name: manage_learner_extensions
     display_name: Manage learner extensions
-    description: Grant or modify individual learner extensions and reset due dates to the course default.
+    description: Grant or change extensions for individual learners, or restore the original course due dates.
     category_id: course_learner_extensions
     scopes:
       - course-v1
     icon: Settings
+    depends_on:
+      - courses.view_learner_course_status
   - namespace: courses
     name: view_cohorts
     display_name: View cohorts
@@ -49,7 +59,7 @@ permissions:
   - namespace: courses
     name: manage_cohorts
     display_name: Manage cohorts
-    description: Enable cohorts, create and configure cohorts, and assign or move learners between cohorts manually or through CSV uploads.
+    description: Enable cohorts, create and configure them, and assign or move learners between cohorts manually or by uploading a CSV file.
     category_id: course_cohorts_content_groups
     scopes:
       - course-v1

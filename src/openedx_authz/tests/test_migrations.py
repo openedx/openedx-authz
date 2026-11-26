@@ -1,6 +1,7 @@
 """Unit Tests for openedx_authz migrations."""
 
 from importlib import import_module
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from ddt import data, ddt, unpack
@@ -8,6 +9,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import CommandError, call_command
+from django.db.migrations.loader import MigrationLoader
 from django.test import TestCase
 from opaque_keys.edx.django.models import CourseKeyField
 
@@ -87,6 +89,160 @@ error_group_name = f"{OBJECT_PREFIX}error_group"
 empty_group_name = f"{OBJECT_PREFIX}empty_group"
 
 schema_source_migration = import_module("openedx_authz.migrations.0012_move_builtin_schema_sources_to_applets")
+course_scope_migration = import_module("openedx_authz.migrations.0007_coursescope")
+
+APP_LABEL = "openedx_authz"
+COURSE_SCOPE_TABLE = "openedx_authz_coursescope"
+
+
+MYSQL_ALTER_COLUMN = "ALTER TABLE %(table)s %(changes)s"
+MYSQL_ALTER_COLUMN_TYPE = "MODIFY %(column)s %(type)s%(collation)s%(comment)s"
+MYSQL_DATA_TYPES = {"CharField": "varchar(%(max_length)s)"}
+
+
+def build_mysql_schema_editor(collations_by_table, table_collation="utf8mb4_unicode_ci"):
+    """Build a schema editor whose connection behaves like MySQL for the alignment step.
+
+    Args:
+        collations_by_table: The collation that introspection reports for each table's column, for
+            example ``{"openedx_authz_coursescope": "utf8mb4_unicode_ci"}``. ``None`` means the column
+            uses its table's default collation.
+        table_collation: The default collation of every table.
+
+    Returns:
+        MagicMock: A schema editor with a MySQL connection, its SQL templates and backtick quoting.
+    """
+
+    def get_table_description(cursor, table_name):  # pylint: disable=unused-argument
+        return [
+            SimpleNamespace(name=column_name, collation=collations_by_table[table_name])
+            for column_name in ("id", "course_overview_id")
+        ]
+
+    mysql_connection = MagicMock(vendor="mysql", data_types=MYSQL_DATA_TYPES)
+    mysql_connection.introspection.table_names.return_value = list(collations_by_table)
+    mysql_connection.introspection.get_table_description.side_effect = get_table_description
+    mysql_connection.cursor.return_value.__enter__.return_value.fetchone.return_value = (table_collation,)
+    return MagicMock(
+        connection=mysql_connection,
+        sql_alter_column=MYSQL_ALTER_COLUMN,
+        sql_alter_column_type=MYSQL_ALTER_COLUMN_TYPE,
+        quote_name=lambda name: f"`{name}`",
+    )
+
+
+class TestCourseScopeCollationAlignment(TestCase):
+    """Migration 0007 gives course_overview_id the collation of the column it references on MySQL."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Load the app registry of migration 0007, where CourseScope still has course_overview."""
+        super().setUpClass()
+        cls.migration_apps = (
+            MigrationLoader(None, ignore_no_migrations=True).project_state((APP_LABEL, "0007_coursescope")).apps
+        )
+
+    def test_different_collation_aligns_the_new_column(self):
+        """A referenced column with another collation makes the step change the new column to it.
+
+        Expected Result:
+        - One ALTER sets the referenced collation and keeps the column type and nullability.
+        """
+        schema_editor = build_mysql_schema_editor(
+            {CourseOverview._meta.db_table: "utf8mb4_0900_ai_ci", COURSE_SCOPE_TABLE: "utf8mb4_unicode_ci"}
+        )
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        schema_editor.execute.assert_called_once_with(
+            "ALTER TABLE `openedx_authz_coursescope` MODIFY `course_overview_id` varchar(255) NULL "
+            "COLLATE `utf8mb4_0900_ai_ci`"
+        )
+
+    def test_referenced_column_with_table_default_uses_the_table_collation(self):
+        """A referenced column without its own collation takes its table's default collation.
+
+        Expected Result:
+        - The ALTER uses the table's default collation.
+        """
+        schema_editor = build_mysql_schema_editor(
+            {CourseOverview._meta.db_table: None, COURSE_SCOPE_TABLE: "utf8mb4_unicode_ci"},
+            table_collation="utf8mb4_0900_ai_ci",
+        )
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        self.assertIn("COLLATE `utf8mb4_0900_ai_ci`", schema_editor.execute.call_args[0][0])
+
+    def test_matching_collation_runs_no_alter(self):
+        """Columns that already share a collation, as on Tutor-managed MySQL, are left as they are.
+
+        Expected Result:
+        - No ALTER runs.
+        """
+        schema_editor = build_mysql_schema_editor(
+            {CourseOverview._meta.db_table: "utf8mb4_unicode_ci", COURSE_SCOPE_TABLE: "utf8mb4_unicode_ci"}
+        )
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        schema_editor.execute.assert_not_called()
+
+    def test_step_reads_the_configured_course_overview_model(self):
+        """The referenced table comes from the model named by OPENEDX_AUTHZ_COURSE_OVERVIEW_MODEL.
+
+        Expected Result:
+        - Introspection reads the stub CourseOverview table the test settings configure.
+        """
+        schema_editor = build_mysql_schema_editor(
+            {CourseOverview._meta.db_table: "utf8mb4_unicode_ci", COURSE_SCOPE_TABLE: "utf8mb4_unicode_ci"}
+        )
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        described_tables = [
+            call.args[1] for call in schema_editor.connection.introspection.get_table_description.call_args_list
+        ]
+        self.assertEqual(described_tables, [CourseOverview._meta.db_table, COURSE_SCOPE_TABLE])
+
+    def test_missing_referenced_table_runs_no_alter(self):
+        """When the CourseOverview table does not exist, the step leaves the new column as it is.
+
+        Expected Result:
+        - No ALTER runs, and Django reports any foreign key problem itself.
+        """
+        schema_editor = build_mysql_schema_editor({COURSE_SCOPE_TABLE: "utf8mb4_unicode_ci"})
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        schema_editor.execute.assert_not_called()
+
+    def test_step_runs_outside_a_transaction(self):
+        """The alignment step is not wrapped in a transaction.
+
+        MySQL cannot roll DDL back, so Django raises TransactionManagementError when the ALTER
+        runs inside one, which the test settings on SQLite do not reproduce.
+
+        Expected Result:
+        - The RunPython operation of 0007 sets atomic to False.
+        """
+        alignment_operation = course_scope_migration.Migration.operations[-1]
+
+        self.assertIs(alignment_operation.code, course_scope_migration.align_course_overview_collation)
+        self.assertIs(alignment_operation.atomic, False)
+
+    def test_other_database_vendor_runs_no_sql(self):
+        """On databases other than MySQL the step does nothing.
+
+        Expected Result:
+        - No cursor is opened and no SQL runs.
+        """
+        schema_editor = MagicMock(connection=MagicMock(vendor="sqlite"))
+
+        course_scope_migration.align_course_overview_collation(self.migration_apps, schema_editor)
+
+        schema_editor.connection.cursor.assert_not_called()
+        schema_editor.execute.assert_not_called()
 
 
 class TestBuiltinSchemaSourceMigration(TestCase):

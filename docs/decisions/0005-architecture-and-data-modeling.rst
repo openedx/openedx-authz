@@ -268,6 +268,11 @@ Consequences
 
 #. **Legacy Compatibility During Migration**: During the transition period, legacy compatibility permissions (e.g., ``courses.legacy_instructor_role_permissions``) allow new AuthZ roles to carry equivalent legacy permissions. This enables gradual migration without breaking existing code paths that haven't been updated yet. See `ADR 0008`_ for the compatibility scheme.
 
+Addendum: Course Scopes Reference Courses by Key (2026-11-16)
+*************************************************************
+
+`ADR 0035`_ removes the foreign key from ``CourseScope`` to the ``CourseOverview`` model, so a course scope references its course through the course key in ``Scope.external_key``, and a receiver on the course model's ``post_delete`` signal deletes the scope and its role assignments when the course is deleted, while ``ContentLibraryScope`` keeps its foreign key.
+
 References
 **********
 
@@ -295,3 +300,5 @@ References
 .. _ADR 0011: https://github.com/openedx/openedx-authz/blob/main/docs/decisions/0011-course-authoring-migration-process.rst
 
 .. _Casbin Django ORM Adapter documentation: https://github.com/officialpycasbin/django-orm-adapter
+
+.. _ADR 0035: 0035-reference-course-scopes-by-course-key.rst

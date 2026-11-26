@@ -114,7 +114,9 @@ class Command(BaseCommand):
         change on its own — a metadata-only edit writes 0 policy rows but is
         still a real change the operator should see reflected here.
         """
-        summary = f"Authz schema applied: {result.added} Casbin policy row(s) added, {result.removed} removed"
+        added = result.added + result.added_action_rows
+        removed = result.removed + result.removed_action_rows
+        summary = f"Authz schema applied: {added} Casbin policy row(s) added, {removed} removed"
 
         plan = result.plan
         if plan is not None and not plan.definitions_unchanged:
@@ -195,10 +197,12 @@ class Command(BaseCommand):
         self.stdout.write("\nChanges applied:" if applied else "\nChanges to apply:")
 
         removed_rows = plan.removed_rows + plan.unlinked_custom_rows if applied else plan.removed_rows
-        total_rows = len(plan.added_rows) + len(removed_rows)
+        added_rows = [*plan.added_rows, *plan.added_action_rows]
+        removed_rows = [*removed_rows, *plan.removed_action_rows]
+        total_rows = len(added_rows) + len(removed_rows)
         if total_rows:
             self._write_section_header(f"Casbin policies ({total_rows})")
-            for row in plan.added_rows:
+            for row in added_rows:
                 self._write_marked_line("+", self._format_policy_row(row), self.style.SUCCESS)
             for row in removed_rows:
                 self._write_marked_line("-", self._format_policy_row(row), self.style.ERROR)

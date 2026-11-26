@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 
 from openedx_authz.data import GroupingPolicyIndex
-from openedx_authz.engine.policy import GroupingRow, PolicyRow, PolicyStore
+from openedx_authz.engine.policy import ActionGroupingRow, GroupingRow, PolicyRow, PolicyStore
 
 
 class FakeEnforcer:
@@ -27,9 +27,30 @@ class FakeEnforcer:
     without Django or Casbin.
     """
 
-    def __init__(self, policies=None, grouping=None):
+    def __init__(self, policies=None, grouping=None, named_grouping=None):
         self._policies = [list(row) for row in (policies or [])]
         self._grouping = [list(row) for row in (grouping or [])]
+        self._named_grouping = {ptype: [list(row) for row in rows] for ptype, rows in (named_grouping or {}).items()}
+
+    def get_named_grouping_policy(self, ptype: str) -> list[list[str]]:
+        """Return a copy of the stored rows of one named grouping type, such as ``g2``."""
+        return [list(row) for row in self._named_grouping.get(ptype, [])]
+
+    def add_named_grouping_policy(self, ptype: str, *args) -> bool:
+        """Add a named grouping row, ignoring exact duplicates. Returns True if added."""
+        rows = self._named_grouping.setdefault(ptype, [])
+        if list(args) in rows:
+            return False
+        rows.append(list(args))
+        return True
+
+    def remove_named_grouping_policy(self, ptype: str, *args) -> bool:
+        """Remove a named grouping row if present. Returns True if removed."""
+        rows = self._named_grouping.get(ptype, [])
+        if list(args) not in rows:
+            return False
+        rows.remove(list(args))
+        return True
 
     def get_policy(self) -> list[list[str]]:
         """Return a copy of the stored ``p`` rows."""
@@ -200,6 +221,50 @@ class TestPolicyStoreGroupingRows:
 
         assert store.remove_grouping_row(GroupingRow("user^alice", "role^editor", "course-v1^*")) is True
         assert enforcer.get_grouping_policy() == []
+
+
+class TestActionGroupingRow:
+    """Constructing and round-tripping a single Casbin ``g2`` row."""
+
+    def test_from_dependency_applies_the_action_namespace(self):
+        """A dependency renders with the same ``act^`` form as ``p`` rows."""
+        row = ActionGroupingRow.from_dependency("courses.manage_tags", "courses.view_course")
+
+        assert row.as_policy() == ["act^courses.manage_tags", "act^courses.view_course"]
+        assert row.action == PolicyRow.from_grant("r", "courses.manage_tags", "course-v1").action
+
+    def test_from_policy_round_trips_as_policy(self):
+        """A row rebuilt from ``as_policy`` output equals the original."""
+        row = ActionGroupingRow("act^courses.manage_tags", "act^courses.view_course")
+
+        assert ActionGroupingRow.from_policy(row.as_policy()) == row
+
+    def test_ptype_is_g2(self):
+        """``g2`` is the Casbin grouping type the matcher checks for action implication."""
+        assert ActionGroupingRow.PTYPE == "g2"
+
+
+class TestPolicyStoreActionGroupingRows:
+    """Reading and writing ``g2`` rows through the store."""
+
+    ROW = ["act^courses.manage_tags", "act^courses.view_course"]
+
+    def test_get_action_grouping_rows_returns_typed_rows(self):
+        """Stored ``g2`` rows come back as :class:`ActionGroupingRow` values."""
+        store = PolicyStore(FakeEnforcer(named_grouping={"g2": [self.ROW]}))
+
+        assert store.get_action_grouping_rows() == [ActionGroupingRow(*self.ROW)]
+
+    def test_add_and_remove_write_the_g2_type(self):
+        """Adding and removing go to the ``g2`` grouping type, in the raw two-field shape."""
+        enforcer = FakeEnforcer()
+        store = PolicyStore(enforcer)
+        row = ActionGroupingRow(*self.ROW)
+
+        assert store.add_action_grouping_row(row) is True
+        assert enforcer.get_named_grouping_policy("g2") == [self.ROW]
+        assert store.remove_action_grouping_row(row) is True
+        assert enforcer.get_named_grouping_policy("g2") == []
 
 
 class TestPolicyStoreEnforcerResolution:

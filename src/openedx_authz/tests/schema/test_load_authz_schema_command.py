@@ -13,6 +13,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from openedx_authz.engine.policy import ActionGroupingRow
 from openedx_authz.engine.renderer import (
     ApplyResult,
     ChangePlan,
@@ -327,6 +328,36 @@ class TestDryRunMode:
         assert "- p, role^old_editor, act^courses.manage_tags, course-v1^*, allow" in output
         # The old Python-list repr form must not leak into the report.
         assert "['role^course_editor'" not in output
+
+    def test_g2_rows_and_dependencies_are_reported(self):
+        """Dependency ``g2`` rows print in the Casbin section, and dependency changes in the definitions."""
+        plan = ChangePlan(
+            added_action_rows=[ActionGroupingRow("act^courses.manage_tags", "act^courses.view_course")],
+            removed_action_rows=[ActionGroupingRow("act^courses.export_course", "act^courses.view_course")],
+            unchanged=False,
+            dependencies=DefinitionDiff(
+                added=["courses.manage_tags -> courses.view_course"],
+                removed=["courses.export_course -> courses.view_course"],
+            ),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.plan.return_value = plan
+            output = _run("--dry-run")
+
+        assert "Casbin policies (2)" in output
+        assert "+ g2, act^courses.manage_tags, act^courses.view_course" in output
+        assert "- g2, act^courses.export_course, act^courses.view_course" in output
+        assert "+ permission dependency: courses.manage_tags -> courses.view_course" in output
+
+    def test_apply_summary_counts_g2_rows(self):
+        """The applied summary counts ``g2`` rows together with ``p`` rows."""
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(
+                added=1, removed=0, added_action_rows=10, removed_action_rows=2, unchanged=False
+            )
+            output = _run()
+
+        assert "11 Casbin policy row(s) added, 2 removed" in output
 
     def test_dry_run_reports_compact_definitions_section_without_casbin(self):
         """A definitions-only change prints 'Definitions (N)' with the Casbin section omitted."""

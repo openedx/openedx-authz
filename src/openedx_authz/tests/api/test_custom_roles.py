@@ -48,6 +48,7 @@ from openedx_authz.tests.test_utils import (
 
 VIEW_LIBRARY = "content_libraries.view_library"
 EDIT_LIBRARY_CONTENT = "content_libraries.edit_library_content"
+VIEW_LIBRARY_TEAM = "content_libraries.view_library_team"
 VIEW_COURSE = "courses.view_course"
 HIDDEN_CATEGORY_PERMISSION = "courses.legacy_beta_tester_permissions"
 LIBRARY_SCOPE_TYPE = "lib"
@@ -332,17 +333,17 @@ class TestUpdateCustomRole(CustomRoleTestCase):
         role = self.create_role(permissions=[VIEW_LIBRARY])
         self.assign(role)
 
-        update_custom_role(role.role_id, permissions=[EDIT_LIBRARY_CONTENT])
+        update_custom_role(role.role_id, permissions=[VIEW_LIBRARY_TEAM])
 
-        self.assertTrue(self.is_allowed(EDIT_LIBRARY_CONTENT))
+        self.assertTrue(self.is_allowed(VIEW_LIBRARY_TEAM))
         self.assertFalse(self.is_allowed(VIEW_LIBRARY))
         self.assertEqual(
             list(AuthzRolePermission.objects.filter(role=role).values_list("permission__name", flat=True)),
-            ["edit_library_content"],
+            ["view_library_team"],
         )
         self.assertEqual(
             list(self.stored_policy_rows(role.role_id).values_list("v1", flat=True)),
-            [make_action_key(EDIT_LIBRARY_CONTENT)],
+            [make_action_key(VIEW_LIBRARY_TEAM)],
         )
 
     def test_kept_permissions_keep_their_grants(self):

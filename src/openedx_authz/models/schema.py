@@ -37,6 +37,7 @@ __all__ = [
     "AuthzPermissionDefinition",
     "AuthzRoleDefinition",
     "AuthzRolePermission",
+    "AuthzPermissionDependency",
     "AuthzCategorySource",
     "AuthzPermissionSource",
     "AuthzRoleSource",
@@ -396,6 +397,30 @@ class AuthzRolePermission(TimeStampedModel):
         # ``self.role_id``/``self.permission_id`` are the FK columns (integers),
         # not the stable schema identifiers, so traverse to the definitions.
         return f"{self.role.role_id} -> {self.permission.identifier} @ {self.scope}"
+
+
+class AuthzPermissionDependency(TimeStampedModel):
+    """A direct dependency of one permission on another (ADR 0034 §5).
+
+    .. no_pii:
+
+    Each row corresponds to one rendered Casbin ``g2`` row and marks that row as schema-owned.
+    It has no scope, because ``g2`` rows have none, and no source records, because only the file
+    that defines a permission declares its dependencies.
+    """
+
+    permission = models.ForeignKey(AuthzPermissionDefinition, on_delete=models.CASCADE, related_name="dependencies")
+    depends_on = models.ForeignKey(AuthzPermissionDefinition, on_delete=models.CASCADE, related_name="dependents")
+
+    class Meta:
+        verbose_name = "Authz Permission Dependency"
+        verbose_name_plural = "Authz Permission Dependencies"
+        constraints = [
+            models.UniqueConstraint(fields=["permission", "depends_on"], name="authz_permission_dependency_uniq"),
+        ]
+
+    def __str__(self):
+        return f"{self.permission.identifier} -> {self.depends_on.identifier}"
 
 
 # ---------------------------------------------------------------------------

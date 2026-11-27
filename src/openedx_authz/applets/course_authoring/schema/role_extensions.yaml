@@ -109,3 +109,7 @@ role_extensions:
       - courses.view_certificates
       - courses.view_group_configurations
       - courses.view_library_updates
+
+  - role_id: course_limited_staff
+    add_permissions:
+      - courses.view_grading_settings

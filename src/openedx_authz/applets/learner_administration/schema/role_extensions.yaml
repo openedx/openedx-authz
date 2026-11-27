@@ -19,3 +19,10 @@ role_extensions:
       - courses.manage_learner_extensions
       - courses.view_cohorts
       - courses.manage_cohorts
+
+  - role_id: course_limited_staff
+    add_permissions:
+      - courses.view_course_info
+      - courses.view_learner_course_status
+      - courses.view_cohorts
+      - courses.manage_cohorts

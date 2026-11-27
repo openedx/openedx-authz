@@ -139,8 +139,22 @@ roles:
     icon: null
     hidden: true
     permissions:
+      course_authoring:
+      - courses.view_grading_settings
       course_team_roles:
       - courses.legacy_limited_staff_role_permissions
+      enrollments:
+      - courses.enroll_learners
+      - courses.unenroll_learners
+      - courses.view_enrollments
+      learner_administration:
+      - courses.manage_cohorts
+      - courses.view_cohorts
+      - courses.view_course_info
+      - courses.view_learner_course_status
+      learner_grading:
+      - courses.manage_learner_grading
+      - courses.view_gradebook
   course_staff:
     display_name: Course Staff
     description: Can publish content and manage the course lifecycle in Studio.

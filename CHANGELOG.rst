@@ -190,6 +190,10 @@ Fixed
 * ``DELETE /api/authz/v1/roles/users/`` no longer lets a user remove its own ``library_admin`` or
   ``course_admin`` role, matching the admin console. The user is reported in ``errors`` with
   ``cannot_remove_own_admin_role`` and keeps the role; other users in the request are processed.
+* The hidden ``course_limited_staff`` role now grants the Instructor Dashboard permissions that match
+  its legacy access to the Course Info, Enrollments, Grading and Cohorts tabs, so the dashboard no
+  longer denies it access to them. It does not get bulk learner grading, learner extensions or course
+  team permissions. Run ``load_authz_schema`` to apply the new grants.
 
 1.24.0 - 2026-09-14
 *******************

@@ -246,6 +246,43 @@ Response codes
 * 404: the role does not exist or was removed.
 * 409: the display name is taken, or the role has assignments and ``assignments`` was not given.
 
+Addendum: Check a name before creating the role
+================================================
+
+**2026-11-27**
+
+The create wizard asks for the name on its first step and sends ``POST /api/authz/v1/roles/`` on
+its last one, so a taken name was only reported after the administrator had picked the
+permissions. A separate endpoint lets the wizard check the name when it leaves the first step.
+
+.. code:: ts
+
+   // POST /api/authz/v1/roles/validate-name/
+   // Request
+   {
+       display_name: string
+   }
+
+   // Response, always 200
+   {
+       display_name: string              // as sent
+       available: boolean
+       reason: "taken" | "invalid" | null
+       message: string | null
+   }
+
+* The name is checked as create checks it: blank names and names over 255 characters are
+  ``invalid``, and a name used by a role that has not been removed (section 5) is ``taken``.
+* Only staff and superusers can call it, as for create.
+* An unavailable name is an answer, not an error, so the response is 200. A request without
+  ``display_name``, or with null or a non-text value such as a list, returns 400.
+* The answer is not a reservation. Another role can take the name before the create request,
+  which still returns 409, so clients must keep handling it.
+
+The list endpoint's ``search`` was not used for this check. It matches part of the translated name
+in the requested scope types and needs only the permission to list roles, while the name rule
+compares the whole stored name across every resource type.
+
 Consequences
 ************
 

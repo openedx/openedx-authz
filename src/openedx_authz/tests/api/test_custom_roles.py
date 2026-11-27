@@ -21,6 +21,7 @@ from openedx_authz.api.custom_roles import (
     remove_custom_role,
     slugify_role_name,
     update_custom_role,
+    validate_custom_role_name,
 )
 from openedx_authz.api.data import RoleData, ScopeData, SubjectData
 from openedx_authz.api.exceptions import (
@@ -321,6 +322,45 @@ class TestCreateCustomRole(CustomRoleTestCase):
             self.create_role()
 
         lock.assert_called_once_with()
+
+
+@ddt
+class TestValidateCustomRoleName(CustomRoleTestCase):
+    """Checking a name applies the rules of create and writes nothing."""
+
+    def test_free_name_is_returned_as_it_would_be_stored(self):
+        """A free name comes back without surrounding whitespace and no role is created."""
+        policy_before = self.enforcer.get_policy()
+
+        self.assertEqual(validate_custom_role_name("  Designer "), "Designer")
+
+        self.assertFalse(AuthzRoleDefinition.objects.user_defined().exists())
+        self.assertEqual(self.enforcer.get_policy(), policy_before)
+
+    @data("Designer", "DESIGNER", " designer ", "Library Admin", "library admin")
+    def test_name_taken_by_an_active_role_is_rejected(self, display_name):
+        """A name used by another role, custom or static by its stored name, is taken ignoring case and whitespace."""
+        self.create_role("Designer")
+
+        with self.assertRaises(CustomRoleNameTakenError):
+            validate_custom_role_name(display_name)
+
+    def test_name_of_a_removed_role_is_free(self):
+        """A removed role gives its name back, as it does for create."""
+        role = self.create_role("Designer")
+        remove_custom_role(role.role_id)
+
+        self.assertEqual(validate_custom_role_name("Designer"), "Designer")
+
+    @data("", "   ", "x" * 256, None)
+    def test_invalid_name_is_rejected(self, display_name):
+        """A blank, too long or non-string name is invalid, the same as on create."""
+        with self.assertRaises(InvalidCustomRoleError):
+            validate_custom_role_name(display_name)
+
+    def test_name_at_the_maximum_length_is_free(self):
+        """The length limit is inclusive, so a name that fills the column can be used."""
+        self.assertEqual(validate_custom_role_name("x" * 255), "x" * 255)
 
 
 @ddt

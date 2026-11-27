@@ -35,6 +35,7 @@ __all__ = [
     "create_custom_role",
     "remove_custom_role",
     "update_custom_role",
+    "validate_custom_role_name",
 ]
 
 FALLBACK_ROLE_SLUG = "role"
@@ -106,11 +107,9 @@ def create_custom_role(
             or the permissions are empty, unknown, hidden or do not support the scope type.
         CustomRoleNameTakenError: If another role that has not been removed uses the name.
     """
-    _validate_text("display name", display_name)
     _validate_text("description", description)
     _validate_text("scope type", scope_type)
-    display_name = display_name.strip()
-    _validate_display_name(display_name)
+    display_name = _clean_display_name(display_name)
     with _writing_custom_roles() as policy_store:
         _check_display_name_is_free(display_name)
         resolved = _resolve_permissions(permissions, [scope_type])
@@ -123,6 +122,28 @@ def create_custom_role(
         )
         _add_grants(policy_store, role, resolved)
     return role
+
+
+def validate_custom_role_name(display_name: str) -> str:
+    """Check that a new custom role could use a display name, without creating anything.
+
+    Lets a client report a bad name before it collects the rest of the role. The check runs
+    outside the custom role lock, so another role can still take the name before the role is
+    created; ``create_custom_role`` checks it again.
+
+    Args:
+        display_name (str): The name as the administrator entered it.
+
+    Returns:
+        str: The name as it would be stored, without surrounding whitespace.
+
+    Raises:
+        InvalidCustomRoleError: If the name is not a string, is blank or is too long.
+        CustomRoleNameTakenError: If another role that has not been removed uses the name.
+    """
+    display_name = _clean_display_name(display_name)
+    _check_display_name_is_free(display_name)
+    return display_name
 
 
 def update_custom_role(
@@ -233,6 +254,14 @@ def _validate_permission_ids(permission_ids: object) -> None:
         or not all(isinstance(permission_id, str) for permission_id in permission_ids)
     ):
         raise InvalidCustomRoleError("The permissions must be a list of permission ID strings.")
+
+
+def _clean_display_name(display_name: object) -> str:
+    """Return the display name without surrounding whitespace, if it is a valid name."""
+    _validate_text("display name", display_name)
+    display_name = display_name.strip()
+    _validate_display_name(display_name)
+    return display_name
 
 
 def _validate_display_name(display_name: str) -> None:

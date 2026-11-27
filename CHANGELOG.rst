@@ -58,6 +58,12 @@ Added
   ``assignments=revoke``, which deletes them too; without it the response is 409 and nothing is
   removed. Any other ``assignments`` value, or removing a static role, returns 400, and a role that
   does not exist or was removed returns 404. It returns 204.
+* Added ``POST /api/authz/v1/roles/validate-name/`` to check whether a new custom role can use a
+  display name before it is created (ADR 0036). Only staff and superusers can call it. It returns
+  200 with ``available`` and, when the name cannot be used, a ``reason`` (``taken`` or
+  ``invalid``) and a ``message``. The check is not a reservation; create checks the name again.
+  Added ``validate_custom_role_name`` to the public API, which applies the same name rules as
+  ``create_custom_role`` without writing anything.
 * Added ``get_role_catalog_entry`` to the public API, which returns one role in the format of the
   role catalog and raises the new ``RoleNotFoundError`` for a role that is not in the catalog. The
   role catalog now returns ``updated_at`` for custom roles.

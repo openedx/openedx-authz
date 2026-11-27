@@ -13,3 +13,9 @@ role_extensions:
       - courses.view_enrollments
       - courses.enroll_learners
       - courses.unenroll_learners
+
+  - role_id: course_limited_staff
+    add_permissions:
+      - courses.view_enrollments
+      - courses.enroll_learners
+      - courses.unenroll_learners

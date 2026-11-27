@@ -28,7 +28,7 @@ from openedx_authz.authz import (
     VIEW_LIBRARY,
 )
 from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
-from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus
+from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, RoleRemovalAssignmentsAction
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import filter_users, sort_users
 from openedx_authz.rest_api.v1.admin_console.filters import RoleOrderingFilter, RoleSearchFilter
@@ -37,6 +37,7 @@ from openedx_authz.rest_api.v1.permissions import (
     AnyScopePermission,
     DynamicScopePermission,
     PrivilegedWritePermission,
+    RoleScopeTypePermission,
     ScopeTypePermission,
 )
 from openedx_authz.rest_api.v1.serializers import (
@@ -46,6 +47,7 @@ from openedx_authz.rest_api.v1.serializers import (
     ListUsersInRoleWithScopeSerializer,
     PermissionValidationResponseSerializer,
     PermissionValidationSerializer,
+    RemoveCustomRoleQuerySerializer,
     RemoveUsersFromRoleWithScopeSerializer,
     RoleCatalogMetaSerializer,
     RoleCatalogResponseSerializer,
@@ -67,7 +69,7 @@ SELF_PROTECTED_ROLES = (LIBRARY_ADMIN.external_key, COURSE_ADMIN.external_key)
 
 
 def get_role_entry(role_id: str, username: str) -> dict:
-    """Return one role in the format of a role list item, as the write endpoints respond with it.
+    """Return one role in the format of a role list item, as the role endpoints respond with it.
 
     Args:
         role_id (str): The role identifier.
@@ -76,9 +78,21 @@ def get_role_entry(role_id: str, username: str) -> dict:
     Returns:
         dict: The catalog entry of the role with its ``user_count``.
     """
-    role_entry = api.get_role_catalog_entry(role_id)
+    return add_user_count(api.get_role_catalog_entry(role_id), username)
+
+
+def add_user_count(role_entry: dict, username: str) -> dict:
+    """Return the catalog entry of a role with the ``user_count`` the caller can view.
+
+    Args:
+        role_entry (dict): The catalog entry of the role.
+        username (str): The caller, whose visible assignments make up ``user_count``.
+
+    Returns:
+        dict: A copy of the entry with its ``user_count``.
+    """
     user_counts = api.get_visible_role_user_counts(role_entry["scope_types"], username)
-    return {**role_entry, "user_count": user_counts.get(role_id, 0)}
+    return {**role_entry, "user_count": user_counts.get(role_entry["role"], 0)}
 
 
 @view_auth_classes()
@@ -586,11 +600,13 @@ class RoleListView(APIView):
 
 @view_auth_classes()
 class RoleDetailView(APIView):
-    """API view for editing one custom role (ADR 0036).
+    """API view for reading one role, and editing or removing one custom role (ADR 0036).
 
     **Endpoints**
 
+    - GET: Retrieve one role, static or custom
     - PATCH: Change the description or the permissions of a custom role
+    - DELETE: Remove a custom role
 
     **Path Parameters**
 
@@ -605,21 +621,52 @@ class RoleDetailView(APIView):
     At least one of the fields is required. ``display_name`` and ``scope_types`` cannot change, and
     a request that sends either one returns 400.
 
+    **Query Parameters (DELETE)**
+
+    - assignments (Optional): ``revoke`` to delete the assignments of the role with it. Required
+      when the role has assignments; without it, such a role is not removed and the response is 409.
+
     **Response Format**
 
-    The role, in the format of an item of the ``results`` of ``GET /api/authz/v1/roles/``.
+    GET and PATCH return the role, in the format of an item of the ``results`` of
+    ``GET /api/authz/v1/roles/``. DELETE returns no content.
 
     **Authentication and Permissions**
 
     - Requires authenticated user.
-    - PATCH requires a staff user or a superuser.
+    - GET requires the permission to list the roles of one of the role's resource types
+      (``courses.view_course_team`` or ``content_libraries.view_library_team``), as for
+      ``GET /api/authz/v1/roles/``.
+    - PATCH and DELETE require a staff user or a superuser.
 
-    **Example Request**
+    **Example Requests**
+
+    GET /api/authz/v1/roles/custom_library_designer/
 
     PATCH /api/authz/v1/roles/custom_library_designer/ {"permissions": ["content_libraries.view_library"]}
+
+    DELETE /api/authz/v1/roles/custom_library_designer/?assignments=revoke
     """
 
-    permission_classes = [PrivilegedWritePermission]
+    permission_classes = [PrivilegedWritePermission, RoleScopeTypePermission]
+
+    @apidocs.schema(
+        responses={
+            status.HTTP_200_OK: RoleCatalogRoleSerializer,
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user cannot list the roles of the role's resource type",
+            status.HTTP_404_NOT_FOUND: "There is no such role, or it was removed",
+        },
+    )
+    def get(self, request: HttpRequest, role_id: str) -> Response:
+        """Retrieve one role, static or custom."""
+        try:
+            role_entry = api.get_role_catalog_entry(role_id)
+        except api.RoleNotFoundError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        self.check_object_permissions(request, role_entry)
+        role_entry = add_user_count(role_entry, request.user.username)
+        return Response(RoleCatalogRoleSerializer(role_entry).data, status=status.HTTP_200_OK)
 
     @apidocs.schema(
         body=UpdateCustomRoleSerializer,
@@ -643,6 +690,39 @@ class RoleDetailView(APIView):
             return Response(data={"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         role_entry = get_role_entry(role_id, request.user.username)
         return Response(RoleCatalogRoleSerializer(role_entry).data, status=status.HTTP_200_OK)
+
+    @apidocs.schema(
+        parameters=[
+            apidocs.query_parameter(
+                "assignments",
+                str,
+                description="`revoke` to delete the assignments of the role with it. Required when the role "
+                "has assignments",
+            ),
+        ],
+        responses={
+            status.HTTP_204_NO_CONTENT: "The role was removed",
+            status.HTTP_400_BAD_REQUEST: "The query parameters are invalid, or the role is a static role",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user is neither staff nor a superuser",
+            status.HTTP_404_NOT_FOUND: "There is no such role, or it was removed",
+            status.HTTP_409_CONFLICT: "The role has assignments and `assignments=revoke` was not given",
+        },
+    )
+    def delete(self, request: HttpRequest, role_id: str) -> Response:
+        """Remove a custom role, and its assignments if the request confirms it."""
+        query_serializer = RemoveCustomRoleQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        delete_assignments = query_serializer.validated_data["assignments"] == RoleRemovalAssignmentsAction.REVOKE
+        try:
+            api.remove_custom_role(role_id, delete_assignments=delete_assignments)
+        except api.CustomRoleNotFoundError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except api.StaticRoleError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except api.CustomRoleHasAssignmentsError as exc:
+            return Response(data={"message": str(exc)}, status=status.HTTP_409_CONFLICT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @view_auth_classes()

@@ -407,10 +407,56 @@ class ScopeTypePermission(UserScopesPermission):
         scope_types = parse_scope_types(request.query_params.get("scope_types"))
         if scope_types is None:
             return False
-        return all(
-            self.has_permission_in_any_scope(request.user, self.SCOPE_TYPE_PERMISSIONS[scope_type])
-            for scope_type in scope_types
-        )
+        return all(self.has_scope_type_permission(request.user, scope_type) for scope_type in scope_types)
+
+    def has_scope_type_permission(self, user, scope_type: str) -> bool:
+        """Return True if the user holds the permission of ``scope_type`` in at least one scope.
+
+        A scope type with no mapped permission is denied, so a role of a new scope type stays
+        readable only by privileged users until its permission is mapped.
+        """
+        permission = self.SCOPE_TYPE_PERMISSIONS.get(scope_type)
+        return permission is not None and self.has_permission_in_any_scope(user, permission)
+
+
+class RoleScopeTypePermission(ScopeTypePermission):
+    """Permission handler for endpoints about one role, checked against the role the view loads.
+
+    The user needs the permission of ``ScopeTypePermission`` for one of the scope types the role
+    supports, because the role is listed in the catalog of each of them (ADR 0036). Superusers and
+    staff are always granted access.
+
+    The check runs in ``has_object_permission`` against the catalog entry the view already loads,
+    so a read loads the role once instead of once here and once in the view. DRF does not call it
+    on its own for an ``APIView``: every handler that uses this class must load the entry and call
+    ``self.check_object_permissions(request, role_entry)`` before responding. A handler that skips
+    the call allows every authenticated user.
+
+    Use it with ``PrivilegedWritePermission``, which limits writes to staff and superusers.
+    """
+
+    def has_scoped_permission(self, request, view) -> bool:
+        """Leave the check to ``has_object_permission``, which needs the role the view loads.
+
+        This allows every request on its own. The handler must call ``check_object_permissions``.
+
+        Returns:
+            bool: Always True.
+        """
+        return True
+
+    def has_object_permission(self, request, view, obj) -> bool:
+        """Check if the user may read the roles of one of the scope types of the role.
+
+        Args:
+            obj (dict): The catalog entry of the role.
+
+        Returns:
+            bool: True if the user is privileged or may read one of the role's scope types.
+        """
+        if self.is_privileged(request.user):
+            return True
+        return any(self.has_scope_type_permission(request.user, scope_type) for scope_type in obj["scope_types"])
 
 
 class PrivilegedWritePermission(UserScopesPermission):

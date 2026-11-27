@@ -2091,6 +2091,151 @@ class TestRoleListViewCreate(CustomRoleViewTestMixin):
 
 
 @ddt
+class TestRoleNameValidationView(CustomRoleViewTestMixin):
+    """Test suite for checking custom role names through RoleNameValidationView (ADR 0036)."""
+
+    def setUp(self):
+        """Point the client at the name check."""
+        super().setUp()
+        self.url = reverse("openedx_authz:role-name-validation")
+
+    def post_name(self, display_name) -> Response:
+        """Send a name check request for ``display_name``."""
+        return self.client.post(self.url, {"display_name": display_name}, format="json")
+
+    def create_role(self, display_name: str) -> None:
+        """Create a library custom role with the given name through the API."""
+        api.create_custom_role(display_name, "", "lib", [VIEW_LIBRARY.identifier])
+
+    def test_free_name_is_available(self):
+        """Test checking a name no role uses.
+
+        Expected result:
+            - Returns 200 OK with the name as sent, available, and no reason or message
+            - No role is created
+        """
+        response = self.post_name(" Library Designer ")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {"display_name": " Library Designer ", "available": True, "reason": None, "message": None},
+        )
+        self.assertFalse(AuthzRoleDefinition.objects.user_defined().exists())
+
+    def test_name_of_a_static_role_is_taken(self):
+        """Test checking the stored name of a static role with a different case.
+
+        Expected result:
+            - Returns 200 OK, not available, with the ``taken`` reason and a message naming the name
+        """
+        static_name = AuthzRoleDefinition.objects.get(role_id=LIBRARY_AUTHOR.external_key).display_name
+
+        response = self.post_name(static_name.upper())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["available"])
+        self.assertEqual(response.data["reason"], "taken")
+        self.assertIn(static_name.upper(), response.data["message"])
+
+    def test_name_of_a_custom_role_is_taken(self):
+        """Test checking the name of a custom role with a different case and surrounding spaces.
+
+        Expected result:
+            - Returns 200 OK, not available, with the ``taken`` reason
+        """
+        self.create_role("Library Designer")
+
+        response = self.post_name(" library designer ")
+
+        self.assertFalse(response.data["available"])
+        self.assertEqual(response.data["reason"], "taken")
+
+    def test_name_of_a_removed_role_is_available(self):
+        """Test checking the name of a removed custom role.
+
+        Expected result:
+            - The name is available again
+        """
+        self.create_role("Library Designer")
+        api.remove_custom_role("custom_library_designer")
+
+        response = self.post_name("Library Designer")
+
+        self.assertTrue(response.data["available"])
+        self.assertIsNone(response.data["reason"])
+
+    @data(
+        ("", "blank"),
+        ("   ", "blank"),
+        ("x" * 256, "longer than"),
+    )
+    @unpack
+    def test_invalid_name_is_not_available(self, display_name, expected_in_message):
+        """Test checking names that create would reject.
+
+        Expected result:
+            - Returns 200 OK, not available, with the ``invalid`` reason explaining the problem
+        """
+        response = self.post_name(display_name)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["available"])
+        self.assertEqual(response.data["reason"], "invalid")
+        self.assertIn(expected_in_message, response.data["message"])
+
+    @data({}, {"display_name": None}, {"display_name": ["Designer"]})
+    def test_malformed_request_is_rejected(self, body):
+        """Test requests without a usable ``display_name`` field.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the field
+        """
+        response = self.client.post(self.url, body, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("display_name", response.data)
+
+    @data("staff_only", "superuser_only")
+    def test_staff_and_superusers_can_check(self, username):
+        """Test that each privileged kind of user can check a name.
+
+        Expected result:
+            - Returns 200 OK with the answer for a staff user and for a superuser
+        """
+        self.client.force_authenticate(user=User.objects.get(username=username))
+
+        response = self.post_name("Library Designer")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["available"])
+
+    def test_team_admin_cannot_check(self):
+        """Test that a user who can list roles but not create them cannot check names.
+
+        Expected result:
+            - A library admin gets 403 FORBIDDEN
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        response = self.post_name("Library Designer")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_user_cannot_check(self):
+        """Test that an anonymous request is rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.post_name("Library Designer")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
 class TestRoleDetailViewUpdate(CustomRoleViewTestMixin):
     """Test suite for editing custom roles through RoleDetailView (ADR 0036)."""
 

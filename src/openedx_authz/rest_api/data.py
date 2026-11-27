@@ -64,6 +64,13 @@ class RoleRemovalAssignmentsAction(BaseEnum):
     REVOKE = "revoke"
 
 
+class RoleNameUnavailableReason(BaseEnum):
+    """Enum for why a new custom role cannot use a display name (ADR 0036)."""
+
+    TAKEN = "taken"
+    INVALID = "invalid"
+
+
 class SearchField(BaseEnum):
     """Enum for the fields allowed for text search filtering."""
 

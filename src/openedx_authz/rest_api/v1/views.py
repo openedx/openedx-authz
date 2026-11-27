@@ -28,7 +28,12 @@ from openedx_authz.authz import (
     VIEW_LIBRARY,
 )
 from openedx_authz.filters import PermissionValidationRequested, RoleAssignmentRequested, RoleRemovalRequested
-from openedx_authz.rest_api.data import RoleOperationError, RoleOperationStatus, RoleRemovalAssignmentsAction
+from openedx_authz.rest_api.data import (
+    RoleNameUnavailableReason,
+    RoleOperationError,
+    RoleOperationStatus,
+    RoleRemovalAssignmentsAction,
+)
 from openedx_authz.rest_api.decorators import authz_permissions, view_auth_classes
 from openedx_authz.rest_api.utils import filter_users, sort_users
 from openedx_authz.rest_api.v1.admin_console.filters import RoleOrderingFilter, RoleSearchFilter
@@ -52,6 +57,8 @@ from openedx_authz.rest_api.v1.serializers import (
     RoleCatalogMetaSerializer,
     RoleCatalogResponseSerializer,
     RoleCatalogRoleSerializer,
+    RoleNameValidationResponseSerializer,
+    RoleNameValidationSerializer,
     UpdateCustomRoleSerializer,
     UserRoleAssignmentSerializer,
     UserValidationAPIViewResponseSerializer,
@@ -723,6 +730,80 @@ class RoleDetailView(APIView):
         except api.CustomRoleHasAssignmentsError as exc:
             return Response(data={"message": str(exc)}, status=status.HTTP_409_CONFLICT)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@view_auth_classes()
+class RoleNameValidationView(APIView):
+    """API view for checking whether a new custom role can use a display name (ADR 0036).
+
+    Lets the create wizard report a taken or invalid name on its first step, before the
+    administrator picks permissions. The answer is not a reservation: another role can take the
+    name before the create request, which then returns 409.
+
+    **Endpoints**
+
+    - POST: Check one display name
+
+    **Request Body (POST)**
+
+    - display_name (Required): The name to check. It is compared like
+      ``POST /api/authz/v1/roles/`` compares it: without surrounding whitespace and ignoring case,
+      against every role that has not been removed, static or custom.
+
+    **Response Format (POST)**
+
+    Returns HTTP 200 OK with::
+
+        {
+            "display_name": "Library Designer",
+            "available": false,
+            "reason": "taken",
+            "message": "A role named 'Library Designer' already exists."
+        }
+
+    ``reason`` is ``taken`` when another role uses the name, ``invalid`` when the name is blank or
+    too long, and ``null`` when the name is available.
+
+    **Authentication and Permissions**
+
+    - Requires authenticated user.
+    - Requires a staff user or a superuser, as for creating a custom role.
+
+    **Example Request**
+
+    POST /api/authz/v1/roles/validate-name/ {"display_name": "Library Designer"}
+    """
+
+    permission_classes = [PrivilegedWritePermission]
+
+    @apidocs.schema(
+        body=RoleNameValidationSerializer,
+        responses={
+            status.HTTP_200_OK: RoleNameValidationResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: "The request data is invalid",
+            status.HTTP_401_UNAUTHORIZED: "The user is not authenticated",
+            status.HTTP_403_FORBIDDEN: "The user is neither staff nor a superuser",
+        },
+    )
+    def post(self, request: HttpRequest) -> Response:
+        """Report whether a new custom role can use the display name, and why not."""
+        serializer = RoleNameValidationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        display_name = serializer.validated_data["display_name"]
+        reason, message = None, None
+        try:
+            api.validate_custom_role_name(display_name)
+        except api.CustomRoleNameTakenError as exc:
+            reason, message = RoleNameUnavailableReason.TAKEN, str(exc)
+        except api.InvalidCustomRoleError as exc:
+            reason, message = RoleNameUnavailableReason.INVALID, str(exc)
+        response_data = {
+            "display_name": display_name,
+            "available": reason is None,
+            "reason": reason,
+            "message": message,
+        }
+        return Response(RoleNameValidationResponseSerializer(response_data).data, status=status.HTTP_200_OK)
 
 
 @view_auth_classes()

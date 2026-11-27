@@ -6,6 +6,7 @@ from rest_framework import serializers
 from openedx_authz import api
 from openedx_authz.api.data import GLOBAL_SCOPE_WILDCARD, DefinitionKind
 from openedx_authz.rest_api.data import (
+    RoleNameUnavailableReason,
     RoleRemovalAssignmentsAction,
     RoleSortField,
     ScopesTypeField,
@@ -279,6 +280,29 @@ class UpdateCustomRoleSerializer(serializers.Serializer):  # pylint: disable=abs
         if sent:
             raise serializers.ValidationError({field: "This field cannot be changed." for field in sent})
         return attrs
+
+
+class RoleNameValidationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for the request body that checks a custom role name (ADR 0036).
+
+    Blank values and surrounding whitespace are kept, so ``api.validate_custom_role_name`` decides
+    whether the name is usable and the answer matches what create would do.
+    """
+
+    display_name = serializers.CharField(allow_blank=True, trim_whitespace=False)
+
+
+class RoleNameValidationResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for whether a new custom role can use a display name, and why not."""
+
+    display_name = serializers.CharField(help_text="The name as it was sent")
+    available = serializers.BooleanField(help_text="Whether a new custom role can use the name")
+    reason = serializers.ChoiceField(
+        choices=RoleNameUnavailableReason.values(),
+        allow_null=True,
+        help_text="Why the name cannot be used, or null when it can",
+    )
+    message = serializers.CharField(allow_null=True, help_text="A description of the problem, or null")
 
 
 class RemoveCustomRoleQuerySerializer(serializers.Serializer):  # pylint: disable=abstract-method

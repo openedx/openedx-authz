@@ -1,7 +1,7 @@
-"""Errors raised by the custom role API (ADR 0035).
+"""Errors raised by the role catalog and the custom role API (ADR 0035).
 
-They live in their own module because both the custom role operations and the role assignment
-API raise them, and the custom role operations already depend on the assignment API.
+They live in their own module because the catalog, the custom role operations and the role
+assignment API raise them, and the custom role operations already depend on the assignment API.
 """
 
 __all__ = [
@@ -10,8 +10,13 @@ __all__ = [
     "CustomRoleNameTakenError",
     "CustomRoleNotFoundError",
     "InvalidCustomRoleError",
+    "RoleNotFoundError",
     "StaticRoleError",
 ]
+
+
+class RoleNotFoundError(Exception):
+    """No visible role, static or custom, has this ID."""
 
 
 class CustomRoleError(Exception):

@@ -3,8 +3,14 @@
 from django.test import TestCase
 from django.utils import timezone
 
-from openedx_authz.api.catalog import get_category_catalog, get_permission_catalog, get_role_catalog
+from openedx_authz.api.catalog import (
+    get_category_catalog,
+    get_permission_catalog,
+    get_role_catalog,
+    get_role_catalog_entry,
+)
 from openedx_authz.api.data import DefinitionKind
+from openedx_authz.api.exceptions import RoleNotFoundError
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
@@ -203,7 +209,9 @@ class TestGetRoleCatalog(CatalogTestCase):
 
         self.assertEqual(roles["custom_designer"]["definition_kind"], DefinitionKind.USER_DEFINED.value)
         self.assertEqual(roles["custom_designer"]["permissions"], ["courses.view_course"])
+        self.assertEqual(roles["custom_designer"]["updated_at"], custom.updated_at)
         self.assertEqual(roles["editor"]["definition_kind"], DefinitionKind.STATIC.value)
+        self.assertIsNone(roles["editor"]["updated_at"])
 
     def test_removed_custom_role_is_not_listed(self):
         """A removed custom role leaves the catalog even if a grant row were left behind."""
@@ -268,3 +276,69 @@ class TestGetRoleCatalog(CatalogTestCase):
             roles = get_role_catalog(["course-v1", "lib"])
 
         self.assertEqual(len(roles), 5)
+
+
+class TestGetRoleCatalogEntry(CatalogTestCase):
+    """Tests for get_role_catalog_entry."""
+
+    def test_matches_the_role_catalog_in_every_scope_type_of_the_role(self):
+        """The entry covers every scope type of the role, as the catalog does when asked for all of them."""
+        (expected,) = get_role_catalog(["course-v1", "lib"])
+
+        entry = get_role_catalog_entry("editor")
+
+        self.assertEqual(entry["scope_types"], ["course-v1", "lib"])
+        self.assertEqual(
+            entry["permissions"], ["common.manage_team", "content_libraries.view_library", "courses.view_course"]
+        )
+        self.assertEqual(entry, expected)
+
+    def test_custom_role_reports_its_last_change(self):
+        """A custom role's entry carries its kind and when it last changed."""
+        custom = AuthzRoleDefinition.objects.create(
+            role_id="custom_designer",
+            display_name="Designer",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+        )
+        AuthzRolePermission.objects.create(role=custom, permission=self.view_course, scope="course-v1")
+
+        entry = get_role_catalog_entry("custom_designer")
+
+        self.assertEqual(entry["definition_kind"], DefinitionKind.USER_DEFINED.value)
+        self.assertEqual(entry["permissions"], ["courses.view_course"])
+        self.assertEqual(entry["scope_types"], ["course-v1"])
+        self.assertEqual(entry["updated_at"], custom.updated_at)
+
+    def test_custom_role_without_grants_is_found_by_its_resource_type(self):
+        """A custom role that lost every grant is returned with no permissions and its stored resource type."""
+        AuthzRoleDefinition.objects.create(
+            role_id="custom_empty",
+            display_name="Empty",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+        )
+
+        entry = get_role_catalog_entry("custom_empty")
+
+        self.assertEqual(entry["permissions"], [])
+        self.assertEqual(entry["scope_types"], ["course-v1"])
+
+    def test_roles_left_out_of_the_catalog_are_not_found(self):
+        """Roles the catalog leaves out raise ``RoleNotFoundError``.
+
+        These are unknown, hidden and removed roles, and static roles with no grants, whether or not
+        they declare scope types.
+        """
+        AuthzRoleDefinition.objects.create(
+            role_id="custom_removed",
+            display_name="Removed",
+            scopes=["course-v1"],
+            definition_kind=DefinitionKind.USER_DEFINED.value,
+            removed_at=timezone.now(),
+        )
+        AuthzRoleDefinition.objects.create(role_id="course_reviewer", display_name="Reviewer", scopes=["course-v1"])
+
+        for role_id in ("unknown", "hidden_role", "custom_removed", "orphan", "course_reviewer"):
+            with self.subTest(role_id=role_id), self.assertRaises(RoleNotFoundError):
+                get_role_catalog_entry(role_id)

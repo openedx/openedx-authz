@@ -15,6 +15,8 @@ from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.fields import DateTimeField
+from rest_framework.response import Response
 
 from openedx_authz import api
 from openedx_authz.api.data import (
@@ -31,8 +33,10 @@ from openedx_authz.authz import (
     COURSE_AUDITOR,
     COURSE_EDITOR,
     COURSE_STAFF,
+    COURSES_LEGACY_BETA_TESTER_PERMISSIONS,
     COURSES_MANAGE_COURSE_TEAM,
     COURSES_VIEW_COURSE,
+    EDIT_LIBRARY_CONTENT,
     LIBRARY_ADMIN,
     LIBRARY_AUTHOR,
     LIBRARY_CONTRIBUTOR,
@@ -41,6 +45,7 @@ from openedx_authz.authz import (
     VIEW_LIBRARY,
 )
 from openedx_authz.engine.enforcer import AuthzEnforcer
+from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.models.schema import (
     AuthzPermissionCategory,
     AuthzPermissionDefinition,
@@ -1835,6 +1840,262 @@ class TestRoleListView(ViewTestMixin):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class TestRoleListViewCreate(ViewTestMixin):
+    """Test suite for creating custom roles through RoleListView (ADR 0036)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Store the built-in definitions, so the requests use real permissions, and create staff users."""
+        super().setUpTestData()
+        SchemaPipeline().apply()
+        User.objects.create(username="staff_only", email="staff_only@example.com", is_staff=True)
+        User.objects.create(username="superuser_only", email="superuser_only@example.com", is_superuser=True)
+
+    def setUp(self):
+        """Point the client at the role list."""
+        super().setUp()
+        self.url = reverse("openedx_authz:role-list")
+
+    @staticmethod
+    def role_body(**overrides) -> dict:
+        """Return the body of a valid library role request, with any field replaced by ``overrides``."""
+        body = {
+            "display_name": "Library Designer",
+            "description": "Designs libraries",
+            "scope_types": ["lib"],
+            "permissions": [VIEW_LIBRARY.identifier, EDIT_LIBRARY_CONTENT.identifier],
+        }
+        body.update(overrides)
+        return body
+
+    def post_role(self, **overrides) -> Response:
+        """Send a create request built by ``role_body``."""
+        return self.client.post(self.url, self.role_body(**overrides), format="json")
+
+    def assert_no_custom_role_created(self):
+        """Fail if a rejected request left a custom role behind."""
+        self.assertFalse(AuthzRoleDefinition.objects.user_defined().exists())
+
+    def test_create_returns_the_new_role(self):
+        """Test creating a custom role.
+
+        Expected result:
+            - Returns 201 CREATED with the role in the format of a role list item
+            - The role ID is derived from the name and the role is stored as user defined
+        """
+        response = self.post_role()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        stored = AuthzRoleDefinition.objects.get(role_id="custom_library_designer")
+        self.assertEqual(stored.definition_kind, DefinitionKind.USER_DEFINED.value)
+        self.assertEqual(
+            response.data,
+            {
+                "role": "custom_library_designer",
+                "display_name": "Library Designer",
+                "description": "Designs libraries",
+                "icon": None,
+                "definition_kind": DefinitionKind.USER_DEFINED.value,
+                "permissions": sorted([VIEW_LIBRARY.identifier, EDIT_LIBRARY_CONTENT.identifier]),
+                "scope_types": ["lib"],
+                "user_count": 0,
+                "updated_at": DateTimeField().to_representation(stored.updated_at),
+            },
+        )
+
+    def test_new_role_grants_its_permissions(self):
+        """Test that the new role grants access once assigned.
+
+        Expected result:
+            - A user given the new role in a library holds its permissions there, and no others
+        """
+        response = self.post_role(permissions=[VIEW_LIBRARY.identifier])
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        assign_role_to_user_in_scope("regular_10", "custom_library_designer", LIB_SCOPE_ORG1)
+
+        self.assertTrue(api.is_user_allowed("regular_10", VIEW_LIBRARY.identifier, LIB_SCOPE_ORG1))
+        self.assertFalse(api.is_user_allowed("regular_10", EDIT_LIBRARY_CONTENT.identifier, LIB_SCOPE_ORG1))
+
+    def test_new_role_is_listed(self):
+        """Test that the new role appears in the role list.
+
+        Expected result:
+            - The role list filtered to user defined roles returns the new role
+        """
+        self.post_role()
+
+        response = self.client.get(self.url, {"scope_types": "lib", "definition_kind": "user_defined"})
+
+        self.assertEqual([role["role"] for role in response.data["results"]], ["custom_library_designer"])
+
+    def test_text_is_trimmed(self):
+        """Test that surrounding whitespace is dropped and a missing description is empty.
+
+        Expected result:
+            - The display name is stored without its surrounding spaces
+            - The description defaults to empty
+        """
+        body = self.role_body(display_name=" Library Designer ")
+        del body["description"]
+
+        response = self.client.post(self.url, body, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["display_name"], "Library Designer")
+        self.assertEqual(
+            AuthzRoleDefinition.objects.get(role_id="custom_library_designer").display_name, "Library Designer"
+        )
+        self.assertEqual(response.data["description"], "")
+
+    @data("staff_only", "superuser_only")
+    def test_staff_and_superusers_can_create(self, username):
+        """Test that each privileged kind of user can create a role.
+
+        Expected result:
+            - Returns 201 CREATED for a staff user and for a superuser
+        """
+        self.client.force_authenticate(user=User.objects.get(username=username))
+
+        response = self.post_role()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_team_admin_cannot_create(self):
+        """Test that a user who can read the role list cannot create roles.
+
+        Expected result:
+            - A library admin can list library roles but gets 403 FORBIDDEN on create
+            - No role is created
+        """
+        self.client.force_authenticate(user=User.objects.get(username="regular_5"))
+
+        list_response = self.client.get(self.url, {"scope_types": "lib"})
+        response = self.client.post(f"{self.url}?scope_types=lib", self.role_body(), format="json")
+
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assert_no_custom_role_created()
+
+    def test_unauthenticated_user_cannot_create(self):
+        """Test that an anonymous request is rejected.
+
+        Expected result:
+            - Returns 401 UNAUTHORIZED and no role is created
+        """
+        self.client.force_authenticate(user=None)
+
+        response = self.post_role()
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assert_no_custom_role_created()
+
+    @data(
+        ({"display_name": None}, "display_name"),
+        ({"display_name": "   "}, "display_name"),
+        ({"scope_types": []}, "scope_types"),
+        ({"scope_types": ["lib", "course-v1"]}, "scope_types"),
+        ({"scope_types": ["org"]}, "scope_types"),
+        ({"scope_types": "lib"}, "scope_types"),
+        ({"permissions": None}, "permissions"),
+        ({"permissions": VIEW_LIBRARY.identifier}, "permissions"),
+    )
+    @unpack
+    def test_malformed_request_is_rejected(self, overrides, field):
+        """Test requests whose fields have the wrong shape.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the field, and no role is created
+        """
+        response = self.post_role(**overrides)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(field, response.data)
+        self.assert_no_custom_role_created()
+
+    @data("display_name", "scope_types", "permissions")
+    def test_missing_required_field_is_rejected(self, field):
+        """Test requests that leave out a required field.
+
+        Expected result:
+            - Returns 400 BAD REQUEST naming the field, and no role is created
+        """
+        body = self.role_body()
+        del body[field]
+
+        response = self.client.post(self.url, body, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(field, response.data)
+        self.assert_no_custom_role_created()
+
+    @data(
+        ({"permissions": []}, "at least one permission"),
+        ({"permissions": ["courses.does_not_exist"]}, "courses.does_not_exist"),
+        (
+            {"permissions": [COURSES_LEGACY_BETA_TESTER_PERMISSIONS.identifier]},
+            COURSES_LEGACY_BETA_TESTER_PERMISSIONS.identifier,
+        ),
+        ({"permissions": [COURSES_VIEW_COURSE.identifier]}, COURSES_VIEW_COURSE.identifier),
+    )
+    @unpack
+    def test_invalid_role_is_rejected(self, overrides, expected_in_message):
+        """Test requests that cannot make a valid custom role.
+
+        Expected result:
+            - Returns 400 BAD REQUEST explaining the problem, and no role is created
+        """
+        response = self.post_role(**overrides)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(expected_in_message, response.data["message"])
+        self.assert_no_custom_role_created()
+
+    def test_name_of_a_static_role_is_taken(self):
+        """Test reusing the stored name of a static role with a different case.
+
+        Expected result:
+            - Returns 409 CONFLICT and no role is created
+        """
+        static_name = AuthzRoleDefinition.objects.get(role_id=LIBRARY_AUTHOR.external_key).display_name
+
+        response = self.post_role(display_name=static_name.upper())
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assert_no_custom_role_created()
+
+    def test_name_of_a_custom_role_is_taken(self):
+        """Test reusing the name of another custom role with a different case and surrounding spaces.
+
+        Expected result:
+            - Returns 409 CONFLICT and only the first role exists
+        """
+        self.post_role()
+
+        response = self.post_role(display_name=" library designer ")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            list(AuthzRoleDefinition.objects.user_defined().values_list("role_id", flat=True)),
+            ["custom_library_designer"],
+        )
+
+    def test_name_of_a_removed_role_can_be_reused(self):
+        """Test creating a role with the name of a removed one.
+
+        Expected result:
+            - Returns 201 CREATED with a new role ID, since removed IDs stay reserved
+        """
+        self.post_role()
+        api.remove_custom_role("custom_library_designer")
+
+        response = self.post_role()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["role"], "custom_library_designer_2")
 
 
 class TestArbitraryRoleSupport(ViewTestMixin):

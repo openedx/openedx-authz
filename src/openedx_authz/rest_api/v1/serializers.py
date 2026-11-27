@@ -232,6 +232,24 @@ class ListRolesQuerySerializer(serializers.Serializer):  # pylint: disable=abstr
         return scope_types
 
 
+class CreateCustomRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for the request body that creates a custom role (ADR 0036).
+
+    Only the shape of the request is checked here, along with a name that is not blank once
+    trimmed. The name, the permissions and their support for the resource type are validated by
+    ``api.create_custom_role``, so the rules live in one place.
+    """
+
+    display_name = serializers.CharField()
+    description = serializers.CharField(required=False, default="", allow_blank=True)
+    scope_types = serializers.ListField(
+        child=serializers.ChoiceField(choices=ScopesTypeField.values()),
+        min_length=1,
+        max_length=1,
+    )
+    permissions = serializers.ListField(child=serializers.CharField())
+
+
 class RoleCatalogCategorySerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """A permission category of the role catalog."""
 

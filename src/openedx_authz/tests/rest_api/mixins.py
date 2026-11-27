@@ -9,6 +9,7 @@ from openedx_authz.authz import (
     LIBRARY_AUTHOR,
     LIBRARY_USER,
 )
+from openedx_authz.engine.schema.pipeline import SchemaPipeline
 from openedx_authz.tests.api.test_roles import BaseRolesTestCase
 
 User = get_user_model()
@@ -150,3 +151,25 @@ class ViewTestMixin(BaseRolesTestCase):
         self.admin_user = User.objects.get(username="admin_1")
         self.regular_user = User.objects.get(username="regular_1")
         self.client.force_authenticate(user=self.admin_user)
+
+
+class CustomRoleViewTestMixin(ViewTestMixin):
+    """Mixin for the custom role endpoint tests, which need stored definitions and privileged users.
+
+    The built-in definitions are stored so requests use real permissions. ``staff_only`` and
+    ``superuser_only`` each have one of the two flags that allow writes, unlike the admin users,
+    which have both.
+    """
+
+    @classmethod
+    def create_privileged_users(cls):
+        """Create a user that is only staff and a user that is only a superuser."""
+        User.objects.create(username="staff_only", email="staff_only@example.com", is_staff=True)
+        User.objects.create(username="superuser_only", email="superuser_only@example.com", is_superuser=True)
+
+    @classmethod
+    def setUpTestData(cls):
+        """Store the built-in definitions and create the privileged users."""
+        super().setUpTestData()
+        SchemaPipeline().apply()
+        cls.create_privileged_users()
